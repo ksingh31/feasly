@@ -77,7 +77,7 @@
   @if (hasFailedCharge()) {
     <div class="builder-shell__danger" role="alert">
       <span>{{ copy.shellFailedCardMessage }}</span>
-      <a routerLink="/builder/billing">{{ copy.shellFailedCardCta }}</a>
+      <button type="button" class="builder-shell__danger-action" (click)="openCard()">{{ copy.shellFailedCardCta }}</button>
     </div>
   }
 

@@ -20,7 +20,7 @@ import type {
   BuilderUpdateBody,
 } from '@feasly/contracts';
 import type { AppDb } from '../db/client';
-import { builders, leads } from '../db/schema';
+import { builders, leads, tenants } from '../db/schema';
 import { ErrorCodes, HttpError } from '../middleware/errors';
 import { isUniqueViolation } from './pg-errors';
 import { readDefaultPaymentMethod } from '../lib/payment-method';
@@ -116,6 +116,40 @@ function toContract(row: BuilderRow): Builder {
   };
 }
 
+/**
+ * Mirror a `builders` row into the legacy `tenants` table (#710).
+ *
+ * Sign-in sessions, the portal allowlist, commission invoices, disputes and
+ * the Stripe customer id all hang off `tenants.tenant_key` by foreign key,
+ * so a builder without a tenants row cannot sign in, save a card or be
+ * invoiced. `builders` is the source of truth: every create/update upserts
+ * the shared fields here. `stripe_customer_id` is owned by StripeService and
+ * is deliberately never written (an existing id survives every sync).
+ *
+ * `tenants` columns are NOT NULL where `builders` allows null; '' matches
+ * the embed config's own null fallback (builder-config.service.ts).
+ */
+async function syncTenantRow(
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  tx: any,
+  row: BuilderRow,
+): Promise<void> {
+  const shared = {
+    businessName: row.businessName,
+    displayName: row.displayName,
+    logoUrl: row.logoUrl ?? '',
+    accentColor: row.accentColor ?? '',
+    allowedOrigins: [...row.allowedOrigins],
+    fallbackPhone: row.phone ?? '',
+    fallbackEmail: row.email ?? '',
+    plan: row.plan,
+  };
+  await tx
+    .insert(tenants)
+    .values({ tenantKey: row.tenantKey, ...shared })
+    .onConflictDoUpdate({ target: tenants.tenantKey, set: shared });
+}
+
 function normalizeOrigins(origins: readonly string[] | undefined): string[] {
   if (origins === undefined) return [];
   return origins.map((o) => o.trim()).filter((o) => o.length > 0);
@@ -184,26 +218,34 @@ export function createBuilderService(deps: BuilderServiceDeps): BuilderService {
       const commissionRatePercent =
         parseCommissionRatePercent(input.commissionRatePercent) ??
         DEFAULT_COMMISSION_RATE_PERCENT;
-      let row;
+      let row: BuilderRow | undefined;
       try {
-        [row] = await db
-          .insert(builders)
-          .values({
-            id: randomUUID(),
-            tenantKey: input.tenantKey.trim(),
-            businessName: input.businessName.trim(),
-            displayName: input.displayName.trim(),
-            email: input.email?.trim() || null,
-            phone: input.phone?.trim() || null,
-            logoUrl: input.logoUrl?.trim() || null,
-            accentColor: input.accentColor?.trim() || null,
-            allowedOrigins: normalizeOrigins(input.allowedOrigins),
-            plan: input.plan?.trim() || null,
-            status,
-            settings: { ...(input.settings ?? {}) },
-            commissionRatePercent,
-          })
-          .returning();
+        // One transaction: a builder is never left without its tenants
+        // row (#710) — either both rows land or neither does.
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        row = await db.transaction(async (tx: any) => {
+          const [inserted] = await tx
+            .insert(builders)
+            .values({
+              id: randomUUID(),
+              tenantKey: input.tenantKey.trim(),
+              businessName: input.businessName.trim(),
+              displayName: input.displayName.trim(),
+              email: input.email?.trim() || null,
+              phone: input.phone?.trim() || null,
+              logoUrl: input.logoUrl?.trim() || null,
+              accentColor: input.accentColor?.trim() || null,
+              allowedOrigins: normalizeOrigins(input.allowedOrigins),
+              plan: input.plan?.trim() || null,
+              status,
+              settings: { ...(input.settings ?? {}) },
+              commissionRatePercent,
+            })
+            .returning();
+          if (!inserted) throw new Error('builder insert returned no row');
+          await syncTenantRow(tx, inserted as BuilderRow);
+          return inserted as BuilderRow;
+        });
       } catch (error) {
         if (isUniqueViolation(error)) {
           throw new HttpError(
@@ -277,11 +319,21 @@ export function createBuilderService(deps: BuilderServiceDeps): BuilderService {
           defaultPaymentMethod: input.defaultPaymentMethod,
         };
       }
-      const [row] = await db
-        .update(builders)
-        .set(patch)
-        .where(eq(builders.id, current.id))
-        .returning();
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const row: BuilderRow = await db.transaction(async (tx: any) => {
+        const [updated] = await tx
+          .update(builders)
+          .set(patch)
+          .where(eq(builders.id, current.id))
+          .returning();
+        if (!updated) {
+          throw new HttpError(404, ErrorCodes.NOT_FOUND, 'Builder not found.', false);
+        }
+        // Keep the shared tenants fields in sync (and create the row for a
+        // builder that predates #710 and has not been backfilled yet).
+        await syncTenantRow(tx, updated as BuilderRow);
+        return updated as BuilderRow;
+      });
       await audit.log({
         actorEmail: adminEmail,
         action: 'admin_builder_updated',

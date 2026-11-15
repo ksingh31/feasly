@@ -149,6 +149,7 @@ export interface StripeService {
    */
   verifyWebhook(rawBody: Buffer, signature: string): NormalizedStripeEvent;
   /** Persist the Stripe customer id on the tenant row. */
+  /** Throws when no tenants row matches — never a silent no-op (#710). */
   saveCustomerId(tenantKey: string, customerId: string): Promise<void>;
   getCustomerId(tenantKey: string): Promise<string | null>;
   /** Reverse lookup: which tenant owns this Stripe customer id. */
@@ -374,10 +375,19 @@ export function createStripeService(deps: StripeServiceDeps): StripeService {
     },
 
     async saveCustomerId(tenantKey: string, customerId: string): Promise<void> {
-      await db
+      // Fail loudly (#710): an UPDATE matching zero rows used to report
+      // success, so a Stripe customer was created on every card-setup
+      // attempt but never remembered.
+      const updated = await db
         .update(tenants)
         .set({ stripeCustomerId: customerId })
-        .where(eq(tenants.tenantKey, tenantKey));
+        .where(eq(tenants.tenantKey, tenantKey))
+        .returning({ tenantKey: tenants.tenantKey });
+      if (updated.length === 0) {
+        throw new Error(
+          `saveCustomerId: no tenants row for tenant "${tenantKey}" — Stripe customer ${customerId} was not persisted`,
+        );
+      }
     },
 
     async getCustomerId(tenantKey: string): Promise<string | null> {

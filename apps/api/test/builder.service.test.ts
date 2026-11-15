@@ -50,7 +50,9 @@ function makeDb(opts: {
   readonly insertBehavior?: 'ok' | 'unique-violation' | 'other-error';
 }) {
   const insertCalls: unknown[] = [];
-  const db = {
+  const tenantUpserts: { values: unknown; set: unknown }[] = [];
+  const db: Record<string, unknown> = {
+    transaction: vi.fn(async (fn: (tx: unknown) => unknown) => fn(db)),
     query: {
       builders: {
         findFirst: vi.fn(async () => opts.findFirst),
@@ -60,6 +62,9 @@ function makeDb(opts: {
       values: vi.fn((values: unknown) => {
         insertCalls.push(values);
         return {
+          onConflictDoUpdate: vi.fn(async (cfg: { set: unknown }) => {
+            tenantUpserts.push({ values, set: cfg.set });
+          }),
           returning: vi.fn(async () => {
             if (opts.insertBehavior === 'unique-violation') {
               throw wrappedUniqueViolation();
@@ -73,7 +78,24 @@ function makeDb(opts: {
       }),
     })),
   };
-  return { db: db as unknown as AppDb, insertCalls };
+  return { db: db as unknown as AppDb, insertCalls, tenantUpserts };
+}
+
+/**
+ * Give an update-path fake the transaction + tenants-upsert surface the
+ * service now uses (#710). Returns the captured tenants upserts.
+ */
+function withTx(db: Record<string, unknown>): { values: unknown; set: unknown }[] {
+  const upserts: { values: unknown; set: unknown }[] = [];
+  db['transaction'] = vi.fn(async (fn: (tx: unknown) => unknown) => fn(db));
+  db['insert'] = vi.fn(() => ({
+    values: vi.fn((values: unknown) => ({
+      onConflictDoUpdate: vi.fn(async (cfg: { set: unknown }) => {
+        upserts.push({ values, set: cfg.set });
+      }),
+    })),
+  }));
+  return upserts;
 }
 
 function makeDeps(db: AppDb) {
@@ -217,8 +239,9 @@ describe('BuilderService commission rate (billing/08)', () => {
           };
         }),
       })),
-    } as unknown as AppDb;
-    const { service, audit } = makeDeps(db);
+    } as Record<string, unknown>;
+    withTx(db);
+    const { service, audit } = makeDeps(db as unknown as AppDb);
 
     const builder = await service.updateBuilder(current.id, { commissionRatePercent: 2 }, 'admin@example.com');
     expect(updateCalls[0]).toMatchObject({ commissionRatePercent: 2 });
@@ -244,8 +267,9 @@ describe('BuilderService commission rate (billing/08)', () => {
           })),
         })),
       })),
-    } as unknown as AppDb;
-    const { service, audit } = makeDeps(db);
+    } as Record<string, unknown>;
+    withTx(db);
+    const { service, audit } = makeDeps(db as unknown as AppDb);
 
     await service.updateBuilder(current.id, { commissionRatePercent: 1 }, 'admin@example.com');
     const rateAudits = (audit.log as ReturnType<typeof vi.fn>).mock.calls.filter(
@@ -273,8 +297,9 @@ describe('BuilderService.updateBuilder defaultPaymentMethod', () => {
           };
         }),
       })),
-    } as unknown as AppDb;
-    return { db, updateCalls };
+    } as Record<string, unknown>;
+    withTx(db);
+    return { db: db as unknown as AppDb, updateCalls };
   }
 
   it('merges the default method into settings and audits old->new', async () => {
@@ -344,5 +369,72 @@ describe('BuilderService.updateBuilder defaultPaymentMethod', () => {
     );
     expect(methodAudits).toHaveLength(0);
     expect(updateCalls[0]).not.toHaveProperty('settings');
+  });
+});
+
+describe('BuilderService tenants row sync (#710)', () => {
+  it('create upserts the matching tenants row in the same transaction', async () => {
+    const { db, tenantUpserts } = makeDb({ findFirst: undefined, insertBehavior: 'ok' });
+    const { service } = makeDeps(db);
+
+    await service.createBuilder(INPUT, 'admin@example.com');
+    expect((db as unknown as { transaction: ReturnType<typeof vi.fn> }).transaction).toHaveBeenCalledTimes(1);
+    expect(tenantUpserts).toHaveLength(1);
+    expect(tenantUpserts[0]!.values).toMatchObject({
+      tenantKey: 'new-builder',
+      businessName: 'Elite Craft Builders Ltd.',
+      // NOT NULL tenants columns get '' for null builder fields.
+      logoUrl: '',
+      accentColor: '',
+      fallbackPhone: '',
+      fallbackEmail: '',
+      allowedOrigins: [],
+    });
+    // The Stripe customer id is never overwritten by a sync.
+    expect(tenantUpserts[0]!.set).not.toHaveProperty('stripeCustomerId');
+    expect(tenantUpserts[0]!.set).not.toHaveProperty('tenantKey');
+  });
+
+  it('no tenants row is written when the builder insert fails', async () => {
+    const { db, tenantUpserts } = makeDb({ findFirst: undefined, insertBehavior: 'other-error' });
+    const { service } = makeDeps(db);
+
+    await expect(service.createBuilder(INPUT, 'admin@example.com')).rejects.toThrow();
+    expect(tenantUpserts).toHaveLength(0);
+  });
+
+  it('update re-syncs the shared tenants fields from the updated row', async () => {
+    const current = makeRow();
+    const updated = makeRow({
+      displayName: 'Renamed',
+      email: 'ops@example.com',
+      phone: '403-555-0100',
+      accentColor: '#112233',
+      allowedOrigins: ['https://renamed.example.com'],
+      plan: 'commission',
+    });
+    const db = {
+      query: { builders: { findFirst: vi.fn(async () => current) } },
+      update: vi.fn(() => ({
+        set: vi.fn(() => ({
+          where: vi.fn(() => ({ returning: vi.fn(async () => [updated]) })),
+        })),
+      })),
+    } as Record<string, unknown>;
+    const upserts = withTx(db);
+    const { service } = makeDeps(db as unknown as AppDb);
+
+    await service.updateBuilder(current.id, { displayName: 'Renamed' }, 'admin@example.com');
+    expect(upserts).toHaveLength(1);
+    expect(upserts[0]!.set).toEqual({
+      businessName: 'Elite Craft Builders Ltd.',
+      displayName: 'Renamed',
+      logoUrl: '',
+      accentColor: '#112233',
+      allowedOrigins: ['https://renamed.example.com'],
+      fallbackPhone: '403-555-0100',
+      fallbackEmail: 'ops@example.com',
+      plan: 'commission',
+    });
   });
 });

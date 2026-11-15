@@ -113,7 +113,7 @@
       <h3 id="invoice-drawer-actions" class="invoice-drawer__heading">{{ t.actionsHeading }}</h3>
       <div class="invoice-drawer__actions">
         @if (inv.status === 'failed') {
-          <a ui-button routerLink="/builder/billing" data-testid="invoice-update-card">{{ copy.invoicesUpdateCardCta }}</a>
+          <button ui-button type="button" data-testid="invoice-update-card" (click)="openCard()">{{ copy.invoicesUpdateCardCta }}</button>
         }
         <button
           type="button"

@@ -2,11 +2,11 @@
  * Builder billing component tests (billing/02, BILL-02).
  *
  * Verifies: the card-status rendering (no card / card on file / load
- * error), the unavailable notice when no publishable key is configured,
- * and the SetupIntent request when the card form is opened.
+ * error), no outage note when no publishable key is configured, and the
+ * card modal (#534) opening from Add/Update card.
  *
- * Stripe.js itself is not exercised — `loadStripe` is stubbed at the
- * module boundary so no network call fires in tests.
+ * Stripe.js lives in the card modal (builder-card-modal.component.spec.ts);
+ * this page only opens it.
  */
 import { provideHttpClient } from '@angular/common/http';
 import {
@@ -19,11 +19,9 @@ import { provideStore, Store } from '@ngxs/store';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { CardOnFileStatus } from '@feasly/contracts';
 
-vi.mock('@stripe/stripe-js', () => ({
-  loadStripe: vi.fn().mockResolvedValue(null),
-}));
-
+import { UiModalService } from '@app/shared/ui';
 import { BuilderBillingComponent } from './builder-billing.component';
+import { BuilderCardModalComponent } from './builder-card-modal.component';
 import { BUILDER_COPY } from './builder-copy';
 import { DEFAULT_BUILDER_COPY } from './builder-copy.defaults';
 import { BuilderBillingState } from './builder-billing.state';
@@ -189,13 +187,13 @@ describe('BuilderBillingComponent (billing/02)', () => {
     expect(text).toContain('No card on file.');
   });
 
-  it('fail-closes with the unavailable notice when no publishable key is configured', async () => {
+  it('never shows an outage note next to a working card when no publishable key is configured (#534 / B5)', async () => {
     TestBed.resetTestingModule();
     // No publishable key: the compiled default ('') applies.
     TestBed.configureTestingModule({
       imports: [BuilderBillingComponent],
       providers: [
-      { provide: BUILDER_COPY, useValue: DEFAULT_BUILDER_COPY },
+        { provide: BUILDER_COPY, useValue: DEFAULT_BUILDER_COPY },
         provideRouter([]),
         provideHttpClient(),
         provideHttpClientTesting(),
@@ -206,13 +204,35 @@ describe('BuilderBillingComponent (billing/02)', () => {
       TestBed.createComponent(BuilderBillingComponent);
     const httpMock = TestBed.inject(HttpTestingController);
     fixture.detectChanges();
-    httpMock.expectOne((r) => r.url.endsWith('/api/v1/billing/card')).flush(NO_CARD);
+    httpMock.expectOne((r) => r.url.endsWith('/api/v1/billing/card')).flush(CARD_ON_FILE);
     fixture.detectChanges();
     await fixture.whenStable();
 
     const text = fixture.nativeElement.textContent as string;
-    expect(text).toContain('Card setup isn’t available yet');
-    expect(text).not.toContain('Add card');
+    expect(text).not.toMatch(/isn’t available/);
+    expect(text).toContain('Update card');
+  });
+
+  it('opens the card modal from Update card instead of appending a form (#534)', async () => {
+    const { fixture, httpMock } = await setup();
+    httpMock.expectOne((r) => r.url.endsWith('/api/v1/billing/card')).flush(CARD_ON_FILE);
+    fixture.detectChanges();
+    await fixture.whenStable();
+
+    const open = vi.spyOn(TestBed.inject(UiModalService), 'open').mockReturnValue({} as never);
+    const btn = Array.from(
+      fixture.nativeElement.querySelectorAll('button') as NodeListOf<HTMLButtonElement>,
+    ).find((b) => b.textContent?.includes('Update card'))!;
+    btn.click();
+    fixture.detectChanges();
+
+    expect(open).toHaveBeenCalledWith(
+      BuilderCardModalComponent,
+      expect.objectContaining({ data: { card: CARD_ON_FILE } }),
+    );
+    expect(fixture.nativeElement.querySelector('.builder-billing__stripe-element')).toBeNull();
+    // Opening the modal never requests a SetupIntent from the page itself.
+    httpMock.expectNone((r) => r.url.endsWith('/setup-intent'));
   });
 
   it('renders the default payment method panel with all four options (billing/12)', async () => {

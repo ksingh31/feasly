@@ -27,6 +27,8 @@ import {
   LogoutBuilder,
 } from './builder.actions';
 import { BuilderState } from './builder.state';
+import { BuilderBillingState } from './builder-billing.state';
+import { injectCardModal } from './builder-card-modal.component';
 import { LoadActionableInvoices } from './builder-invoices.actions';
 import { BuilderInvoicesState } from './builder-invoices.state';
 
@@ -108,6 +110,13 @@ export class BuilderShellComponent {
   private readonly actionableStatus = this.store.selectSignal(
     BuilderInvoicesState.actionableStatus,
   );
+
+  /** Failed-card strip CTA: the shared card modal (#534), on any page. */
+  private readonly openCardModal = injectCardModal();
+
+  protected openCard(): void {
+    this.openCardModal(this.store.selectSnapshot(BuilderBillingState.card) ?? undefined);
+  }
 
   /**
    * Failed-card danger strip: shown on every shell page while any of the

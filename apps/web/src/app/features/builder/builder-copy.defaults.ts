@@ -119,8 +119,6 @@ export const DEFAULT_BUILDER_COPY: BuilderCopy = {
   billingCardSaved: `Card saved. ${CHARGE_TIMING_COPY}`,
   billingSaveFailed:
     'We couldn’t save your card. Check the details and try again.',
-  billingUnavailable:
-    'Card setup isn’t available yet — please contact us to arrange billing.',
   billingCancel: 'Cancel',
   billingExplainer: `When you record a signed contract, Feasly creates a commission invoice for your agreed rate on the signed contract value, excluding land. ${CHARGE_TIMING_COPY}`,
   billingDefaultMethodTitle: 'Default payment method',
@@ -601,9 +599,22 @@ export const DEFAULT_BUILDER_COPY: BuilderCopy = {
   moneyCardHeading: 'Card on file',
   moneyCardExpires: 'Expires {exp}',
   moneyCardNone: 'No card on file yet.',
-  moneyCardManage: 'Manage card',
+  moneyCardManage: 'Update card',
   moneyCardAdd: 'Add a card',
   moneyCardFlat: 'Your card is managed with your subscription.',
   moneyHowHeading: 'How charges work',
   moneyQuestionInvoice: 'Question an invoice',
+  cardModalTitleUpdate: 'Update your card',
+  cardModalTitleAdd: 'Add a card',
+  cardModalCurrent: 'Replacing {card}.',
+  cardModalLoading: 'Loading the card form…',
+  cardModalLoadError: 'We couldn’t open the card form. Please try again.',
+  cardModalReassurance:
+    'Your card details go straight to Stripe, our payment processor. Feasly never sees or stores your full card number.',
+  cardModalUnavailableWithCard:
+    'Changing your card online isn’t switched on for your account. Contact us and we’ll update it with you.',
+  cardModalUnavailableNoCard:
+    'Adding a card online isn’t switched on for your account. Contact us and we’ll set up billing with you.',
+  cardModalContact: 'Contact Feasly',
+  cardModalClose: 'Close',
 };

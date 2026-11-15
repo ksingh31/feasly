@@ -389,7 +389,12 @@ describe('ScopePageComponent', () => {
       const input = root.querySelector<HTMLInputElement>('.wl-input')!;
       input.value = 'reno@example.com';
       input.dispatchEvent(new Event('input'));
+      fixture.detectChanges();
+      // #740: submit stays disabled until consent is ticked.
+      expect(root.querySelector<HTMLButtonElement>('.wl-submit')!.disabled).toBe(true);
       root.querySelector<HTMLInputElement>('.wl-consent input[type="checkbox"]')!.click();
+      fixture.detectChanges();
+      expect(root.querySelector<HTMLButtonElement>('.wl-submit')!.disabled).toBe(false);
       root.querySelector<HTMLButtonElement>('.wl-submit')!.click();
       fixture.detectChanges();
       expect(joinWaitlist).toHaveBeenCalledWith({

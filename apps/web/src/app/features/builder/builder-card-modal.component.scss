@@ -1,0 +1,96 @@
+// Card modal (#534). Tokens only — the Stripe Element inside mirrors the same
+// tokens via stripeCardStyle().
+
+.card-modal__current {
+  margin: 0 0 var(--space-4);
+  font: var(--type-body-sm);
+  color: var(--muted);
+}
+
+.card-modal__label {
+  margin: 0 0 var(--space-2);
+  font: var(--type-label);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--muted);
+}
+
+.card-modal__element {
+  min-height: 44px;
+  padding: var(--space-3);
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  transition: box-shadow 0.15s ease, border-color 0.15s ease;
+
+  // Stripe toggles these classes on the mount node.
+  &.StripeElement--focus {
+    border-color: var(--accent);
+    box-shadow: 0 0 0 3px var(--focus-ring);
+  }
+
+  &.StripeElement--invalid {
+    border-color: var(--danger);
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    transition: none;
+  }
+}
+
+.card-modal__loading,
+.card-modal__note {
+  margin: 0;
+  font: var(--type-body);
+  color: var(--text);
+}
+
+.card-modal__link {
+  display: inline-flex;
+  align-items: center;
+  min-height: 44px;
+  margin-top: var(--space-2);
+  font: var(--type-body);
+  font-weight: 600;
+  color: var(--accent-text);
+}
+
+.card-modal__inline-error {
+  margin: var(--space-2) 0 0;
+  font: var(--type-body-sm);
+  color: var(--status-danger-fg);
+
+  &:empty {
+    margin: 0;
+  }
+}
+
+.card-modal__alert {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-3);
+  margin: var(--space-3) 0 0;
+  padding: var(--space-3);
+  font: var(--type-body-sm);
+  color: var(--status-danger-fg);
+  background: var(--status-danger-bg);
+  border-radius: var(--radius-sm);
+
+  p {
+    margin: 0;
+  }
+}
+
+.card-modal__reassure {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  margin-top: var(--space-4);
+  font: var(--type-body-sm);
+  color: var(--muted);
+
+  p {
+    margin: 0;
+  }
+}

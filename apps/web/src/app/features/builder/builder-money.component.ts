@@ -31,6 +31,7 @@ import { BuilderBillingState } from './builder-billing.state';
 import { LoadInvoices } from './builder-invoices.actions';
 import { BuilderInvoicesState } from './builder-invoices.state';
 import type { BuilderCommissionInvoice } from './builder-invoices-api.service';
+import { injectCardModal } from './builder-card-modal.component';
 
 /** One KPI tile, display-ready (all figures formatted from API cents). */
 export interface MoneyKpi {
@@ -49,7 +50,7 @@ export interface MoneyCardPanel {
   readonly title: string | null;
   readonly expiry: string | null;
   readonly body: string | null;
-  /** Link label to the card page; null under a flat plan. */
+  /** Card modal button label; null under a flat plan. */
   readonly action: string | null;
 }
 
@@ -102,6 +103,7 @@ export class BuilderMoneyComponent implements OnInit {
   private readonly store = inject(Store);
   private readonly router = inject(Router);
   private readonly config = inject(ConfigService);
+  private readonly openCardModal = injectCardModal();
 
   protected readonly copy = inject(BUILDER_COPY);
   /** The one owner-approved charge-timing sentence (#479). */
@@ -183,6 +185,11 @@ export class BuilderMoneyComponent implements OnInit {
   /** Row click / Enter: open the invoice detail on the Invoices page. */
   protected openInvoice(row: BuilderCommissionInvoice): void {
     void this.router.navigate(['/builder/invoices'], { queryParams: { invoice: row.id } });
+  }
+
+  /** Card panel action: add/update the card in the shared modal (#534). */
+  protected openCard(): void {
+    this.openCardModal(this.overview()?.card ?? undefined);
   }
 
   protected openKpi(kpi: MoneyKpi): void {
