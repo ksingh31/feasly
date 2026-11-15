@@ -7,6 +7,8 @@
  * write is scoped to that tenant.
  *
  * - `GET /api/v1/builder/leads` — tenant-scoped lead list + summary.
+ * - `GET /api/v1/builder/leads/needs-you` — Leads home "Needs you" groups
+ *   + status counts (issue #526).
  * - `PATCH /api/v1/builder/leads/{id}` — pipeline status transition.
  *
  * Hard rules (enforced by test/boundaries.test.ts):
@@ -15,7 +17,10 @@
  * - a route depends on the service *interface*, never the implementation
  */
 import { z } from 'zod';
-import type { BuilderLeadListResponse } from '@feasly/contracts';
+import type {
+  BuilderLeadListResponse,
+  BuilderLeadsNeedsYouResponse,
+} from '@feasly/contracts';
 import { ErrorCodes, HttpError } from '../middleware/errors';
 import type { BuilderGuard } from '../middleware/builder-guard';
 import type {
@@ -33,6 +38,10 @@ export interface BuilderLeadsRoute {
   list(
     headers: Record<string, string | string[] | undefined>,
   ): Promise<BuilderLeadListResponse>;
+  /** GET /api/v1/builder/leads/needs-you */
+  needsYou(
+    headers: Record<string, string | string[] | undefined>,
+  ): Promise<BuilderLeadsNeedsYouResponse>;
   /** PATCH /api/v1/builder/leads/{id} */
   updateStatus(
     headers: Record<string, string | string[] | undefined>,
@@ -76,6 +85,11 @@ export function createBuilderLeadsRoute(
     async list(headers): Promise<BuilderLeadListResponse> {
       const session = await requireBuilderSession(builderGuard, headers);
       return builderLeads.listLeads(session.tenantKey);
+    },
+
+    async needsYou(headers): Promise<BuilderLeadsNeedsYouResponse> {
+      const session = await requireBuilderSession(builderGuard, headers);
+      return builderLeads.getNeedsYou(session.tenantKey);
     },
 
     async updateStatus(headers, id, body): Promise<{ readonly ok: true }> {
