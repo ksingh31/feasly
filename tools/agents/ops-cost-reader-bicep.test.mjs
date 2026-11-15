@@ -1,11 +1,15 @@
 // #574 — the nightly ops review (agent-ops.yml) logs in as the CI OIDC
 // identity and runs `az consumption budget list` against the
 // subscription-scoped `feasly-monthly-cap` budget. That needs Cost Management
-// Reader at SUBSCRIPTION scope, granted in Bicep to the deployer identity.
-// Static, no-auth guard so a refactor can't silently drop the grant.
+// Reader at SUBSCRIPTION scope. The module stays in Bicep, but #637: the CD
+// OIDC identity is RG-scoped and cannot write subscription-scope deployments
+// or role assignments, so enabling the grant fails what-if and the whole CD
+// deploy. It must stay gated OFF by default and in every environment; the
+// role is granted once, by hand, by a subscription Owner.
+// Static, no-auth guard.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { readFileSync } from 'node:fs';
+import { readFileSync, readdirSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 
 const root = fileURLToPath(new URL('../../', import.meta.url));
@@ -36,9 +40,19 @@ test('main.bicep wires the module at subscription scope for the deployer identit
   assert.ok(m, 'module declaration present');
   assert.match(m[1], /scope: subscription\(\)/);
   assert.match(m[1], /principalId: deployer\(\)\.objectId/);
-  assert.match(main, /^param grantDeployerCostReader bool = true$/m);
 });
 
-test('dev deploys the grant', () => {
-  assert.match(read('infra/bicep/environments/dev.bicepparam'), /^param grantDeployerCostReader = true$/m);
+test('#637: the subscription-scope grant is gated off by default', () => {
+  assert.match(read('infra/bicep/main.bicep'), /^param grantDeployerCostReader bool = false$/m);
+});
+
+test('#637: no environment turns the grant on (CD identity is RG-scoped)', () => {
+  const dir = 'infra/bicep/environments/';
+  const files = readdirSync(root + dir).filter((f) => f.endsWith('.bicepparam'));
+  assert.ok(files.includes('dev.bicepparam'), 'dev.bicepparam present');
+  for (const f of files) {
+    const src = read(dir + f);
+    assert.doesNotMatch(src, /^param grantDeployerCostReader\s*=\s*true\b/m, `${f} must not enable the grant`);
+  }
+  assert.match(read(dir + 'dev.bicepparam'), /^param grantDeployerCostReader = false$/m);
 });

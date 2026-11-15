@@ -66,8 +66,8 @@ param postgresSkuName string = 'Standard_B1ms'
 @maxValue(35)
 param postgresBackupRetentionDays int = 7
 
-@description('Grant the deploying identity (CI OIDC = nightly ops identity) read-only Cost Management Reader on the subscription so it can read the feasly-monthly-cap budget (#574). Needs roleAssignments/write at subscription scope; set false to skip.')
-param grantDeployerCostReader bool = true
+@description('Grant the deploying identity (CI OIDC = nightly ops identity) read-only Cost Management Reader on the subscription so it can read the feasly-monthly-cap budget (#574). OFF by default (#637): the CD identity is RG-scoped and cannot write subscription-scope deployments/role assignments, so turning this on fails what-if. Enable only when the deployer holds Owner/User Access Administrator on the subscription; otherwise grant the role once by hand.')
+param grantDeployerCostReader bool = false
 
 @description('Principal type of the deployer identity (CI uses the OIDC managed identity)')
 // --- Naming ---
@@ -546,6 +546,11 @@ resource funcAppPostgresReader 'Microsoft.Authorization/roleAssignments@2022-04-
 // `feasly-monthly-cap` budget (#574). A module is required because a
 // resource-group-scoped template cannot declare subscription-scope resources
 // directly. No cost; read-only.
+// Gated OFF by default (#637): the CD OIDC identity only has rights at RG
+// scope, so ARM rejects the subscription-scope nested deployment and role
+// assignment during what-if and the whole deploy fails. The role is granted
+// once, out of band, by someone with Owner / User Access Administrator on the
+// subscription (see infra/bicep/README.md, "Cost read access").
 module deployerCostReader 'modules/subscription-cost-reader.bicep' = if (grantDeployerCostReader) {
   name: 'feasly-${envShort}-deployer-cost-reader'
   scope: subscription()
