@@ -131,6 +131,15 @@ describe('loadConfig', () => {
         searchRowLimit: 50,
         suggestionLimit: 8,
       },
+      // #686: current land-use district from the City's Land Use Districts
+      // dataset; falls back to the roll value on timeout/error/no hit.
+      landUse: {
+        provider: 'calgary-land-use-districts',
+        socrataBaseUrl: 'https://data.calgary.ca',
+        datasetId: 'qe6k-p9nh',
+        cacheTtlMs: 86_400_000,
+        httpTimeoutMs: 3_000,
+      },
       // trust-strip/01: landing "Refreshed <Month Year>" from the Socrata
       // dataset metadata. Reuses the SOCRATA_* source; 24h cache TTL on
       // successful fetches only.

@@ -392,6 +392,7 @@ import {
   createPropertyService,
   type PropertyService,
 } from './services/property.service';
+import { createLandUseProvider } from './services/land-use.service';
 import {
   createPropertyRoute,
   type PropertyRoute,
@@ -1655,8 +1656,14 @@ export function createComposition(
   // Property lookup (api-mcp/02): Socrata-backed address autocomplete +
   // property records. Public by design (City open data); the MCP server and
   // embeds call these instead of hitting Socrata directly.
+  // #686: `zoning` is the CURRENT district from the city's land-use
+  // provider (Calgary: Land Use Districts map), falling back to the roll.
+  const landUseProvider = createLandUseProvider(config.landUse);
   const propertyService: PropertyService = createPropertyService(
     config.propertyData,
+    landUseProvider
+      ? { landUse: { provider: landUseProvider, cacheTtlMs: config.landUse.cacheTtlMs } }
+      : {},
   );
   const propertyRoute: PropertyRoute = createPropertyRoute({
     property: propertyService,

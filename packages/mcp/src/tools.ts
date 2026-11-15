@@ -120,7 +120,9 @@ export const TOOL_DEFINITIONS: readonly ToolDefinition[] = [
     description:
       'Look up a Calgary property by exact address key, or get autocomplete' +
       ' suggestions for a partial query. Returns City-assessed values and' +
-      ' property details from public open data.' +
+      ' property details from public open data. `zoning` is the current' +
+      ' land-use district; `landUse.source` says whether it came from the' +
+      " City's Land Use Districts map or fell back to the assessment roll." +
       DETERMINISTIC_DISCLAIMER,
     inputShape: GetPropertyShape,
   },

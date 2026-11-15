@@ -1047,6 +1047,42 @@ exports[`OpenAPI drift > generated spec matches the snapshot 1`] = `
         ],
         "type": "object",
       },
+      "PropertyLandUse": {
+        "description": "Current land-use district for a parcel and where it came from",
+        "properties": {
+          "asOf": {
+            "description": "When the district was checked against the source (ISO date)",
+            "type": "string",
+          },
+          "dcBylaw": {
+            "description": "Direct Control bylaw number when district is DC and the City provides one",
+            "type": "string",
+          },
+          "description": {
+            "description": "City description of the district; empty when unknown",
+            "type": "string",
+          },
+          "district": {
+            "description": "Land-use district code, e.g. 'R-C2', 'DC'",
+            "type": "string",
+          },
+          "source": {
+            "description": "'land-use-districts' = the City's current Land Use Districts map; 'assessment-roll' = fallback to the assessment roll designation",
+            "enum": [
+              "land-use-districts",
+              "assessment-roll",
+            ],
+            "type": "string",
+          },
+        },
+        "required": [
+          "district",
+          "description",
+          "source",
+          "asOf",
+        ],
+        "type": "object",
+      },
       "PropertyRecord": {
         "properties": {
           "address": {
@@ -1082,6 +1118,9 @@ exports[`OpenAPI drift > generated spec matches the snapshot 1`] = `
             "description": "True when the City classifies the parcel non-residential (commercial/industrial)",
             "type": "boolean",
           },
+          "landUse": {
+            "$ref": "#/components/schemas/PropertyLandUse",
+          },
           "lotSqft": {
             "description": "Lot size in square feet",
             "type": "number",
@@ -1097,7 +1136,7 @@ exports[`OpenAPI drift > generated spec matches the snapshot 1`] = `
             ],
           },
           "zoning": {
-            "description": "City land-use designation, verbatim",
+            "description": "City land-use designation: the current district (landUse.district) when known, otherwise the assessment roll value verbatim",
             "type": "string",
           },
         },

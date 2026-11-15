@@ -298,6 +298,18 @@ const EnvSchema = z.object({
   PROPERTY_HTTP_TIMEOUT_MS: z.coerce.number().int().positive().default(15_000),
   PROPERTY_SEARCH_ROW_LIMIT: z.coerce.number().int().positive().default(50),
   PROPERTY_SUGGESTION_LIMIT: z.coerce.number().int().positive().default(8),
+  // --- Current land-use district (#686) ---
+  // The assessment roll's land_use_designation is stale after the 2024
+  // rezoning repeal (pre-repeal pairs like "R-C2,R-CG"). The current district
+  // comes from the City's Land Use Districts dataset (updated weekly). The
+  // provider is chosen per city; 'assessment-roll' disables the lookup.
+  LAND_USE_PROVIDER: z
+    .enum(['calgary-land-use-districts', 'assessment-roll'])
+    .default('calgary-land-use-districts'),
+  LAND_USE_DATASET_ID: z.string().min(1).default('qe6k-p9nh'),
+  LAND_USE_CACHE_TTL_MS: z.coerce.number().int().positive().default(86_400_000),
+  // Hard cap on what the district lookup can add to a property lookup (p95).
+  LAND_USE_HTTP_TIMEOUT_MS: z.coerce.number().int().positive().default(3_000),
   // --- City-data freshness (landing trust strip) ---
   // Shares the SOCRATA_* source with propertyData; its own TTL because the
   // metadata changes at most monthly (24h default, successful fetches only).
@@ -702,6 +714,27 @@ export interface PropertyDataConfig {
   readonly suggestionLimit: number;
 }
 
+/** Which current land-use district source a city uses (#686). */
+export type LandUseProviderKind = 'calgary-land-use-districts' | 'assessment-roll';
+
+/**
+ * Current land-use district lookup (#686). Shares SOCRATA_BASE_URL with
+ * propertyData; its own dataset, cache TTL and (short) timeout so a slow
+ * district lookup can never add more than `httpTimeoutMs` to a lookup.
+ */
+export interface LandUseConfig {
+  /** Provider for this city; 'assessment-roll' skips the lookup entirely. */
+  readonly provider: LandUseProviderKind;
+  /** Socrata API base (e.g. https://data.calgary.ca) — no key required. */
+  readonly socrataBaseUrl: string;
+  /** Land Use Districts dataset ID. */
+  readonly datasetId: string;
+  /** How long a resolved district is reused before re-checking. */
+  readonly cacheTtlMs: number;
+  /** HTTP timeout for the district request (falls back to the roll value). */
+  readonly httpTimeoutMs: number;
+}
+
 /**
  * City-data freshness config (trust-strip/01).
  *
@@ -979,6 +1012,7 @@ export interface ApiConfig {
   readonly health: HealthConfig;
   readonly costEngine: CostEngineConfig;
   readonly propertyData: PropertyDataConfig;
+  readonly landUse: LandUseConfig;
   readonly cityDataFreshness: CityDataFreshnessConfig;
   readonly billing: BillingConfig;
   readonly sandboxPurge: SandboxPurgeConfig;
@@ -1378,6 +1412,13 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): ApiConfig {
       httpTimeoutMs: e.PROPERTY_HTTP_TIMEOUT_MS,
       searchRowLimit: e.PROPERTY_SEARCH_ROW_LIMIT,
       suggestionLimit: e.PROPERTY_SUGGESTION_LIMIT,
+    },
+    landUse: {
+      provider: e.LAND_USE_PROVIDER,
+      socrataBaseUrl: e.SOCRATA_BASE_URL,
+      datasetId: e.LAND_USE_DATASET_ID,
+      cacheTtlMs: e.LAND_USE_CACHE_TTL_MS,
+      httpTimeoutMs: e.LAND_USE_HTTP_TIMEOUT_MS,
     },
     cityDataFreshness: {
       socrataBaseUrl: e.SOCRATA_BASE_URL,

@@ -32,8 +32,11 @@ export interface PropertyRouteDeps {
 export interface PropertyRoute {
   /** Autocomplete suggestions for a partial address query. */
   autocomplete(query: unknown): Promise<AutocompleteResponse>;
-  /** Full property record for an exact address key. */
-  lookup(addressKey: unknown): Promise<PropertyRecord>;
+  /**
+   * Full property record for an exact address key. `correlationId` only
+   * labels the service's district-fallback warning (#686).
+   */
+  lookup(addressKey: unknown, correlationId?: string): Promise<PropertyRecord>;
 }
 
 /** Addresses are printable, bounded-length strings — never empty. */
@@ -65,7 +68,9 @@ export function createPropertyRoute(deps: PropertyRouteDeps): PropertyRoute {
     autocomplete: async (query: unknown): Promise<AutocompleteResponse> =>
       deps.property.autocomplete(requireQueryString(query, 'q')),
 
-    lookup: async (addressKey: unknown): Promise<PropertyRecord> =>
-      deps.property.getProperty(requireQueryString(addressKey, 'addressKey')),
+    lookup: async (addressKey: unknown, correlationId?: string): Promise<PropertyRecord> =>
+      deps.property.getProperty(requireQueryString(addressKey, 'addressKey'), {
+        correlationId,
+      }),
   };
 }
