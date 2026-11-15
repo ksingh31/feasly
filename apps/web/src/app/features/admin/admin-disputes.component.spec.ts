@@ -1,153 +1,125 @@
-import { provideHttpClient } from '@angular/common/http';
-import { HttpTestingController, provideHttpClientTesting } from '@angular/common/http/testing';
-import { ComponentFixture, TestBed } from '@angular/core/testing';
-import { By } from '@angular/platform-browser';
-import { provideStore, Store } from '@ngxs/store';
-import { describe, expect, it } from 'vitest';
-import type { DisputeDetailResponse, DisputeListItem } from '@feasly/contracts';
-import { ConfigService } from '../../core/config/config.service';
+/**
+ * Admin Disputes queue (#545, admin review S12): kit DataTable with the
+ * SLA chip (AC1), breached rows flagged, and a row click opening the
+ * dispute drawer (`?open=<id>`).
+ */
+import { provideLocationMocks } from '@angular/common/testing';
+import { TestBed } from '@angular/core/testing';
+import { Router, provideRouter } from '@angular/router';
+import { Store, provideStore } from '@ngxs/store';
+import { Subject, of, throwError } from 'rxjs';
+import { afterEach, describe, expect, it, vi } from 'vitest';
+import type { DisputeListItem } from '@feasly/contracts';
+import { UiDrawerService } from '@app/shared/ui';
 import { AdminDisputesComponent } from './admin-disputes.component';
+import { AdminDisputesApiService } from './admin-disputes-api.service';
 import { AdminDisputesState } from './admin-disputes.state';
 import { AdminAuthState } from './admin-auth.state';
-import { ADMIN_PERMISSIONS } from './admin-permissions';
 
-const DISPUTE_A: DisputeListItem = {
-  id: 'd1',
-  invoiceId: 'inv-1',
-  tenantKey: 'elite-craft',
-  reason: 'Contract value reported twice',
-  status: 'open',
-  openedAt: '2026-09-25T12:00:00.000Z',
-  slaDueAt: '2026-10-02T12:00:00.000Z',
-  slaBreachedAt: null,
-  commissionCents: 10000,
-  currency: 'CAD',
-  contractValueCents: 1000000,
-  businessDaysRemaining: 4,
-  breached: false,
-};
-
-const DETAIL_A: DisputeDetailResponse = {
-  ...DISPUTE_A,
-  evidenceSnapshot: {
-    invoiceId: 'inv-1',
+function dispute(id: string, businessDaysRemaining: number, breached = false): DisputeListItem {
+  return {
+    id,
+    invoiceId: `inv-${id}`,
     tenantKey: 'elite-craft',
-    attributionId: 'attr-1',
-    leadId: 'lead-1',
-    contractValueCents: 1000000,
-    commissionCents: 10000,
+    reason: 'Contract value reported twice',
+    status: 'open',
+    openedAt: '2026-09-25T12:00:00.000Z',
+    slaDueAt: '2026-10-02T12:00:00.000Z',
+    slaBreachedAt: breached ? '2026-10-02T12:00:00.000Z' : null,
+    commissionCents: 980000,
     currency: 'CAD',
-    stripePaymentIntentId: null,
-    status: 'disputed',
-    reviewDueAt: null,
-    disputeReason: 'Contract value reported twice',
-    invoiceCreatedAt: '2026-09-20T10:00:00.000Z',
-    disputedAt: '2026-09-25T12:00:00.000Z',
-  },
-  resolvedAt: null,
-  resolvedBy: null,
-  resolutionNote: null,
-  auditTrail: [],
-};
+    contractValueCents: 98000000,
+    businessDaysRemaining,
+    breached,
+  };
+}
 
-/**
- * AdminDisputesComponent permission gating (QA admin-console finding 8):
- * the Resolve section (accept/reject) is a billing:manage write — viewers
- * see the dispute evidence and audit trail but no resolution UI.
- */
-describe('AdminDisputesComponent permission gating', () => {
-  let store: Store;
-  let httpMock: HttpTestingController;
-  let fixture: ComponentFixture<AdminDisputesComponent>;
+const ROWS = [dispute('d1', 4), dispute('d2', 0), dispute('d3', -1, true)];
 
-  async function setup(permissions: string[]): Promise<void> {
-    TestBed.resetTestingModule();
-    TestBed.configureTestingModule({
-      imports: [AdminDisputesComponent],
-      providers: [
-        provideHttpClient(),
-        provideHttpClientTesting(),
-        ConfigService,
-        // AdminAuthState is in the root store in production (app.config.ts).
-        provideStore([AdminDisputesState, AdminAuthState]),
-      ],
-    });
-    const config = TestBed.inject(ConfigService);
-    const http = TestBed.inject(HttpTestingController);
-    const pending = config.load();
-    http.expectOne('/assets/config/app-config.json').flush({ api: { useMockApi: false } });
-    await pending;
-    store = TestBed.inject(Store);
-    httpMock = TestBed.inject(HttpTestingController);
-    store.reset({
-      adminDisputes: store.selectSnapshot((s) => s.adminDisputes),
-      adminAuth: {
-        ...store.selectSnapshot((s) => s.adminAuth),
-        permissions,
-      },
-    });
-    fixture = TestBed.createComponent(AdminDisputesComponent);
-  }
+async function setup(options: { fails?: boolean; url?: string } = {}) {
+  const api = {
+    listDisputes: vi.fn(() =>
+      options.fails ? throwError(() => ({ message: 'Server down' })) : of({ disputes: ROWS }),
+    ),
+    getDispute: vi.fn(() => new Subject()),
+    acceptDispute: vi.fn(),
+    rejectDispute: vi.fn(),
+  };
+  const closed = new Subject<unknown>();
+  const drawers = { open: vi.fn(() => ({ closed: closed.asObservable() })) };
+  TestBed.resetTestingModule();
+  TestBed.configureTestingModule({
+    providers: [
+      provideRouter([{ path: '**', component: AdminDisputesComponent }]),
+      provideLocationMocks(),
+      provideStore([AdminDisputesState, AdminAuthState]),
+      { provide: AdminDisputesApiService, useValue: api },
+      { provide: UiDrawerService, useValue: drawers },
+    ],
+  });
+  if (options.url) await TestBed.inject(Router).navigateByUrl(options.url);
+  const fixture = TestBed.createComponent(AdminDisputesComponent);
+  fixture.autoDetectChanges();
+  await fixture.whenStable();
+  return { api, drawers, closed, fixture, store: TestBed.inject(Store), el: fixture.nativeElement as HTMLElement };
+}
 
-  /** Loads the list, opens the dispute detail, and renders. */
-  async function openDispute(): Promise<void> {
-    fixture.detectChanges();
-    httpMock
-      .expectOne((r) => r.url.endsWith('/api/v1/admin/disputes') && r.method === 'GET')
-      .flush({ disputes: [DISPUTE_A] });
-    await fixture.whenStable();
-    fixture.detectChanges();
+afterEach(() => {
+  document.querySelectorAll('.cdk-overlay-container').forEach((n) => n.remove());
+});
 
-    fixture.debugElement
-      .query(By.css('.disputes-page__row'))
-      ?.nativeElement.click();
-    fixture.detectChanges();
-    httpMock
-      .expectOne((r) => r.url.endsWith('/api/v1/admin/disputes/d1') && r.method === 'GET')
-      .flush(DETAIL_A);
-    await fixture.whenStable();
-    fixture.detectChanges();
-  }
-
-  it('shows the Resolve section with accept/reject to billing managers', async () => {
-    await setup([ADMIN_PERMISSIONS.billingManage]);
-    await openDispute();
-
-    const page = fixture.nativeElement as HTMLElement;
-    expect(page.textContent).toContain('Resolve');
-    expect(page.querySelector('.disputes-page__accept')).not.toBeNull();
-    expect(page.querySelector('.disputes-page__reject')).not.toBeNull();
+describe('AdminDisputesComponent (#545)', () => {
+  it('renders the queue in a DataTable with Opened · Invoice · Builder · Amount · Reason · SLA', async () => {
+    const { el } = await setup();
+    const headers = Array.from(el.querySelectorAll('thead th')).map((th) => th.textContent?.trim());
+    expect(headers).toEqual(['Opened', 'Invoice', 'Builder', 'Amount', 'Reason', 'SLA']);
+    expect(el.querySelectorAll('tbody tr')).toHaveLength(3);
+    expect(el.querySelector('tbody')?.textContent).toContain('$9,800');
+    expect(el.querySelector('[data-testid="disputes-count"]')?.textContent).toContain('3 open disputes');
   });
 
-  it('hides the Resolve section from viewers but keeps the dispute readable', async () => {
-    await setup([]);
-    await openDispute();
-
-    const page = fixture.nativeElement as HTMLElement;
-    // The dispute evidence stays visible (read-only).
-    expect(page.textContent).toContain('Contract value reported twice');
-    expect(page.textContent).toContain('Audit trail');
-    // The write UI is gone.
-    expect(page.textContent).not.toContain('Resolve');
-    expect(page.querySelector('.disputes-page__accept')).toBeNull();
-    expect(page.querySelector('.disputes-page__reject')).toBeNull();
-    expect(page.querySelector('.disputes-page__resolve-actions')).toBeNull();
+  it('SLA chip: days left / due today / overdue (AC1)', async () => {
+    const { el } = await setup();
+    const chips = Array.from(el.querySelectorAll('tbody [data-testid="sla-chip"]')).map((c) => c.textContent?.trim());
+    expect(chips).toEqual(['4 days left', 'Due today', 'Overdue 1d']);
   });
 
-  it('styles every action button with the shared button classes (#477)', async () => {
-    await setup([ADMIN_PERMISSIONS.billingManage]);
-    await openDispute();
+  it('flags breached rows', async () => {
+    const { el } = await setup();
+    const rows = Array.from(el.querySelectorAll('tbody tr'));
+    const flagged = rows.map((r) => r.className.includes('flag'));
+    expect(flagged).toEqual([false, false, true]);
+  });
 
-    const page = fixture.nativeElement as HTMLElement;
-    page.querySelector<HTMLButtonElement>('.disputes-page__accept')?.click();
-    fixture.detectChanges();
+  it('a row click opens the dispute drawer with ?open=<id>', async () => {
+    const { el, drawers, store } = await setup();
+    (el.querySelectorAll('tbody tr')[1] as HTMLElement).click();
+    expect(drawers.open).toHaveBeenCalledTimes(1);
+    const [, options] = drawers.open.mock.calls[0] as unknown as [unknown, { urlId: string; data: unknown }];
+    expect(options.urlId).toBe('d2');
+    expect(options.data).toEqual({ disputeId: 'd2' });
+    expect(store.selectSnapshot(AdminDisputesState.selectedDisputeId)).toBe('d2');
+  });
 
-    const actions = Array.from(page.querySelectorAll('button')).filter(
-      (b) => !b.closest('.disputes-page__row'),
-    );
-    expect(actions.length).toBeGreaterThan(0);
-    for (const button of actions) {
-      expect(button.classList.contains('button'), button.textContent?.trim()).toBe(true);
-    }
+  it('closing the drawer clears the selection', async () => {
+    const { el, closed, store } = await setup();
+    (el.querySelectorAll('tbody tr')[0] as HTMLElement).click();
+    closed.next(undefined);
+    expect(store.selectSnapshot(AdminDisputesState.selectedDisputeId)).toBeNull();
+  });
+
+  it('a deep link with ?open=<id> opens the drawer', async () => {
+    const { drawers } = await setup({ url: '/admin/disputes?open=d3' });
+    expect(drawers.open).toHaveBeenCalled();
+    const [, options] = drawers.open.mock.calls[0] as unknown as [unknown, { urlId: string }];
+    expect(options.urlId).toBe('d3');
+  });
+
+  it('a load failure shows the error state, and Retry reloads', async () => {
+    const { el, api } = await setup({ fails: true });
+    expect(el.textContent).toContain('Couldn’t load disputes');
+    const retry = Array.from(el.querySelectorAll('ui-data-table button')).find((b) => b.textContent?.trim() === 'Retry');
+    (retry as HTMLButtonElement).click();
+    expect(api.listDisputes).toHaveBeenCalledTimes(2);
   });
 });
