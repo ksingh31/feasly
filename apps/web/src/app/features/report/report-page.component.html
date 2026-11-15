@@ -1,5 +1,12 @@
 <app-site-nav />
 <main class="wrap report" id="main-content" tabindex="-1">
+  <!-- #509 print stylesheet: brand header shown only on paper (the site nav
+       is hidden in print). The address sits right under the H1. -->
+  <div class="print-only print-brand">
+    <app-brand-mark [size]="24" />
+    <span class="print-wordmark">{{ siteName }}</span>
+    <span class="print-date">{{ printDateLabel() }}</span>
+  </div>
   <h1 class="report-heading">{{ copy.heading }}</h1>
   @if (property(); as p) {
     <p class="report-address">{{ p.address }}</p>
@@ -416,6 +423,13 @@
     @if (unlocked() && isReno()) {
       <p class="deterministic-note" role="note">{{ copy.renoDeterministicNote }}</p>
     }
+  }
+  <!-- #509: a disclaimer is ALWAYS printed — outside every state branch
+       (loading, error, pre-gate, post-gate). An unlocked reno report already
+       shows the verbatim deterministic note (always printed), so the print
+       copy is skipped there rather than repeated. -->
+  @if (showPrintDisclaimer()) {
+    <p class="print-only print-disclaimer">{{ printDisclaimer }}</p>
   }
 </main>
 <app-site-footer />
