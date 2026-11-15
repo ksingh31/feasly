@@ -1,0 +1,40 @@
+# Agent pipeline — merger (no AI). Owner rule: merge only when EVERY check is
+# green and the PR is approved. Runs on GitHub, so merging never depends on a
+# laptop session (the 2026-11-13/14 overnight stall).
+name: Agent · Merge
+
+on:
+  schedule:
+    - cron: '*/10 * * * *'
+  workflow_run:
+    workflows: [CI, Lighthouse, CD, Agent · Review]
+    types: [completed]
+  workflow_dispatch:
+
+concurrency:
+  group: agent-merge
+  cancel-in-progress: false
+
+permissions:
+  contents: write
+  pull-requests: write
+  checks: read
+  actions: write # re-run env checks, dispatch CI/CD after a merge
+
+jobs:
+  merge:
+    if: vars.AGENTS_ENABLED == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: main
+          sparse-checkout: tools/agents
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22
+      - run: node tools/agents/merger.mjs
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_REPO: ${{ github.repository }}

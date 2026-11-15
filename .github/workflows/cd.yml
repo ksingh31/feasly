@@ -25,7 +25,7 @@ on:
         description: "Environment to deploy"
         required: true
         type: choice
-        options: [staging, prod]
+        options: [dev, staging, prod]
 
 # Avoid overlapping deploys: one CD run at a time, never cancel an in-flight
 # deploy (a cancelled half-deploy is worse than a queued one).
@@ -41,6 +41,7 @@ concurrency:
 permissions:
   id-token: write
   contents: read
+  pull-requests: read # preview housekeeping looks up PR states
 
 jobs:
   # ---------------------------------------------------------------------------
@@ -74,25 +75,103 @@ jobs:
             echo "No apps/web on this branch — skipping SWA preview."
           fi
 
-      - name: Build web app (production, prerendered)
+      # Previews only for PRs that change what the web app serves (docs/pipeline/API-only
+      # PRs don't need one) — keeps the Free plan's 3 staging slots for real UI work.
+      - name: Does this PR change the web app?
+        id: webchange
         if: steps.web.outputs.present == 'true'
+        env:
+          BASE: ${{ github.event.pull_request.base.sha }}
+        run: |
+          git fetch -q --depth=1 origin "$BASE"
+          if git diff --name-only "$BASE" HEAD | grep -qE '^(apps/web/|packages/contracts/|package-lock\.json$)'; then
+            echo "changed=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "changed=false" >> "$GITHUB_OUTPUT"; echo "No web-app changes — skipping SWA preview."
+          fi
+
+      - name: Login to Azure (OIDC) for preview housekeeping
+        if: steps.webchange.outputs.changed == 'true'
+        continue-on-error: true
+        uses: azure/login@v3
+        with:
+          client-id: ${{ vars.AZURE_CLIENT_ID }}
+          tenant-id: ${{ vars.AZURE_TENANT_ID }}
+          subscription-id: ${{ vars.AZURE_SUBSCRIPTION_ID }}
+
+      # Never fail on the 3-slot cap: drop previews of closed PRs, then evict the least
+      # recently updated open PR's preview if still full (rebuilt on its next push).
+      - name: Free a preview slot
+        if: steps.webchange.outputs.changed == 'true'
+        continue-on-error: true
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_REPO: ${{ github.repository }}
+          MAKE_ROOM_FOR: ${{ github.event.pull_request.number }}
+        run: bash infra/swa/free-preview-slot.sh
+
+      - name: Build web app (production, prerendered)
+        if: steps.webchange.outputs.changed == 'true'
         run: npm run build --workspace @feasly/web
 
+      # Deploy with retry: a concurrent PR can take the last slot between "free" and "deploy",
+      # and Azure deletes asynchronously. On failure: free a slot again (evicting another PR's
+      # preview if needed), back off 20–60s, retry — up to 3 attempts in all.
       - name: Deploy SWA preview environment
-        if: steps.web.outputs.present == 'true'
+        id: deploy1
+        if: steps.webchange.outputs.changed == 'true'
+        continue-on-error: true
         uses: Azure/static-web-apps-deploy@v1
         with:
           azure_static_web_apps_api_token: ${{ secrets.FEASLY_SWA_DEPLOY_TOKEN }}
           repo_token: ${{ secrets.GITHUB_TOKEN }}
           action: "upload"
-          # NOTE: app_location points at the build OUTPUT, not the source.
-          # The SWA action version pinned behind v1 resolves the artifact dir
-          # from app_location when skip_app_build is true (it ignores
-          # output_location), so we build in a prior step and upload dist/.
           app_location: "apps/web/dist/web/browser"
           skip_api_build: true
           skip_app_build: true
 
+      - name: Free a slot and back off before retry
+        id: retry1
+        if: steps.webchange.outputs.changed == 'true' && steps.deploy1.outcome == 'failure'
+        continue-on-error: true
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_REPO: ${{ github.repository }}
+          MAKE_ROOM_FOR: ${{ github.event.pull_request.number }}
+        run: bash infra/swa/free-preview-slot.sh; sleep $((20 + RANDOM % 41))
+
+      - name: Deploy SWA preview environment (retry 1)
+        id: deploy2
+        if: steps.webchange.outputs.changed == 'true' && steps.deploy1.outcome == 'failure'
+        continue-on-error: true
+        uses: Azure/static-web-apps-deploy@v1
+        with:
+          azure_static_web_apps_api_token: ${{ secrets.FEASLY_SWA_DEPLOY_TOKEN }}
+          repo_token: ${{ secrets.GITHUB_TOKEN }}
+          action: "upload"
+          app_location: "apps/web/dist/web/browser"
+          skip_api_build: true
+          skip_app_build: true
+
+      - name: Free a slot and back off before final retry
+        if: steps.webchange.outputs.changed == 'true' && steps.deploy1.outcome == 'failure' && steps.deploy2.outcome == 'failure'
+        continue-on-error: true
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_REPO: ${{ github.repository }}
+          MAKE_ROOM_FOR: ${{ github.event.pull_request.number }}
+        run: bash infra/swa/free-preview-slot.sh; sleep $((30 + RANDOM % 61))
+
+      - name: Deploy SWA preview environment (final retry)
+        if: steps.webchange.outputs.changed == 'true' && steps.deploy1.outcome == 'failure' && steps.deploy2.outcome == 'failure'
+        uses: Azure/static-web-apps-deploy@v1
+        with:
+          azure_static_web_apps_api_token: ${{ secrets.FEASLY_SWA_DEPLOY_TOKEN }}
+          repo_token: ${{ secrets.GITHUB_TOKEN }}
+          action: "upload"
+          app_location: "apps/web/dist/web/browser"
+          skip_api_build: true
+          skip_app_build: true
   preview-close:
     name: preview-close (SWA)
     if: github.event_name == 'pull_request' && github.event.action == 'closed'
@@ -111,7 +190,8 @@ jobs:
   # ---------------------------------------------------------------------------
   deploy-dev:
     name: deploy-dev
-    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    # push to main, or dispatched by Agent · Merge after a GITHUB_TOKEN merge (which fires no push event)
+    if: github.ref == 'refs/heads/main' && (github.event_name == 'push' || (github.event_name == 'workflow_dispatch' && inputs.target == 'dev'))
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
