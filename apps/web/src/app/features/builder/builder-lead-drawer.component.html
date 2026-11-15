@@ -1,0 +1,221 @@
+@if (lead(); as lead) {
+  <ui-drawer [heading]="lead.name" [closeLabel]="t.closeLabel" [dirty]="dirty()">
+    <ui-status-chip uiDrawerChip domain="lead" [status]="lead.status" [label]="statusLabel(lead.status)" />
+    <ui-status-chip uiDrawerChip domain="leadHeat" [status]="heat(lead)" [label]="heatLabel(lead)" />
+    <span uiDrawerMeta data-testid="drawer-arrived">{{ arrivedMeta(lead) }}</span>
+
+    <!-- Contact actions -->
+    <section class="lead-drawer__section" [attr.aria-label]="t.contactHeading">
+      <div class="lead-drawer__contact">
+        @if (lead.phone) {
+          <a
+            ui-button
+            variant="secondary"
+            class="lead-drawer__contact-btn"
+            data-testid="drawer-call"
+            [href]="tel(lead.phone)"
+            [attr.aria-label]="callAria(lead.name)"
+            >{{ home.callLabel }}</a
+          >
+        }
+        <a
+          ui-button
+          variant="secondary"
+          class="lead-drawer__contact-btn"
+          data-testid="drawer-email"
+          [href]="mailto(lead.email)"
+          [attr.aria-label]="emailAria(lead.name)"
+          >{{ home.emailLabel }}</a
+        >
+      </div>
+    </section>
+
+    <!-- Status: stepper + one-tap moves (apply now, Undo in the toast) -->
+    <section class="lead-drawer__section" aria-labelledby="lead-drawer-status-heading">
+      <h3 id="lead-drawer-status-heading" class="lead-drawer__heading">{{ t.statusHeading }}</h3>
+      <ui-stepper
+        [model]="stepper()"
+        [label]="t.progressLabel"
+        [completeLabel]="t.stepCompleteLabel"
+        [currentStateLabel]="t.stepCurrentLabel"
+        [upcomingLabel]="t.stepUpcomingLabel"
+      />
+
+      @if (locked()) {
+        <p class="lead-drawer__note" role="note">{{ copy.leadsStatusLocked }}</p>
+      } @else {
+        <div class="lead-drawer__moves">
+          <span class="lead-drawer__moves-prompt" aria-hidden="true">{{ t.moveToPrompt }}</span>
+          <div class="lead-drawer__move-group" role="group" [attr.aria-label]="moveToLabel(lead.name)">
+            @for (status of statuses; track status) {
+              <button
+                type="button"
+                class="lead-drawer__move"
+                data-testid="drawer-move"
+                [attr.data-status]="status"
+                [class.lead-drawer__move--current]="status === lead.status"
+                [attr.aria-pressed]="status === lead.status"
+                [disabled]="busy()"
+                (click)="moveTo(status)"
+              >
+                {{ statusLabel(status) }}
+              </button>
+            }
+          </div>
+        </div>
+        @if (updating()) {
+          <p class="sr-only" role="status">{{ copy.leadsStatusSaving }}</p>
+        }
+      }
+      @if (updateError() === 'forbidden') {
+        <p class="lead-drawer__error" role="alert">{{ copy.updateForbidden }}</p>
+      } @else if (updateError() === 'failed') {
+        <p class="lead-drawer__error" role="alert">{{ copy.updateFailed }}</p>
+      }
+
+      @if (lead.status === 'won') {
+        @if (lead.hasInvoice) {
+          <div class="lead-drawer__panel" data-testid="drawer-recorded">
+            <p class="lead-drawer__panel-body">
+              {{ copy.leadsRecordedCta }} —
+              <a [routerLink]="['/builder/invoices']" [queryParams]="invoiceLinkParams(lead)">{{
+                invoiceCtaLabel(lead)
+              }}</a>
+            </p>
+          </div>
+        } @else {
+          <div class="lead-drawer__panel lead-drawer__panel--success" data-testid="drawer-won-panel">
+            <h4 class="lead-drawer__panel-title">{{ t.wonPanelHeading }}</h4>
+            <p class="lead-drawer__panel-body">{{ t.wonPanelBody }}</p>
+            @if (isAdmin()) {
+              <a
+                ui-button
+                class="lead-drawer__panel-cta"
+                data-testid="drawer-record"
+                [routerLink]="['/builder/record-contract']"
+                [queryParams]="{ lead: lead.id }"
+                >{{ home.recordContractCta }}</a
+              >
+            } @else {
+              <p class="lead-drawer__panel-body" data-testid="drawer-record-member">
+                {{ home.recordContractMemberNote }}
+              </p>
+            }
+          </div>
+        }
+      }
+
+      @if (lead.status === 'lost') {
+        <div class="lead-drawer__panel" data-testid="drawer-lost-panel">
+          <h4 class="lead-drawer__panel-title">{{ t.lostPanelHeading }}</h4>
+          <p class="lead-drawer__panel-body">{{ t.lostPanelBody }}</p>
+          @if (lostReasonSaved()) {
+            <p class="lead-drawer__panel-body" role="status" data-testid="drawer-lost-saved">{{ t.lostReasonSaved }}</p>
+          } @else {
+            <div class="lead-drawer__lost-form">
+              <ui-select
+                class="lead-drawer__lost-select"
+                data-testid="drawer-lost-reason"
+                [label]="t.lostReasonLabel"
+                [placeholder]="t.lostReasonPlaceholder"
+                [options]="lostReasonOptions"
+                [value]="lostReason()"
+                [disabled]="savingReason()"
+                (valueChange)="onLostReason($event)"
+              />
+              <button
+                type="button"
+                ui-button
+                variant="secondary"
+                data-testid="drawer-lost-save"
+                [disabled]="!lostReason()"
+                [loading]="savingReason()"
+                (click)="saveLostReason()"
+              >
+                {{ t.lostReasonSave }}
+              </button>
+            </div>
+          }
+        </div>
+      }
+    </section>
+
+    <!-- Details -->
+    <section class="lead-drawer__section" aria-labelledby="lead-drawer-details-heading">
+      <h3 id="lead-drawer-details-heading" class="lead-drawer__heading">{{ t.detailsHeading }}</h3>
+      <dl class="lead-drawer__details">
+        <div>
+          <dt>{{ copy.leadEmailLabel }}</dt>
+          <dd><a [href]="mailto(lead.email)">{{ lead.email }}</a></dd>
+        </div>
+        @if (lead.phone) {
+          <div>
+            <dt>{{ copy.leadPhoneLabel }}</dt>
+            <dd><a [href]="tel(lead.phone)">{{ lead.phone }}</a></dd>
+          </div>
+        }
+        <div>
+          <dt>{{ copy.leadAddressLabel }}</dt>
+          <dd>{{ lead.addressKey }}</dd>
+        </div>
+        <div>
+          <dt>{{ copy.leadTimelineLabel }}</dt>
+          <dd>{{ lead.timeline }}</dd>
+        </div>
+        <div>
+          <dt>{{ copy.leadProjectLabel }}</dt>
+          <dd>{{ projectType(lead) }}</dd>
+        </div>
+        <div>
+          <dt>{{ copy.leadCreatedLabel }}</dt>
+          <dd>{{ lead.createdAt | kitDate }}</dd>
+        </div>
+      </dl>
+    </section>
+
+    <!-- Activity -->
+    <section class="lead-drawer__section" aria-labelledby="lead-drawer-activity-heading">
+      <h3 id="lead-drawer-activity-heading" class="lead-drawer__heading">{{ t.activityHeading }}</h3>
+      <ui-timeline
+        data-testid="drawer-activity"
+        [events]="activity()"
+        [label]="t.activityHeading"
+        [emptyLabel]="t.activityEmpty"
+        [showDetailsLabel]="t.showDetailsLabel"
+        [hideDetailsLabel]="t.hideDetailsLabel"
+      />
+    </section>
+
+    <!-- Notes thread (composer pinned in the footer) -->
+    <section class="lead-drawer__section" aria-labelledby="lead-drawer-notes-heading">
+      <h3 id="lead-drawer-notes-heading" class="lead-drawer__heading">{{ t.notesHeading }}</h3>
+      <app-builder-lead-comments [leadId]="lead.id" [externalComposer]="true" />
+    </section>
+
+    <div uiDrawerFooterStart class="lead-drawer__composer" data-testid="drawer-composer">
+      <label class="sr-only" for="lead-drawer-composer">{{ t.composerLabel }}</label>
+      <textarea
+        id="lead-drawer-composer"
+        class="lead-drawer__textarea"
+        rows="2"
+        [placeholder]="t.composerPlaceholder"
+        [value]="draft()"
+        [maxLength]="copy.commentsMaxLength"
+        [disabled]="posting()"
+        (input)="onDraft($event)"
+        (keydown)="onComposerKey($event)"
+      ></textarea>
+      <button
+        type="button"
+        ui-button
+        class="lead-drawer__post"
+        data-testid="drawer-post"
+        [disabled]="!canPost()"
+        [loading]="posting()"
+        (click)="postNote()"
+      >
+        {{ posting() ? t.postingLabel : t.postLabel }}
+      </button>
+    </div>
+  </ui-drawer>
+}

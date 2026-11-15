@@ -4,9 +4,11 @@
  * Verifies: the "Needs you" groups (cards, heat pill, age, tel:/mailto:,
  * Record contract for admins), the all-clear and error states, the
  * segmented status filter + search living in the URL, stale-row
- * highlighting, the row → lead quick view (`?open=`), and the pipeline
+ * highlighting, the row → lead drawer (`?open=`), and the pipeline
  * loading / empty / error slots.
  */
+import { Location } from '@angular/common';
+import { provideLocationMocks } from '@angular/common/testing';
 import { Component } from '@angular/core';
 import { TestBed } from '@angular/core/testing';
 import { Router, provideRouter } from '@angular/router';
@@ -148,11 +150,15 @@ async function setup(options: SetupOptions = {}) {
         { path: 'builder/record-contract', component: BlankComponent },
         { path: 'builder/invoices', component: BlankComponent },
       ]),
+      provideLocationMocks(),
       provideStore([BuilderState, BuilderBillingState, BuilderInvoicesState]),
       { provide: BuilderLeadsApiService, useValue: leadsApi },
       {
         provide: BuilderInvoicesApiService,
-        useValue: { listInvoices: () => of({ invoices: [], total: 0, page: 1, pageSize: 20 }) },
+        useValue: {
+          listInvoices: () => of({ invoices: [], total: 0, page: 1, pageSize: 20 }),
+          listActionableInvoices: () => of([]),
+        },
       },
       { provide: BuilderBillingApiService, useValue: { getCard: () => of({ hasCard: false }) } },
       { provide: BuilderCommentsApiService, useValue: { listComments: () => of({ comments: [] }) } },
@@ -179,6 +185,9 @@ async function setup(options: SetupOptions = {}) {
     },
   });
 
+  // Starts the router's popstate listener, so Back (and the drawer's
+  // close, which pops its own history entry) navigates.
+  TestBed.inject(Router).initialNavigation();
   const harness = await RouterTestingHarness.create();
   await harness.navigateByUrl(options.url ?? '/builder');
   harness.detectChanges();
@@ -187,6 +196,21 @@ async function setup(options: SetupOptions = {}) {
   const router = TestBed.inject(Router);
   const el = harness.routeNativeElement as HTMLElement;
   return { harness, el, router, store, leadsApi, pending };
+}
+
+/** Poll (with a deadline) for an async UI state — never a fixed sleep. */
+async function until(
+  harness: RouterTestingHarness,
+  cond: () => boolean,
+  label: string,
+  ms = 2000,
+): Promise<void> {
+  const deadline = Date.now() + ms;
+  while (!cond()) {
+    if (Date.now() > deadline) throw new Error(`timed out waiting for: ${label}`);
+    await new Promise((resolve) => setTimeout(resolve, 5));
+    harness.detectChanges();
+  }
 }
 
 async function settle(harness: RouterTestingHarness): Promise<void> {
@@ -290,12 +314,12 @@ describe('BuilderDashboardComponent — Leads home (#527)', () => {
       expect(rowNames(el)).toHaveLength(3);
     });
 
-    it('a card name opens the lead quick view', async () => {
+    it('a card name opens the lead drawer', async () => {
       const { el, harness, router } = await setup();
       (el.querySelector('.needs-card__name') as HTMLButtonElement).click();
       await settle(harness);
       expect(router.url).toContain('open=lead-a');
-      expect(document.querySelector('app-builder-lead-panel')).not.toBeNull();
+      expect(document.querySelector('app-builder-lead-drawer')).not.toBeNull();
     });
   });
 
@@ -376,22 +400,32 @@ describe('BuilderDashboardComponent — Leads home (#527)', () => {
       expect(jane.querySelector('[data-testid="row-email"]')?.getAttribute('href')).toBe('mailto:jane@example.com');
     });
 
-    it('clicking a row opens the quick view via ?open=; closing clears it', async () => {
+    it('clicking a row opens the drawer via ?open=; closing clears it', async () => {
       const { el, harness, router } = await setup();
       tableRows(el)[0].click();
       await settle(harness);
       expect(router.url).toContain('open=lead-a');
-      expect(document.querySelector('app-builder-lead-panel')).not.toBeNull();
+      expect(document.querySelector('app-builder-lead-drawer')).not.toBeNull();
       expect(tableRows(el)[0].classList).toContain('ui-dt__row--open');
 
-      (document.querySelector('.ui-modal__close') as HTMLButtonElement).click();
-      await settle(harness);
+      (document.querySelector('.ui-drawer__close') as HTMLButtonElement).click();
+      await until(harness, () => !router.url.includes('open='), 'open param cleared');
+      await until(harness, () => !document.querySelector('app-builder-lead-drawer'), 'drawer closed');
+    });
+
+    it('the browser Back button closes the drawer', async () => {
+      const { el, harness, router } = await setup();
+      tableRows(el)[2].click();
+      await until(harness, () => router.url.includes('open=lead-b'), 'open param pushed');
+      await until(harness, () => !!document.querySelector('app-builder-lead-drawer'), 'drawer open');
+      TestBed.inject(Location).back();
+      await until(harness, () => !document.querySelector('app-builder-lead-drawer'), 'closed by Back');
       expect(router.url).not.toContain('open=');
     });
 
-    it('opens the quick view from a deep link and drops an unknown ?open= id', async () => {
+    it('opens the drawer from a deep link and drops an unknown ?open= id', async () => {
       const first = await setup({ url: '/builder?open=lead-b' });
-      expect(document.querySelector('app-builder-lead-panel')?.textContent).toContain('Bob Buyer');
+      expect(document.querySelector('app-builder-lead-drawer')?.textContent).toContain('Bob Buyer');
       document.querySelectorAll('.cdk-overlay-container').forEach((n) => n.remove());
 
       const second = await setup({ url: '/builder?open=nope' });

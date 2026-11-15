@@ -1,4 +1,3 @@
-import type { DialogRef } from '@angular/cdk/dialog';
 import {
   Component,
   DestroyRef,
@@ -28,7 +27,8 @@ import {
   SkeletonComponent,
   StatusChipComponent,
   UiCellDirective,
-  UiModalService,
+  UiDrawerService,
+  type UiDrawerRef,
   UiRowActionsDirective,
   injectTableQuery,
 } from '@app/shared/ui';
@@ -43,9 +43,9 @@ import { LoadActionableInvoices } from './builder-invoices.actions';
 import { BuilderInvoicesState } from './builder-invoices.state';
 import { PruneBannerState } from './due-invoice-banners.actions';
 import {
-  BuilderLeadPanelComponent,
-  type BuilderLeadPanelData,
-} from './builder-lead-panel.component';
+  BuilderLeadDrawerComponent,
+  type BuilderLeadDrawerData,
+} from './builder-lead-drawer.component';
 import {
   DEFAULT_LEAD_SORT,
   LEAD_SORT_KEYS,
@@ -87,8 +87,7 @@ const STATUS_PARAM = 'status';
  * - **Pipeline**: a segmented status filter with counts, a search box and
  *   the kit DataTable (card list on phones). Stale rows are highlighted
  *   and labelled. Status, search, sort and page live in the URL.
- * - A row opens the lead quick view (`?open=<id>`) with status change and
- *   notes, until the lead drawer story replaces it.
+ * - A row (or a Needs-you name) opens the lead drawer (#528, `?open=<id>`).
  *
  * Every grouping, count and staleness decision is server-side; the page
  * only filters/sorts the loaded list for display.
@@ -121,7 +120,7 @@ export class BuilderDashboardComponent implements OnInit {
   private readonly injector = inject(Injector);
   private readonly router = inject(Router);
   private readonly route = inject(ActivatedRoute);
-  private readonly modals = inject(UiModalService);
+  private readonly drawers = inject(UiDrawerService);
 
   /** Builder portal copy (config-owned). */
   protected readonly copy = inject(BUILDER_COPY);
@@ -243,8 +242,7 @@ export class BuilderDashboardComponent implements OnInit {
   /** Lead ids already flagged as inconsistent (warn once per lead, not per render). */
   private readonly flaggedInconsistentLeads = new Set<string>();
 
-  private panelRef: DialogRef<unknown, BuilderLeadPanelComponent> | null = null;
-  private destroyed = false;
+  private drawerRef: UiDrawerRef<unknown, BuilderLeadDrawerComponent> | null = null;
 
   constructor() {
     // Data-inconsistency flag (#474): an invoice exists only once a won
@@ -261,17 +259,14 @@ export class BuilderDashboardComponent implements OnInit {
         }
       }
     });
-    // `?open=<id>` drives the lead quick view: open it once the lead is
-    // loaded, close it when the param goes away (back button), and drop a
-    // param naming a lead this builder doesn't have.
+    // `?open=<id>` drives the lead drawer for deep links and Back/Forward:
+    // open it once the lead is loaded and drop a param naming a lead this
+    // builder doesn't have. The drawer service closes it when the param
+    // goes away.
     effect(() => {
       const id = this.openId();
       const ready = this.leadsStatus() === 'ready';
-      untracked(() => this.syncPanel(id, ready));
-    });
-    this.destroyRef.onDestroy(() => {
-      this.destroyed = true;
-      this.panelRef?.close();
+      untracked(() => this.syncDrawer(id, ready));
     });
   }
 
@@ -308,12 +303,10 @@ export class BuilderDashboardComponent implements OnInit {
     this.list.setFilter(STATUS_PARAM, status);
   }
 
+  /** Opens the lead drawer; the drawer service pushes `?open=<id>` (Back closes it). */
   protected openLead(id: string): void {
-    void this.router.navigate([], {
-      relativeTo: this.route,
-      queryParams: { [OPEN_PARAM]: id },
-      queryParamsHandling: 'merge',
-    });
+    if (!this.leads().some((lead) => lead.id === id)) return;
+    this.openDrawer(id);
   }
 
   private clearOpen(): void {
@@ -325,24 +318,36 @@ export class BuilderDashboardComponent implements OnInit {
     });
   }
 
-  private syncPanel(id: string | null, ready: boolean): void {
-    if (id === null) {
-      this.panelRef?.close();
-      return;
-    }
-    if (!ready || this.panelRef) return;
+  private syncDrawer(id: string | null, ready: boolean): void {
+    if (id === null || !ready) return;
     if (!this.leads().some((lead) => lead.id === id)) {
       this.clearOpen();
       return;
     }
-    const ref = this.modals.open<BuilderLeadPanelComponent, unknown, BuilderLeadPanelData>(
-      BuilderLeadPanelComponent,
-      { data: { leadId: id }, size: 'lg', injector: this.injector },
+    this.openDrawer(id);
+  }
+
+  private openDrawer(id: string): void {
+    const t = this.copy.leadDrawer;
+    const ref = this.drawers.open<BuilderLeadDrawerComponent, unknown, BuilderLeadDrawerData>(
+      BuilderLeadDrawerComponent,
+      {
+        data: { leadId: id },
+        size: 'lg',
+        urlId: id,
+        injector: this.injector,
+        discardConfirm: {
+          title: t.discardTitle,
+          body: t.discardBody,
+          verb: t.discardVerb,
+          cancelLabel: t.discardCancel,
+        },
+      },
     );
-    this.panelRef = ref;
+    if (ref === this.drawerRef) return;
+    this.drawerRef = ref;
     ref.closed.pipe(takeUntilDestroyed(this.destroyRef)).subscribe(() => {
-      this.panelRef = null;
-      if (!this.destroyed && this.openId() === id) this.clearOpen();
+      if (this.drawerRef === ref) this.drawerRef = null;
     });
   }
 
