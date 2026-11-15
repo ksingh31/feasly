@@ -9,14 +9,45 @@ export type PropertyErrorCode =
   | 'service_down'
   | 'multi_unit';
 
+/**
+ * Where a parcel's land-use district came from (#686):
+ * - `land-use-districts`: the City's current Land Use Districts map
+ *   (authoritative for "what can be built").
+ * - `assessment-roll`: fallback — the assessment roll's designation, which
+ *   reflects a past condition date (may be a stale pre-repeal pair).
+ */
+export type LandUseSource = 'land-use-districts' | 'assessment-roll';
+
+/** Current land-use district for a parcel (#686). Public City data. */
+export interface PropertyLandUse {
+  /** District code, e.g. 'R-C2', 'R-CG', 'DC'. */
+  readonly district: string;
+  /** City description of the district; empty when the source has none. */
+  readonly description: string;
+  readonly source: LandUseSource;
+  /** When the district was checked against the source (ISO date). */
+  readonly asOf: string;
+  /** Direct Control bylaw number (e.g. '48Z84') when district is 'DC' and known. */
+  readonly dcBylaw?: string;
+}
+
 export interface PropertyRecord {
   readonly addressKey: string;
   readonly address: string;
   readonly community: string;
   /** Lot size in square feet. */
   readonly lotSqft: number;
-  /** City land-use designation, verbatim. */
+  /**
+   * City land-use designation. Carries the current district
+   * (`landUse.district`) when it is known from the Land Use Districts map;
+   * otherwise the assessment roll's designation, verbatim (#686).
+   */
   readonly zoning: string;
+  /**
+   * Current land-use district and its source (#686). Optional (additive):
+   * cached/stored records from before this field omit it.
+   */
+  readonly landUse?: PropertyLandUse;
   /** City-assessed value, integer CAD (no cents). */
   readonly assessedValue: number;
   /**

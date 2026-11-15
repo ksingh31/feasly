@@ -227,13 +227,36 @@ export const LeadResponseSchema = z
 
 // ── Property ────────────────────────────────────────────────────────────
 
+export const PropertyLandUseSchema = z
+  .object({
+    district: z.string().describe("Land-use district code, e.g. 'R-C2', 'DC'"),
+    description: z.string().describe('City description of the district; empty when unknown'),
+    source: z
+      .enum(['land-use-districts', 'assessment-roll'])
+      .describe(
+        "'land-use-districts' = the City's current Land Use Districts map; 'assessment-roll' = fallback to the assessment roll designation",
+      ),
+    asOf: z.string().describe('When the district was checked against the source (ISO date)'),
+    dcBylaw: z
+      .string()
+      .optional()
+      .describe('Direct Control bylaw number when district is DC and the City provides one'),
+  })
+  .describe('Current land-use district for a parcel and where it came from')
+  .openapi('PropertyLandUse');
+
 export const PropertyRecordSchema = z
   .object({
     addressKey: z.string(),
     address: z.string(),
     community: z.string(),
     lotSqft: z.number().describe('Lot size in square feet'),
-    zoning: z.string().describe('City land-use designation, verbatim'),
+    zoning: z
+      .string()
+      .describe(
+        'City land-use designation: the current district (landUse.district) when known, otherwise the assessment roll value verbatim',
+      ),
+    landUse: PropertyLandUseSchema.optional(),
     assessedValue: z.number().int().describe('City-assessed value, integer CAD'),
     assessmentYear: z
       .number()
