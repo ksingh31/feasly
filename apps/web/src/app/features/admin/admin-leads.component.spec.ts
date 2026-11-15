@@ -5,11 +5,10 @@ import { type ComponentFixture, TestBed } from '@angular/core/testing';
 import { By } from '@angular/platform-browser';
 import { Router, provideRouter } from '@angular/router';
 import { provideStore, Store } from '@ngxs/store';
-import { of } from 'rxjs';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { AdminLeadListItem } from '@feasly/contracts';
 import { ConfigService } from '../../core/config/config.service';
-import { UiConfirmService, UiDrawerService } from '@app/shared/ui';
+import { UiDrawerService } from '@app/shared/ui';
 import { AdminLeadsComponent } from './admin-leads.component';
 import { AdminLeadsState } from './admin-leads.state';
 import { AdminBuildersState } from './admin-builders.state';
@@ -251,53 +250,11 @@ describe('AdminLeadsComponent', () => {
     expect(text()).toContain('No leads match');
   });
 
-  describe('quarantine tab', () => {
-    async function openQuarantine(): Promise<void> {
-      const tab = fixture.debugElement.queryAll(By.css('.leads-page__tab'))[1].nativeElement as HTMLButtonElement;
-      tab.click();
-      fixture.detectChanges();
-      const req = await nextListRequest([{ ...LEAD_A, quarantined: true }]);
-      expect(req.request.params.get('quarantinedOnly')).toBe('true');
-    }
-
-    it('managers get Approve/Discard row actions; approve posts', async () => {
-      await setup();
-      await load();
-      await openQuarantine();
-      const approve = fixture.debugElement
-        .queryAll(By.css('.leads-page__row-actions button'))
-        .map((d) => d.nativeElement as HTMLButtonElement)
-        .find((b) => b.textContent?.includes('Approve'));
-      expect(approve).toBeTruthy();
-      approve!.click();
-      http
-        .expectOne((r) => r.url.endsWith('/api/v1/admin/leads/a1/quarantine/approve') && r.method === 'POST')
-        .flush({});
-      await until(() => store.selectSnapshot(AdminLeadsState.leads).length === 0, 'lead removed');
-    });
-
-    it('discard asks first, then posts', async () => {
-      await setup();
-      await load();
-      const confirm = vi.spyOn(TestBed.inject(UiConfirmService), 'confirm').mockReturnValue(of(true));
-      await openQuarantine();
-      const discard = fixture.debugElement
-        .queryAll(By.css('.leads-page__row-actions button'))
-        .map((d) => d.nativeElement as HTMLButtonElement)
-        .find((b) => b.textContent?.includes('Discard'));
-      discard!.click();
-      expect(confirm).toHaveBeenCalledWith(expect.objectContaining({ title: 'Discard Ava Smith?', tone: 'danger' }));
-      http
-        .expectOne((r) => r.url.endsWith('/api/v1/admin/leads/a1/quarantine/discard') && r.method === 'POST')
-        .flush({});
-      await until(() => store.selectSnapshot(AdminLeadsState.leads).length === 0, 'lead removed');
-    });
-
-    it('viewers see no row actions', async () => {
-      await setup([]);
-      await load();
-      await openQuarantine();
-      expect(fixture.debugElement.query(By.css('.leads-page__row-actions'))).toBeNull();
-    });
+  it('has no quarantine tab — quarantine lives on its own route (#540)', async () => {
+    await setup();
+    const req = await load();
+    expect(fixture.debugElement.query(By.css('[role="tablist"]'))).toBeNull();
+    expect(req.request.params.get('quarantinedOnly')).toBeNull();
+    expect(req.request.params.get('includeQuarantined')).toBeNull();
   });
 });

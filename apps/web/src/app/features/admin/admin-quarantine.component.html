@@ -1,0 +1,134 @@
+<div class="quarantine-page">
+  <ui-page-header [heading]="copy.title" [description]="copy.description" />
+
+  @if (actionError(); as err) {
+    <p class="quarantine-page__alert" role="alert">
+      <span>{{ err }}</span>
+      <button type="button" ui-button variant="ghost" size="sm" (click)="dismissError()">
+        {{ copy.dismiss }}
+      </button>
+    </p>
+  }
+
+  <ui-filter-bar
+    [search]="list.search()"
+    [debounceMs]="debounceMs"
+    [searchLabel]="copy.searchLabel"
+    [searchPlaceholder]="copy.searchPlaceholder"
+    [clearAllLabel]="copy.clearFilters"
+    (searchChange)="list.setSearch($event)"
+    (clearAll)="list.setSearch('')"
+  />
+
+  <p class="quarantine-page__count" aria-live="polite">
+    @if (listStatus() !== 'loading') {
+      {{ countLabel() }}
+    }
+  </p>
+
+  <ui-data-table
+    [label]="copy.tableLabel"
+    [rows]="leads()"
+    [columns]="columns"
+    [rowId]="rowId"
+    [loading]="listStatus() === 'loading'"
+    [error]="listStatus() === 'error' ? listError() : null"
+    [filtered]="filtered()"
+    [selectedId]="openId()"
+    [selectable]="canManage()"
+    [(selection)]="selection"
+    [emptyHeading]="copy.emptyHeading"
+    [emptyMessage]="copy.emptyMessage"
+    [noResultsHeading]="copy.noResultsHeading"
+    [noResultsMessage]="copy.noResultsMessage"
+    [clearFiltersLabel]="copy.clearFilters"
+    [errorHeading]="copy.errorHeading"
+    [retryLabel]="copy.retry"
+    [loadingLabel]="copy.loading"
+    [actionsHeader]="copy.actionsHeader"
+    [selectAllLabel]="copy.selectAll"
+    [selectRowLabel]="copy.selectRow"
+    [selectedCountLabel]="copy.selectedCount"
+    (open)="openLead($event)"
+    (retry)="retry()"
+    (clearFilters)="list.setSearch('')"
+  >
+    <div uiBulkActions class="quarantine-page__bulk">
+      <button
+        type="button"
+        ui-button
+        size="sm"
+        [loading]="busy() && busyDecision() === 'approve'"
+        [disabled]="busy()"
+        (click)="approveSelected()"
+      >
+        {{ busy() && busyDecision() === 'approve' ? copy.approving : copy.approveSelected }}
+      </button>
+      <button
+        type="button"
+        ui-button
+        variant="danger"
+        size="sm"
+        [loading]="busy() && busyDecision() === 'discard'"
+        [disabled]="busy()"
+        (click)="discardSelected()"
+      >
+        {{ busy() && busyDecision() === 'discard' ? copy.discarding : copy.discardSelected }}
+      </button>
+      <button type="button" ui-button variant="ghost" size="sm" [disabled]="busy()" (click)="clearSelection()">
+        {{ copy.cancel }}
+      </button>
+    </div>
+
+    <ng-template uiCell="lead" let-row>
+      <span class="quarantine-page__lead">
+        <span class="quarantine-page__lead-name">{{ row.name }}</span>
+        <span class="quarantine-page__lead-email">{{ row.email }}</span>
+      </span>
+    </ng-template>
+
+    @if (canManage()) {
+      <ng-template uiRowActions let-row>
+        <span class="quarantine-page__row-actions">
+          <button
+            type="button"
+            ui-button
+            size="sm"
+            variant="secondary"
+            [loading]="isBusy(row.id, 'approve')"
+            [disabled]="busy()"
+            (click)="approveOne(row)"
+          >
+            {{ isBusy(row.id, 'approve') ? copy.approving : copy.approve }}
+          </button>
+          <button
+            type="button"
+            ui-button
+            variant="danger-secondary"
+            size="sm"
+            [loading]="isBusy(row.id, 'discard')"
+            [disabled]="busy()"
+            (click)="discardOne(row)"
+          >
+            {{ isBusy(row.id, 'discard') ? copy.discarding : copy.discard }}
+          </button>
+        </span>
+      </ng-template>
+    }
+  </ui-data-table>
+
+  @if (hasMore() && listStatus() !== 'error') {
+    <div class="quarantine-page__more">
+      <button
+        type="button"
+        ui-button
+        variant="secondary"
+        [loading]="listStatus() === 'loading-more'"
+        [disabled]="listStatus() === 'loading-more'"
+        (click)="loadMore()"
+      >
+        {{ listStatus() === 'loading-more' ? copy.loadingMore : copy.loadMore }}
+      </button>
+    </div>
+  }
+</div>
