@@ -150,6 +150,21 @@ export function slugify(name: string): string {
 }
 
 /**
+ * The page type a community's dwelling counts + the force-profile set imply.
+ * Shared by classification and the cache check, so a cached mix is reused
+ * only when it still agrees with the current config.
+ */
+export function expectedCommunityType(
+  slug: string,
+  mix: { readonly singleDetached: number; readonly semiDuplex: number; readonly multiFamily: number },
+  forceProfile: ReadonlySet<string>,
+): CommunityDwellingMix['communityType'] {
+  const dwellingUnits = mix.singleDetached + mix.semiDuplex + mix.multiFamily;
+  const multiShare = dwellingUnits > 0 ? mix.multiFamily / dwellingUnits : 0;
+  return forceProfile.has(slug) || multiShare > PROFILE_MULTI_FAMILY_THRESHOLD ? 'profile' : 'build-guide';
+}
+
+/**
  * Buckets raw counts into dwelling mixes and classifies each slug.
  * Pure function — all HTTP happens in the fetchers above.
  */
@@ -183,17 +198,13 @@ export function classifyCommunities(
     if (dwellingUnits === 0) {
       onWarn(`build-community-mix: no dwelling records for ${slug} — defaulting to build-guide`);
     }
-    const multiShare = dwellingUnits > 0 ? b.multiFamily / dwellingUnits : 0;
     const mostCommonType =
       b.singleDetached >= b.semiDuplex && b.singleDetached >= b.multiFamily
         ? 'singleDetached'
         : b.semiDuplex >= b.multiFamily
           ? 'semiDuplex'
           : 'multiFamily';
-    const communityType =
-      forceProfile.has(slug) || multiShare > PROFILE_MULTI_FAMILY_THRESHOLD
-        ? 'profile'
-        : 'build-guide';
+    const communityType = expectedCommunityType(slug, b, forceProfile);
     return {
       slug,
       communityType,
@@ -278,32 +289,60 @@ function readAggregates(): { slugs: string[]; residentialBasis: string[] } {
   };
 }
 
-/** True when every aggregate slug has a classification in the on-disk mix file. */
-function mixCoversAggregates(slugs: readonly string[]): boolean {
+/**
+ * True when a cached mix file can be reused as-is: it covers exactly the
+ * aggregate slugs AND every cached page type matches what the stored counts
+ * plus the current force-profile set imply. Selection-config edits that keep
+ * the slug set (profileOverrides added/removed, a community flipping to the
+ * 'residential' basis) therefore invalidate the cache (#766 review).
+ * Pure — the caller reads the file.
+ */
+export function cachedMixMatches(
+  cached: CommunityMixFile,
+  slugs: readonly string[],
+  forceProfile: ReadonlySet<string>,
+): boolean {
+  const bySlug = new Map(cached.communities.map((c) => [c.slug, c]));
+  if (slugs.length !== bySlug.size) return false;
+  return slugs.every((slug) => {
+    const c = bySlug.get(slug);
+    return c !== undefined && c.communityType === expectedCommunityType(slug, c.mix, forceProfile);
+  });
+}
+
+function readCachedMix(): CommunityMixFile | null {
   try {
     const parsed = communityMixFileSchema.safeParse(JSON.parse(readFileSync(OUTPUT_PATH, 'utf8')));
-    if (!parsed.success) return false;
-    const have = new Set(parsed.data.communities.map((c) => c.slug));
-    return slugs.length === have.size && slugs.every((s) => have.has(s));
+    return parsed.success ? parsed.data : null;
   } catch {
-    return false;
+    return null;
   }
 }
 
 export async function run(config: MixBuildConfig): Promise<void> {
   const age = ageInDays();
   const { slugs, residentialBasis } = readAggregates();
-  // The page list changes with the selection config (#690): a cached mix
-  // that doesn't cover exactly the aggregate slugs is regenerated.
-  if (!config.force && age !== null && age < MAX_AGE_DAYS && mixCoversAggregates(slugs)) {
+  const forceProfile = new Set([...loadCitySelection().selection.profileOverrides, ...residentialBasis]);
+  // The page list and forced profiles change with the selection config (#690):
+  // a cached mix that no longer matches either is regenerated.
+  const cached = readCachedMix();
+  if (
+    !config.force &&
+    age !== null &&
+    age < MAX_AGE_DAYS &&
+    cached !== null &&
+    cachedMixMatches(cached, slugs, forceProfile)
+  ) {
     console.log(
       `build-community-mix: using cached community-mix.json (generated ${age.toFixed(1)} days ago, fresh for ${MAX_AGE_DAYS} days)`,
     );
     return;
   }
   if (config.force) console.log('build-community-mix: --force: regenerating');
+  else if (age !== null && age < MAX_AGE_DAYS) {
+    console.log('build-community-mix: cached mix does not match the current selection config — regenerating');
+  }
 
-  const forceProfile = new Set([...loadCitySelection().selection.profileOverrides, ...residentialBasis]);
   const rollYear = await latestRollYear(config);
   const rows = await fetchMixCounts(config, rollYear);
   console.log(`build-community-mix: fetched ${rows.length} community×use rows for roll ${rollYear}`);
