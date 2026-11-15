@@ -6,6 +6,7 @@ import {
   nextSort,
   pageCount,
   parseSort,
+  resolveSort,
   serializeSort,
   type TableQueryOptions,
 } from './table-query';
@@ -35,6 +36,21 @@ describe('sort codec', () => {
     expect(d).toEqual({ key: 'name', direction: 'desc' });
     expect(nextSort(d, 'name')).toBeNull();
     expect(nextSort(d, 'created')).toEqual({ key: 'created', direction: 'asc' });
+  });
+
+  it('resolveSort: with a default, "none" returns to the default or flips it', () => {
+    const def = { key: 'created', direction: 'desc' } as const;
+    const nameDesc = { key: 'name', direction: 'desc' } as const;
+    // No default: passes through untouched.
+    expect(resolveSort(null, nameDesc, null)).toBeNull();
+    expect(resolveSort(nameDesc, null, def)).toEqual(nameDesc);
+    // Another column cycling off → back to the default.
+    expect(resolveSort(null, nameDesc, def)).toEqual(def);
+    // Default column already at the default (desc) → asc instead of stuck.
+    expect(resolveSort(nextSort(def, 'created'), def, def)).toEqual({ key: 'created', direction: 'asc' });
+    // Default asc: asc → desc via nextSort, then desc → none → back to asc.
+    const asc = { key: 'created', direction: 'asc' } as const;
+    expect(resolveSort(null, { key: 'created', direction: 'desc' }, asc)).toEqual(asc);
   });
 });
 

@@ -10,6 +10,7 @@ import { describe, expect, it } from 'vitest';
 import { FilterBarComponent, type FilterBarSelect } from '../filter-bar/filter-bar.component';
 import type { DataTableColumn } from './data-table';
 import { DataTableComponent } from './data-table.component';
+import type { TableSort } from './table-query';
 import { injectTableQuery } from './table-query-state';
 
 interface Row {
@@ -46,7 +47,12 @@ interface Row {
   `,
 })
 class ListPage {
-  readonly list = injectTableQuery({ filterKeys: ['status'], sortKeys: ['name', 'amount'] });
+  static defaultSort: TableSort | null = null;
+  readonly list = injectTableQuery({
+    filterKeys: ['status'],
+    sortKeys: ['name', 'amount'],
+    defaultSort: ListPage.defaultSort,
+  });
   readonly selects: FilterBarSelect[] = [
     { key: 'status', label: 'Status', placeholder: 'Any', options: [{ value: 'won', label: 'Won' }, { value: 'lost', label: 'Lost' }] },
   ];
@@ -58,7 +64,11 @@ class ListPage {
   readonly rowId = (r: Row): string => r.id;
 }
 
-async function boot(url: string): Promise<{ harness: RouterTestingHarness; router: Router }> {
+async function boot(
+  url: string,
+  defaultSort: TableSort | null = null,
+): Promise<{ harness: RouterTestingHarness; router: Router }> {
+  ListPage.defaultSort = defaultSort;
   TestBed.resetTestingModule();
   TestBed.configureTestingModule({ providers: [provideRouter([{ path: 'list', component: ListPage }])] });
   const harness = await RouterTestingHarness.create();
@@ -131,5 +141,33 @@ describe('injectTableQuery — URL round-trip', () => {
     input.dispatchEvent(new Event('input'));
     const url = await urlWhen(router, harness, (u) => u.includes('q=marco'));
     expect(url).toBe('/list?q=marco');
+  });
+
+  it('header clicks on a descending default column toggle asc ⇄ desc (never stuck)', async () => {
+    const { harness, router } = await boot('/list', { key: 'amount', direction: 'desc' });
+    const el = harness.routeNativeElement as HTMLElement;
+    const amountTh = (): Element => el.querySelectorAll('thead th')[1];
+    const amountBtn = (): HTMLButtonElement => amountTh().querySelector('button') as HTMLButtonElement;
+    expect(amountTh().getAttribute('aria-sort')).toBe('descending');
+
+    amountBtn().click();
+    await urlWhen(router, harness, (u) => u.includes('sort=amount'));
+    expect(amountTh().getAttribute('aria-sort')).toBe('ascending');
+
+    // Back to the default: the param is dropped and the column reads descending.
+    amountBtn().click();
+    const url = await urlWhen(router, harness, (u) => !u.includes('sort='));
+    expect(url).toBe('/list');
+    expect(amountTh().getAttribute('aria-sort')).toBe('descending');
+
+    // Another column cycling past desc falls back to the default.
+    const nameBtn = el.querySelector('thead th button') as HTMLButtonElement;
+    nameBtn.click();
+    await urlWhen(router, harness, (u) => u.includes('sort=name'));
+    (el.querySelector('thead th button') as HTMLButtonElement).click();
+    await urlWhen(router, harness, (u) => u.includes('sort=-name'));
+    (el.querySelector('thead th button') as HTMLButtonElement).click();
+    await urlWhen(router, harness, (u) => !u.includes('sort='));
+    expect(amountTh().getAttribute('aria-sort')).toBe('descending');
   });
 });

@@ -110,13 +110,20 @@ export class FilterBarComponent {
   );
 
   private readonly typed = new Subject<string>();
+  /** Last search we emitted, until the parent echoes it back via `search`. */
+  private lastEmitted: string | null = null;
   private readonly injector = inject(Injector);
 
   constructor() {
-    // Keep the box in step with the URL (back/forward, Clear all).
+    // Keep the box in step with the URL (back/forward, Clear all) — but when
+    // the change is just our own emitted search landing, leave the box alone:
+    // the user may have kept typing while the navigation was in flight.
     effect(() => {
       const external = this.search();
       untracked(() => {
+        const echo = this.lastEmitted !== null && external.trim() === this.lastEmitted;
+        this.lastEmitted = null;
+        if (echo) return;
         if (external.trim() !== this.draft().trim()) this.draft.set(external);
       });
     });
@@ -128,7 +135,9 @@ export class FilterBarComponent {
         takeUntilDestroyed(),
       )
       .subscribe((value) => {
-        if (value !== this.search().trim()) this.searchChange.emit(value);
+        if (value === this.search().trim()) return;
+        this.lastEmitted = value;
+        this.searchChange.emit(value);
       });
   }
 

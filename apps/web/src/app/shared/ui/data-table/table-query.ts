@@ -73,6 +73,23 @@ export function nextSort(current: TableSort | null, key: string): TableSort | nu
   return current.direction === 'asc' ? { key, direction: 'desc' } : null;
 }
 
+/**
+ * Resolves a requested sort against the list's default. With a default,
+ * "no sort" can't be represented in the URL (an absent param decodes back to
+ * the default), so `null` means "back to the default" — and when the default
+ * is already applied, the default column flips direction instead of getting
+ * stuck. Header clicks on the default column therefore toggle asc ⇄ desc.
+ */
+export function resolveSort(
+  requested: TableSort | null,
+  current: TableSort | null,
+  defaultSort: TableSort | null | undefined,
+): TableSort | null {
+  if (requested || !defaultSort) return requested;
+  if (!sameSort(current, defaultSort)) return defaultSort;
+  return { key: defaultSort.key, direction: defaultSort.direction === 'asc' ? 'desc' : 'asc' };
+}
+
 export function sameSort(a: TableSort | null, b: TableSort | null): boolean {
   return a?.key === b?.key && a?.direction === b?.direction;
 }

@@ -8,6 +8,7 @@ import {
   type TableSort,
   decodeTableQuery,
   encodeTableQuery,
+  resolveSort,
 } from './table-query';
 
 /** URL-backed list state for one DataTable + FilterBar pair. */
@@ -76,7 +77,8 @@ export function injectTableQuery(options: TableQueryOptions = {}): TableQuerySta
       write({ ...query(), filters, page: 1 });
     },
     clearFilters: () => write({ ...query(), search: '', filters: {}, page: 1 }),
-    setSort: (sort) => write({ ...query(), sort, page: 1 }),
+    setSort: (sort) =>
+      write({ ...query(), sort: resolveSort(sort, query().sort, options.defaultSort), page: 1 }),
     setPage: (page) => write({ ...query(), page: Math.max(1, Math.floor(page)) }),
   };
 }

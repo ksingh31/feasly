@@ -88,6 +88,25 @@ describe('FilterBarComponent', () => {
     expect(host.searches).toEqual([]);
   });
 
+  it('keeps keystrokes typed while the emitted search is still navigating', () => {
+    const el = setup();
+    type(el, 'mar');
+    vi.advanceTimersByTime(250);
+    expect(host.searches).toEqual(['mar']);
+    // User keeps typing before the URL catches up…
+    type(el, 'marco');
+    // …then the navigation for "mar" lands.
+    host.search.set('mar');
+    render();
+    expect(searchBox(el).value).toBe('marco');
+    vi.advanceTimersByTime(250);
+    expect(host.searches).toEqual(['mar', 'marco']);
+    // A genuine external change (back button) still syncs the box.
+    host.search.set('silva');
+    render();
+    expect(searchBox(el).value).toBe('silva');
+  });
+
   it('"/" focuses search, except while typing in another field', () => {
     const el = setup();
     const other = el.querySelector('.other-input') as HTMLInputElement;
