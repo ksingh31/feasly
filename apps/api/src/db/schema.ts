@@ -157,6 +157,13 @@ export const leads = pgTable(
     /** email/02: exactly-once guard for the 24h nudge; null = not yet sent. */
     nudgeSentAt: timestamp('nudge_sent_at', { withTimezone: true }),
     /**
+     * #703: first time the homeowner opened their report with the owner
+     * link. Stamped once by the report service, never overwritten.
+     */
+    reportOpenedAt: timestamp('report_opened_at', { withTimezone: true }),
+    /** #703: exactly-once guard for the post-report follow-up; null = not sent. */
+    followUpSentAt: timestamp('follow_up_sent_at', { withTimezone: true }),
+    /**
      * Admin assignment to a builder (builders table). Nullable — null is
      * the normal state and the lead flow never depends on it. Set via the
      * admin UI ("Assign to builder"); the builder portal scopes its lead
@@ -890,7 +897,7 @@ export const commissionInvoices = pgTable(
      */
     paymentMethod: text('payment_method').notNull().default('card'),
     /**
-     * Sales tax (#714, migration 0050) snapshotted at creation: the GST
+     * Sales tax (#714, migration 0051) snapshotted at creation: the GST
      * rate in PERCENT (5 = 5%). 0 = no tax (tax disabled, or a legacy row
      * backfilled with zero tax). Changing BILLING_TAX_RATE never alters
      * an existing invoice; a commission-rate override on an unpaid invoice
@@ -907,7 +914,7 @@ export const commissionInvoices = pgTable(
     taxCents: integer('tax_cents').notNull().default(0),
     /**
      * commission_cents + tax_cents — the amount charged, integer cents.
-     * Expand step: nullable; migration 0050 backfilled existing rows with
+     * Expand step: nullable; migration 0051 backfilled existing rows with
      * commission_cents. Readers fall back to commission + tax when null.
      */
     totalCents: integer('total_cents'),

@@ -86,7 +86,7 @@ export function createInvoiceSummaryStore(
         // Newest first: the caller's lead→invoice lookup keeps the first
         // row per lead, which must be deterministic.
         .orderBy(desc(commissionInvoices.createdAt));
-      // #714: rows the 0050 backfill has not reached fall back to
+      // #714: rows the 0051 backfill has not reached fall back to
       // commission + tax.
       return rows.map((row) => ({
         ...row,

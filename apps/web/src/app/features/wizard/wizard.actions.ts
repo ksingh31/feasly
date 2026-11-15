@@ -72,6 +72,16 @@ export class StorePreviewEstimate {
   ) {}
 }
 
+/**
+ * NGXS action: record the allowlisted deep-link `src` the visitor arrived
+ * with (#692), e.g. 'community-lots'. Null clears it. Only values that
+ * passed the ConfigService allowlist are ever dispatched.
+ */
+export class SetEntrySource {
+  static readonly type = '[Wizard] Set entry source';
+  constructor(public readonly source: string | null) {}
+}
+
 /** NGXS action: comparison picker inputs changed (NBH-04). */
 export class UpdateComparison {
   static readonly type = '[Wizard] Update comparison';

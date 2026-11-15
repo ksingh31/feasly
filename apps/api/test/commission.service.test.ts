@@ -2339,7 +2339,7 @@ describe('GST on commission invoices (#714)', () => {
     expect(receipt.input.tax?.totalCents).toBe(1_968_750);
   });
 
-  it('legacy rows (pre-0050) read as zero tax with total = commission', async () => {
+  it('legacy rows (pre-0051) read as zero tax with total = commission', async () => {
     const { commission, attribution } = servicesWithTax(TAX);
     await seedBuilder('gst-legacy', 1);
     const attributionId = await seedAttribution(testDb, attribution, 'gst-legacy');
@@ -2361,7 +2361,7 @@ describe('GST on commission invoices (#714)', () => {
       totalCents: 500_000,
       taxLabel: null,
     });
-    // Schema repair backfills total_cents for rows the 0050 migration
+    // Schema repair backfills total_cents for rows the 0051 migration
     // missed (expand step), without touching other figures.
     const before = await testDb.rows<{ total_cents: number | null }>(
       `SELECT total_cents FROM commission_invoices WHERE id = '${id}'`,

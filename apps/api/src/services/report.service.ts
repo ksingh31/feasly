@@ -41,8 +41,10 @@ import type {
 } from '@feasly/contracts';
 import { ErrorCodes, HttpError } from '../middleware/errors';
 import type { EstimateRecord, EstimateStore } from './estimate.store';
+import { sanitizeErrorMessage } from '../lib/sanitize-error';
+import type { LeadFollowUpStore } from './lead-follow-up.store';
 import type { LeadStore } from './lead.store';
-import type { MagicLinkStore } from './magic-link.store';
+import { OWNER_LINK_PURPOSE, type MagicLinkStore } from './magic-link.store';
 import type { PropertyService } from './property.service';
 import { requireOwnerLink, resolveReportToken } from './report-context';
 import { isSyntheticNarrative } from './narrative/narrative.types';
@@ -87,6 +89,12 @@ export interface ReportServiceDeps {
   readonly costData: CostData;
   /** Same draft-data gate as the estimate endpoint. */
   readonly allowDraftCostData: boolean;
+  /**
+   * #703: stamps the lead's first owner-link report open — the clock the
+   * post-report follow-up email counts from. Optional; best-effort (a
+   * failed stamp never fails the report read).
+   */
+  readonly followUps?: Pick<LeadFollowUpStore, 'markReportOpened'>;
   /** Injected clock for tests; defaults to wall time. */
   readonly clock?: () => Date;
 }
@@ -324,7 +332,19 @@ export function createReportService(deps: ReportServiceDeps): ReportService {
 
   return {
     async getReport(reportToken: string): Promise<ReportSnapshot> {
-      const { estimate, latest, leadId } = await resolveEstimate(reportToken);
+      const { estimate, latest, leadId, linkPurpose } =
+        await resolveEstimate(reportToken);
+      if (linkPurpose === OWNER_LINK_PURPOSE && deps.followUps) {
+        // Partner-share opens don't count: the follow-up is about the
+        // owner's own engagement. First open wins (store no-ops after).
+        try {
+          await deps.followUps.markReportOpened({ leadId, at: clock() });
+        } catch (error) {
+          console.warn(
+            `report: report-opened stamp failed (${sanitizeErrorMessage(error)})`,
+          );
+        }
+      }
       if (latest) {
         const estimateNarrative = userNarrative(estimate.narrative);
         if (latest.narrative === '' && estimateNarrative !== '') {

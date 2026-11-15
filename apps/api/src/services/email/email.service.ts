@@ -4,7 +4,7 @@
  * Every send path in the product funnels through here — magic-link
  * (consumer + admin + reissue), partner-share (fresh bearer token per share,
  * NEVER the owner's magic link forwarded), callback confirmation to the team
- * inbox, the 24-hour nudge, and ops alerts. No per-endpoint email hacks.
+ * inbox, the 24-hour nudge, the post-report follow-up (#703), and ops alerts. No per-endpoint email hacks.
  *
  * The service itself never logs PII: providers handle their own logging
  * discipline (the log provider redacts recipients unless EMAIL_LOG_LINKS).
@@ -25,6 +25,7 @@ import {
   renderCommissionPaymentFailedEmail,
   renderCommissionPaymentReceivedEmail,
   renderContractNeedsRecordingEmail,
+  renderFollowUpEmail,
   renderInvitationEmail,
   renderMagicLinkEmail,
   renderNudgeEmail,
@@ -48,6 +49,10 @@ export interface MagicLinkEmailInput {
    * footer for the consumer audience only; absent for admin/builder.
    */
   readonly unsubscribeUrl?: string;
+  /** #703 (consumer only): display address the report is for. */
+  readonly address?: string;
+  /** #703 (consumer only): the issued token's `expires_at`. */
+  readonly expiresOn?: Date;
 }
 
 export interface PartnerShareEmailInput {
@@ -84,6 +89,18 @@ export interface NudgeEmailInput {
    * UnsubscribeService.buildUnsubscribeUrl — the email service never mints
    * or parses tokens itself.
    */
+  readonly unsubscribeUrl: string;
+}
+
+/** #703 post-report follow-up (non-transactional, marketing consent only). */
+export interface FollowUpEmailInput {
+  readonly to: string;
+  readonly name?: string;
+  /** Display address of the property, e.g. "1412 Prospect Av SW". */
+  readonly address?: string;
+  /** Owner report URL. */
+  readonly reportUrl: string;
+  /** Full one-click unsubscribe URL (token embedded). */
   readonly unsubscribeUrl: string;
 }
 
@@ -176,6 +193,8 @@ export interface EmailService {
     input: CallbackConfirmationInput,
   ): Promise<EmailDelivery>;
   sendNudge(input: NudgeEmailInput): Promise<EmailDelivery>;
+  /** #703: one post-report follow-up (List-Unsubscribe headers set). */
+  sendFollowUp(input: FollowUpEmailInput): Promise<EmailDelivery>;
   sendOpsAlert(input: OpsAlertEmailInput): Promise<EmailDelivery>;
   /** BILL-04: invoice entered the 7-day review window. */
   sendCommissionInvoiceReady(
@@ -361,6 +380,23 @@ export function createEmailService(deps: EmailServiceDeps): EmailService {
       const rendered = renderNudgeEmail(ctx, {
         name: input.name,
         resumeUrl: input.resumeUrl,
+        unsubscribeUrl: input.unsubscribeUrl,
+      });
+      return deliver({
+        ...rendered,
+        to: input.to,
+        headers: {
+          'List-Unsubscribe': `<${input.unsubscribeUrl}>`,
+          'List-Unsubscribe-Post': 'List-Unsubscribe=One-Click',
+        },
+      });
+    },
+
+    async sendFollowUp(input: FollowUpEmailInput): Promise<EmailDelivery> {
+      const rendered = renderFollowUpEmail(ctx, {
+        name: input.name,
+        address: input.address,
+        reportUrl: input.reportUrl,
         unsubscribeUrl: input.unsubscribeUrl,
       });
       return deliver({

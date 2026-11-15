@@ -463,7 +463,7 @@ function requireCardPaymentMethod(
 
 /**
  * The amount charged for an invoice (#714): the snapshotted total, or
- * commission + tax for a row the 0050 backfill has not reached yet.
+ * commission + tax for a row the 0051 backfill has not reached yet.
  */
 export function invoiceTotalCents(
   row: Pick<
