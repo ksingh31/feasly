@@ -103,7 +103,9 @@ export interface BuilderLeadsService {
    * The write is a compare-and-set on the status read (#620): a request
    * that loses a race to an identical transition succeeds without a second
    * history row; one that loses to a different transition gets 409
-   * (CONFLICT).
+   * (CONFLICT) — except a won transition that already created a commission
+   * invoice: the invoice is authoritative, so it re-bases onto the current
+   * status and still moves the lead to won.
    *
    * When the transition is to 'won', the billing charge path runs first
    * (billing/01): with contract details it creates the draft commission
@@ -133,6 +135,14 @@ export interface BuilderLeadsService {
     actorEmail: string,
   ): Promise<BuilderLeadMarkWonResponse>;
 }
+
+/**
+ * #620: how many compare-and-set attempts an invoiced won transition makes
+ * before giving up. Each retry re-bases on the freshly read status; once
+ * the invoice exists, other transitions are status-locked, so a second
+ * attempt practically always lands. Not a tunable — a loop bound.
+ */
+const INVOICED_WON_CAS_ATTEMPTS = 3;
 
 interface StatusChangeResult {
   readonly ok: true;
@@ -532,22 +542,36 @@ export function createBuilderLeadsService(
       );
     }
 
+    // `fromStatus` is the status this request's write actually moved the
+    // row from — normally `oldStatus`, but an invoiced won transition that
+    // loses the race re-bases onto the current status (below).
+    let fromStatus = oldStatus;
     if (oldStatus !== newStatus) {
-      // auth/04: the write is tenant-scoped in SQL too — even if the
-      // read above were bypassed, this updates zero rows cross-tenant.
-      // #620: it is also a compare-and-set on the status we read, so two
-      // concurrent requests from the same read can't both append history.
-      const updated = await leadStore.updateStatusForBuilder({
-        id,
-        builderId: builder.id,
-        expectedStatus: oldStatus,
-        status: newStatus,
-      });
-      if (updated === null) {
+      // A commission invoice now exists for this lead: the invoice is
+      // authoritative, so the lead must end up 'won' even if another
+      // request moved it meanwhile — a 409 here would leave an invoice on a
+      // non-won lead, status-locked for good by hasRecordedContract.
+      const invoiced = billing?.billed === true;
+      for (let attempt = 1; ; attempt++) {
+        // auth/04: the write is tenant-scoped in SQL too — even if the
+        // read above were bypassed, this updates zero rows cross-tenant.
+        // #620: it is also a compare-and-set on the status we read, so two
+        // concurrent requests from the same read can't both append history.
+        const updated = await leadStore.updateStatusForBuilder({
+          id,
+          builderId: builder.id,
+          expectedStatus: fromStatus,
+          status: newStatus,
+        });
+        if (updated !== null) {
+          break;
+        }
         // Lost the race: another request changed the status between our
         // read and write. If it landed on the status we wanted, this is a
         // duplicate of that transition — succeed without a second history
-        // row. Otherwise the builder is acting on a stale view: 409.
+        // row. Otherwise the builder is acting on a stale view: 409 —
+        // unless this request already invoiced, then retry from the
+        // current status.
         const current = await leadStore.findByIdAndBuilderId({
           id,
           builderId: builder.id,
@@ -555,7 +579,12 @@ export function createBuilderLeadsService(
         if (current === null) {
           throw new HttpError(404, ErrorCodes.NOT_FOUND, 'Lead not found.', false);
         }
-        if (current.status !== newStatus) {
+        if (current.status === newStatus) {
+          return billing === undefined
+            ? { ok: true, changed: false }
+            : { ok: true, changed: false, billing };
+        }
+        if (!invoiced || attempt >= INVOICED_WON_CAS_ATTEMPTS) {
           throw new HttpError(
             409,
             ErrorCodes.CONFLICT,
@@ -563,14 +592,12 @@ export function createBuilderLeadsService(
             false,
           );
         }
-        return billing === undefined
-          ? { ok: true, changed: false }
-          : { ok: true, changed: false, billing };
+        fromStatus = current.status;
       }
       await leadStore.appendStatusHistory({
         id: randomUUID(),
         leadId: id,
-        oldStatus,
+        oldStatus: fromStatus,
         newStatus,
         changedBy: builderEmail,
       });
@@ -579,7 +606,7 @@ export function createBuilderLeadsService(
     await audit.log({
       actorEmail: builderEmail,
       action: 'builder_leads_status_changed',
-      detail: `leadId=${id} oldStatus=${oldStatus} newStatus=${newStatus} tenantKey=${tenantKey}`,
+      detail: `leadId=${id} oldStatus=${fromStatus} newStatus=${newStatus} tenantKey=${tenantKey}`,
     });
 
     const changed = oldStatus !== newStatus;

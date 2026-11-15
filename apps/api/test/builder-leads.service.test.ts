@@ -455,6 +455,50 @@ describe('builder-leads won → billing charge path (billing/01)', () => {
     expect(leads.get('lead-1')?.status).toBe('won');
   });
 
+  it('an invoiced won that loses the race to a different status still lands on won (#620)', async () => {
+    const { service, recordBillableEvent, leads, statusHistory } = makeBillingDeps({
+      billed: true,
+      reason: undefined,
+    });
+    // The read sees 'new'; another request moves the lead to 'lost' while
+    // billing runs — after the invoice exists.
+    recordBillableEvent.mockImplementationOnce(async () => {
+      const lead = leads.get('lead-1')!;
+      leads.set('lead-1', { ...lead, status: 'lost' });
+      return { billed: true, reason: undefined } as never;
+    });
+    const result = await service.updateStatus(
+      'lead-1',
+      {
+        status: 'won',
+        contractValueCents: 50_000_000,
+        contractSignedAt: '2026-09-20T10:00:00.000Z',
+      },
+      'elite-craft',
+      'builder@example.com',
+    );
+    expect(result.ok).toBe(true);
+    expect(result.billing).toMatchObject({ billed: true });
+    expect(leads.get('lead-1')?.status).toBe('won');
+    expect(statusHistory).toEqual([
+      expect.objectContaining({ oldStatus: 'lost', newStatus: 'won' }),
+    ]);
+  });
+
+  it('an un-invoiced won that loses the race to a different status still gets 409 (#620)', async () => {
+    const { service, recordBillableEvent, leads, statusHistory } = makeBillingDeps();
+    recordBillableEvent.mockImplementationOnce(async () => {
+      const lead = leads.get('lead-1')!;
+      leads.set('lead-1', { ...lead, status: 'lost' });
+      return { billed: false, reason: 'awaiting_contract_details' } as never;
+    });
+    await expect(
+      service.updateStatus('lead-1', { status: 'won' }, 'elite-craft', 'builder@example.com'),
+    ).rejects.toMatchObject({ status: 409, code: 'CONFLICT' });
+    expect(leads.get('lead-1')?.status).toBe('lost');
+    expect(statusHistory).toHaveLength(0);
+  });
+
   it('won without contract details still calls the hook (parked invoice)', async () => {
     const { service, recordBillableEvent } = makeBillingDeps();
     const result = await service.updateStatus(
