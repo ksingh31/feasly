@@ -1,0 +1,16 @@
+<dl class="ui-kv">
+  @for (item of items(); track $index) {
+    <div class="ui-kv__row">
+      <dt class="ui-kv__label">{{ item.label }}</dt>
+      <dd class="ui-kv__value">
+        @if (isEmpty(item.value)) {
+          <span class="ui-kv__empty">{{ emptyValue() }}</span>
+        } @else if (item.href) {
+          <a [attr.href]="item.href">{{ item.value }}</a>
+        } @else {
+          {{ item.value }}
+        }
+      </dd>
+    </div>
+  }
+</dl>

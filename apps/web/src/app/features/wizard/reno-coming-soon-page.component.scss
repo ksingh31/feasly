@@ -2,10 +2,6 @@
    never a spinner or a generic error. Mobile-first, on the locked palette:
    warm cream background, charcoal text, brass accents. */
 
-.reno-coming-soon {
-  max-width: 560px;
-}
-
 .soon-card {
   margin-top: 24px;
   padding: 40px 28px;
@@ -21,7 +17,7 @@
   width: 56px;
   height: 34px;
   margin: 0 auto 20px;
-  background: linear-gradient(135deg, #d9a441 0%, #c08a24 55%, #a8761a 100%);
+  background: linear-gradient(135deg, var(--cta-on-dark-bg-hover) 0%, var(--accent-dark) 55%, var(--accent) 100%);
   clip-path: polygon(0 100%, 0 45%, 50% 0, 100% 45%, 100% 100%, 78% 100%, 78% 52%, 50% 28%, 22% 52%, 22% 100%);
 }
 

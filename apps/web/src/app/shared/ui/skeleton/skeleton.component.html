@@ -1,0 +1,6 @@
+<span class="sr-only">{{ label() }}</span>
+<div class="ui-skeleton__bars" [class]="'ui-skeleton__bars--' + variant()" aria-hidden="true">
+  @for (item of items(); track item) {
+    <span class="ui-skeleton__bar"></span>
+  }
+</div>

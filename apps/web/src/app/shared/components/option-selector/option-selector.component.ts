@@ -41,6 +41,11 @@ export class OptionSelectorComponent<TId extends string = string> {
   readonly label = input.required<string>();
   /** Helper copy under the heading. */
   readonly hint = input<string>('');
+  /**
+   * Flat variant (#508): no own card box and a single-column list, with an
+   * h3 heading — for use INSIDE another card (never a card in a card).
+   */
+  readonly flat = input<boolean>(false);
 
   /** Emits the chosen option id. */
   readonly selectedChange = output<TId>();

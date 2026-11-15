@@ -218,11 +218,11 @@
   margin: 6px 0 0;
 }
 
-.howcalc summary{cursor:pointer}.howcalc ul{margin:12px 0 16px;padding-left:20px;font-size:14px}.howcalc li+li{margin-top:6px}
+.ref summary{cursor:pointer}.howcalc ul{margin:12px 0 16px;padding-left:20px;font-size:14px}.howcalc li+li{margin-top:6px}
 
 /* Mobile: keep the disclosure marker on the same line as the heading — the
    block-level h2 inside the summary used to drop below the native marker. */
-@media (max-width:639px){.howcalc summary{display:flex;align-items:baseline;gap:8px;list-style:none}.howcalc summary::-webkit-details-marker{display:none}.howcalc summary::before{content:'▶';flex:none;font-size:12px;transform:translateY(-1px)}.howcalc details[open]>summary::before{transform:translateY(-1px) rotate(90deg)}.howcalc summary h2{margin:0}}
+@media (max-width:639px){.ref summary{display:flex;align-items:baseline;gap:8px;list-style:none}.ref summary::-webkit-details-marker{display:none}.ref summary::before{content:'▶';flex:none;font-size:12px;transform:translateY(-1px)}.ref details[open]>summary::before{transform:translateY(-1px) rotate(90deg)}.ref summary h2{margin:0}}
 
 .per-sqft {
   font-size: 13px;
@@ -245,6 +245,10 @@
   font-size: 14px;
   font-weight: 700;
   margin: 16px 0 0;
+}
+
+.subhead:first-child {
+  margin-top: 0;
 }
 
 .land-note {
@@ -286,42 +290,43 @@
   user-select: none;
 }
 
-/* ALWAYS-ON SQFT STEPPER — no enable toggle, no re-run button. */
-.stepper-card {
-  padding: 20px 24px;
-  background: var(--card);
-  border: 1px solid var(--border);
-  border-radius: 14px;
+/* #508 ADJUST PANEL: one card, size + tier side by side (no inner boxes). */
+.adjust-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
 }
 
-.stepper-card h2 {
-  font-family: var(--font-ui);
-  font-size: 16px;
-  font-weight: 700;
-  color: var(--text);
-  margin: 0;
+.adjust-grid,
+.actions-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 20px;
+  margin-top: 8px;
 }
 
-/* TIER WHAT-IF TOGGLE — same card box treatment as the sqft stepper. The
-   option cards inside carry their own (shared, mobile-tested) styles. */
-.tier-toggle-card {
-  padding: 20px 24px;
-  background: var(--card);
-  border: 1px solid var(--border);
-  border-radius: 14px;
+@media (min-width: 720px) {
+  .adjust-grid:not(.single) {
+    grid-template-columns: minmax(0, 2fr) minmax(0, 3fr);
+  }
+
+  .actions-row:not(.single) {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+/* #508 ACTION ROW: Share | PDF + New estimate. */
+.action-btns {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  align-self: end;
 }
 
 /* Reno scope line. */
 .reno-scope-line {
   font-weight: 600;
-}
-
-.stepper-head {
-  display: flex;
-  align-items: baseline;
-  justify-content: space-between;
-  gap: 12px;
-  margin-bottom: 4px;
 }
 
 .updating {
@@ -402,15 +407,15 @@
 }
 
 .bucket-structure {
-  background-color: #a8761a;
+  background-color: var(--accent);
 }
 
 .bucket-interior {
-  background-color: #b4552d;
+  background-color: var(--chart-interior);
 }
 
 .bucket-design {
-  background-color: #6f7a3a;
+  background-color: var(--chart-design);
 }
 
 .bucket-legend {
@@ -463,87 +468,6 @@
   line-height: 1.65;
   color: var(--text);
   margin: 12px 0 0;
-}
-
-/* NEXT STEPS */
-.steps {
-  margin: 12px 0 0;
-  padding: 0;
-  list-style: none;
-  counter-reset: step;
-  display: flex;
-  flex-direction: column;
-  gap: 16px;
-}
-
-.steps li {
-  counter-increment: step;
-  position: relative;
-  padding-left: 44px;
-}
-
-.steps li::before {
-  content: counter(step);
-  position: absolute;
-  left: 0;
-  top: 0;
-  width: 32px;
-  height: 32px;
-  border-radius: 50%;
-  background: var(--accent-bg);
-  color: var(--accent-text);
-  font-family: var(--font-ui);
-  font-weight: 700;
-  font-size: 15px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-}
-
-.steps strong {
-  font-size: 15px;
-  color: var(--text);
-}
-
-.steps p {
-  margin: 4px 0 0;
-  font-size: 13px;
-  line-height: 1.5;
-  color: var(--muted);
-}
-
-/* CHECKLIST: the next-steps list is interactive — the number circle becomes
-   a checkbox; the layout (44px gutter) is unchanged. */
-.steps-progress {
-  margin: 8px 0 0;
-  font-size: 13px;
-  font-weight: 600;
-  color: var(--muted);
-}
-
-.steps.checklist li::before {
-  display: none;
-}
-
-.step-check {
-  display: block;
-  cursor: pointer;
-}
-
-.step-check input[type='checkbox'] {
-  position: absolute;
-  left: 0;
-  top: 2px;
-  width: 24px;
-  height: 24px;
-  margin: 0;
-  accent-color: var(--accent);
-  cursor: pointer;
-}
-
-.step-text.done strong {
-  color: var(--muted);
-  text-decoration: line-through;
 }
 
 .unit-note {
@@ -603,7 +527,7 @@
 
 .field-error {
   font-size: 13px;
-  color: #b3261e;
+  color: var(--danger);
   margin: 0;
 }
 
@@ -621,7 +545,6 @@
    bottom action. */
 button.cta.pdf {
   width: 100%;
-  margin-top: 20px;
 }
 
 /* "Estimate another address": clearly-visible secondary — the design-system
@@ -629,7 +552,6 @@ button.cta.pdf {
    with an accent outline and accent text. Never a ghost/text link. */
 a.cta.secondary.another-address {
   width: 100%;
-  margin-top: 12px;
   background: transparent;
   color: var(--accent-text);
   border: 1px solid var(--accent);
@@ -640,9 +562,10 @@ a.cta.secondary.another-address {
   box-sizing: border-box;
 }
 
-/* PRINT: v1 PDF via Save-as-PDF. The redesigned content — hero, build-cost
-   highlight, land figure, breakdown, AI summary, next steps — all prints.
-   Interactive chrome (stepper, share, callback, PDF button) is hidden. */
+/* PRINT (browser Ctrl+P): hero, Build | Land and breakdown print in full;
+   the collapsed reference <details> print their headings only unless the
+   reader opened them (Download PDF is the full print path; D-P6 open).
+   Interactive chrome (adjust, talk, action row) is hidden. */
 @media print {
   app-site-nav,
   app-site-footer,
@@ -656,8 +579,7 @@ a.cta.secondary.another-address {
   }
 
   .card,
-  .figure-card,
-  .stepper-card {
+  .figure-card {
     break-inside: avoid;
     border-color: #ccc;
   }

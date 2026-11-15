@@ -80,3 +80,85 @@
   font-weight: 700;
   color: var(--text);
 }
+
+/* Sample-only layout (#508 moved the real report to an Adjust panel + action
+ * row; the sample keeps its pre-#508 layout until S4 restructures it). */
+.stepper-card {
+  padding: 20px 24px;
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: 14px;
+}
+
+.stepper-card h2 {
+  font-family: var(--font-ui);
+  font-size: 16px;
+  font-weight: 700;
+  color: var(--text);
+  margin: 0;
+}
+
+.stepper-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 4px;
+}
+
+.steps {
+  margin: 12px 0 0;
+  padding: 0;
+  list-style: none;
+  counter-reset: step;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.steps li {
+  counter-increment: step;
+  position: relative;
+  padding-left: 44px;
+}
+
+.steps li::before {
+  content: counter(step);
+  position: absolute;
+  left: 0;
+  top: 0;
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  background: var(--accent-bg);
+  color: var(--accent-text);
+  font-family: var(--font-ui);
+  font-weight: 700;
+  font-size: 15px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.steps strong {
+  font-size: 15px;
+  color: var(--text);
+}
+
+.steps p {
+  margin: 4px 0 0;
+  font-size: 13px;
+  line-height: 1.5;
+  color: var(--muted);
+}
+
+button.cta.pdf {
+  margin-top: 20px;
+}
+
+@media print {
+  .stepper-card {
+    break-inside: avoid;
+    border-color: var(--border);
+  }
+}

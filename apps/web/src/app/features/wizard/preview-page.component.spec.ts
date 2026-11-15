@@ -15,6 +15,7 @@ import { SelectProperty, StorePreviewEstimate, UpdateInputs, WizardState } from 
 import { ReportState } from '../report/report.state';
 import { EmbedState } from '../embed/embed.state';
 import { PreviewPageComponent } from './preview-page.component';
+import { provideDataFreshnessStub } from '../../shared/test-helpers/data-freshness.stub';
 
 /** Blank route target for navigation assertions. */
 @Component({ standalone: true, template: '' })
@@ -75,6 +76,7 @@ describe('PreviewPageComponent', () => {
       providers: [
         provideHttpClient(),
         provideHttpClientTesting(),
+        provideDataFreshnessStub(),
         provideRouter([
           { path: '', component: BlankComponent },
           { path: 'estimate/preview', component: PreviewPageComponent },
@@ -249,6 +251,7 @@ describe('PreviewPageComponent loading state', () => {
       providers: [
         provideHttpClient(),
         provideHttpClientTesting(),
+        provideDataFreshnessStub(),
         provideRouter([{ path: '', component: BlankComponent }]),
         provideStore([WizardState, ReportState, EmbedState]),
         providePropertyData(),
@@ -298,6 +301,7 @@ describe('PreviewPageComponent loading state', () => {
         providers: [
           provideHttpClient(),
           provideHttpClientTesting(),
+        provideDataFreshnessStub(),
           provideApi(),
           providePropertyData(),
           provideStore([WizardState, ReportState, EmbedState]),
@@ -428,6 +432,7 @@ describe('PreviewPageComponent validation failure (consumer/06)', () => {
       providers: [
         provideHttpClient(),
         provideHttpClientTesting(),
+        provideDataFreshnessStub(),
         provideRouter([{ path: '', component: BlankComponent }]),
         provideStore([WizardState, ReportState, EmbedState]),
         providePropertyData(),

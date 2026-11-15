@@ -80,3 +80,28 @@
 .option-card.selected .option-blurb {
   color: var(--text);
 }
+
+/* Flat variant (#508): sits inside a parent card — no box, one column. */
+.option-section.flat {
+  margin: 0;
+  padding: 0;
+  background: none;
+  border: 0;
+  border-radius: 0;
+}
+
+.flat h3 {
+  font-family: var(--font-ui);
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--text);
+  margin: 0 0 4px;
+}
+
+.flat .options {
+  grid-template-columns: minmax(0, 1fr);
+}
+
+.flat .option-card {
+  padding: 12px 14px;
+}

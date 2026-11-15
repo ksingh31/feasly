@@ -37,8 +37,8 @@
   padding: 14px 28px;
   /* Charcoal primary CTA, as elsewhere: white on --accent is 3.98:1
      (consumer review M5). */
-  background: var(--canvas);
-  color: var(--on-dark);
+  background: var(--cta-bg);
+  color: var(--cta-fg);
   border-radius: 8px;
   border: none;
   font-size: 1rem;
@@ -47,7 +47,7 @@
 }
 
 .state-page .cta:hover {
-  background: var(--canvas-2);
+  background: var(--cta-bg-hover);
   text-decoration: underline;
 }
 

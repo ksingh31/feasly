@@ -1,7 +1,11 @@
-/* Shared wizard-step shell (scope + details steps). */
+/* Shared wizard-step shell: every wizard step and the report.
+   One column width for all steps (--wizard-width, consumer review S2). The
+   explicit width stops the column shrinking to its content when the page
+   host is a flex column (margin:auto flex items don't stretch). */
 
 .wrap {
-  max-width: 720px;
+  width: 100%;
+  max-width: var(--wizard-width);
   margin: 0 auto;
   padding: 120px 24px 64px;
 }
@@ -22,13 +26,17 @@
   font-family: var(--font-ui);
   font-size: 15px;
   font-weight: 600;
-  color: var(--on-dark);
-  background: var(--canvas);
+  color: var(--cta-fg);
+  background: var(--cta-bg);
   border: none;
   border-radius: 12px;
   padding: 17px 28px;
   min-height: 44px;
   cursor: pointer;
+}
+
+.cta:not(:disabled):hover {
+  background: var(--cta-bg-hover);
 }
 
 .cta:disabled {
