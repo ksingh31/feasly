@@ -86,6 +86,17 @@ export class SeoService {
     }
   }
 
+  /**
+   * Marks the current page `noindex,nofollow` without touching the rest of
+   * its tags. Used by the landing page when it was opened through an
+   * estimator deep link (`/?address=…`, #692): the canonical already points
+   * at the parameter-free landing URL, and the parameterized variant must
+   * not be indexed. The next `setForRoute` call clears it again.
+   */
+  setNoindex(): void {
+    this.meta.updateTag({ name: 'robots', content: 'noindex,nofollow' });
+  }
+
   setPage(page: PageSeo): void {
     const siteUrl = this.resolveSiteUrl();
     const canonicalPath = withTrailingSlash(page.path);

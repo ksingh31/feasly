@@ -202,6 +202,51 @@ export class AddressAutocompleteComponent {
       });
   }
 
+  /**
+   * Estimator deep link (#692): put `text` in the box and look it up right
+   * away, as if the user had typed it. A sole match is picked, so it resolves
+   * and emits `selected` the same way a click would. Several matches open the
+   * normal picker. No results, out of coverage and errors show the normal
+   * messages with the text left in the box. The caller validates `text`
+   * first; it only ever goes out as the autocomplete query value.
+   */
+  prefill(text: string): void {
+    // Reset by hand rather than clearSearch(): its setValue('') reaches the
+    // debounced pipeline one debounce later and would close the picker
+    // this lookup is about to open. emitEvent false for the same reason (and
+    // to avoid a second, identical request).
+    this.pendingKey = null;
+    this.suggestions.set([]);
+    this.open.set(false);
+    this.activeIndex.set(-1);
+    this.searched.set(false);
+    this.errorCode.set(null);
+    this.hint.set(null);
+    this.selectionHint.set(null);
+    this.query.setValue(text, { emitEvent: false });
+    this.lastQuery.set(text);
+    this.status.set('searching');
+    this.api
+      .autocomplete(text)
+      .pipe(
+        map((res) => res.suggestions.slice(0, this.suggestionLimit)),
+        takeUntilDestroyed(this.destroyRef),
+      )
+      .subscribe({
+        next: (suggestions) => {
+          // The user started typing over the prefill: their query wins.
+          if (this.query.value !== text) return;
+          this.applyResults(suggestions);
+          if (suggestions.length === 1) this.choose(0);
+        },
+        error: (error: unknown) => {
+          if (this.query.value !== text) return;
+          this.status.set('error');
+          this.errorCode.set(apiErrorCode(error));
+        },
+      });
+  }
+
   /** Current raw query (for parent submit handling). */
   queryText(): string {
     return this.query.value;

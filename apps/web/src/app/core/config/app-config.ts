@@ -904,6 +904,19 @@ export interface AppConfig {
       calgary: readonly string[];
     };
   };
+  /**
+   * Estimator deep link (#692): `/?address=<text>&src=<source>` opens the
+   * landing page with the address prefilled and looked up. Values outside
+   * these bounds are ignored (plain landing page).
+   */
+  deepLink: {
+    /** Shortest address accepted (matches the autocomplete's 3-char search minimum). */
+    addressMinLength: number;
+    /** Longest raw `address` parameter accepted; anything longer is ignored. */
+    addressMaxLength: number;
+    /** Allowlisted `src` values kept for attribution; any other value is dropped. */
+    sources: readonly string[];
+  };
   /** Analytics consent. */
   analytics: {
     enabled: boolean;
