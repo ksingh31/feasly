@@ -19,7 +19,18 @@ export interface PropertyRecord {
   readonly zoning: string;
   /** City-assessed value, integer CAD (no cents). */
   readonly assessedValue: number;
+  /**
+   * Assessment roll year. When the City row carries no roll year this is a
+   * fallback (the current year) and `assessmentYearInferred` is true — never
+   * display it as a fact in that case (#622).
+   */
   readonly assessmentYear: number;
+  /**
+   * True when the City row had no roll year and `assessmentYear` was filled
+   * with a fallback. Optional during the expand phase (#622): records cached
+   * or persisted before this field existed omit it — treat absent as false.
+   */
+  readonly assessmentYearInferred?: boolean;
   readonly yearBuilt: number | null;
   /** City assessment class code, verbatim (e.g. 'R', 'NR'). */
   readonly assessmentClass: string;

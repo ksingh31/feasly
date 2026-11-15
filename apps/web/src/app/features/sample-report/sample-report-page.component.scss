@@ -159,6 +159,7 @@ button.cta.pdf {
 @media print {
   .stepper-card {
     break-inside: avoid;
-    border-color: #ccc;
+    /* Token-derived light grey (≈ the old #ccc) so the card edge survives print. */
+    border-color: color-mix(in srgb, var(--text) 20%, var(--card));
   }
 }
