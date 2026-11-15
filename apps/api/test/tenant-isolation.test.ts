@@ -2,7 +2,8 @@
  * Tenant / token isolation suite (#731 AC2).
  *
  * Covers every parameterised `builder-session` and `magic-token` route in
- * the registry: builder A asking for builder B's lead / user / comment /
+ * the registry, plus parameterised `admin` routes that builder roles can
+ * reach through a `builder:*` permission (builder admins: own orgs only): builder A asking for builder B's lead / user / comment /
  * invoice / PDF / dispute, or a token used against someone else's
  * resource (or an unknown/forged/expired token), gets 404 or 403 with no
  * data and no mutation.
@@ -43,6 +44,19 @@ interface IsolationEntry {
 }
 
 const ISOLATION_CASES: Readonly<Record<string, IsolationEntry>> = {
+  // ── Admin user routes reachable by builder admins ────────────────
+  'GET /api/v1/admin/users/{id}': {
+    cases: [{ file: 'admin-users.route.test.ts', title: 'get: builder admin cannot read users outside their orgs (403)' }],
+  },
+  'PATCH /api/v1/admin/users/{id}': {
+    cases: [
+      { file: 'admin-users.route.test.ts', title: 'update: builder admin cannot patch a user outside their orgs (403, #731 tenant isolation)' },
+      { file: 'admin-users.route.test.ts', title: 'update: builder admin cannot disable a user with memberships in other orgs (403)' },
+    ],
+  },
+  'POST /api/v1/admin/users/{id}/resend-invite': {
+    cases: [{ file: 'admin-users.route.test.ts', title: 'resendInvite: builder admin cannot resend for a user outside their orgs (403, #731 tenant isolation)' }],
+  },
   // ── Builder users ────────────────────────────────────────────────
   'PATCH /api/v1/builder/users/{id}': {
     cases: [{ file: 'builder-users.route.test.ts', title: 'update refuses targets outside the active org' }],
@@ -138,7 +152,14 @@ const ISOLATION_CASES: Readonly<Record<string, IsolationEntry>> = {
 const TEST_DIR = __dirname;
 
 function isParameterisedTenantRoute(e: (typeof ROUTE_REGISTRY)[number]): boolean {
-  return (e.auth === 'builder-session' || e.auth === 'magic-token') && e.path.includes('{');
+  if (!e.path.includes('{')) return false;
+  if (e.auth === 'builder-session' || e.auth === 'magic-token') return true;
+  // Admin routes builder admins can reach are tenant-scoped too.
+  const perms: readonly string[] = [
+    ...e.permissions,
+    ...(('permissionsAnyOf' in e ? e.permissionsAnyOf : undefined) ?? []),
+  ];
+  return e.auth === 'admin' && perms.some((p) => p.startsWith('builder:'));
 }
 
 function titleDeclared(source: string, title: string): boolean {
@@ -152,7 +173,7 @@ describe('tenant isolation suite (#731 AC2)', () => {
   const routes = ROUTE_REGISTRY.filter(isParameterisedTenantRoute);
   const keys = new Set(routes.map((e) => `${e.method} ${e.path}`));
 
-  it('every parameterised builder-session / magic-token route has an isolation case', () => {
+  it('every parameterised tenant-scoped route has an isolation case', () => {
     const missing = [...keys].filter((k) => !(k in ISOLATION_CASES));
     expect(
       missing,
