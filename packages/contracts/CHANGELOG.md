@@ -14,6 +14,14 @@ real backend. Changing them has a cost, so:
 
 ## Unreleased — 2026-11-15 (additive)
 
+Current land-use district (issue #686):
+
+- **Added** optional `PropertyRecord.landUse` (`PropertyLandUse`: `district`,
+  `description`, `source`, `asOf`, optional `dcBylaw`) and `LandUseSource`
+  (`land-use-districts` | `assessment-roll`). `zoning` keeps its type; it now
+  carries the current district from the City's Land Use Districts map when
+  known, and the assessment roll's designation otherwise.
+
 Waitlists for renovation and other cities (issue #520):
 
 - **Added** `waitlist.ts`: `WaitlistTopic` (`renovation` | `toronto` |
