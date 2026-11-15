@@ -10,6 +10,10 @@
  *   tunable arrives via the CostData parameter.
  * - Output carries no per-sqft unit rates and no margin percentages,
  *   only integer-dollar ranges. (Enforced by test/output-hygiene.)
+ * - Build bands (rows + totals) round to the table's `roundTo` granularity
+ *   (#581; $1,000 from v0.4.0). The land figure is the City assessment and
+ *   stays exact, so `total === land + build` holds to the dollar. Tables
+ *   without `roundTo` (v0.1–v0.3) keep whole-dollar output, unchanged.
  */
 import {
   EngineInputError,
@@ -21,32 +25,7 @@ import {
   type FixedAmount,
   type RangedAmount,
 } from './types';
-
-/** Whole dollars only — cents never leave the server. */
-function wholeDollars(value: number): number {
-  return Math.round(value);
-}
-
-/**
- * Symmetric band around a base. Math.round is monotonically non-decreasing,
- * so low <= base <= high holds for every non-negative base and spread.
- */
-function band(base: number, spread: number): RangedAmount {
-  const b = wholeDollars(base);
-  return {
-    low: wholeDollars(b * (1 - spread)),
-    base: b,
-    high: wholeDollars(b * (1 + spread)),
-  };
-}
-
-function addBands(a: RangedAmount, b: RangedAmount): RangedAmount {
-  return { low: a.low + b.low, base: a.base + b.base, high: a.high + b.high };
-}
-
-function zeroBand(): RangedAmount {
-  return { low: 0, base: 0, high: 0 };
-}
+import { addBands, band, outputGranularity, wholeDollars, zeroBand } from './bands';
 
 /** Domain limits come from the cost-data file, never from code literals. */
 function checkBounds(input: EngineInput, data: CostData): void {
@@ -108,20 +87,21 @@ export function calculateBuildBand(
 ): RangedAmount {
   const buildSqftWhole = wholeDollars(buildSqft);
   const lotSizeSqftWhole = wholeDollars(lotSizeSqft);
+  const g = outputGranularity(costData);
 
   // Hard costs — one row per category in data-file order (insertion order
   // is deterministic), each scaled by its configured input dimension.
   let hardTotal = zeroBand();
   for (const [, category] of Object.entries(costData.hardCosts)) {
     const scale = category.scalesWith === 'lotSizeSqft' ? lotSizeSqftWhole : buildSqftWhole;
-    const rowBand = band(scale * category.rates[tier], category.spread);
+    const rowBand = band(scale * category.rates[tier], category.spread, g);
     hardTotal = addBands(hardTotal, rowBand);
   }
 
   // Soft costs — fractions of the hard-cost base total.
   let softTotal = zeroBand();
   for (const [, category] of Object.entries(costData.softCosts)) {
-    const rowBand = band(hardTotal.base * category.fraction, category.spread);
+    const rowBand = band(hardTotal.base * category.fraction, category.spread, g);
     softTotal = addBands(softTotal, rowBand);
   }
 
@@ -129,6 +109,7 @@ export function calculateBuildBand(
   const contingencyBand = band(
     (hardTotal.base + softTotal.base) * costData.contingency.fraction,
     costData.contingency.spread,
+    g,
   );
 
   return addBands(addBands(hardTotal, softTotal), contingencyBand);
@@ -140,6 +121,7 @@ export function createEstimate(input: EngineInput, costData: CostData): Estimate
   const buildSqft = wholeDollars(input.scope.buildSqft);
   const lotSizeSqft = wholeDollars(input.property.lotSizeSqft);
   const tier = input.scope.tier;
+  const g = outputGranularity(costData);
   const rows: CostRow[] = [];
 
   // Land — the City assessed value, fixed. No spread is applied: the
@@ -159,7 +141,7 @@ export function createEstimate(input: EngineInput, costData: CostData): Estimate
   let hardTotal = zeroBand();
   for (const [key, category] of Object.entries(costData.hardCosts)) {
     const scale = category.scalesWith === 'lotSizeSqft' ? lotSizeSqft : buildSqft;
-    const rowBand = band(scale * category.rates[tier], category.spread);
+    const rowBand = band(scale * category.rates[tier], category.spread, g);
     hardTotal = addBands(hardTotal, rowBand);
     rows.push({ key: `hard.${key}`, label: category.label, formula: category.formula, range: rowBand });
   }
@@ -167,7 +149,7 @@ export function createEstimate(input: EngineInput, costData: CostData): Estimate
   // Soft costs — fractions of the hard-cost base total.
   let softTotal = zeroBand();
   for (const [key, category] of Object.entries(costData.softCosts)) {
-    const rowBand = band(hardTotal.base * category.fraction, category.spread);
+    const rowBand = band(hardTotal.base * category.fraction, category.spread, g);
     softTotal = addBands(softTotal, rowBand);
     rows.push({ key: `soft.${key}`, label: category.label, formula: category.formula, range: rowBand });
   }
@@ -176,6 +158,7 @@ export function createEstimate(input: EngineInput, costData: CostData): Estimate
   const contingencyBand = band(
     (hardTotal.base + softTotal.base) * costData.contingency.fraction,
     costData.contingency.spread,
+    g,
   );
   rows.push({
     key: 'contingency',

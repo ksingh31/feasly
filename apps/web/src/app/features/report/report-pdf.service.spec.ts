@@ -5,6 +5,7 @@ import type { CostRow } from '@feasly/contracts';
 
 import { ConfigService } from '../../core/config/config.service';
 import { mockReport } from '../../core/api/mock-data';
+import { formatCompactCad } from '../../shared/utils/money';
 import {
   ReportPdfService,
   loadBrandFonts,
@@ -287,7 +288,14 @@ describe('ReportPdfService', () => {
     expect(text).toContain('Report version 3');
     expect(text).toContain('Feasly');
     expect(text).toContain(copy.totalLabel.toUpperCase());
-    expect(text).toContain(copy.planningRangeLabel);
+    expect(text).toContain(copy.mostLikelyPdfLabel);
+    // #504: range-first headline (rounded), base secondary.
+    const snap = input().snapshot;
+    // (The PDF text extractor drops the en dash, so check each end.)
+    expect(text).toContain(`${copy.mostLikelyPdfLabel} ${formatCompactCad(snap.totalRange.base)}`);
+    expect(text).toContain(formatCompactCad(snap.totalRange.low));
+    expect(text).toContain(formatCompactCad(snap.totalRange.high));
+    expect(text).toContain('$306 per sq ft');
   });
 
   it('renders the honest empty-narrative fallback instead of inventing text', async () => {
@@ -390,7 +398,7 @@ describe('ReportPdfService', () => {
     // Each bucket's base figure, summed from the raw rows (land excluded).
     expect(text).toContain('$274,000'); // 90k+66k+72k+46k
     expect(text).toContain('$188,000'); // 120k+68k
-    expect(text).toContain('$85,803'); // 26k+7k+52,803
+    expect(text).toContain('$86,000'); // 26k+7k+52,803, rounded to $1k (#504)
     // No per-row dump, and no land breakdown row duplicating the summary's.
     expect(text).not.toContain('Land (assessed value)');
     expect(text).not.toContain('Framing & structure');
@@ -398,6 +406,8 @@ describe('ReportPdfService', () => {
     // Land keeps its own fixed figure via the shared land label (eyebrows
     // render uppercased, like the sample report page's text-transform).
     expect(text).toContain(reportCopy().landLabel.toUpperCase());
+    // #505: the printed land card carries the existing-home note too.
+    expect(text).toContain(reportCopy().landHouseNote);
   });
 
   it('keeps every text run inside the right margin (PR #424 guarantee)', async () => {

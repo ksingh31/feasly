@@ -2,7 +2,13 @@ import { Injectable, inject } from '@angular/core';
 import type { ReportSnapshot } from '@feasly/contracts';
 import { ConfigService } from '../../core/config/config.service';
 import { aggregateCostBuckets, type CostBucket } from '../../shared/cost-buckets';
-import { dollarsToCents, formatCentsToCad, formatWholeCad } from '../../shared/utils/money';
+import {
+  formatCompactCad,
+  formatCompactRange,
+  formatPerSqftCad,
+  formatRoundedCad,
+  formatWholeCad,
+} from '../../shared/utils/money';
 
 /**
  * Strips characters jsPDF 4.x cannot encode in its WinAnsi core-font path.
@@ -339,7 +345,7 @@ class PdfLayout {
     return this.text(width, text, { font: 'heading', bold: true, size: 24, color: THEME.text }, 8);
   }
 
-  /** One line mixing runs, e.g. muted label + bold figure (sample: .planning-range). */
+  /** One line mixing runs, e.g. muted label + bold figure (e.g. muted "Most likely ≈" + bold figure). */
   mixed(width: number, parts: ReadonlyArray<{ text: string; run: TextRun }>, gapAfter = 6): Atom {
     const widths = parts.map((p) => this.textWidth(p.text, p.run));
     const size = Math.max(...parts.map((p) => p.run.size));
@@ -456,7 +462,7 @@ class PdfLayout {
   bucketRow(width: number, bucket: CostBucket): Atom {
     const labelRun: TextRun = { font: 'body', bold: false, size: 11, color: THEME.text };
     const amountRun: TextRun = { font: 'body', bold: true, size: 11, color: THEME.text };
-    const amount = formatWholeCad(bucket.range.base);
+    const amount = formatRoundedCad(bucket.range.base);
     const labelLines = this.lines(bucket.label, labelRun, width - 170);
     const height = Math.max(14, labelLines.length * labelRun.size * 1.35) + 8;
     return {
@@ -745,8 +751,6 @@ export class ReportPdfService {
       size,
       color: THEME.text,
     });
-    const range = (low: number, high: number): string =>
-      `${formatWholeCad(low)} – ${formatWholeCad(high)}`;
 
     // -- Header: wordmark + title, brass rule. --
     L.flow([
@@ -762,17 +766,17 @@ export class ReportPdfService {
     ]);
     L.gap(16);
 
-    // -- HERO card: one prominent total + planning range (sample: .hero-total). --
+    // -- HERO card: range-first total, base secondary (#504; sample: .hero-total). --
     L.card(
       [
         L.eyebrow(inner, reportCopy.totalLabel),
-        L.heroFigure(inner, formatWholeCad(snap.totalRange.base)),
+        L.heroFigure(inner, formatCompactRange(snap.totalRange)),
         L.mixed(
           inner,
           [
-            { text: `${reportCopy.planningRangeLabel}  `, run: muted(11.5) },
+            { text: `${reportCopy.mostLikelyPdfLabel} `, run: muted(11.5) },
             {
-              text: range(snap.totalRange.low, snap.totalRange.high),
+              text: formatCompactCad(snap.totalRange.base),
               run: { font: 'body', bold: true, size: 11.5, color: THEME.text },
             },
           ],
@@ -793,11 +797,12 @@ export class ReportPdfService {
     const colInner = (w - 12) / 2 - 40;
     const buildAtoms: Atom[] = [
       L.eyebrow(colInner, reportCopy.buildLabel),
-      L.figure(colInner, formatWholeCad(snap.buildRange.base)),
+      L.figure(colInner, formatCompactRange(snap.buildRange)),
+      L.text(colInner, `${reportCopy.mostLikelyPdfLabel} ${formatCompactCad(snap.buildRange.base)}`, muted(10), 6),
       L.text(colInner, reportCopy.buildCostNote, muted(9.5), 6),
     ];
     if (!isReno && snap.inputs.sqft > 0) {
-      const perSqft = formatCentsToCad(dollarsToCents(snap.buildRange.base / snap.inputs.sqft));
+      const perSqft = formatPerSqftCad(snap.buildRange.base / snap.inputs.sqft);
       buildAtoms.push(
         L.mixed(
           colInner,
@@ -832,6 +837,7 @@ export class ReportPdfService {
         [
           L.eyebrow(colInner, reportCopy.landLabel),
           L.figure(colInner, formatWholeCad(snap.landValue.value)),
+          L.text(colInner, reportCopy.landHouseNote, muted(9.5), 0),
           L.text(colInner, reportCopy.landFixedNote, muted(9.5), 0),
         ],
         { fill: THEME.brassWash, border: THEME.brass, borderWidth: 1.5 },

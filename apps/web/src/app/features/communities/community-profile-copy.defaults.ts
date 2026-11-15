@@ -18,17 +18,17 @@ import type { RawCommunityProfileCopy } from '@feasly/contracts';
  */
 export const DEFAULT_COMMUNITY_PROFILE_COPY: RawCommunityProfileCopy = {
   kicker: 'Community property profile',
-  titleTemplate: '{name} Calgary Property Values & Assessed Values | Feasly',
+  titleTemplate: 'Feasly — {name}, Calgary property values & assessed values',
   descriptionTemplate:
     'Property values in {name}, Calgary — average City-assessed value {avgAssessed} and how Calgary assessments work, from City of Calgary data.',
-  lede: "most homes in {name} are apartments, condos, and townhouses rather than single-family houses. Here's what the City of Calgary says this property is worth.",
-  ledeLead: "We don't quote this property type yet",
-  propertyValueLabel: "This property's assessed value",
+  lede: "most homes in {name} are apartments, condos, and townhouses rather than single-family houses. Here's what the City of Calgary assessment roll says homes here are worth.",
+  ledeLead: "We don't quote apartments, condos or townhouses yet",
+  propertyValueLabel: "This address's assessed value",
   communityAverageLabel: '{name} average',
-  comparePropertyTag: 'This property',
+  comparePropertyTag: 'This address',
   compareBarCaption: 'Bars drawn proportional to the larger value.',
   compareBarLabelTemplate:
-    'Bar comparison: this property assessed at {propertyValue} versus the {name} average of {avgAssessed}',
+    'Bar comparison: this address assessed at {propertyValue} versus the {name} average of {avgAssessed}',
   honestNote:
     'City of Calgary {year} assessment roll. Assessed value is for tax purposes — not market value.',
   averageHeroLabel: '{name} average assessed value',

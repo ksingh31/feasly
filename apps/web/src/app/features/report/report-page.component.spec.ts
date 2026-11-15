@@ -238,7 +238,8 @@ describe('ReportPageComponent', () => {
   describe('pre-gate', () => {
     it('renders the real figures blurred and the Unlock CTA toward the gate', () => {
       const lockedValues = fixture.nativeElement.querySelectorAll('.locked-value');
-      expect(lockedValues.length).toBe(3);
+      // Total range + its blurred "most likely" line (#504), build range, land.
+      expect(lockedValues.length).toBe(4);
       expect(fixture.nativeElement.querySelectorAll('.hero-value').length).toBe(0);
       lockedValues.forEach((el: HTMLElement) => {
         expect(el.getAttribute('aria-hidden')).toBe('true');
@@ -251,13 +252,25 @@ describe('ReportPageComponent', () => {
       expect(unlock?.getAttribute('href')).toBe('/estimate/gate');
     });
 
+    it('labels the locked land figure honestly with the existing-home note (#505)', () => {
+      const copy = DEFAULT_APP_CONFIG.copy.report;
+      expect(copy.landLabel).toBe('City-assessed property value (land + existing home)');
+      expect(text()).toContain(copy.landLabel);
+      const note = fixture.nativeElement.querySelector('.locked .land-house-note');
+      expect(note?.textContent?.trim()).toBe(
+        'Includes the current house; teardown value may differ.',
+      );
+      // The note is plain readable copy, never blurred.
+      expect(getComputedStyle(note).filter).not.toContain('blur');
+    });
+
     it('keeps the stepper visible but disabled behind the gate (no revise without a token)', () => {
       const stepper = fixture.nativeElement.querySelector('.stepper-card .stepper');
       expect(stepper).not.toBeNull();
       for (const btn of fixture.nativeElement.querySelectorAll('.stepper-card .step-btn')) {
         expect((btn as HTMLButtonElement).disabled).toBe(true);
       }
-      expect(text()).toContain('Unlock your report to adjust the size.');
+      expect(text()).toContain('Get your full report to adjust the size.');
     });
 
     it('reserves "Unlock" for the preview-to-gate CTA', () => {
@@ -286,9 +299,9 @@ describe('ReportPageComponent', () => {
         expect(fixture.nativeElement.querySelector('.locked')).toBeNull();
         expect(fixture.nativeElement.querySelector('.unlock')).toBeNull();
         expect(text()).not.toContain('magic link is on its way');
-        // Real figures: the hero shows a concrete dollar total.
+        // Real figures: the hero shows a concrete (rounded) dollar range.
         const heroValue = fixture.nativeElement.querySelector('.hero-total .hero-value');
-        expect(heroValue?.textContent?.trim()).toMatch(/^\$[\d,]+$/);
+        expect(heroValue?.textContent?.trim()).toMatch(/^\$[\d.,]+M? – \$[\d.,]+M?$/);
         // The cost breakdown renders real rows.
         expect(fixture.nativeElement.querySelectorAll('.bucket-legend li').length).toBeGreaterThan(0);
         // The calibration-transparency note stays visible (reframed, below the breakdown).
@@ -454,11 +467,11 @@ describe('ReportPageComponent', () => {
       expect(rerun.length).toBe(0);
     });
 
-    it('renders ONE prominent total with the likely planning range (no Low/Base/High labels)', () => {
+    it('renders the range as the hero with "most likely" secondary (#504; no Low/Base/High labels)', () => {
       const heroValue = fixture.nativeElement.querySelector('.hero-total .hero-value');
-      expect(heroValue?.textContent?.trim()).toBe('$1,497,000');
-      expect(text()).toContain('Likely planning range');
-      expect(text()).toContain('$1,433,000–$1,558,000');
+      expect(heroValue?.textContent?.trim()).toBe('$1.43M – $1.56M');
+      const mostLikely = fixture.nativeElement.querySelector('.hero-total .most-likely');
+      expect(mostLikely?.textContent?.trim()).toBe('Most likely ≈ $1.50M');
       // No competing totals, no low/base/high labels anywhere on the report.
       expect(fixture.nativeElement.querySelectorAll('.range-label').length).toBe(0);
       expect(fixture.nativeElement.querySelectorAll('.hero-total .range-value').length).toBe(0);
@@ -467,9 +480,10 @@ describe('ReportPageComponent', () => {
     it('highlights the build cost near the hero with per-sq-ft context and the current finish tier', () => {
       const panel = fixture.nativeElement.querySelector('.build-highlight');
       expect(panel).not.toBeNull();
-      expect(panel.textContent).toContain('$674,000');
+      expect(panel.querySelector('.figure-single')?.textContent?.trim()).toBe('$610,000 – $735,000');
+      expect(panel.querySelector('.most-likely')?.textContent?.trim()).toBe('Most likely ≈ $674,000');
       expect(panel.textContent).toContain('Construction only — excludes land.');
-      expect(panel.textContent).toContain('$306.36 per sq ft');
+      expect(panel.textContent).toContain('$306 per sq ft');
       expect(panel.textContent).toContain('Selected finish level — Premium');
     });
 
@@ -567,6 +581,13 @@ describe('ReportPageComponent', () => {
       // City assessed value ($823,000), not a canned constant.
       expect(landCard.textContent).toContain('$823,000');
       expect(landCard.textContent).toContain('City of Calgary assessment · not a market price');
+      // #505: honest label + existing-home note on the unlocked report.
+      expect(landCard.querySelector('h2')?.textContent).toContain(
+        'City-assessed property value (land + existing home)',
+      );
+      expect(landCard.querySelector('.land-house-note')?.textContent?.trim()).toBe(
+        'Includes the current house; teardown value may differ.',
+      );
       expect(landCard.textContent).not.toMatch(/\$\d[\d,]*\s*[–-]\s*\$/);
     });
 
@@ -816,24 +837,23 @@ describe('ReportPageComponent', () => {
       expect(store.selectSnapshot(ReportState.stepsChecked)).toEqual({});
     });
 
-    it('per-sqft line uses cents precision so the shown rate reconciles with the shown build cost', async () => {
+    it('per-sqft line is whole dollars (#504) and reconciles with the build base to within $1/sq ft', async () => {
       await setup({ leadSubmitted: true });
       const snap = store.selectSnapshot(ReportState.snapshot)!;
       const line = fixture.nativeElement.querySelector('.per-sqft')?.textContent ?? '';
-      const m = line.match(/\$([\d,]+(?:\.\d{2})?) per sq ft · ([\d,]+) sq ft/);
+      const m = line.match(/\$([\d,]+) per sq ft · ([\d,]+) sq ft/);
       expect(m).not.toBeNull();
-      const rate = parseFloat(m![1].replace(/,/g, ''));
+      expect(line).not.toMatch(/\$[\d,]+\.\d/);
+      const rate = parseInt(m![1].replace(/,/g, ''), 10);
       const sqft = parseInt(m![2].replace(/,/g, ''), 10);
       expect(sqft).toBe(snap.inputs.sqft);
-      // The displayed rate is the exact quotient rounded to cents: the
-      // residual against the build base is pure display rounding (< $0.005/sqft).
-      expect(Math.abs(rate * sqft - snap.buildRange.base)).toBeLessThan(sqft * 0.005 + 1);
+      expect(Math.abs(rate - snap.buildRange.base / sqft)).toBeLessThanOrEqual(0.5);
     });
 
-    it('formatPerSqft renders whole dollars without cents and fractional rates with cents', async () => {
+    it('formatPerSqft renders whole dollars, never cents (#504)', async () => {
       await setup({ leadSubmitted: true });
       const cmp = fixture.componentInstance as unknown as { formatPerSqft(v: number): string };
-      expect(cmp.formatPerSqft(580830 / 2400)).toBe('$242.01');
+      expect(cmp.formatPerSqft(580830 / 2400)).toBe('$242');
       expect(cmp.formatPerSqft(242)).toBe('$242');
       expect(cmp.formatPerSqft(0)).toBe('$0');
     });
@@ -864,9 +884,23 @@ describe('ReportPageComponent', () => {
       expect(after.version).toBe(before.version + 1);
       // Every figure refreshed: hero total, planning range, build cost, narrative.
       fixture.detectChanges();
-      expect(fixture.nativeElement.querySelector('.hero-total .hero-value')?.textContent?.trim()).toBe('$1,512,000');
+      expect(fixture.nativeElement.querySelector('.hero-total .most-likely')?.textContent).toContain('$1.51M');
       expect(fixture.nativeElement.querySelector('.narrative')?.textContent).toContain('At 2,250 sq ft');
       expect(fixture.nativeElement.querySelector('.build-highlight')?.textContent).toContain('$689,000');
+    });
+
+    it('renders no unrounded estimate figure anywhere in the report figures (#504)', async () => {
+      await setup({ leadSubmitted: true });
+      const figures = Array.from(
+        fixture.nativeElement.querySelectorAll('.hero-value, .most-likely, .build-highlight .figure-single, .bucket-amount'),
+      ) as HTMLElement[];
+      expect(figures.length).toBeGreaterThan(4);
+      for (const el of figures) {
+        for (const amount of el.textContent?.match(/\$[\d,.]+M?/g) ?? []) {
+          // Either compact millions ($1.43M) or whole thousands ($674,000).
+          expect(amount).toMatch(/^\$\d+\.\d{2}M$|^\$[\d,]*,000$/);
+        }
+      }
     });
 
     it('coalesces rapid stepper taps into a single revision', async () => {

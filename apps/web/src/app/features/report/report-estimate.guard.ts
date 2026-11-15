@@ -1,6 +1,7 @@
 import { inject } from '@angular/core';
 import { CanActivateFn, Router } from '@angular/router';
 import { Store } from '@ngxs/store';
+import { isServerPlatform } from '../../core/utils/platform';
 import { WizardState } from '../wizard/wizard.state';
 import { ReportState } from './report.state';
 
@@ -14,8 +15,14 @@ import { ReportState } from './report.state';
  * is enough, because `UnlockReport` hydrates property + inputs from
  * `GET /reports/{token}`. Deep links with neither redirect to the address
  * step instead of rendering an empty report.
+ *
+ * SSR-safe (issue #515): the server has no localStorage, so it always
+ * activates and the browser guard decides after hydration.
  */
 export const reportEstimateGuard: CanActivateFn = () => {
+  if (isServerPlatform()) {
+    return true;
+  }
   const store = inject(Store);
   const router = inject(Router);
   if (store.selectSnapshot(ReportState.reportToken)) {

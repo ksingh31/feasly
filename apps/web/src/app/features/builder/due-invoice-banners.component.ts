@@ -120,7 +120,7 @@ export class DueInvoiceBannersComponent {
       : this.copy.dueBannersHeading.replace('{count}', String(count));
   }
 
-  /** Bold lead of the collapsed bar, e.g. "Invoice INV-0042 overdue:". */
+  /** Bold lead of the collapsed bar, e.g. "Invoice INV-0042 failed:". */
   protected barLead(invoice: CommissionInvoice): string {
     const reason = dueReasonFor(invoice);
     const key =

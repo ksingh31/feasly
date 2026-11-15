@@ -15,6 +15,7 @@
   <!-- Mobile hamburger (UX audit 2026-09-28) -->
   <button
     type="button"
+    #menuBtn
     class="nav-menu-btn"
     (click)="toggleMenu()"
     [attr.aria-expanded]="menuOpen()"
@@ -26,9 +27,17 @@
 </nav>
 
 @if (menuOpen()) {
+  <!-- Scrim (review 2026-11-13 S6): dims the page so the menu never reads
+       as part of the H1; tapping it closes the menu. -->
+  <div class="nav-scrim" aria-hidden="true" (click)="closeMenu()"></div>
   <div class="nav-menu" id="site-nav-menu">
-    @for (link of navLinks; track link.path) {
-      <a class="nav-menu-link" [href]="link.path" (click)="go($event, link.path)">{{ link.label }}</a>
+    @for (link of menuLinks; track link.label) {
+      <a class="nav-menu-link" [href]="href(link)" (click)="go($event, link.path, link.queryParams)">{{
+        link.label
+      }}</a>
     }
+    <a class="nav-menu-cta" [href]="href(menuCta)" (click)="go($event, menuCta.path)">{{
+      menuCta.label
+    }}</a>
   </div>
 }

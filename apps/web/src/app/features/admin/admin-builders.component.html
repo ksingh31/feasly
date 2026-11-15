@@ -60,7 +60,7 @@
         <tbody>
           @for (builder of builders(); track builder.id) {
             <tr>
-              <td>
+              <td data-label="Builder">
                 <span class="builders-page__builder-cell">
                   <span class="builders-page__avatar" aria-hidden="true">
                     @if (builder.logoUrl) {
@@ -83,19 +83,19 @@
                   </span>
                 </span>
               </td>
-              <td><code class="builders-page__key">{{ builder.tenantKey }}</code></td>
-              <td>
+              <td data-label="Sign-in key"><code class="builders-page__key">{{ builder.tenantKey }}</code></td>
+              <td data-label="Status">
                 <span
                   class="badge"
                   [class.badge--builder-active]="builder.status === 'active'"
                   [class.badge--builder-inactive]="builder.status === 'inactive'"
                 >{{ statusLabel(builder.status) }}</span>
               </td>
-              <td>{{ planLabel(builder.plan) }}</td>
-              <td>{{ rateLabel(builder.commissionRatePercent) }}</td>
-              <td>{{ methodLabel(builder.settings) }}</td>
-              <td>{{ builder.email ?? '—' }}</td>
-              <td>
+              <td data-label="Plan">{{ planLabel(builder.plan) }}</td>
+              <td data-label="Commission rate">{{ rateLabel(builder.commissionRatePercent) }}</td>
+              <td data-label="Default method">{{ methodLabel(builder.settings) }}</td>
+              <td data-label="Email">{{ builder.email ?? '—' }}</td>
+              <td class="builders-page__actions">
                 @if (canManageBuilders()) {
                   <button
                     type="button"

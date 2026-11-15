@@ -240,10 +240,12 @@ describe('DueInvoiceBannersComponent', () => {
       }),
     ]);
     const text = fixture.nativeElement.textContent as string;
-    expect(text).toContain('Invoice INV-0042 overdue:');
+    // Same status vocabulary as the invoices table ("Failed", "In review").
+    expect(text).toContain('Invoice INV-0042 failed:');
+    expect(text).not.toContain('overdue');
     expect(text).toContain('$10,000 — payment failed');
-    expect(text).toContain('Invoice INV-0043 due today:');
-    expect(text).toContain('$8,000 — charges tonight');
+    expect(text).toContain('Invoice INV-0043 in review:');
+    expect(text).toContain('$8,000 — review window ends today');
   });
 
   it('renders nothing while the actionable list is loading', () => {

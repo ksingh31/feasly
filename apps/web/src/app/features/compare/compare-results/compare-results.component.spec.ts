@@ -15,6 +15,7 @@ import { LeadState } from '../../wizard/lead.state';
 import { StoreLeadResult } from '../../wizard/lead.actions';
 import { ComparisonLeadSubmitted, RunComparison } from '../comparison.actions';
 import { ComparisonState } from '../comparison.state';
+import { formatRoundedCad } from '../../../shared/utils/money';
 
 /**
  * NBH-03 acceptance criteria: the results render 2–3 community cards with
@@ -97,7 +98,7 @@ describe('CompareResultsComponent', () => {
     const expected = [
       stats['beltline'].avg_assessed_value,
       stats['panorama-hills'].avg_assessed_value,
-    ].map((v) => `$${v.toLocaleString('en-CA')}`);
+    ].map((v) => formatRoundedCad(v)); // #504: rounded to $1,000
     const rendered = Array.from(landValues).map((n) => n.textContent?.trim());
     expect(rendered).toEqual(expect.arrayContaining(expected));
     // A single fixed figure — no range separator anywhere in the land cells.
@@ -148,7 +149,7 @@ describe('CompareResultsComponent', () => {
     expect(el.querySelector('.locked-slot__skeleton')).toBeNull();
 
     const stats = store.selectSnapshot(ComparisonState.stats);
-    const fmt = (v: number) => `$${Math.round(v).toLocaleString('en-CA')}`;
+    const fmt = (v: number) => formatRoundedCad(v); // #504: rounded to $1,000
     result?.rowSets.forEach((rowSet, i) => {
       const buildLocked = el.querySelectorAll('[data-testid="build-range-locked"]')[i];
       const totalLocked = el.querySelectorAll('[data-testid="total-range-locked"]')[i];
@@ -175,7 +176,7 @@ describe('CompareResultsComponent', () => {
     for (const note of lockedNotes) {
       // QA 2026-10-04: no email-verification step exists — the note matches
       // the report's unlock framing.
-      expect(note.textContent).toContain('Locked — unlock to reveal the figures.');
+      expect(note.textContent).toContain('Revealed when you get your free report.');
     }
     // Locked slots are aria-hidden, hold real digit text, and are blurred.
     const lockedValues = el.querySelectorAll('.locked-slot__value');
@@ -211,7 +212,7 @@ describe('CompareResultsComponent', () => {
     const el: HTMLElement = fixture.nativeElement;
     const unlock = el.querySelector('[data-testid="unlock-cta"]') as HTMLButtonElement;
     expect(unlock).toBeTruthy();
-    expect(unlock.textContent).toContain('Unlock my free report →');
+    expect(unlock.textContent).toContain('Show my free comparison →');
   });
 
   it('post-gate: all figures unblurred with the same badge, no locked notes', async () => {
@@ -252,7 +253,7 @@ describe('CompareResultsComponent', () => {
     expect(totals).toHaveLength(2);
     expect(maths).toHaveLength(2);
 
-    const fmt = (v: number) => `$${Math.round(v).toLocaleString('en-CA')}`;
+    const fmt = (v: number) => formatRoundedCad(v); // #504: rounded to $1,000
     result?.rowSets.forEach((rowSet, i) => {
       const assessed = stats[rowSet.slug].avg_assessed_value;
       const expectedLow = assessed + rowSet.build.low;

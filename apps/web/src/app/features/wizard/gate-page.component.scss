@@ -148,7 +148,7 @@
   font-family: var(--font-ui);
   font-size: 14px;
   font-weight: 600;
-  color: var(--accent);
+  color: var(--accent-text);
   background: transparent;
   border: none;
   padding: 10px 0;
@@ -180,7 +180,7 @@
 }
 
 .privacy-note a {
-  color: var(--accent);
+  color: var(--accent-text);
   font-weight: 600;
 }
 

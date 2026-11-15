@@ -1,0 +1,1715 @@
+{
+  "_comment": "Engine output under v0.3.0-unclibrated captured from origin/main before #581 (top-level roundTo). Must never change: estimates pinned to v0.3.0 stay byte-identical.",
+  "costDataVersion": "v0.3.0-unclibrated",
+  "estimates": [
+    {
+      "input": {
+        "property": {
+          "assessedLandValue": 25000,
+          "lotSizeSqft": 1200,
+          "zoning": "R-C1"
+        },
+        "scope": {
+          "buildSqft": 400,
+          "tier": "standard"
+        }
+      },
+      "output": {
+        "costDataVersion": "v0.3.0-unclibrated",
+        "calibrated": false,
+        "rows": [
+          {
+            "key": "land",
+            "label": "Land (assessed value)",
+            "formula": "assessedLandValue (fixed — City assessment, no spread)",
+            "range": {
+              "low": 25000,
+              "base": 25000,
+              "high": 25000
+            }
+          },
+          {
+            "key": "hard.envelope",
+            "label": "Envelope (roof, siding, windows)",
+            "formula": "buildSqft × hardCosts.envelope.rates[tier]",
+            "range": {
+              "low": 10880,
+              "base": 12800,
+              "high": 14720
+            }
+          },
+          {
+            "key": "hard.finishes",
+            "label": "Interior finishes",
+            "formula": "buildSqft × hardCosts.finishes.rates[tier]",
+            "range": {
+              "low": 18040,
+              "base": 22000,
+              "high": 25960
+            }
+          },
+          {
+            "key": "hard.foundation",
+            "label": "Foundation",
+            "formula": "buildSqft × hardCosts.foundation.rates[tier]",
+            "range": {
+              "low": 9856,
+              "base": 11200,
+              "high": 12544
+            }
+          },
+          {
+            "key": "hard.framing",
+            "label": "Framing & structure",
+            "formula": "buildSqft × hardCosts.framing.rates[tier]",
+            "range": {
+              "low": 13376,
+              "base": 15200,
+              "high": 17024
+            }
+          },
+          {
+            "key": "hard.mep",
+            "label": "Mechanical, electrical & plumbing",
+            "formula": "buildSqft × hardCosts.mep.rates[tier]",
+            "range": {
+              "low": 10200,
+              "base": 12000,
+              "high": 13800
+            }
+          },
+          {
+            "key": "hard.sitePrep",
+            "label": "Site preparation & excavation",
+            "formula": "lotSizeSqft × hardCosts.sitePrep.rates[tier]",
+            "range": {
+              "low": 3840,
+              "base": 4800,
+              "high": 5760
+            }
+          },
+          {
+            "key": "soft.design",
+            "label": "Design & engineering",
+            "formula": "hardCostBase × softCosts.design.fraction",
+            "range": {
+              "low": 3744,
+              "base": 4680,
+              "high": 5616
+            }
+          },
+          {
+            "key": "soft.permits",
+            "label": "Permits & fees",
+            "formula": "hardCostBase × softCosts.permits.fraction",
+            "range": {
+              "low": 878,
+              "base": 1170,
+              "high": 1463
+            }
+          },
+          {
+            "key": "contingency",
+            "label": "Contingency",
+            "formula": "(hardCostBase + softCostBase) × contingency.fraction",
+            "range": {
+              "low": 8385,
+              "base": 8385,
+              "high": 8385
+            }
+          }
+        ],
+        "totals": {
+          "build": {
+            "low": 79199,
+            "base": 92235,
+            "high": 105272
+          },
+          "land": {
+            "value": 25000
+          },
+          "total": {
+            "low": 104199,
+            "base": 117235,
+            "high": 130272
+          }
+        }
+      }
+    },
+    {
+      "input": {
+        "property": {
+          "assessedLandValue": 487321,
+          "lotSizeSqft": 3333,
+          "zoning": "R-C1"
+        },
+        "scope": {
+          "buildSqft": 1837,
+          "tier": "standard"
+        }
+      },
+      "output": {
+        "costDataVersion": "v0.3.0-unclibrated",
+        "calibrated": false,
+        "rows": [
+          {
+            "key": "land",
+            "label": "Land (assessed value)",
+            "formula": "assessedLandValue (fixed — City assessment, no spread)",
+            "range": {
+              "low": 487321,
+              "base": 487321,
+              "high": 487321
+            }
+          },
+          {
+            "key": "hard.envelope",
+            "label": "Envelope (roof, siding, windows)",
+            "formula": "buildSqft × hardCosts.envelope.rates[tier]",
+            "range": {
+              "low": 49966,
+              "base": 58784,
+              "high": 67602
+            }
+          },
+          {
+            "key": "hard.finishes",
+            "label": "Interior finishes",
+            "formula": "buildSqft × hardCosts.finishes.rates[tier]",
+            "range": {
+              "low": 82849,
+              "base": 101035,
+              "high": 119221
+            }
+          },
+          {
+            "key": "hard.foundation",
+            "label": "Foundation",
+            "formula": "buildSqft × hardCosts.foundation.rates[tier]",
+            "range": {
+              "low": 45264,
+              "base": 51436,
+              "high": 57608
+            }
+          },
+          {
+            "key": "hard.framing",
+            "label": "Framing & structure",
+            "formula": "buildSqft × hardCosts.framing.rates[tier]",
+            "range": {
+              "low": 61429,
+              "base": 69806,
+              "high": 78183
+            }
+          },
+          {
+            "key": "hard.mep",
+            "label": "Mechanical, electrical & plumbing",
+            "formula": "buildSqft × hardCosts.mep.rates[tier]",
+            "range": {
+              "low": 46844,
+              "base": 55110,
+              "high": 63376
+            }
+          },
+          {
+            "key": "hard.sitePrep",
+            "label": "Site preparation & excavation",
+            "formula": "lotSizeSqft × hardCosts.sitePrep.rates[tier]",
+            "range": {
+              "low": 10666,
+              "base": 13332,
+              "high": 15998
+            }
+          },
+          {
+            "key": "soft.design",
+            "label": "Design & engineering",
+            "formula": "hardCostBase × softCosts.design.fraction",
+            "range": {
+              "low": 16776,
+              "base": 20970,
+              "high": 25164
+            }
+          },
+          {
+            "key": "soft.permits",
+            "label": "Permits & fees",
+            "formula": "hardCostBase × softCosts.permits.fraction",
+            "range": {
+              "low": 3932,
+              "base": 5243,
+              "high": 6554
+            }
+          },
+          {
+            "key": "contingency",
+            "label": "Contingency",
+            "formula": "(hardCostBase + softCostBase) × contingency.fraction",
+            "range": {
+              "low": 37572,
+              "base": 37572,
+              "high": 37572
+            }
+          }
+        ],
+        "totals": {
+          "build": {
+            "low": 355298,
+            "base": 413288,
+            "high": 471278
+          },
+          "land": {
+            "value": 487321
+          },
+          "total": {
+            "low": 842619,
+            "base": 900609,
+            "high": 958599
+          }
+        }
+      }
+    },
+    {
+      "input": {
+        "property": {
+          "assessedLandValue": 1234567,
+          "lotSizeSqft": 6123,
+          "zoning": "R-C1"
+        },
+        "scope": {
+          "buildSqft": 4567,
+          "tier": "standard"
+        }
+      },
+      "output": {
+        "costDataVersion": "v0.3.0-unclibrated",
+        "calibrated": false,
+        "rows": [
+          {
+            "key": "land",
+            "label": "Land (assessed value)",
+            "formula": "assessedLandValue (fixed — City assessment, no spread)",
+            "range": {
+              "low": 1234567,
+              "base": 1234567,
+              "high": 1234567
+            }
+          },
+          {
+            "key": "hard.envelope",
+            "label": "Envelope (roof, siding, windows)",
+            "formula": "buildSqft × hardCosts.envelope.rates[tier]",
+            "range": {
+              "low": 124222,
+              "base": 146144,
+              "high": 168066
+            }
+          },
+          {
+            "key": "hard.finishes",
+            "label": "Interior finishes",
+            "formula": "buildSqft × hardCosts.finishes.rates[tier]",
+            "range": {
+              "low": 205972,
+              "base": 251185,
+              "high": 296398
+            }
+          },
+          {
+            "key": "hard.foundation",
+            "label": "Foundation",
+            "formula": "buildSqft × hardCosts.foundation.rates[tier]",
+            "range": {
+              "low": 112531,
+              "base": 127876,
+              "high": 143221
+            }
+          },
+          {
+            "key": "hard.framing",
+            "label": "Framing & structure",
+            "formula": "buildSqft × hardCosts.framing.rates[tier]",
+            "range": {
+              "low": 152720,
+              "base": 173546,
+              "high": 194372
+            }
+          },
+          {
+            "key": "hard.mep",
+            "label": "Mechanical, electrical & plumbing",
+            "formula": "buildSqft × hardCosts.mep.rates[tier]",
+            "range": {
+              "low": 116459,
+              "base": 137010,
+              "high": 157562
+            }
+          },
+          {
+            "key": "hard.sitePrep",
+            "label": "Site preparation & excavation",
+            "formula": "lotSizeSqft × hardCosts.sitePrep.rates[tier]",
+            "range": {
+              "low": 19594,
+              "base": 24492,
+              "high": 29390
+            }
+          },
+          {
+            "key": "soft.design",
+            "label": "Design & engineering",
+            "formula": "hardCostBase × softCosts.design.fraction",
+            "range": {
+              "low": 41292,
+              "base": 51615,
+              "high": 61938
+            }
+          },
+          {
+            "key": "soft.permits",
+            "label": "Permits & fees",
+            "formula": "hardCostBase × softCosts.permits.fraction",
+            "range": {
+              "low": 9678,
+              "base": 12904,
+              "high": 16130
+            }
+          },
+          {
+            "key": "contingency",
+            "label": "Contingency",
+            "formula": "(hardCostBase + softCostBase) × contingency.fraction",
+            "range": {
+              "low": 92477,
+              "base": 92477,
+              "high": 92477
+            }
+          }
+        ],
+        "totals": {
+          "build": {
+            "low": 874945,
+            "base": 1017249,
+            "high": 1159554
+          },
+          "land": {
+            "value": 1234567
+          },
+          "total": {
+            "low": 2109512,
+            "base": 2251816,
+            "high": 2394121
+          }
+        }
+      }
+    },
+    {
+      "input": {
+        "property": {
+          "assessedLandValue": 10000000,
+          "lotSizeSqft": 20000,
+          "zoning": "R-C1"
+        },
+        "scope": {
+          "buildSqft": 12000,
+          "tier": "standard"
+        }
+      },
+      "output": {
+        "costDataVersion": "v0.3.0-unclibrated",
+        "calibrated": false,
+        "rows": [
+          {
+            "key": "land",
+            "label": "Land (assessed value)",
+            "formula": "assessedLandValue (fixed — City assessment, no spread)",
+            "range": {
+              "low": 10000000,
+              "base": 10000000,
+              "high": 10000000
+            }
+          },
+          {
+            "key": "hard.envelope",
+            "label": "Envelope (roof, siding, windows)",
+            "formula": "buildSqft × hardCosts.envelope.rates[tier]",
+            "range": {
+              "low": 326400,
+              "base": 384000,
+              "high": 441600
+            }
+          },
+          {
+            "key": "hard.finishes",
+            "label": "Interior finishes",
+            "formula": "buildSqft × hardCosts.finishes.rates[tier]",
+            "range": {
+              "low": 541200,
+              "base": 660000,
+              "high": 778800
+            }
+          },
+          {
+            "key": "hard.foundation",
+            "label": "Foundation",
+            "formula": "buildSqft × hardCosts.foundation.rates[tier]",
+            "range": {
+              "low": 295680,
+              "base": 336000,
+              "high": 376320
+            }
+          },
+          {
+            "key": "hard.framing",
+            "label": "Framing & structure",
+            "formula": "buildSqft × hardCosts.framing.rates[tier]",
+            "range": {
+              "low": 401280,
+              "base": 456000,
+              "high": 510720
+            }
+          },
+          {
+            "key": "hard.mep",
+            "label": "Mechanical, electrical & plumbing",
+            "formula": "buildSqft × hardCosts.mep.rates[tier]",
+            "range": {
+              "low": 306000,
+              "base": 360000,
+              "high": 414000
+            }
+          },
+          {
+            "key": "hard.sitePrep",
+            "label": "Site preparation & excavation",
+            "formula": "lotSizeSqft × hardCosts.sitePrep.rates[tier]",
+            "range": {
+              "low": 64000,
+              "base": 80000,
+              "high": 96000
+            }
+          },
+          {
+            "key": "soft.design",
+            "label": "Design & engineering",
+            "formula": "hardCostBase × softCosts.design.fraction",
+            "range": {
+              "low": 109248,
+              "base": 136560,
+              "high": 163872
+            }
+          },
+          {
+            "key": "soft.permits",
+            "label": "Permits & fees",
+            "formula": "hardCostBase × softCosts.permits.fraction",
+            "range": {
+              "low": 25605,
+              "base": 34140,
+              "high": 42675
+            }
+          },
+          {
+            "key": "contingency",
+            "label": "Contingency",
+            "formula": "(hardCostBase + softCostBase) × contingency.fraction",
+            "range": {
+              "low": 244670,
+              "base": 244670,
+              "high": 244670
+            }
+          }
+        ],
+        "totals": {
+          "build": {
+            "low": 2314083,
+            "base": 2691370,
+            "high": 3068657
+          },
+          "land": {
+            "value": 10000000
+          },
+          "total": {
+            "low": 12314083,
+            "base": 12691370,
+            "high": 13068657
+          }
+        }
+      }
+    },
+    {
+      "input": {
+        "property": {
+          "assessedLandValue": 25000,
+          "lotSizeSqft": 1200,
+          "zoning": "R-C1"
+        },
+        "scope": {
+          "buildSqft": 400,
+          "tier": "premium"
+        }
+      },
+      "output": {
+        "costDataVersion": "v0.3.0-unclibrated",
+        "calibrated": false,
+        "rows": [
+          {
+            "key": "land",
+            "label": "Land (assessed value)",
+            "formula": "assessedLandValue (fixed — City assessment, no spread)",
+            "range": {
+              "low": 25000,
+              "base": 25000,
+              "high": 25000
+            }
+          },
+          {
+            "key": "hard.envelope",
+            "label": "Envelope (roof, siding, windows)",
+            "formula": "buildSqft × hardCosts.envelope.rates[tier]",
+            "range": {
+              "low": 14280,
+              "base": 16800,
+              "high": 19320
+            }
+          },
+          {
+            "key": "hard.finishes",
+            "label": "Interior finishes",
+            "formula": "buildSqft × hardCosts.finishes.rates[tier]",
+            "range": {
+              "low": 27880,
+              "base": 34000,
+              "high": 40120
+            }
+          },
+          {
+            "key": "hard.foundation",
+            "label": "Foundation",
+            "formula": "buildSqft × hardCosts.foundation.rates[tier]",
+            "range": {
+              "low": 11968,
+              "base": 13600,
+              "high": 15232
+            }
+          },
+          {
+            "key": "hard.framing",
+            "label": "Framing & structure",
+            "formula": "buildSqft × hardCosts.framing.rates[tier]",
+            "range": {
+              "low": 16192,
+              "base": 18400,
+              "high": 20608
+            }
+          },
+          {
+            "key": "hard.mep",
+            "label": "Mechanical, electrical & plumbing",
+            "formula": "buildSqft × hardCosts.mep.rates[tier]",
+            "range": {
+              "low": 13600,
+              "base": 16000,
+              "high": 18400
+            }
+          },
+          {
+            "key": "hard.sitePrep",
+            "label": "Site preparation & excavation",
+            "formula": "lotSizeSqft × hardCosts.sitePrep.rates[tier]",
+            "range": {
+              "low": 4800,
+              "base": 6000,
+              "high": 7200
+            }
+          },
+          {
+            "key": "soft.design",
+            "label": "Design & engineering",
+            "formula": "hardCostBase × softCosts.design.fraction",
+            "range": {
+              "low": 5030,
+              "base": 6288,
+              "high": 7546
+            }
+          },
+          {
+            "key": "soft.permits",
+            "label": "Permits & fees",
+            "formula": "hardCostBase × softCosts.permits.fraction",
+            "range": {
+              "low": 1179,
+              "base": 1572,
+              "high": 1965
+            }
+          },
+          {
+            "key": "contingency",
+            "label": "Contingency",
+            "formula": "(hardCostBase + softCostBase) × contingency.fraction",
+            "range": {
+              "low": 11266,
+              "base": 11266,
+              "high": 11266
+            }
+          }
+        ],
+        "totals": {
+          "build": {
+            "low": 106195,
+            "base": 123926,
+            "high": 141657
+          },
+          "land": {
+            "value": 25000
+          },
+          "total": {
+            "low": 131195,
+            "base": 148926,
+            "high": 166657
+          }
+        }
+      }
+    },
+    {
+      "input": {
+        "property": {
+          "assessedLandValue": 487321,
+          "lotSizeSqft": 3333,
+          "zoning": "R-C1"
+        },
+        "scope": {
+          "buildSqft": 1837,
+          "tier": "premium"
+        }
+      },
+      "output": {
+        "costDataVersion": "v0.3.0-unclibrated",
+        "calibrated": false,
+        "rows": [
+          {
+            "key": "land",
+            "label": "Land (assessed value)",
+            "formula": "assessedLandValue (fixed — City assessment, no spread)",
+            "range": {
+              "low": 487321,
+              "base": 487321,
+              "high": 487321
+            }
+          },
+          {
+            "key": "hard.envelope",
+            "label": "Envelope (roof, siding, windows)",
+            "formula": "buildSqft × hardCosts.envelope.rates[tier]",
+            "range": {
+              "low": 65581,
+              "base": 77154,
+              "high": 88727
+            }
+          },
+          {
+            "key": "hard.finishes",
+            "label": "Interior finishes",
+            "formula": "buildSqft × hardCosts.finishes.rates[tier]",
+            "range": {
+              "low": 128039,
+              "base": 156145,
+              "high": 184251
+            }
+          },
+          {
+            "key": "hard.foundation",
+            "label": "Foundation",
+            "formula": "buildSqft × hardCosts.foundation.rates[tier]",
+            "range": {
+              "low": 54963,
+              "base": 62458,
+              "high": 69953
+            }
+          },
+          {
+            "key": "hard.framing",
+            "label": "Framing & structure",
+            "formula": "buildSqft × hardCosts.framing.rates[tier]",
+            "range": {
+              "low": 74362,
+              "base": 84502,
+              "high": 94642
+            }
+          },
+          {
+            "key": "hard.mep",
+            "label": "Mechanical, electrical & plumbing",
+            "formula": "buildSqft × hardCosts.mep.rates[tier]",
+            "range": {
+              "low": 62458,
+              "base": 73480,
+              "high": 84502
+            }
+          },
+          {
+            "key": "hard.sitePrep",
+            "label": "Site preparation & excavation",
+            "formula": "lotSizeSqft × hardCosts.sitePrep.rates[tier]",
+            "range": {
+              "low": 13332,
+              "base": 16665,
+              "high": 19998
+            }
+          },
+          {
+            "key": "soft.design",
+            "label": "Design & engineering",
+            "formula": "hardCostBase × softCosts.design.fraction",
+            "range": {
+              "low": 22579,
+              "base": 28224,
+              "high": 33869
+            }
+          },
+          {
+            "key": "soft.permits",
+            "label": "Permits & fees",
+            "formula": "hardCostBase × softCosts.permits.fraction",
+            "range": {
+              "low": 5292,
+              "base": 7056,
+              "high": 8820
+            }
+          },
+          {
+            "key": "contingency",
+            "label": "Contingency",
+            "formula": "(hardCostBase + softCostBase) × contingency.fraction",
+            "range": {
+              "low": 50568,
+              "base": 50568,
+              "high": 50568
+            }
+          }
+        ],
+        "totals": {
+          "build": {
+            "low": 477174,
+            "base": 556252,
+            "high": 635330
+          },
+          "land": {
+            "value": 487321
+          },
+          "total": {
+            "low": 964495,
+            "base": 1043573,
+            "high": 1122651
+          }
+        }
+      }
+    },
+    {
+      "input": {
+        "property": {
+          "assessedLandValue": 1234567,
+          "lotSizeSqft": 6123,
+          "zoning": "R-C1"
+        },
+        "scope": {
+          "buildSqft": 4567,
+          "tier": "premium"
+        }
+      },
+      "output": {
+        "costDataVersion": "v0.3.0-unclibrated",
+        "calibrated": false,
+        "rows": [
+          {
+            "key": "land",
+            "label": "Land (assessed value)",
+            "formula": "assessedLandValue (fixed — City assessment, no spread)",
+            "range": {
+              "low": 1234567,
+              "base": 1234567,
+              "high": 1234567
+            }
+          },
+          {
+            "key": "hard.envelope",
+            "label": "Envelope (roof, siding, windows)",
+            "formula": "buildSqft × hardCosts.envelope.rates[tier]",
+            "range": {
+              "low": 163042,
+              "base": 191814,
+              "high": 220586
+            }
+          },
+          {
+            "key": "hard.finishes",
+            "label": "Interior finishes",
+            "formula": "buildSqft × hardCosts.finishes.rates[tier]",
+            "range": {
+              "low": 318320,
+              "base": 388195,
+              "high": 458070
+            }
+          },
+          {
+            "key": "hard.foundation",
+            "label": "Foundation",
+            "formula": "buildSqft × hardCosts.foundation.rates[tier]",
+            "range": {
+              "low": 136645,
+              "base": 155278,
+              "high": 173911
+            }
+          },
+          {
+            "key": "hard.framing",
+            "label": "Framing & structure",
+            "formula": "buildSqft × hardCosts.framing.rates[tier]",
+            "range": {
+              "low": 184872,
+              "base": 210082,
+              "high": 235292
+            }
+          },
+          {
+            "key": "hard.mep",
+            "label": "Mechanical, electrical & plumbing",
+            "formula": "buildSqft × hardCosts.mep.rates[tier]",
+            "range": {
+              "low": 155278,
+              "base": 182680,
+              "high": 210082
+            }
+          },
+          {
+            "key": "hard.sitePrep",
+            "label": "Site preparation & excavation",
+            "formula": "lotSizeSqft × hardCosts.sitePrep.rates[tier]",
+            "range": {
+              "low": 24492,
+              "base": 30615,
+              "high": 36738
+            }
+          },
+          {
+            "key": "soft.design",
+            "label": "Design & engineering",
+            "formula": "hardCostBase × softCosts.design.fraction",
+            "range": {
+              "low": 55616,
+              "base": 69520,
+              "high": 83424
+            }
+          },
+          {
+            "key": "soft.permits",
+            "label": "Permits & fees",
+            "formula": "hardCostBase × softCosts.permits.fraction",
+            "range": {
+              "low": 13035,
+              "base": 17380,
+              "high": 21725
+            }
+          },
+          {
+            "key": "contingency",
+            "label": "Contingency",
+            "formula": "(hardCostBase + softCostBase) × contingency.fraction",
+            "range": {
+              "low": 124556,
+              "base": 124556,
+              "high": 124556
+            }
+          }
+        ],
+        "totals": {
+          "build": {
+            "low": 1175856,
+            "base": 1370120,
+            "high": 1564384
+          },
+          "land": {
+            "value": 1234567
+          },
+          "total": {
+            "low": 2410423,
+            "base": 2604687,
+            "high": 2798951
+          }
+        }
+      }
+    },
+    {
+      "input": {
+        "property": {
+          "assessedLandValue": 10000000,
+          "lotSizeSqft": 20000,
+          "zoning": "R-C1"
+        },
+        "scope": {
+          "buildSqft": 12000,
+          "tier": "premium"
+        }
+      },
+      "output": {
+        "costDataVersion": "v0.3.0-unclibrated",
+        "calibrated": false,
+        "rows": [
+          {
+            "key": "land",
+            "label": "Land (assessed value)",
+            "formula": "assessedLandValue (fixed — City assessment, no spread)",
+            "range": {
+              "low": 10000000,
+              "base": 10000000,
+              "high": 10000000
+            }
+          },
+          {
+            "key": "hard.envelope",
+            "label": "Envelope (roof, siding, windows)",
+            "formula": "buildSqft × hardCosts.envelope.rates[tier]",
+            "range": {
+              "low": 428400,
+              "base": 504000,
+              "high": 579600
+            }
+          },
+          {
+            "key": "hard.finishes",
+            "label": "Interior finishes",
+            "formula": "buildSqft × hardCosts.finishes.rates[tier]",
+            "range": {
+              "low": 836400,
+              "base": 1020000,
+              "high": 1203600
+            }
+          },
+          {
+            "key": "hard.foundation",
+            "label": "Foundation",
+            "formula": "buildSqft × hardCosts.foundation.rates[tier]",
+            "range": {
+              "low": 359040,
+              "base": 408000,
+              "high": 456960
+            }
+          },
+          {
+            "key": "hard.framing",
+            "label": "Framing & structure",
+            "formula": "buildSqft × hardCosts.framing.rates[tier]",
+            "range": {
+              "low": 485760,
+              "base": 552000,
+              "high": 618240
+            }
+          },
+          {
+            "key": "hard.mep",
+            "label": "Mechanical, electrical & plumbing",
+            "formula": "buildSqft × hardCosts.mep.rates[tier]",
+            "range": {
+              "low": 408000,
+              "base": 480000,
+              "high": 552000
+            }
+          },
+          {
+            "key": "hard.sitePrep",
+            "label": "Site preparation & excavation",
+            "formula": "lotSizeSqft × hardCosts.sitePrep.rates[tier]",
+            "range": {
+              "low": 80000,
+              "base": 100000,
+              "high": 120000
+            }
+          },
+          {
+            "key": "soft.design",
+            "label": "Design & engineering",
+            "formula": "hardCostBase × softCosts.design.fraction",
+            "range": {
+              "low": 147072,
+              "base": 183840,
+              "high": 220608
+            }
+          },
+          {
+            "key": "soft.permits",
+            "label": "Permits & fees",
+            "formula": "hardCostBase × softCosts.permits.fraction",
+            "range": {
+              "low": 34470,
+              "base": 45960,
+              "high": 57450
+            }
+          },
+          {
+            "key": "contingency",
+            "label": "Contingency",
+            "formula": "(hardCostBase + softCostBase) × contingency.fraction",
+            "range": {
+              "low": 329380,
+              "base": 329380,
+              "high": 329380
+            }
+          }
+        ],
+        "totals": {
+          "build": {
+            "low": 3108522,
+            "base": 3623180,
+            "high": 4137838
+          },
+          "land": {
+            "value": 10000000
+          },
+          "total": {
+            "low": 13108522,
+            "base": 13623180,
+            "high": 14137838
+          }
+        }
+      }
+    },
+    {
+      "input": {
+        "property": {
+          "assessedLandValue": 25000,
+          "lotSizeSqft": 1200,
+          "zoning": "R-C1"
+        },
+        "scope": {
+          "buildSqft": 400,
+          "tier": "luxury"
+        }
+      },
+      "output": {
+        "costDataVersion": "v0.3.0-unclibrated",
+        "calibrated": false,
+        "rows": [
+          {
+            "key": "land",
+            "label": "Land (assessed value)",
+            "formula": "assessedLandValue (fixed — City assessment, no spread)",
+            "range": {
+              "low": 25000,
+              "base": 25000,
+              "high": 25000
+            }
+          },
+          {
+            "key": "hard.envelope",
+            "label": "Envelope (roof, siding, windows)",
+            "formula": "buildSqft × hardCosts.envelope.rates[tier]",
+            "range": {
+              "low": 18700,
+              "base": 22000,
+              "high": 25300
+            }
+          },
+          {
+            "key": "hard.finishes",
+            "label": "Interior finishes",
+            "formula": "buildSqft × hardCosts.finishes.rates[tier]",
+            "range": {
+              "low": 42640,
+              "base": 52000,
+              "high": 61360
+            }
+          },
+          {
+            "key": "hard.foundation",
+            "label": "Foundation",
+            "formula": "buildSqft × hardCosts.foundation.rates[tier]",
+            "range": {
+              "low": 14784,
+              "base": 16800,
+              "high": 18816
+            }
+          },
+          {
+            "key": "hard.framing",
+            "label": "Framing & structure",
+            "formula": "buildSqft × hardCosts.framing.rates[tier]",
+            "range": {
+              "low": 20416,
+              "base": 23200,
+              "high": 25984
+            }
+          },
+          {
+            "key": "hard.mep",
+            "label": "Mechanical, electrical & plumbing",
+            "formula": "buildSqft × hardCosts.mep.rates[tier]",
+            "range": {
+              "low": 18700,
+              "base": 22000,
+              "high": 25300
+            }
+          },
+          {
+            "key": "hard.sitePrep",
+            "label": "Site preparation & excavation",
+            "formula": "lotSizeSqft × hardCosts.sitePrep.rates[tier]",
+            "range": {
+              "low": 6720,
+              "base": 8400,
+              "high": 10080
+            }
+          },
+          {
+            "key": "soft.design",
+            "label": "Design & engineering",
+            "formula": "hardCostBase × softCosts.design.fraction",
+            "range": {
+              "low": 6931,
+              "base": 8664,
+              "high": 10397
+            }
+          },
+          {
+            "key": "soft.permits",
+            "label": "Permits & fees",
+            "formula": "hardCostBase × softCosts.permits.fraction",
+            "range": {
+              "low": 1625,
+              "base": 2166,
+              "high": 2708
+            }
+          },
+          {
+            "key": "contingency",
+            "label": "Contingency",
+            "formula": "(hardCostBase + softCostBase) × contingency.fraction",
+            "range": {
+              "low": 15523,
+              "base": 15523,
+              "high": 15523
+            }
+          }
+        ],
+        "totals": {
+          "build": {
+            "low": 146039,
+            "base": 170753,
+            "high": 195468
+          },
+          "land": {
+            "value": 25000
+          },
+          "total": {
+            "low": 171039,
+            "base": 195753,
+            "high": 220468
+          }
+        }
+      }
+    },
+    {
+      "input": {
+        "property": {
+          "assessedLandValue": 487321,
+          "lotSizeSqft": 3333,
+          "zoning": "R-C1"
+        },
+        "scope": {
+          "buildSqft": 1837,
+          "tier": "luxury"
+        }
+      },
+      "output": {
+        "costDataVersion": "v0.3.0-unclibrated",
+        "calibrated": false,
+        "rows": [
+          {
+            "key": "land",
+            "label": "Land (assessed value)",
+            "formula": "assessedLandValue (fixed — City assessment, no spread)",
+            "range": {
+              "low": 487321,
+              "base": 487321,
+              "high": 487321
+            }
+          },
+          {
+            "key": "hard.envelope",
+            "label": "Envelope (roof, siding, windows)",
+            "formula": "buildSqft × hardCosts.envelope.rates[tier]",
+            "range": {
+              "low": 85880,
+              "base": 101035,
+              "high": 116190
+            }
+          },
+          {
+            "key": "hard.finishes",
+            "label": "Interior finishes",
+            "formula": "buildSqft × hardCosts.finishes.rates[tier]",
+            "range": {
+              "low": 195824,
+              "base": 238810,
+              "high": 281796
+            }
+          },
+          {
+            "key": "hard.foundation",
+            "label": "Foundation",
+            "formula": "buildSqft × hardCosts.foundation.rates[tier]",
+            "range": {
+              "low": 67896,
+              "base": 77154,
+              "high": 86412
+            }
+          },
+          {
+            "key": "hard.framing",
+            "label": "Framing & structure",
+            "formula": "buildSqft × hardCosts.framing.rates[tier]",
+            "range": {
+              "low": 93760,
+              "base": 106546,
+              "high": 119332
+            }
+          },
+          {
+            "key": "hard.mep",
+            "label": "Mechanical, electrical & plumbing",
+            "formula": "buildSqft × hardCosts.mep.rates[tier]",
+            "range": {
+              "low": 85880,
+              "base": 101035,
+              "high": 116190
+            }
+          },
+          {
+            "key": "hard.sitePrep",
+            "label": "Site preparation & excavation",
+            "formula": "lotSizeSqft × hardCosts.sitePrep.rates[tier]",
+            "range": {
+              "low": 18665,
+              "base": 23331,
+              "high": 27997
+            }
+          },
+          {
+            "key": "soft.design",
+            "label": "Design & engineering",
+            "formula": "hardCostBase × softCosts.design.fraction",
+            "range": {
+              "low": 31100,
+              "base": 38875,
+              "high": 46650
+            }
+          },
+          {
+            "key": "soft.permits",
+            "label": "Permits & fees",
+            "formula": "hardCostBase × softCosts.permits.fraction",
+            "range": {
+              "low": 7289,
+              "base": 9719,
+              "high": 12149
+            }
+          },
+          {
+            "key": "contingency",
+            "label": "Contingency",
+            "formula": "(hardCostBase + softCostBase) × contingency.fraction",
+            "range": {
+              "low": 69651,
+              "base": 69651,
+              "high": 69651
+            }
+          }
+        ],
+        "totals": {
+          "build": {
+            "low": 655945,
+            "base": 766156,
+            "high": 876367
+          },
+          "land": {
+            "value": 487321
+          },
+          "total": {
+            "low": 1143266,
+            "base": 1253477,
+            "high": 1363688
+          }
+        }
+      }
+    },
+    {
+      "input": {
+        "property": {
+          "assessedLandValue": 1234567,
+          "lotSizeSqft": 6123,
+          "zoning": "R-C1"
+        },
+        "scope": {
+          "buildSqft": 4567,
+          "tier": "luxury"
+        }
+      },
+      "output": {
+        "costDataVersion": "v0.3.0-unclibrated",
+        "calibrated": false,
+        "rows": [
+          {
+            "key": "land",
+            "label": "Land (assessed value)",
+            "formula": "assessedLandValue (fixed — City assessment, no spread)",
+            "range": {
+              "low": 1234567,
+              "base": 1234567,
+              "high": 1234567
+            }
+          },
+          {
+            "key": "hard.envelope",
+            "label": "Envelope (roof, siding, windows)",
+            "formula": "buildSqft × hardCosts.envelope.rates[tier]",
+            "range": {
+              "low": 213507,
+              "base": 251185,
+              "high": 288863
+            }
+          },
+          {
+            "key": "hard.finishes",
+            "label": "Interior finishes",
+            "formula": "buildSqft × hardCosts.finishes.rates[tier]",
+            "range": {
+              "low": 486842,
+              "base": 593710,
+              "high": 700578
+            }
+          },
+          {
+            "key": "hard.foundation",
+            "label": "Foundation",
+            "formula": "buildSqft × hardCosts.foundation.rates[tier]",
+            "range": {
+              "low": 168796,
+              "base": 191814,
+              "high": 214832
+            }
+          },
+          {
+            "key": "hard.framing",
+            "label": "Framing & structure",
+            "formula": "buildSqft × hardCosts.framing.rates[tier]",
+            "range": {
+              "low": 233100,
+              "base": 264886,
+              "high": 296672
+            }
+          },
+          {
+            "key": "hard.mep",
+            "label": "Mechanical, electrical & plumbing",
+            "formula": "buildSqft × hardCosts.mep.rates[tier]",
+            "range": {
+              "low": 213507,
+              "base": 251185,
+              "high": 288863
+            }
+          },
+          {
+            "key": "hard.sitePrep",
+            "label": "Site preparation & excavation",
+            "formula": "lotSizeSqft × hardCosts.sitePrep.rates[tier]",
+            "range": {
+              "low": 34289,
+              "base": 42861,
+              "high": 51433
+            }
+          },
+          {
+            "key": "soft.design",
+            "label": "Design & engineering",
+            "formula": "hardCostBase × softCosts.design.fraction",
+            "range": {
+              "low": 76590,
+              "base": 95738,
+              "high": 114886
+            }
+          },
+          {
+            "key": "soft.permits",
+            "label": "Permits & fees",
+            "formula": "hardCostBase × softCosts.permits.fraction",
+            "range": {
+              "low": 17951,
+              "base": 23935,
+              "high": 29919
+            }
+          },
+          {
+            "key": "contingency",
+            "label": "Contingency",
+            "formula": "(hardCostBase + softCostBase) × contingency.fraction",
+            "range": {
+              "low": 171531,
+              "base": 171531,
+              "high": 171531
+            }
+          }
+        ],
+        "totals": {
+          "build": {
+            "low": 1616113,
+            "base": 1886845,
+            "high": 2157577
+          },
+          "land": {
+            "value": 1234567
+          },
+          "total": {
+            "low": 2850680,
+            "base": 3121412,
+            "high": 3392144
+          }
+        }
+      }
+    },
+    {
+      "input": {
+        "property": {
+          "assessedLandValue": 10000000,
+          "lotSizeSqft": 20000,
+          "zoning": "R-C1"
+        },
+        "scope": {
+          "buildSqft": 12000,
+          "tier": "luxury"
+        }
+      },
+      "output": {
+        "costDataVersion": "v0.3.0-unclibrated",
+        "calibrated": false,
+        "rows": [
+          {
+            "key": "land",
+            "label": "Land (assessed value)",
+            "formula": "assessedLandValue (fixed — City assessment, no spread)",
+            "range": {
+              "low": 10000000,
+              "base": 10000000,
+              "high": 10000000
+            }
+          },
+          {
+            "key": "hard.envelope",
+            "label": "Envelope (roof, siding, windows)",
+            "formula": "buildSqft × hardCosts.envelope.rates[tier]",
+            "range": {
+              "low": 561000,
+              "base": 660000,
+              "high": 759000
+            }
+          },
+          {
+            "key": "hard.finishes",
+            "label": "Interior finishes",
+            "formula": "buildSqft × hardCosts.finishes.rates[tier]",
+            "range": {
+              "low": 1279200,
+              "base": 1560000,
+              "high": 1840800
+            }
+          },
+          {
+            "key": "hard.foundation",
+            "label": "Foundation",
+            "formula": "buildSqft × hardCosts.foundation.rates[tier]",
+            "range": {
+              "low": 443520,
+              "base": 504000,
+              "high": 564480
+            }
+          },
+          {
+            "key": "hard.framing",
+            "label": "Framing & structure",
+            "formula": "buildSqft × hardCosts.framing.rates[tier]",
+            "range": {
+              "low": 612480,
+              "base": 696000,
+              "high": 779520
+            }
+          },
+          {
+            "key": "hard.mep",
+            "label": "Mechanical, electrical & plumbing",
+            "formula": "buildSqft × hardCosts.mep.rates[tier]",
+            "range": {
+              "low": 561000,
+              "base": 660000,
+              "high": 759000
+            }
+          },
+          {
+            "key": "hard.sitePrep",
+            "label": "Site preparation & excavation",
+            "formula": "lotSizeSqft × hardCosts.sitePrep.rates[tier]",
+            "range": {
+              "low": 112000,
+              "base": 140000,
+              "high": 168000
+            }
+          },
+          {
+            "key": "soft.design",
+            "label": "Design & engineering",
+            "formula": "hardCostBase × softCosts.design.fraction",
+            "range": {
+              "low": 202560,
+              "base": 253200,
+              "high": 303840
+            }
+          },
+          {
+            "key": "soft.permits",
+            "label": "Permits & fees",
+            "formula": "hardCostBase × softCosts.permits.fraction",
+            "range": {
+              "low": 47475,
+              "base": 63300,
+              "high": 79125
+            }
+          },
+          {
+            "key": "contingency",
+            "label": "Contingency",
+            "formula": "(hardCostBase + softCostBase) × contingency.fraction",
+            "range": {
+              "low": 453650,
+              "base": 453650,
+              "high": 453650
+            }
+          }
+        ],
+        "totals": {
+          "build": {
+            "low": 4272885,
+            "base": 4990150,
+            "high": 5707415
+          },
+          "land": {
+            "value": 10000000
+          },
+          "total": {
+            "low": 14272885,
+            "base": 14990150,
+            "high": 15707415
+          }
+        }
+      }
+    }
+  ],
+  "comparisons": [
+    {
+      "input": {
+        "neighbourhoods": [
+          "a",
+          "b",
+          "c"
+        ],
+        "buildSqft": 2345,
+        "tier": "premium",
+        "avgLotSqftBySlug": {
+          "a": 5123,
+          "b": 6000,
+          "c": 4321
+        },
+        "assessedValueBySlug": {
+          "a": 500000,
+          "b": 450000,
+          "c": 610000
+        }
+      },
+      "output": {
+        "costDataVersion": "v0.3.0-unclibrated",
+        "calibrated": false,
+        "rowSets": [
+          {
+            "slug": "a",
+            "lowestLand": false,
+            "land": {
+              "low": 391910,
+              "base": 435455,
+              "high": 479001
+            },
+            "build": {
+              "low": 588566,
+              "base": 684922,
+              "high": 781279
+            },
+            "total": {
+              "low": 980476,
+              "base": 1120377,
+              "high": 1260280
+            },
+            "visibility": {
+              "land": "visible",
+              "build": "blurred",
+              "total": "blurred"
+            }
+          },
+          {
+            "slug": "b",
+            "lowestLand": true,
+            "land": {
+              "low": 459000,
+              "base": 510000,
+              "high": 561000
+            },
+            "build": {
+              "low": 588566,
+              "base": 684922,
+              "high": 781279
+            },
+            "total": {
+              "low": 1047566,
+              "base": 1194922,
+              "high": 1342279
+            },
+            "visibility": {
+              "land": "visible",
+              "build": "blurred",
+              "total": "blurred"
+            }
+          },
+          {
+            "slug": "c",
+            "lowestLand": false,
+            "land": {
+              "low": 330557,
+              "base": 367285,
+              "high": 404014
+            },
+            "build": {
+              "low": 588566,
+              "base": 684922,
+              "high": 781279
+            },
+            "total": {
+              "low": 919123,
+              "base": 1052207,
+              "high": 1185293
+            },
+            "visibility": {
+              "land": "visible",
+              "build": "blurred",
+              "total": "blurred"
+            }
+          }
+        ]
+      }
+    }
+  ]
+}

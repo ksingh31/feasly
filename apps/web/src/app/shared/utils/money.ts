@@ -43,6 +43,52 @@ export function formatWholeCad(value: number): string {
 }
 
 /**
+ * Display rounding step for consumer estimate figures (#504, review M1):
+ * estimates are ranges, so no figure renders more precise than $1,000.
+ */
+const ESTIMATE_ROUNDING_STEP = 1_000;
+/** At or above this magnitude, figures render compact as "$3.24M". */
+const COMPACT_MILLION = 1_000_000;
+/** Compact millions show two decimals — i.e. $10k precision at the $3M scale. */
+const COMPACT_STEP = 10_000;
+
+/**
+ * Formats an estimate figure (whole dollars) rounded to the nearest $1,000.
+ * 609901 -> "$610,000". Display formatting only — never feeds a calculation.
+ */
+export function formatRoundedCad(value: number): string {
+  const normalized = Number.isFinite(value) ? value : 0;
+  return formatWholeCad(Math.round(normalized / ESTIMATE_ROUNDING_STEP) * ESTIMATE_ROUNDING_STEP);
+}
+
+/**
+ * Formats an estimate figure for headlines: "$3.24M" at or above $1M
+ * ($10k precision), otherwise rounded to $1,000 ("$608,000").
+ */
+export function formatCompactCad(value: number): string {
+  const normalized = Number.isFinite(value) ? value : 0;
+  const steps = Math.round(Math.abs(normalized) / COMPACT_STEP);
+  if (steps * COMPACT_STEP < COMPACT_MILLION) {
+    return formatRoundedCad(normalized);
+  }
+  const sign = normalized < 0 ? '-' : '';
+  const perMillion = COMPACT_MILLION / COMPACT_STEP;
+  const whole = Math.floor(steps / perMillion);
+  const frac = String(steps % perMillion).padStart(2, '0');
+  return `${sign}$${whole.toLocaleString('en-CA')}.${frac}M`;
+}
+
+/** Headline range, e.g. "$3.24M – $3.39M" or "$608,000 – $735,000". */
+export function formatCompactRange(range: { readonly low: number; readonly high: number }): string {
+  return `${formatCompactCad(range.low)} – ${formatCompactCad(range.high)}`;
+}
+
+/** Per-sq-ft rate in whole dollars: 242.37 -> "$242". */
+export function formatPerSqftCad(value: number): string {
+  return formatWholeCad(Number.isFinite(value) && value > 0 ? value : 0);
+}
+
+/**
  * Converts a dollar amount to integer cents (rounds the float).
  * Centralizes the dollars→cents conversion so components never carry a
  * magic 100 — the per-sqft rate on the report is a dollar float.

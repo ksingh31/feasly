@@ -8,6 +8,7 @@ import { CommunityService } from '../../../core/community/community.service';
 import type { CommunityStats } from '../../../core/api/api.service';
 import { OptionSelectorComponent } from '../../../shared/components';
 import type { TierOption } from '../../../shared/components';
+import { formatRoundedCad } from '../../../shared/utils/money';
 import { ComparisonState } from '../comparison.state';
 import { ReviseComparisonTier } from '../comparison.actions';
 import { WizardState } from '../../wizard/wizard.state';
@@ -127,8 +128,9 @@ export class CompareResultsComponent {
     );
   }
 
+  /** Community averages and estimate figures, rounded to $1,000 (#504). */
   protected formatMoney(value: number): string {
-    return `$${Math.round(value).toLocaleString('en-CA')}`;
+    return formatRoundedCad(value);
   }
 
   protected formatRange(range: CostRange): string {
