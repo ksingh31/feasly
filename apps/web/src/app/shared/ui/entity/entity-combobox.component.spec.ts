@@ -29,6 +29,8 @@ describe('filterEntityOptions', () => {
     hint="Search by name"
     [error]="error()"
     [options]="options()"
+    [loading]="loading()"
+    [filterLocally]="filterLocally()"
     [formControl]="control"
     (queryChange)="queries.push($event)"
     (selectionChange)="selections.push($event)"
@@ -38,6 +40,8 @@ class HostComponent {
   readonly control = new FormControl<string | null>(null);
   readonly options = signal<readonly EntityOption[]>(OPTIONS);
   readonly error = signal<string | undefined>(undefined);
+  readonly loading = signal(false);
+  readonly filterLocally = signal(true);
   readonly queries: string[] = [];
   readonly selections: (EntityOption | null)[] = [];
 }
@@ -179,6 +183,30 @@ describe('EntityComboboxComponent', () => {
     host.options.set([]);
     fixture.detectChanges();
     expect(input().value).toBe('Elite Craft Builders');
+  });
+
+  it('Enter does not pick a stale, hidden option while a server search is loading', () => {
+    const host = setup();
+    host.filterLocally.set(false);
+    fixture.detectChanges();
+    type('bow'); // server mode: the previous (unfiltered) options are still in `options`
+    expect(activeLabel()).toBe('Elite Craft Builders');
+
+    host.loading.set(true);
+    fixture.detectChanges();
+    expect(options()).toEqual([]);
+    expect(list().textContent).toContain('Searching');
+    expect(input().hasAttribute('aria-activedescendant')).toBe(false);
+    expect(key('Enter').defaultPrevented).toBe(false);
+    expect(host.control.value).toBeNull();
+    expect(host.selections).toEqual([]);
+
+    host.options.set([OPTIONS[1]]);
+    host.loading.set(false);
+    fixture.detectChanges();
+    expect(activeLabel()).toBe('Bowness Homes');
+    key('Enter');
+    expect(host.control.value).toBe('b-222');
   });
 
   it('never shows a raw id for an unknown value', () => {

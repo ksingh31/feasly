@@ -90,11 +90,19 @@ export class EntityComboboxComponent implements ControlValueAccessor {
     this.editing() ? this.query() : this.selectedLabel(),
   );
 
-  protected readonly shown = computed(() =>
-    this.filterLocally() && this.editing()
+  /**
+   * Options the user can see and pick. Empty while `loading()`: the list only
+   * renders the loading row then, so Enter / aria-activedescendant must not
+   * reach a stale (hidden) option from the previous search.
+   */
+  protected readonly shown = computed(() => {
+    if (this.loading()) {
+      return [];
+    }
+    return this.filterLocally() && this.editing()
       ? filterEntityOptions(this.options(), this.query())
-      : [...this.options()],
-  );
+      : [...this.options()];
+  });
 
   protected readonly activeId = computed(() => {
     const index = this.activeIndex();
