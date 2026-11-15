@@ -4,7 +4,9 @@
  * Owner rule (2026-11-13): merge only when EVERY check is green and the PR is
  * approved (agent PRs: reviewer verdict APPROVE / agent:approved; owner PRs by
  * authorship). Merges every eligible PR per run (main is not strict up-to-date),
- * updates at most one BEHIND branch, re-runs red environment checks (≤3 attempts), and after
+ * never updates BEHIND branches (not required; a bot push holds CI for approval),
+ * stops the line while the latest CI run on main is red (only owner PRs or PRs
+ * labelled main-fix merge then), re-runs red environment checks (≤3 attempts), and after
  * merging triggers CI + the dev deploy on main (a GITHUB_TOKEN merge fires no
  * push workflows).
  *
@@ -20,7 +22,10 @@ const mark = (p, key, text) => ghWrite(['pr', 'comment', String(p.number), '--bo
 const waiting = ghJson(['run', 'list', '--status', 'action_required', '--limit', '50', '--json', 'headBranch']) ?? [];
 prs.sort((a, b) => a.number - b.number); // oldest first
 let merged = 0;
-let updated = false;
+// Stop the line: parallel merges on top of a red main compound the breakage.
+const lastMainCi = (ghJson(['run', 'list', '--workflow', 'ci.yml', '--branch', 'main', '--status', 'completed', '--limit', '1', '--json', 'conclusion,headSha']) ?? [])[0];
+const mainRed = lastMainCi?.conclusion === 'failure';
+if (mainRed) console.log(`main CI is red @ ${lastMainCi.headSha.slice(0, 7)} — merging only owner / main-fix PRs`);
 
 for (const p of prs) {
   let checks = [];
@@ -56,7 +61,9 @@ for (const p of prs) {
     ghWrite(['workflow', 'run', 'agent-review.yml', '-f', `pr=${p.number}`]);
   }
 
-  if (d.action === 'merge') {
+  if (d.action === 'merge' && mainRed && author !== 'ksingh31' && !pr.labels.includes('main-fix')) {
+    console.log(`  #${p.number} held: main is red`);
+  } else if (d.action === 'merge') {
     // main no longer requires branches to be up to date (owner, 2026-11-15), so merge
     // every eligible PR in one pass. A PR that conflicts after an earlier merge fails
     // here and gets a fix round on the next run (DIRTY → agent-fix).
@@ -66,9 +73,8 @@ for (const p of prs) {
     } catch (err) {
       console.log(`  #${p.number} merge failed: ${String(err.message).split('\n')[0]}`);
     }
-  } else if (d.action === 'update' && !updated) {
-    ghWrite(['pr', 'update-branch', String(p.number)]);
-    updated = true;
+  } else if (d.action === 'update') {
+    console.log(`  #${p.number} is behind main — not required (strict off), leaving as is`);
   } else if (d.action === 'rerun') {
     const runs = [...new Set(checks.filter((c) => c.bucket === 'fail' || c.bucket === 'cancel')
       .map((c) => /\/runs\/(\d+)/.exec(c.link ?? '')?.[1]).filter(Boolean))];
