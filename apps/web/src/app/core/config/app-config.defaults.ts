@@ -133,16 +133,15 @@ export const DEFAULT_APP_CONFIG: AppConfig = {
         'Feasly estimates what it really costs to build a home in Calgary, Alberta — based on City property records and current construction cost data.',
       trustItems: [
         { value: '600,000+', label: 'City of Calgary assessment records' },
-        // The refresh month is dynamic (GET /api/v1/city-data/freshness);
-        // value/valueShort are the honest fallbacks while it is unknown —
-        // never a hardcoded month that goes stale.
+        // Rewritten at runtime into the shared freshness line
+        // (copy.dataFreshness, #513) from GET /api/v1/city-data/freshness;
+        // value/label are the honest fallbacks while it is unknown —
+        // never a hardcoded year or month that goes stale.
         {
           key: 'city-data-freshness',
           value: 'Live City data',
           valueShort: 'Live City data',
-          label: 'Latest data refresh',
-          refreshedValue: '{monthYear}',
-          refreshedValueShort: '{monthYearShort}',
+          label: 'City of Calgary assessment roll',
         },
         { value: 'Same fixed formula', label: 'AI never invents prices', badge: true },
       ],
@@ -432,6 +431,12 @@ export const DEFAULT_APP_CONFIG: AppConfig = {
         'This property isn’t a single-family home — our estimator only quotes single-family new builds in Calgary right now.',
       validationZoningGuideLink: 'Learn about Calgary zoning →',
       validationBackLabel: '← Try a different address',
+    },
+    dataFreshness: {
+      rollTemplate: '{year} assessment roll',
+      rollUnknownYear: 'Current assessment roll',
+      detailTemplate: '(City of Calgary) · checked {monthYear}',
+      detailUnchecked: '(City of Calgary)',
     },
     propertyCard: {
       freshnessMock: 'Sample data for illustration — live City records coming soon',

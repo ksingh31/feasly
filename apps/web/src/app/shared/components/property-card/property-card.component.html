@@ -32,7 +32,7 @@
           @if (isMockData) {
             {{ freshnessMock }}
           } @else {
-            City-assessed value, {{ p.assessmentYear }} — data as of {{ formatDate(p.dataAsOf) }}
+            {{ freshnessLine() }}
           }
         </p>
       </article>

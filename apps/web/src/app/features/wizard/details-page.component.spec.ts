@@ -9,6 +9,7 @@ import type { PropertyRecord } from '@feasly/contracts';
 import { ConfigService } from '../../core/config/config.service';
 import { ChooseProjectType, GoToStep, SelectProperty, UpdateInputs, WizardState } from '../wizard';
 import { DetailsPageComponent } from './details-page.component';
+import { provideDataFreshnessStub } from '../../shared/test-helpers/data-freshness.stub';
 
 /** Blank route target for navigation assertions. */
 @Component({ standalone: true, template: '' })
@@ -59,6 +60,7 @@ describe('DetailsPageComponent', () => {
       providers: [
         provideHttpClient(),
         provideHttpClientTesting(),
+        provideDataFreshnessStub(),
         provideRouter([
           { path: '', component: BlankComponent },
           { path: 'estimate/scope', component: BlankComponent },

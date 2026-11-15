@@ -5,8 +5,8 @@
  *
  * - GET /api/v1/city-data/freshness — public. The service NEVER throws, so
  *   this route answers 200 in every case: `{ "refreshedMonth": "September
- *   2026" }` when the Socrata metadata is readable, `{ "refreshedMonth":
- *   null }` when it isn't (the frontend falls back to "Live City data").
+ *   2026", "rollYear": 2026 }` when Socrata is readable; a field is null
+ *   when it isn't (the frontend falls back to honest generic copy).
  *
  * Hard rules (enforced by test/boundaries.test.ts):
  * - a route NEVER imports from src/db/
@@ -30,8 +30,8 @@ export function createCityDataFreshnessRoute(
 ): CityDataFreshnessRoute {
   return {
     handle: async (): Promise<CityDataFreshnessResponse> => {
-      const { refreshedMonth } = await deps.freshness.getFreshness();
-      return { refreshedMonth };
+      const { refreshedMonth, rollYear } = await deps.freshness.getFreshness();
+      return { refreshedMonth, rollYear };
     },
   };
 }

@@ -8,6 +8,7 @@
  *
  * FE1-001+ will extend the `copy` section with page-level strings.
  */
+import type { DataFreshnessCopy } from '../data-freshness/data-freshness';
 import type { BasementOption, CallbackWindow, FinishTier, GarageOption, TimelineOption } from '@feasly/contracts';
 
 /**
@@ -17,13 +18,14 @@ import type { BasementOption, CallbackWindow, FinishTier, GarageOption, Timeline
  *   (e.g. "Sep 2026" instead of "September 2026"); falls back to `value`.
  * - `badge`: renders a brass check badge above the value instead of the
  *   large display number (for non-numeric stats like "Same fixed formula").
- * - `key` + `refreshedValue`/`refreshedValueShort`: runtime-rewritten items.
- *   The item with `key: 'city-data-freshness'` gets its `value` replaced at
- *   runtime with the live dataset-refresh month from
- *   GET /api/v1/city-data/freshness ("{monthYear}" → "September 2026").
- *   While the month is unknown the item keeps its
- *   configured `value` fallback ("Live City data") — never a hardcoded
- *   month that goes stale.
+ * - `key`: runtime-rewritten items. The item with
+ *   `key: 'city-data-freshness'` is rewritten at runtime into the shared
+ *   freshness line (`copy.dataFreshness`, #513) from
+ *   GET /api/v1/city-data/freshness: value "2026 assessment roll", label
+ *   "(City of Calgary) · checked Nov 2026" — the same string the property
+ *   card shows. While neither the roll year nor the month is known the item
+ *   keeps its configured `value`/`label` fallback — never a hardcoded
+ *   year or month that goes stale.
  */
 export interface TrustStat {
   value: string;
@@ -32,13 +34,6 @@ export interface TrustStat {
   badge?: boolean;
   /** Stable key for items the page rewrites at runtime. */
   key?: string;
-  /**
-   * Display template used when the live refresh month is known, e.g.
-   * "{monthYear}". Only meaningful with `key`.
-   */
-  refreshedValue?: string;
-  /** Compact template for narrow screens, e.g. "{monthYearShort}". */
-  refreshedValueShort?: string;
 }
 
 /** Builder Entra tenant wiring (infrastructure config — needed at root). */
@@ -869,6 +864,13 @@ export interface AppConfig {
       validationZoningGuideLink: string;
       validationBackLabel: string;
     };
+    /**
+     * One freshness story (#513): the landing trust strip and the property
+     * card both render "{rollTemplate} {detailTemplate}" →
+     * "2026 assessment roll (City of Calgary) · checked Nov 2026". Unknown
+     * parts fall back to `rollUnknownYear` / `detailUnchecked`.
+     */
+    dataFreshness: DataFreshnessCopy;
     /** Property card (shared) copy. */
     propertyCard: {
       /**

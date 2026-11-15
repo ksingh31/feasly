@@ -1,28 +1,36 @@
 /**
  * City-data freshness service (trust-strip/01).
  *
- * Derives the landing trust strip's "Refreshed <Month Year>" item from the
- * City of Calgary Property Assessment dataset's Socrata metadata
- * (`rowsUpdatedAt` on `GET /api/views/{datasetId}`).
+ * Derives the shared freshness line ("{rollYear} assessment roll (City of
+ * Calgary) · checked {Mon Year}", #513) from the City of Calgary Property
+ * Assessment dataset on Socrata:
+ * - `refreshedMonth`: the dataset metadata's `rowsUpdatedAt`
+ *   (`GET /api/views/{datasetId}`);
+ * - `rollYear`: the latest `roll_year` in the dataset
+ *   (`GET /resource/{datasetId}.json?$select=roll_year&$order=roll_year DESC&$limit=1`).
+ *   Both requests run in parallel.
  *
- * - In-memory cache, 24h TTL on SUCCESSFUL fetches only (config
- *   `cityDataFreshness.cacheTtlMs`). Failed fetches are never cached —
- *   the next request retries Socrata immediately.
- * - Never throws: a Socrata failure or a missing/unparseable
- *   `rowsUpdatedAt` resolves to `{ refreshedMonth: null }` so the route
+ * - In-memory cache, 24h TTL on fully SUCCESSFUL fetches only (both values
+ *   read; config `cityDataFreshness.cacheTtlMs`). Failed or partial fetches
+ *   are never cached — the next request retries Socrata immediately.
+ * - Never throws: a Socrata failure or a missing/unparseable value
+ *   resolves that field to null (`{ refreshedMonth: null, rollYear: null }`) so the route
  *   answers 200 and the frontend shows its honest fallback ("Live City
  *   data") instead of a month it can't verify.
  * - Fetch-only: no db, no process.env (config arrives via deps).
  */
 import type { CityDataFreshnessConfig } from '../config';
 
-/** The freshness answer: a "Month Year" string, or null when unknown. */
+/** The freshness answer: each field null when unknown. */
 export interface CityDataFreshness {
+  /** "Month Year" the dataset was last refreshed. */
   readonly refreshedMonth: string | null;
+  /** Latest assessment roll year in the dataset (e.g. 2026). */
+  readonly rollYear: number | null;
 }
 
 export interface CityDataFreshnessService {
-  /** Never throws — Socrata failure resolves to `{ refreshedMonth: null }`. */
+  /** Never throws — a Socrata failure resolves the affected field to null. */
   getFreshness(): Promise<CityDataFreshness>;
 }
 
@@ -51,6 +59,21 @@ export function formatRefreshedMonth(rowsUpdatedAt: unknown): string | null {
   return formatted === 'Invalid Date' ? null : formatted;
 }
 
+/**
+ * Parses the latest-roll-year SoQL answer (`[{ "roll_year": "2026" }]`).
+ * Null when the body is not that shape or the year is not a plausible
+ * four-digit year. Pure — unit-testable without I/O.
+ */
+export function parseRollYear(body: unknown): number | null {
+  if (!Array.isArray(body) || body.length === 0) return null;
+  const first: unknown = body[0];
+  if (first === null || typeof first !== 'object') return null;
+  const raw = (first as Record<string, unknown>)['roll_year'];
+  const year =
+    typeof raw === 'number' ? raw : typeof raw === 'string' && /^\d{4}$/.test(raw.trim()) ? Number(raw) : NaN;
+  return Number.isInteger(year) && year >= 1000 && year <= 9999 ? year : null;
+}
+
 /** Unknown shape from the Socrata metadata endpoint. */
 function rowsUpdatedAtOf(body: unknown): unknown {
   if (body === null || typeof body !== 'object') return undefined;
@@ -61,21 +84,24 @@ export function createCityDataFreshnessService(
   config: CityDataFreshnessConfig,
 ): CityDataFreshnessService {
   const metadataUrl = `${config.socrataBaseUrl}/api/views/${config.datasetId}`;
-  let cached: { expires: number; value: string } | undefined;
+  const rollYearUrl =
+    `${config.socrataBaseUrl}/resource/${config.datasetId}.json` +
+    '?$select=roll_year&$order=roll_year%20DESC&$limit=1';
+  let cached: { expires: number; value: CityDataFreshness } | undefined;
 
-  async function fetchRefreshedMonth(): Promise<string | null> {
+  /** GET a JSON body; undefined on any transport/HTTP failure (never throws). */
+  async function fetchJson(url: string): Promise<unknown> {
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), config.httpTimeoutMs);
     try {
-      const res = await fetch(metadataUrl, {
+      const res = await fetch(url, {
         signal: controller.signal,
         headers: { Accept: 'application/json' },
       });
-      if (!res.ok) return null;
-      const body = (await res.json()) as unknown;
-      return formatRefreshedMonth(rowsUpdatedAtOf(body));
+      if (!res.ok) return undefined;
+      return (await res.json()) as unknown;
     } catch {
-      return null;
+      return undefined;
     } finally {
       clearTimeout(timer);
     }
@@ -85,16 +111,24 @@ export function createCityDataFreshnessService(
     getFreshness: async (): Promise<CityDataFreshness> => {
       const now = Date.now();
       if (cached && now <= cached.expires) {
-        return { refreshedMonth: cached.value };
+        return cached.value;
       }
       cached = undefined;
-      const month = await fetchRefreshedMonth();
-      // Cache successful fetches only — a failure leaves the cache empty so
-      // the next request retries Socrata instead of serving a stale null.
-      if (month !== null) {
-        cached = { expires: now + config.cacheTtlMs, value: month };
+      const [metadata, rollRows] = await Promise.all([
+        fetchJson(metadataUrl),
+        fetchJson(rollYearUrl),
+      ]);
+      const value: CityDataFreshness = {
+        refreshedMonth: formatRefreshedMonth(rowsUpdatedAtOf(metadata)),
+        rollYear: parseRollYear(rollRows),
+      };
+      // Cache complete answers only — a failure (or partial answer) leaves
+      // the cache empty so the next request retries Socrata instead of
+      // serving a stale null for 24h.
+      if (value.refreshedMonth !== null && value.rollYear !== null) {
+        cached = { expires: now + config.cacheTtlMs, value };
       }
-      return { refreshedMonth: month };
+      return value;
     },
   };
 }

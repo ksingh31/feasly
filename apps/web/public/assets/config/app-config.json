@@ -27,7 +27,7 @@
       "seoDescription": "Feasly estimates what it really costs to build a home in Calgary, Alberta — based on City property records and current construction cost data.",
       "trustItems": [
         { "value": "600,000+", "label": "City of Calgary assessment records" },
-        { "key": "city-data-freshness", "value": "Live City data", "valueShort": "Live City data", "label": "Latest data refresh", "refreshedValue": "{monthYear}", "refreshedValueShort": "{monthYearShort}" },
+        { "key": "city-data-freshness", "value": "Live City data", "valueShort": "Live City data", "label": "City of Calgary assessment roll" },
         { "value": "Same fixed formula", "label": "AI never invents prices", "badge": true }
       ],
       "trustEyebrow": "Why Feasly",

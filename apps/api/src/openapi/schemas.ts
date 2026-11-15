@@ -385,6 +385,14 @@ export const CityDataFreshnessResponseSchema = z
         'Month + year the assessment dataset was last refreshed ("September 2026"); ' +
           'null when the Socrata metadata could not be read.',
       ),
+    rollYear: z
+      .number()
+      .int()
+      .nullable()
+      .optional()
+      .describe(
+        'Latest assessment roll year in the dataset (e.g. 2026); null when it could not be read.',
+      ),
   })
   .openapi('CityDataFreshnessResponse');
 
