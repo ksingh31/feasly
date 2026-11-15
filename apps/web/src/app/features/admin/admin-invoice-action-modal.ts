@@ -7,6 +7,8 @@ import { UiToastService } from '@app/shared/ui';
 import type { BuilderCommissionInvoice } from '../builder/builder-invoices-api.service';
 import { DismissInvoiceFeedback } from './billing-health.actions';
 import { BillingHealthState } from './billing-health.state';
+import { AdminBuildersState } from './admin-builders.state';
+import { builderNameFor } from './admin-billing-view';
 
 /** Data handed to each invoice action modal. */
 export interface AdminInvoiceActionData {
@@ -30,6 +32,14 @@ export abstract class AdminInvoiceActionModal {
   private readonly toasts = inject(UiToastService);
   private readonly destroyRef = inject(DestroyRef);
   protected readonly invoice = inject<AdminInvoiceActionData>(DIALOG_DATA).invoice;
+  /**
+   * Builder name for the invoice (tenant key until builders load). Money
+   * confirms always name the builder and the amount (#544).
+   */
+  protected readonly builderName = builderNameFor(
+    this.store.selectSnapshot(AdminBuildersState.builders) ?? [],
+    this.invoice.tenantKey,
+  );
 
   /** A request is in flight — the submit button stays disabled. */
   protected readonly submitting = signal(false);

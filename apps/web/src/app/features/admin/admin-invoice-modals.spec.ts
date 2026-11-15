@@ -7,7 +7,7 @@
 import { DIALOG_DATA, DialogRef } from '@angular/cdk/dialog';
 import type { Type } from '@angular/core';
 import { TestBed } from '@angular/core/testing';
-import { provideStore } from '@ngxs/store';
+import { Store, provideStore } from '@ngxs/store';
 import { of, throwError } from 'rxjs';
 import { describe, expect, it, vi } from 'vitest';
 import { UiToastService } from '@app/shared/ui';
@@ -17,6 +17,7 @@ import { AdminInvoiceMethodModalComponent } from './admin-invoice-method-modal.c
 import { AdminInvoicePaymentModalComponent } from './admin-invoice-payment-modal.component';
 import { AdminInvoiceRateModalComponent } from './admin-invoice-rate-modal.component';
 import { BillingHealthState } from './billing-health.state';
+import { AdminBuildersState } from './admin-builders.state';
 
 const INVOICE = {
   id: 'inv-1',
@@ -29,7 +30,11 @@ const INVOICE = {
   paymentMethod: 'card',
 } as BuilderCommissionInvoice;
 
-async function setup<C>(component: Type<C>, fail = false) {
+const BUILDERS = [
+  { tenantKey: 'elite-craft', displayName: 'Elite Craft Builders', businessName: 'Elite Craft Builders Inc.' },
+];
+
+async function setup<C>(component: Type<C>, fail = false, builders: readonly object[] = BUILDERS) {
   const api = {
     getBillingHealth: vi.fn(() => of(null)),
     setCommissionRate: vi.fn((_id: string, rate: number) =>
@@ -45,12 +50,20 @@ async function setup<C>(component: Type<C>, fail = false) {
   TestBed.resetTestingModule();
   TestBed.configureTestingModule({
     providers: [
-      provideStore([BillingHealthState]),
+      provideStore([BillingHealthState, AdminBuildersState]),
       { provide: AdminBillingApiService, useValue: api },
       { provide: DialogRef, useValue: ref },
       { provide: UiToastService, useValue: toasts },
       { provide: DIALOG_DATA, useValue: { invoice: INVOICE } },
     ],
+  });
+  const store = TestBed.inject(Store);
+  store.reset({
+    ...store.snapshot(),
+    adminBuilders: {
+      ...store.selectSnapshot((s) => s.adminBuilders),
+      builders,
+    },
   });
   const fixture = TestBed.createComponent(component);
   fixture.autoDetectChanges();
@@ -123,8 +136,18 @@ describe('AdminInvoiceMethodModalComponent', () => {
 });
 
 describe('AdminInvoicePaymentModalComponent', () => {
+  it('falls back to the tenant key when the builder is not loaded', async () => {
+    const { el } = await setup(AdminInvoicePaymentModalComponent, false, []);
+    expect(el.querySelector('[data-testid="payment-context"]')?.textContent).toContain('elite-craft');
+  });
+
   it('shows status and balance before → after and records the payment', async () => {
     const { q, type, submit, api, ref } = await setup(AdminInvoicePaymentModalComponent);
+    // #544 AC1: the mark-paid confirm names the builder and the amount.
+    const context = q('payment-context').textContent ?? '';
+    expect(context).toContain('INV-0042');
+    expect(context).toContain('Elite Craft Builders');
+    expect(context).toContain('$19,800');
     const compare = q('payment-before-after').textContent ?? '';
     expect(compare).toContain('In review');
     expect(compare).toContain('Paid');

@@ -1,5 +1,5 @@
 <ui-modal heading="Change payment method" asForm (submitted)="save()">
-  <p class="invoice-modal__context">{{ invoice.invoiceNumber }} · {{ invoice.tenantKey }}</p>
+  <p class="invoice-modal__context">{{ invoice.invoiceNumber }} · {{ builderName }}</p>
 
   <ui-select label="Payment method" required [formControl]="method" [options]="options" />
 

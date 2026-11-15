@@ -7,6 +7,7 @@ export {
 } from './status-dictionary';
 export type {
   ApiKeyStatusKey,
+  BillingModelKey,
   BuilderStatusKey,
   DisputeSlaKey,
   LeadHeatKey,
@@ -15,4 +16,5 @@ export type {
   StatusDomain,
   StatusPresentation,
   StatusTone,
+  StripeModeKey,
 } from './status-dictionary';
