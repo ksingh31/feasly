@@ -147,6 +147,10 @@ describe('staticwebapp.config.json routing', () => {
               .allowed_origins,
         );
 
+    /** Mirrors tools/sync-embed-csp.mjs isReservedOrigin (RFC 2606 / 6761). */
+    const RESERVED_ORIGIN =
+      /^https:\/\/([^/:]+\.)?(example\.(com|net|org)|[^/:]+\.(example|test|invalid|localhost))(:\d+)?$/;
+
     const elite = JSON.parse(
       readFileSync(join(buildersDir, 'elite-craft-builders.json'), 'utf8'),
     ) as { allowed_origins: string[] };
@@ -174,8 +178,10 @@ describe('staticwebapp.config.json routing', () => {
         }
       });
 
-      it(`${url} frame-ancestors is exactly 'self' + tenant origins — nothing else`, () => {
-        const expected = ["'self'", ...[...new Set(tenantOrigins())].sort()];
+      it(`${url} frame-ancestors is exactly 'self' + real tenant origins — nothing else`, () => {
+        // #796: IANA-reserved placeholder origins (demo tenant) are never shipped.
+        const real = tenantOrigins().filter((o) => !RESERVED_ORIGIN.test(o));
+        const expected = ["'self'", ...[...new Set(real)].sort()];
         expect(frameAncestors(url)).toEqual(expected);
         expect(frameAncestors(url)).not.toContain('https://evil.example.com');
         expect(frameAncestors(url).some((s) => s.includes('*') || s.startsWith('http:'))).toBe(
