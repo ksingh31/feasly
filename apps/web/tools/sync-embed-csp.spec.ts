@@ -12,6 +12,7 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import {
   buildEmbedCsp,
   collectAllowedOrigins,
+  isReservedOrigin,
   serialiseConfig,
   SWA_CONFIG_PATH,
   syncEmbedCsp,
@@ -46,13 +47,24 @@ const baseConfig = () => ({
 describe('collectAllowedOrigins', () => {
   it('returns the sorted, de-duplicated union of tenant origins', () => {
     tenant('b.json', ['https://elitecraftbuilders.com', 'https://www.b.ca']);
-    tenant('a.json', ['https://A.example.com/', 'https://elitecraftbuilders.com']);
+    tenant('a.json', ['https://Builder-A.ca/', 'https://elitecraftbuilders.com']);
     writeFileSync(join(dir, 'notes.txt'), 'ignored');
     expect(collectAllowedOrigins(dir)).toEqual([
-      'https://a.example.com',
+      'https://builder-a.ca',
       'https://elitecraftbuilders.com',
       'https://www.b.ca',
     ]);
+  });
+
+  it('skips IANA-reserved placeholder origins (#796)', () => {
+    tenant('demo.json', ['https://demo.example.com', 'https://qa.builder.test:8443']);
+    tenant('real.json', ['https://elitecraftbuilders.com']);
+    expect(collectAllowedOrigins(dir)).toEqual(['https://elitecraftbuilders.com']);
+  });
+
+  it('still rejects an unsafe origin even on a reserved domain', () => {
+    tenant('bad.json', ['http://demo.example.com']);
+    expect(() => collectAllowedOrigins(dir)).toThrow(/bad\.json/);
   });
 
   it.each([
@@ -72,6 +84,30 @@ describe('collectAllowedOrigins', () => {
   it('rejects a tenant without an allowed_origins array', () => {
     tenant('bad.json', 'https://x.com');
     expect(() => collectAllowedOrigins(dir)).toThrow(/must be an array/);
+  });
+});
+
+describe('isReservedOrigin', () => {
+  it.each([
+    'https://example.com',
+    'https://demo.example.com',
+    'https://a.b.example.net',
+    'https://example.org:8443',
+    'https://site.example',
+    'https://qa.builder.test',
+    'https://x.invalid',
+    'https://app.localhost',
+  ])('treats %s as reserved', (origin) => {
+    expect(isReservedOrigin(origin)).toBe(true);
+  });
+
+  it.each([
+    'https://elitecraftbuilders.com',
+    'https://notexample.com',
+    'https://example.com.evil.ca',
+    'https://www.testing.ca',
+  ])('treats %s as a real origin', (origin) => {
+    expect(isReservedOrigin(origin)).toBe(false);
   });
 });
 
@@ -120,6 +156,11 @@ describe('committed staticwebapp.config.json', () => {
     const committed = readFileSync(SWA_CONFIG_PATH, 'utf8');
     const regenerated = serialiseConfig(syncEmbedCsp(JSON.parse(committed), collectAllowedOrigins()));
     expect(committed).toBe(regenerated);
+  });
+
+  it('ships no placeholder origin in the embed CSP (#796)', () => {
+    const raw = readFileSync(SWA_CONFIG_PATH, 'utf8');
+    expect(raw).not.toContain('example.com');
   });
 
   it('lets the Elite Craft origin frame the embed', () => {
