@@ -241,7 +241,6 @@
       "narrativeTitle": "AI summary",
       "narrativeComingSoon": "An AI-written summary of your estimate, the key risks, and what to watch for is coming soon.",
       "stepsTitle": "Your next three steps",
-      "stepsProgress": "{done} of {total} steps done",
       "steps": [
         {
           "id": "talk-to-builder",
@@ -266,8 +265,8 @@
       "shareSuccess": "Report sent — your partner now has their own secure link.",
       "shareError": "Couldn’t send the report. Check your connection and try again.",
       "shareInvalid": "Enter a valid email address.",
-      "callbackTitle": "Prefer to talk it through?",
-      "callbackHint": "Request a callback and we will walk through the numbers with you.",
+      "callbackTitle": "Talk to a builder",
+      "callbackHint": "Request a callback and we will walk through the numbers with you — free, with no pressure.",
       "callbackNameLabel": "Your name",
       "callbackPhoneLabel": "Phone number",
       "callbackWindowLabel": "Preferred time",

@@ -985,9 +985,14 @@ export interface AppConfig {
       /** Honest sub-note under the static guide title — never implies AI prose. */
       staticGuideNote: string;
       stepsTitle: string;
+      /** Numbered next steps — printed in the PDF (the web report has no checklist, #508). */
       steps: { id: string; title: string; body: string }[];
-      /** Checklist progress line; `{done}` and `{total}` are the counts. */
-      stepsProgress: string;
+      /** #508: accessible name of the Build | Land "what makes up the total" row. */
+      makeupLabel: string;
+      /** #508: title of the single Adjust panel (size stepper + tier what-if). */
+      adjustPanelTitle: string;
+      /** #508: title of the Share / PDF / New estimate action row. */
+      actionsTitle: string;
       /** "Planning ahead" card: financing + timeline honesty for prospects. */
       planningTitle: string;
       financingTitle: string;
@@ -1020,6 +1025,7 @@ export interface AppConfig {
        * hidden in partner view).
        */
       partnerViewNote: string;
+      /** #508: title of the single "Talk to a builder" block (callback + explainer). */
       callbackTitle: string;
       callbackHint: string;
       callbackNameLabel: string;

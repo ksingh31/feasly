@@ -538,7 +538,6 @@ export const DEFAULT_APP_CONFIG: AppConfig = {
       staticGuideNote:
         'Our AI summary is unavailable right now — here’s a general guide.',
       stepsTitle: 'Your next three steps',
-      stepsProgress: '{done} of {total} steps done',
       steps: [
         {
           id: 'talk-to-builder',
@@ -556,6 +555,9 @@ export const DEFAULT_APP_CONFIG: AppConfig = {
           body: 'Download the PDF, email this report to your partner, or ask us to call you back — your report link stays valid for 7 days.',
         },
       ],
+      makeupLabel: 'What makes up the total',
+      adjustPanelTitle: 'Adjust your estimate',
+      actionsTitle: 'Save and share',
       planningTitle: 'Planning ahead',
       financingTitle: 'Financing this build',
       financingLines: [
@@ -581,8 +583,9 @@ export const DEFAULT_APP_CONFIG: AppConfig = {
       shareRetry: 'Try again',
       partnerViewNote:
         'This report was shared with you — you’re viewing a read-only copy.',
-      callbackTitle: 'Prefer to talk it through?',
-      callbackHint: 'Request a callback and we will walk through the numbers with you.',
+      callbackTitle: 'Talk to a builder',
+      callbackHint:
+        'Request a callback and we will walk through the numbers with you — free, with no pressure.',
       callbackNameLabel: 'Your name',
       callbackPhoneLabel: 'Phone number',
       callbackWindowLabel: 'Preferred time',
