@@ -347,6 +347,33 @@ describe('builder-comments.service', () => {
       );
     });
 
+    it('cannot comment on another builder\u2019s lead (404, nothing written — #731)', async () => {
+      await expectHttpError(
+        service.createComment({
+          entityType: 'lead',
+          entityId: OTHER_LEAD_ID,
+          body: 'cross-tenant',
+          visibility: undefined,
+          actor: builderActor,
+        }),
+        404,
+      );
+      expect(store.rows).toHaveLength(0);
+    });
+
+    it('cannot edit a comment on another builder\u2019s lead (404, unchanged — #731)', async () => {
+      store.rows.push(row({ id: 'c1', entityId: OTHER_LEAD_ID }));
+      await expectHttpError(
+        service.updateComment({
+          commentId: 'c1',
+          body: 'hijack',
+          actor: builderActor,
+        }),
+        404,
+      );
+      expect(store.rows[0]?.body).toBe('hello');
+    });
+
     it('edits its own comment and marks it edited', async () => {
       store.rows.push(
         row({
