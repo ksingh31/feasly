@@ -18,11 +18,9 @@
   <section class="hero" [attr.aria-label]="copy.heading">
     <div class="figure-card hero-total">
       <h2>{{ copy.totalLabel }}</h2>
-      <p class="hero-value">{{ formatCad(data.total.base) }}</p>
-      <p class="planning-range">
-        {{ copy.planningRangeLabel }}
-        <strong>{{ formatCad(data.total.low) }}–{{ formatCad(data.total.high) }}</strong>
-      </p>
+      <!-- #504: range-first — the range is the hero, the base secondary. -->
+      <p class="hero-value">{{ formatRange(data.total) }}</p>
+      <p class="most-likely">{{ copy.mostLikelyLabel }} {{ formatCompact(data.total.base) }}</p>
       <p class="version">Sample figures — not a real estimate</p>
     </div>
 
@@ -43,9 +41,10 @@
     <div class="hero-sub">
       <div class="figure-card build-highlight">
         <h2>{{ copy.buildLabel }}</h2>
-        <p class="figure-single">{{ formatCad(data.build.base) }}</p>
+        <p class="figure-single">{{ formatRange(data.build) }}</p>
+        <p class="most-likely">{{ copy.mostLikelyLabel }} {{ formatCompact(data.build.base) }}</p>
         <p class="build-note">{{ copy.buildCostNote }}</p>
-        <p class="per-sqft">{{ formatCad(perSqft) }} {{ copy.perSqftUnit }} · {{ formatSqft(data.sqft) }}</p>
+        <p class="per-sqft">{{ formatPerSqft(perSqft) }} {{ copy.perSqftUnit }} · {{ formatSqft(data.sqft) }}</p>
         <!-- The sample is a static fictional example — the tier stays
              display-only here, while the real report has the what-if toggle. -->
         <p class="tier-display">{{ copy.finishLevelLabel }} — {{ tierName }}</p>
@@ -74,7 +73,7 @@
         <li>
           <span class="dot bucket-{{ b.key }}" aria-hidden="true"></span>
           <span class="bucket-label">{{ b.label }}</span>
-          <span class="bucket-amount">{{ formatCad(b.range.base) }}</span>
+          <span class="bucket-amount">{{ formatRounded(b.range.base) }}</span>
         </li>
       }
     </ul>

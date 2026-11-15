@@ -118,7 +118,7 @@ describe('CommunityProfilePageComponent', () => {
     expect(html).toContain('11,642');
     expect(html).toContain('2026');
     // The community average appears once (hero), not duplicated in the stats.
-    const matches = html.match(/\$609,901/g) ?? [];
+    const matches = html.match(/\$610,000/g) ?? [];
     expect(matches.length).toBeLessThanOrEqual(2);
     expect(fixture.nativeElement.querySelector('.stat--wide')).not.toBeNull();
   });
@@ -144,7 +144,7 @@ describe('CommunityProfilePageComponent', () => {
   it('shows the average as the hero figure on direct visits (no property context)', () => {
     const html = fixture.nativeElement.innerHTML as string;
     expect(html).toContain('Beltline average assessed value');
-    expect(html).toContain('$609,901');
+    expect(html).toContain('$610,000');
     // No comparison bars without a property to compare.
     expect(fixture.nativeElement.querySelector('.hero-compare')).toBeNull();
     expect(fixture.nativeElement.querySelector('.property-address')).toBeNull();
@@ -170,7 +170,7 @@ describe('CommunityProfilePageComponent', () => {
     const bars = fixture.nativeElement.querySelectorAll('.bars');
     expect(bars.length).toBe(1);
     expect(bars[0].getAttribute('aria-label')).toContain('$20,630,000');
-    expect(bars[0].getAttribute('aria-label')).toContain('$609,901');
+    expect(bars[0].getAttribute('aria-label')).toContain('$610,000');
     expect(bars[0].getAttribute('aria-label')).not.toContain('{propertyValue}');
     expect(html).toContain('Bars drawn proportional to the larger value.');
     expect(html).toContain('Assessed value is for tax purposes');
@@ -197,7 +197,7 @@ describe('CommunityProfilePageComponent', () => {
     expect(second.nativeElement.querySelector('.property-address')).toBeNull();
     expect(second.nativeElement.querySelector('.hero-compare')).toBeNull();
     expect(html).toContain('Beltline average assessed value');
-    expect(html).toContain('$609,901');
+    expect(html).toContain('$610,000');
     expect(html).not.toContain('1017 11 Ave SW');
   });
 

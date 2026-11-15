@@ -10,6 +10,7 @@ import { ConfigService } from '../../core/config';
 import { SeoService } from '../../core/seo';
 import { buildItemListSchema } from '../../core/seo/jsonld-schemas';
 import { SiteFooterComponent, SiteNavComponent } from '../../shared/components';
+import { formatRoundedCad } from '../../shared/utils/money';
 import aggregates from '../../../content/data/community-aggregates.json';
 import typeData from '../../../content/data/community-types.json';
 import { toDisplayName } from './community-names';
@@ -75,7 +76,7 @@ export class CommunitiesIndexPageComponent implements OnInit {
     );
   }
 
-  /** Formatted average assessed value, e.g. "$607,351". */
+  /** Formatted average assessed value, rounded to $1,000 (#504), e.g. "$607,000". */
   assessedValue(community: CommunityAggregate): string {
     return this.formatCad(community.avgAssessedValue);
   }
@@ -96,10 +97,6 @@ export class CommunitiesIndexPageComponent implements OnInit {
   }
 
   private formatCad(value: number): string {
-    return new Intl.NumberFormat('en-CA', {
-      style: 'currency',
-      currency: 'CAD',
-      maximumFractionDigits: 0,
-    }).format(value);
+    return formatRoundedCad(value);
   }
 }

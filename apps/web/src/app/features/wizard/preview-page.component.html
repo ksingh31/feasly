@@ -72,7 +72,11 @@
       <section class="figures" aria-label="Locked estimate figures">
         <div class="figure-card hero-total locked">
           <h2>{{ reportCopy.totalLabel }}</h2>
+          <!-- #504: range-first headline, base secondary — both blurred. -->
           <p class="locked-value" aria-hidden="true">{{ previewRange(figures.total) }}</p>
+          <p class="most-likely locked-value" aria-hidden="true">
+            {{ reportCopy.mostLikelyLabel }} {{ formatCompact(figures.total.base) }}
+          </p>
           <p class="locked-note">{{ reportCopy.lockedNote }}</p>
         </div>
         <div class="figure-card locked">

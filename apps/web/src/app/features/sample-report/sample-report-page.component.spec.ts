@@ -87,10 +87,9 @@ describe('SampleReportPageComponent', () => {
 
   it('renders one hero total with a planning range — no Low/Base/High labels', () => {
     const text: string = fixture.nativeElement.textContent;
-    expect(text).toContain('$635,000');
-    expect(text).toContain('Likely planning range');
-    expect(text).toContain('$561,000');
-    expect(text).toContain('$727,000');
+    // #504: range-first headline, base secondary.
+    expect(text).toContain('$561,000 – $727,000');
+    expect(text).toContain('Most likely ≈ $635,000');
     // The consumer/04 redesign removed the Low / Base / High triple.
     const hero = fixture.nativeElement.querySelector('.hero-total');
     expect(hero.textContent).not.toMatch(/\bLow\b/);

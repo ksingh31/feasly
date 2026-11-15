@@ -4,6 +4,13 @@ import { ConfigService } from '../../core/config/config.service';
 import { SeoService } from '../../core/seo/seo.service';
 import { SiteFooterComponent, SiteNavComponent } from '../../shared/components';
 import { aggregateCostBuckets, type CostBucket } from '../../shared/cost-buckets';
+import {
+  formatCompactCad,
+  formatCompactRange,
+  formatPerSqftCad,
+  formatRoundedCad,
+  formatWholeCad,
+} from '../../shared/utils/money';
 
 /**
  * Fictional address for the sample report. It deliberately contains the word
@@ -137,8 +144,8 @@ export class SampleReportPageComponent implements OnInit {
   /** The 3-bucket breakdown — same shared helper as the real report. */
   protected readonly buckets: readonly CostBucket[] = aggregateCostBuckets(SAMPLE_REPORT_DATA.rows);
 
-  /** Fictional per-sqft, derived from the fictional build base. */
-  protected readonly perSqft = Math.round(SAMPLE_REPORT_DATA.build.base / SAMPLE_REPORT_DATA.sqft);
+  /** Fictional per-sqft, derived from the fictional build base (whole dollars on display). */
+  protected readonly perSqft = SAMPLE_REPORT_DATA.build.base / SAMPLE_REPORT_DATA.sqft;
 
   /** Report copy (config-owned) — same labels as the real report. */
   protected readonly copy = this.config.get('copy').report;
@@ -154,7 +161,7 @@ export class SampleReportPageComponent implements OnInit {
 
   /** aria-label for the stacked bucket bar (mirrors the real report). */
   protected bucketsAriaLabel(): string {
-    return this.buckets.map((b) => `${b.label}: ${this.formatCad(b.range.base)}`).join(', ');
+    return this.buckets.map((b) => `${b.label}: ${this.formatRounded(b.range.base)}`).join(', ');
   }
 
   ngOnInit(): void {
@@ -165,8 +172,29 @@ export class SampleReportPageComponent implements OnInit {
     });
   }
 
+  /** Land (the fictional assessed value) — a City-style fact, shown as-is. */
   protected formatCad(value: number): string {
-    return `$${value.toLocaleString('en-CA')}`;
+    return formatWholeCad(value);
+  }
+
+  /** Estimate line items, rounded to $1,000 (#504). */
+  protected formatRounded(value: number): string {
+    return formatRoundedCad(value);
+  }
+
+  /** Range-first headline, e.g. "$3.24M – $3.39M" (#504). */
+  protected formatRange(range: { readonly low: number; readonly high: number }): string {
+    return formatCompactRange(range);
+  }
+
+  /** Secondary "most likely" base figure (#504). */
+  protected formatCompact(value: number): string {
+    return formatCompactCad(value);
+  }
+
+  /** Whole-dollar per-sq-ft (#504). */
+  protected formatPerSqft(value: number): string {
+    return formatPerSqftCad(value);
   }
 
   protected formatSqft(value: number): string {
