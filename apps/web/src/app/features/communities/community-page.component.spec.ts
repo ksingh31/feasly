@@ -5,7 +5,7 @@ import { ActivatedRoute, Router } from '@angular/router';
 import { provideStore, Store } from '@ngxs/store';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { of } from 'rxjs';
-import { ConfigService, DEFAULT_APP_CONFIG } from '../../core/config';
+import { ConfigService } from '../../core/config';
 import { CommunityPageComponent } from './community-page.component';
 import { CommunityProfilePageComponent, resolveProfileCopy } from './community-profile-page.component';
 import { CommunityProfileState } from './community-profile.state';
@@ -15,17 +15,17 @@ import { toDisplayName } from './community-names';
 
 const mockProfileCopy: RawCommunityProfileCopy = {
   kicker: 'Community property profile',
-  titleTemplate: '{name} Calgary Property Values & Assessed Values | Feasly',
+  titleTemplate: 'Feasly — {name}, Calgary property values & assessed values',
   descriptionTemplate:
     'Property values in {name}, Calgary — average City-assessed value {avgAssessed}.',
   lede: "most homes in {name} are apartments, condos, and townhouses. Here's the test lede for {name}.",
-  ledeLead: "We don't quote this property type yet",
-  propertyValueLabel: "This property's assessed value",
+  ledeLead: "We don't quote apartments, condos or townhouses yet",
+  propertyValueLabel: "This address's assessed value",
   communityAverageLabel: '{name} average',
-  comparePropertyTag: 'This property',
+  comparePropertyTag: 'This address',
   compareBarCaption: 'Bars drawn proportional to the larger value.',
   compareBarLabelTemplate:
-    'Bar comparison: this property assessed at {propertyValue} versus the {name} average of {avgAssessed}',
+    'Bar comparison: this address assessed at {propertyValue} versus the {name} average of {avgAssessed}',
   honestNote:
     'City of Calgary {year} assessment roll. Assessed value is for tax purposes — not market value.',
   averageHeroLabel: '{name} average assessed value',
@@ -98,12 +98,12 @@ describe('CommunityPageComponent', () => {
     // Coverage-redirect card (guide variant, QA 2026-10-04).
     coverageLede:
       "We can't build-cost this address yet — here's the City-assessed value, compared with the {name} average.",
-    propertyValueLabel: "This property's assessed value",
+    propertyValueLabel: "This address's assessed value",
     communityAverageLabel: '{name} average',
-    comparePropertyTag: 'This property',
+    comparePropertyTag: 'This address',
     compareBarCaption: 'Bars drawn proportional to the larger value.',
     compareBarLabelTemplate:
-      'Bar comparison: this property assessed at {propertyValue} versus the {name} average of {avgAssessed}',
+      'Bar comparison: this address assessed at {propertyValue} versus the {name} average of {avgAssessed}',
     coverageHonestNote:
       'City of Calgary {year} assessment roll. Assessed value is for tax purposes — not market value.',
   };
@@ -111,7 +111,6 @@ describe('CommunityPageComponent', () => {
   const baseConfig = {
     site: { url: 'https://feasly.com', name: 'Feasly', socialImage: '/assets/og/og-default.png' },
     copy: { seo: {}, communities: communitiesCopy },
-    limits: DEFAULT_APP_CONFIG.limits,
   };
 
   /**
@@ -258,7 +257,7 @@ describe('CommunityPageComponent', () => {
     // Mahogany's average from the aggregates fixture data — the description
     // must carry the real figure so all 40 community pages are unique.
     expect(description).toContain('Mahogany');
-    expect(description).toContain('$719,666');
+    expect(description).toContain('$720,000');
   });
 
   it('shows the real average assessed value with the fixed-value label', async () => {
@@ -266,7 +265,7 @@ describe('CommunityPageComponent', () => {
     const html = fixture.nativeElement.innerHTML as string;
     expect(html).toContain('Average City-assessed value (not market value)');
     // Mahogany's average from the aggregates fixture data.
-    expect(html).toContain('$719,666');
+    expect(html).toContain('$720,000');
   });
 
   it('renders all three tier ranges', async () => {
@@ -275,14 +274,6 @@ describe('CommunityPageComponent', () => {
     expect(cards.length).toBe(3);
     const labels = [...cards].map((c: Element) => c.querySelector('h3')?.textContent);
     expect(labels).toEqual(['Standard', 'Premium', 'Luxury']);
-  });
-
-  it('rounds estimate bands to $1,000 but keeps assessed values exact (#488)', async () => {
-    await setup('mahogany');
-    const cmp = fixture.componentInstance;
-    expect(cmp.formatBand(3314460)).toBe('$3,314,000');
-    expect(cmp.formatBand(3235979)).toBe('$3,236,000');
-    expect(cmp.formatCad(420123)).toBe('$420,123');
   });
 
   it('leads each tier card with one hero total-investment number', async () => {
@@ -388,11 +379,11 @@ describe('CommunityPageComponent', () => {
       const card = fixture.nativeElement.querySelector('.coverage-card');
       // The rejected property's address and assessed value…
       expect(card.textContent).toContain('13310 14 ST NW, Calgary, AB');
-      expect(card.textContent).toContain("This property's assessed value");
+      expect(card.textContent).toContain("This address's assessed value");
       expect(card.textContent).toContain('$76,500');
-      // …against the community average (Mahogany mock: $719,666).
+      // …against the community average (Mahogany mock: $720,000).
       expect(card.textContent).toContain('Mahogany average');
-      expect(card.textContent).toContain('$719,666');
+      expect(card.textContent).toContain('$720,000');
       // Honest note carries the roll year.
       expect(card.textContent).toContain('City of Calgary 2026 assessment roll');
       expect(card.textContent).toContain('not market value');
@@ -406,7 +397,7 @@ describe('CommunityPageComponent', () => {
       expect(bars?.getAttribute('role')).toBe('img');
       const label = bars?.getAttribute('aria-label') ?? '';
       expect(label).toContain('$76,500');
-      expect(label).toContain('Mahogany average of $719,666');
+      expect(label).toContain('Mahogany average of $720,000');
       const barEls = card.querySelectorAll('.bar');
       expect(barEls.length).toBe(2);
       // Property 76500 vs average 719666 → property ≈ 10.6%, average 100%.
@@ -435,17 +426,17 @@ describe('CommunityPageComponent', () => {
       const html = fixture.nativeElement.innerHTML as string;
       expect(html).toContain('Community property profile');
       // Simplified profile: shows assessed values, not dwelling-mix prose.
-      expect(html).toContain('$609,901');
+      expect(html).toContain('$610,000');
       // Live-bug regression: the lede template holds {name} twice — both
       // must be interpolated, never rendered literally.
       expect(html).not.toContain('{name}');
-      expect(html).toContain("We don't quote this property type yet");
+      expect(html).toContain("We don't quote apartments, condos or townhouses yet");
     });
 
     it('sets the honest profile title (no build-cost claim)', async () => {
       await setup('beltline');
       const title = TestBed.inject(Title);
-      expect(title.getTitle()).toBe('Beltline Calgary Property Values & Assessed Values | Feasly');
+      expect(title.getTitle()).toBe('Feasly — Beltline, Calgary property values & assessed values');
       expect(title.getTitle()).not.toContain('Cost to build');
     });
 
@@ -454,7 +445,7 @@ describe('CommunityPageComponent', () => {
       const meta = TestBed.inject(Meta);
       const description = meta.getTag('name="description"')?.content ?? '';
       expect(description).toContain('Beltline');
-      expect(description).toContain('$609,901');
+      expect(description).toContain('$610,000');
     });
 
     it('renders assessed values without dwelling-mix bar or build prices', async () => {
@@ -465,13 +456,13 @@ describe('CommunityPageComponent', () => {
       expect(fixture.nativeElement.querySelectorAll('.tier-card').length).toBe(0);
       expect(html).not.toContain('Total investment');
       // Shows the community average assessed value.
-      expect(html).toContain('$609,901');
+      expect(html).toContain('$610,000');
     });
 
     it('shows the real assessed value and dwelling stats', async () => {
       await setup('beltline');
       const html = fixture.nativeElement.innerHTML as string;
-      expect(html).toContain('$609,901');
+      expect(html).toContain('$610,000');
       expect(html).toContain('Homes assessed');
       expect(html).toContain('Most common home type');
       expect(html).toContain('Apartments, condos &amp; townhouses');

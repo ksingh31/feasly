@@ -503,7 +503,7 @@ describe('BuilderInvoicesComponent (BILL-04)', () => {
     expect(select.value).toBe('cheque');
     // The review note still describes the SAVED method (card auto-charge).
     const text = fixture.nativeElement.textContent as string;
-    expect(text).toContain('charged automatically');
+    expect(text).toContain('We charge your card 7 days after the invoice is issued');
     expect(text).not.toContain('Your card won’t be charged');
   });
 
@@ -581,7 +581,7 @@ describe('BuilderInvoicesComponent (BILL-04)', () => {
     // The SAVED method is now cheque: the manual review note replaces the
     // card auto-charge wording, and the saved confirmation shows.
     expect(text).toContain('Your card won’t be charged — pay by cheque');
-    expect(text).not.toContain('charged automatically');
+    expect(text).not.toContain('We charge your card 7 days after the invoice is issued');
     expect(text).toContain('Payment method updated.');
     // Apply is disabled again — nothing left to apply.
     expect(
@@ -643,7 +643,7 @@ describe('BuilderInvoicesComponent (BILL-04)', () => {
     const text = fixture.nativeElement.textContent as string;
     expect(text).toContain('We couldn’t change the payment method');
     // The review note still describes the SAVED method (card auto-charge).
-    expect(text).toContain('charged automatically');
+    expect(text).toContain('We charge your card 7 days after the invoice is issued');
   });
 
   it('Reset discards the staged change without saving', async () => {
@@ -766,8 +766,8 @@ describe('BuilderInvoicesComponent (BILL-04)', () => {
     buttons[0].click(); // in_review invoice
     await flushMock(fixture);
     const text = fixture.nativeElement.textContent as string;
-    expect(text).toContain('charged automatically');
-    expect(text).toContain('contact Feasly if something looks wrong');
+    expect(text).toContain('We charge your card 7 days after the invoice is issued');
+    expect(text).toContain('You can question it any time before then.');
     expect(text).not.toContain('disputed through the admin console');
   });
 

@@ -3,15 +3,13 @@ import { RouterLink } from '@angular/router';
 import { Store } from '@ngxs/store';
 import { SiteFooterComponent, SiteNavComponent } from '../../shared/components';
 import type { CommunityProfileCopy, CommunityProfileView, DwellingBucket } from '@feasly/contracts';
+import { formatRoundedCad, formatWholeCad } from '../../shared/utils/money';
 import { ClearProfilePropertyContext } from './community-profile.actions';
 import { CommunityProfileState } from './community-profile.state';
 
+/** Community averages, rounded to $1,000 (#504). */
 function formatCad(value: number): string {
-  return new Intl.NumberFormat('en-CA', {
-    style: 'currency',
-    currency: 'CAD',
-    maximumFractionDigits: 0,
-  }).format(value);
+  return formatRoundedCad(value);
 }
 
 function mixPct(view: CommunityProfileView, bucket: DwellingBucket): string {
@@ -122,12 +120,17 @@ export class CommunityProfilePageComponent {
   compareBarLabel(assessedValue: number): string {
     return this.copy().compareBarLabelTemplate.replace(
       '{propertyValue}',
-      formatCad(assessedValue),
+      formatWholeCad(assessedValue),
     );
   }
 
   formatCad(value: number): string {
     return formatCad(value);
+  }
+
+  /** The visitor's own City-assessed value — a City fact, shown exactly. */
+  formatExactCad(value: number): string {
+    return formatWholeCad(value);
   }
 
   formatInt(value: number): string {

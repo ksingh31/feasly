@@ -48,7 +48,7 @@ import type {
 import type { BillingAuditService } from './billing-audit.service';
 import type { StripeService } from './stripe.service';
 import type { EmailService } from '../email/email.service';
-import { EmailProviderError } from '../email';
+import { ensureOpsAlertDelivered } from '../ops-alerts.service';
 import type { ManualPaymentMethod } from '@feasly/contracts';
 import type { BuilderPaymentMethod } from '@feasly/contracts';
 
@@ -335,6 +335,8 @@ export interface CommissionServiceDeps {
   readonly newId?: () => string;
   /** Review window length in days (7). Configurable for tests. */
   readonly reviewWindowDays?: number;
+  /** Warning sink for accepted-but-unconfirmed ops alerts. Defaults to console.warn. */
+  readonly logWarning?: (message: string) => void;
 }
 
 const TERMINAL_STATUSES: ReadonlySet<CommissionInvoiceStatus> = new Set([
@@ -541,6 +543,8 @@ export function createCommissionService(
 ): CommissionService {
   const { db, billing, attribution, audit, stripe, email } = deps;
   const now = deps.now ?? (() => new Date());
+  const logWarning =
+    deps.logWarning ?? ((message: string) => console.warn(message));
   const newId = deps.newId ?? randomUUID;
   const reviewWindowDays = deps.reviewWindowDays ?? 7;
 
@@ -634,12 +638,10 @@ export function createCommissionService(
       summary,
       firedAt: now(),
     });
-    if (!delivery.sent) {
-      throw new EmailProviderError(`Ops alert email failed: ${delivery.failureReason}`, {
-        retryable: false,
-        failureCode: delivery.emailError,
-      });
-    }
+    // Accepted-but-unconfirmed counts as sent (issue #573): a retry of the
+    // caller would re-send a likely-delivered alert. Only never-accepted
+    // sends throw.
+    ensureOpsAlertDelivered(delivery, title, logWarning);
   }
 
   /**

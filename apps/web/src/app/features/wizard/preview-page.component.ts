@@ -5,7 +5,7 @@ import { Store } from '@ngxs/store';
 import { ConfigService } from '../../core/config/config.service';
 import { SeoService } from '../../core/seo/seo.service';
 import { PropertyCardComponent, SiteFooterComponent, SiteNavComponent, WizardBackComponent } from '../../shared/components';
-import { formatBandCad } from '../../shared/utils/money';
+import { formatCompactCad, formatCompactRange } from '../../shared/utils/money';
 import { EmbedState } from '../embed/embed.state';
 import { LoadPreview } from '../report/report.actions';
 import { ReportState } from '../report/report.state';
@@ -75,14 +75,14 @@ export class PreviewPageComponent implements OnInit {
   /** Real computed figures from the pre-gate preview — rendered blurred. */
   protected readonly previewFigures = computed(() => this.preview()?.figures ?? null);
 
-  /** Blurred pre-gate range, e.g. "$608,000 – $735,000". */
+  /** Blurred pre-gate range, rounded: "$3.24M – $3.39M" / "$608,000 – $735,000" (#504). */
   protected previewRange(range: CostRange): string {
-    return this.formatCad(range.low) + ' – ' + this.formatCad(range.high);
+    return formatCompactRange(range);
   }
 
-  /** Estimate band figure, rounded to the configured $1,000 granularity (#488). */
-  protected formatCad(value: number): string {
-    return formatBandCad(value, this.config.get('limits').estimateRoundingDollars);
+  /** Blurred secondary base figure, e.g. "$3.31M" (#504). */
+  protected formatCompact(value: number): string {
+    return formatCompactCad(value);
   }
   /** Display name for the chosen garage (config-owned; falls back to the id). */
   protected garageName(): string {

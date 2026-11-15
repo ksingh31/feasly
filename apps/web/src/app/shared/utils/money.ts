@@ -43,29 +43,49 @@ export function formatWholeCad(value: number): string {
 }
 
 /**
- * Rounds whole dollars to the nearest `granularity` (e.g. 1000). A
- * DEFENSIVE display round for estimate bands (#488) — the engine owns the
- * figures; this only keeps unrounded engine output off the screen.
- * A non-positive or non-finite granularity falls back to whole dollars.
- * Non-finite values render as 0.
+ * Display rounding step for consumer estimate figures (#504, review M1):
+ * estimates are ranges, so no figure renders more precise than $1,000.
  */
-export function roundToNearest(value: number, granularity: number): number {
-  if (!Number.isFinite(value)) {
-    return 0;
-  }
-  if (!Number.isFinite(granularity) || granularity <= 0) {
-    return Math.round(value);
-  }
-  // `+ 0` normalises -0 (e.g. -400 rounds to -0) so it never prints "-$0".
-  return Math.round(value / granularity) * granularity + 0;
+const ESTIMATE_ROUNDING_STEP = 1_000;
+/** At or above this magnitude, figures render compact as "$3.24M". */
+const COMPACT_MILLION = 1_000_000;
+/** Compact millions show two decimals — i.e. $10k precision at the $3M scale. */
+const COMPACT_STEP = 10_000;
+
+/**
+ * Formats an estimate figure (whole dollars) rounded to the nearest $1,000.
+ * 609901 -> "$610,000". Display formatting only — never feeds a calculation.
+ */
+export function formatRoundedCad(value: number): string {
+  const normalized = Number.isFinite(value) ? value : 0;
+  return formatWholeCad(Math.round(normalized / ESTIMATE_ROUNDING_STEP) * ESTIMATE_ROUNDING_STEP);
 }
 
 /**
- * Formats an estimate band figure rounded to `granularity` dollars.
- * 3314460 at 1000 -> "$3,314,000".
+ * Formats an estimate figure for headlines: "$3.24M" at or above $1M
+ * ($10k precision), otherwise rounded to $1,000 ("$608,000").
  */
-export function formatBandCad(value: number, granularity: number): string {
-  return formatWholeCad(roundToNearest(value, granularity));
+export function formatCompactCad(value: number): string {
+  const normalized = Number.isFinite(value) ? value : 0;
+  const steps = Math.round(Math.abs(normalized) / COMPACT_STEP);
+  if (steps * COMPACT_STEP < COMPACT_MILLION) {
+    return formatRoundedCad(normalized);
+  }
+  const sign = normalized < 0 ? '-' : '';
+  const perMillion = COMPACT_MILLION / COMPACT_STEP;
+  const whole = Math.floor(steps / perMillion);
+  const frac = String(steps % perMillion).padStart(2, '0');
+  return `${sign}$${whole.toLocaleString('en-CA')}.${frac}M`;
+}
+
+/** Headline range, e.g. "$3.24M – $3.39M" or "$608,000 – $735,000". */
+export function formatCompactRange(range: { readonly low: number; readonly high: number }): string {
+  return `${formatCompactCad(range.low)} – ${formatCompactCad(range.high)}`;
+}
+
+/** Per-sq-ft rate in whole dollars: 242.37 -> "$242". */
+export function formatPerSqftCad(value: number): string {
+  return formatWholeCad(Number.isFinite(value) && value > 0 ? value : 0);
 }
 
 /**

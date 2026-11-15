@@ -28,7 +28,7 @@ describe('createComparisonEstimate', () => {
     );
 
     expect(result.rowSets).toHaveLength(2);
-    expect(result.costDataVersion).toBe('v0.3.0-unclibrated');
+    expect(result.costDataVersion).toBe('v0.4.0-unclibrated');
 
     // Exactly one has lowestLand: true (community-a has the lower assessed value)
     const lowest = result.rowSets.filter((rs) => rs.lowestLand);
@@ -168,12 +168,14 @@ describe('createComparisonEstimate', () => {
     );
 
     const rs = result.rowSets.find((r) => r.slug === 'a')!;
-    const expectedBase = Math.round(avgLotSqft * PLACEHOLDER_COST_DATA.comparison.landRatePerSqft);
+    const g = PLACEHOLDER_COST_DATA.roundTo!;
+    const r = (v: number) => Math.round(v / g) * g;
+    const expectedBase = r(avgLotSqft * PLACEHOLDER_COST_DATA.comparison.landRatePerSqft);
     const spread = PLACEHOLDER_COST_DATA.comparison.landSpread;
-    
+
     expect(rs.land.base).toBe(expectedBase);
-    expect(rs.land.low).toBe(Math.round(expectedBase * (1 - spread)));
-    expect(rs.land.high).toBe(Math.round(expectedBase * (1 + spread)));
+    expect(rs.land.low).toBe(r(expectedBase * (1 - spread)));
+    expect(rs.land.high).toBe(r(expectedBase * (1 + spread)));
   });
 
   it('visibility hints: land visible, build/total blurred', () => {
@@ -291,4 +293,37 @@ describe('createComparisonEstimate', () => {
     // No margin percentages
     expect(json).not.toMatch(/margin/i);
   });
+
+  it('rounds every land/build/total leaf to the cost-data roundTo (#581)', () => {
+    const g = PLACEHOLDER_COST_DATA.roundTo!;
+    for (const tier of ['standard', 'premium', 'luxury'] as const) {
+      for (const buildSqft of [400, 1_234, 2_345, 7_777, 12_000]) {
+        const result = createComparisonEstimate(
+          {
+            neighbourhoods: ['a', 'b', 'c'],
+            buildSqft,
+            tier,
+            avgLotSqftBySlug: { a: 3_333, b: 5_123, c: 6_789 },
+            assessedValueBySlug: { a: 487_321, b: 512_345, c: 601_999 },
+          },
+          PLACEHOLDER_COST_DATA,
+        );
+        for (const rs of result.rowSets) {
+          for (const amount of [rs.land, rs.build, rs.total]) {
+            for (const leaf of [amount.low, amount.base, amount.high]) {
+              expect(leaf % g).toBe(0);
+            }
+            expect(amount.low).toBeLessThanOrEqual(amount.base);
+            expect(amount.base).toBeLessThanOrEqual(amount.high);
+          }
+          expect(rs.total).toEqual({
+            low: rs.land.low + rs.build.low,
+            base: rs.land.base + rs.build.base,
+            high: rs.land.high + rs.build.high,
+          });
+        }
+      }
+    }
+  });
 });
+

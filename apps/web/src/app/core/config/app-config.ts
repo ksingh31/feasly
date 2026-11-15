@@ -502,14 +502,6 @@ export interface AppConfig {
     maxLotSizeSqft: number;
     minAssessedLandValue: number;
     maxAssessedLandValue: number;
-    /**
-     * Display granularity (whole dollars) for estimate bands — build, total,
-     * report buckets (#488). Mirrors the cost-data `reno.roundTo` and the
-     * engine spec (docs/plan/epics/02-cost-engine.md: "round all bands to
-     * nearest $1,000"). A defensive display round only; the engine owns the
-     * figures. City-assessed values are facts and are never rounded.
-     */
-    estimateRoundingDollars: number;
   };
   /** Analytics consent. */
   analytics: {
@@ -887,9 +879,9 @@ export interface AppConfig {
       freshnessMock: string;
     };
     /**
-     * Estimate report page copy. The hero shows ONE prominent total (the
-     * engine's deterministic base) with a "Likely planning range" for
-     * context — never Low/Base/High labels on the report itself. Nothing
+     * Estimate report page copy. The hero is range-first (#504): the total
+     * range is the headline and the engine's deterministic base sits under
+     * it as "Most likely ≈" — never Low/Base/High labels on the report. Nothing
      * here may carry ±, %, or accuracy claims (copy-linted).
      */
     report: {
@@ -897,14 +889,22 @@ export interface AppConfig {
       subPreGate: string;
       subPostGate: string;
       totalLabel: string;
-      /** "Likely planning range" — the supporting range under the hero total. */
-      planningRangeLabel: string;
+      /**
+       * "Most likely ≈" — prefixes the secondary base figure under a
+       * range-first headline (#504: the range is the hero, never the point).
+       */
+      mostLikelyLabel: string;
+      /** PDF variant of `mostLikelyLabel` — the embedded PDF fonts have no "≈" glyph. */
+      mostLikelyPdfLabel: string;
       buildLabel: string;
       /** Clarifier under the highlighted build-cost figure. */
       buildCostNote: string;
       /** Source label under the build-cost figure: data-driven trust. */
       buildSourceNote: string;
+      /** Label for the City-assessed figure (land + existing home, #505). */
       landLabel: string;
+      /** One-line note under the land figure: it includes the current house. */
+      landHouseNote: string;
       /** Fixed-figure explainer: City assessment, never a range. */
       landFixedNote: string;
       /** Unit-address honesty note: lot figures are for the whole building. */
@@ -1391,7 +1391,7 @@ export interface AppConfig {
        * is the community display name.
        */
       coverageLede: string;
-      /** "This property's assessed value" label on the coverage card. */
+      /** "This address's assessed value" label on the coverage card. */
       propertyValueLabel: string;
       /** "{name} average" — community-average label on the coverage card. */
       communityAverageLabel: string;

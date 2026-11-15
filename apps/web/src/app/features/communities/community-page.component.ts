@@ -20,7 +20,7 @@ import { ConfigService } from '../../core/config';
 import { SeoService } from '../../core/seo';
 import { buildFaqPageSchema, buildLocalBusinessSchema } from '../../core/seo/jsonld-schemas';
 import { SiteFooterComponent, SiteNavComponent } from '../../shared/components';
-import { roundToNearest } from '../../shared/utils/money';
+import { formatRoundedCad, formatWholeCad } from '../../shared/utils/money';
 import type {
   CommunityProfileCopy,
   CommunityProfileView,
@@ -325,26 +325,22 @@ export class CommunityPageComponent implements OnInit {
    */
   compareBarLabel(assessedValue: number): string {
     return this.copy.compareBarLabelTemplate
-      .replace('{propertyValue}', this.formatCad(assessedValue))
+      .replace('{propertyValue}', this.formatExactCad(assessedValue))
       .replace('{name}', this.community?.displayName ?? '')
       .replace('{avgAssessed}', this.formatCad(this.community?.avgAssessedValue ?? 0));
   }
 
-  /** Formats whole CAD dollars (no cents — money is integer downstream). */
+  /**
+   * Community averages and tier estimates, rounded to $1,000 (#504 — an
+   * average like $609,901 claims precision it does not have).
+   */
   formatCad(value: number): string {
-    return new Intl.NumberFormat('en-CA', {
-      style: 'currency',
-      currency: 'CAD',
-      maximumFractionDigits: 0,
-    }).format(value);
+    return formatRoundedCad(value);
   }
 
-  /**
-   * Estimate band figure (tier build/total ranges), rounded to the
-   * configured $1,000 granularity (#488). Assessed values use formatCad.
-   */
-  formatBand(value: number): string {
-    return this.formatCad(roundToNearest(value, this.config.get('limits').estimateRoundingDollars));
+  /** The visitor's own City-assessed value — a City fact, shown exactly. */
+  formatExactCad(value: number): string {
+    return formatWholeCad(value);
   }
 
   /**
@@ -372,7 +368,7 @@ export class CommunityPageComponent implements OnInit {
     return this.copy.splitBarLabelTemplate
       .replace('{land}', this.formatCad(tier.landValue))
       .replace('{landPct}', String(landPct))
-      .replace('{build}', `${this.formatBand(tier.buildLow)}–${this.formatBand(tier.buildHigh)}`)
+      .replace('{build}', `${this.formatCad(tier.buildLow)}–${this.formatCad(tier.buildHigh)}`)
       .replace('{buildPct}', String(100 - landPct));
   }
 

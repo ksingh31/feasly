@@ -1,12 +1,13 @@
 @use '../../shared/form-controls' as *;
+@use '../../shared/stacked-table' as *;
 
 /**
  * Builder team page (auth/05) — the org team-user table.
  *
  * Mirrors the admin user-management design (apps/web/src/app/features/admin/
  * admin-users.component.scss): cream background, charcoal text, brass accents,
- * table on top, invite opens as a modal dialog. The table scrolls
- * horizontally on narrow screens (390px); skeleton rows stand in while the
+ * table on top, invite opens as a modal dialog. On phones (<= 640px) each
+ * member row stacks into a card (#476); skeleton rows stand in while the
  * list loads.
  */
 
@@ -130,6 +131,8 @@
   min-width: 46rem;
   border-collapse: collapse;
   font-size: 0.9375rem;
+
+  @include feasly-stacked-table;
 }
 
 .builder-team__caption {
@@ -146,6 +149,11 @@
   padding: 0.625rem 1rem;
   border-top: 1px solid var(--border);
   vertical-align: top;
+}
+
+/* Long emails break instead of widening the table (#476). */
+.builder-team__table td {
+  overflow-wrap: anywhere;
 }
 
 .builder-team__table thead th {

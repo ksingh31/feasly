@@ -104,7 +104,7 @@ describe('estimate service — comparison (NBH-02)', () => {
 
     expect(comparison.rowSets.map((rs) => rs.slug)).toEqual(['community-a', 'community-b']);
     expect(comparison.rowSets).toHaveLength(2);
-    expect(comparison.costDataVersion).toBe('v0.3.0-unclibrated');
+    expect(comparison.costDataVersion).toBe('v0.4.0-unclibrated');
 
     // Exactly one lowestLand
     const lowest = comparison.rowSets.filter((rs) => rs.lowestLand);
@@ -117,6 +117,12 @@ describe('estimate service — comparison (NBH-02)', () => {
       expect(rs.total.low).toBe(rs.land.low + rs.build.low);
       expect(rs.total.base).toBe(rs.land.base + rs.build.base);
       expect(rs.total.high).toBe(rs.land.high + rs.build.high);
+      // #581: every band leaf is rounded to the cost-data granularity.
+      for (const amount of [rs.land, rs.build, rs.total]) {
+        for (const leaf of [amount.low, amount.base, amount.high]) {
+          expect(leaf % PLACEHOLDER_COST_DATA.roundTo!).toBe(0);
+        }
+      }
     }
 
     // Visibility: land visible, build/total blurred

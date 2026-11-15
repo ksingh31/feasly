@@ -35,8 +35,10 @@
 .state-page .cta {
   display: inline-block;
   padding: 14px 28px;
-  background: var(--accent);
-  color: #fff;
+  /* Charcoal primary CTA, as elsewhere: white on --accent is 3.98:1
+     (consumer review M5). */
+  background: var(--canvas);
+  color: var(--on-dark);
   border-radius: 8px;
   border: none;
   font-size: 1rem;
@@ -45,7 +47,7 @@
 }
 
 .state-page .cta:hover {
-  background: var(--accent-dark);
+  background: var(--canvas-2);
   text-decoration: underline;
 }
 

@@ -231,6 +231,13 @@ export interface CostData {
   readonly hardCosts: Record<string, HardCostCategory>;
   readonly softCosts: Record<string, SoftCostCategory>;
   readonly contingency: ContingencySpec;
+  /**
+   * Output granularity for new-build and comparison bands, in whole dollars
+   * (1000 = nearest $1,000). Introduced in v0.4.0 (#581). Absent on older
+   * tables, which keep whole-dollar output so their pinned estimates stay
+   * byte-identical. Renovation figures use `reno.roundTo`.
+   */
+  readonly roundTo?: number;
   /** Renovation calibration section (RENO-01). */
   readonly reno: RenoSpec;
   /** Neighbourhood comparison section (NBH-02). */

@@ -20,17 +20,17 @@ describe('CommunityProfilePageComponent', () => {
 
   const rawCopy: CommunityProfileCopy = {
     kicker: 'Community property profile',
-    titleTemplate: '{name} Calgary Property Values & Assessed Values | Feasly',
+    titleTemplate: 'Feasly — {name}, Calgary property values & assessed values',
     descriptionTemplate:
       'Property values in {name}, Calgary — average City-assessed value {avgAssessed}.',
     lede: "most homes in {name} are apartments, condos, and townhouses. Here's the test lede for {name}.",
-    ledeLead: "We don't quote this property type yet",
-    propertyValueLabel: "This property's assessed value",
+    ledeLead: "We don't quote apartments, condos or townhouses yet",
+    propertyValueLabel: "This address's assessed value",
     communityAverageLabel: '{name} average',
-    comparePropertyTag: 'This property',
+    comparePropertyTag: 'This address',
     compareBarCaption: 'Bars drawn proportional to the larger value.',
     compareBarLabelTemplate:
-      'Bar comparison: this property assessed at {propertyValue} versus the {name} average of {avgAssessed}',
+      'Bar comparison: this address assessed at {propertyValue} versus the {name} average of {avgAssessed}',
     honestNote:
       'City of Calgary {year} assessment roll. Assessed value is for tax purposes — not market value.',
     averageHeroLabel: '{name} average assessed value',
@@ -118,7 +118,7 @@ describe('CommunityProfilePageComponent', () => {
     expect(html).toContain('11,642');
     expect(html).toContain('2026');
     // The community average appears once (hero), not duplicated in the stats.
-    const matches = html.match(/\$609,901/g) ?? [];
+    const matches = html.match(/\$610,000/g) ?? [];
     expect(matches.length).toBeLessThanOrEqual(2);
     expect(fixture.nativeElement.querySelector('.stat--wide')).not.toBeNull();
   });
@@ -144,7 +144,7 @@ describe('CommunityProfilePageComponent', () => {
   it('shows the average as the hero figure on direct visits (no property context)', () => {
     const html = fixture.nativeElement.innerHTML as string;
     expect(html).toContain('Beltline average assessed value');
-    expect(html).toContain('$609,901');
+    expect(html).toContain('$610,000');
     // No comparison bars without a property to compare.
     expect(fixture.nativeElement.querySelector('.hero-compare')).toBeNull();
     expect(fixture.nativeElement.querySelector('.property-address')).toBeNull();
@@ -164,13 +164,13 @@ describe('CommunityProfilePageComponent', () => {
     const html = fixture.nativeElement.innerHTML as string;
     expect(html).toContain('1017 11 Ave SW, Calgary, AB');
     expect(html).toContain('$20,630,000');
-    expect(html).toContain("This property's assessed value");
+    expect(html).toContain("This address's assessed value");
     expect(html).toContain('Beltline average');
     // Proportional bars: property is the larger value → full width.
     const bars = fixture.nativeElement.querySelectorAll('.bars');
     expect(bars.length).toBe(1);
     expect(bars[0].getAttribute('aria-label')).toContain('$20,630,000');
-    expect(bars[0].getAttribute('aria-label')).toContain('$609,901');
+    expect(bars[0].getAttribute('aria-label')).toContain('$610,000');
     expect(bars[0].getAttribute('aria-label')).not.toContain('{propertyValue}');
     expect(html).toContain('Bars drawn proportional to the larger value.');
     expect(html).toContain('Assessed value is for tax purposes');
@@ -197,7 +197,7 @@ describe('CommunityProfilePageComponent', () => {
     expect(second.nativeElement.querySelector('.property-address')).toBeNull();
     expect(second.nativeElement.querySelector('.hero-compare')).toBeNull();
     expect(html).toContain('Beltline average assessed value');
-    expect(html).toContain('$609,901');
+    expect(html).toContain('$610,000');
     expect(html).not.toContain('1017 11 Ave SW');
   });
 

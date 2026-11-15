@@ -8,7 +8,7 @@
   <h1 class="preview-heading">{{ copy.heading }}</h1>
 
   @if (property(); as p) {
-    <app-property-card [property]="p" />
+    <app-property-card [property]="p" [showLandNote]="!isReno()" />
     <dl class="inputs-summary">
       @if (isReno()) {
         <!-- RENO-04: reno-specific visible facts (address/community in property card above) -->
@@ -72,7 +72,11 @@
       <section class="figures" aria-label="Locked estimate figures">
         <div class="figure-card hero-total locked">
           <h2>{{ reportCopy.totalLabel }}</h2>
+          <!-- #504: range-first headline, base secondary — both blurred. -->
           <p class="locked-value" aria-hidden="true">{{ previewRange(figures.total) }}</p>
+          <p class="most-likely locked-value" aria-hidden="true">
+            {{ reportCopy.mostLikelyLabel }} {{ formatCompact(figures.total.base) }}
+          </p>
           <p class="locked-note">{{ reportCopy.lockedNote }}</p>
         </div>
         <div class="figure-card locked">

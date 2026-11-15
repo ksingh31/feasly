@@ -1,4 +1,4 @@
-import { Component, inject, signal } from '@angular/core';
+import { Component, ElementRef, inject, signal, viewChild } from '@angular/core';
 import { Router } from '@angular/router';
 import { ConfigService } from '../../../core/config/config.service';
 import { BrandMarkComponent } from '../brand-mark';
@@ -14,12 +14,19 @@ import { BrandMarkComponent } from '../brand-mark';
  * address. Links navigate programmatically (same pattern as the brand):
  * QA 2026-09-27 reported header anchor navigation as intermittent.
  */
+interface NavLink {
+  readonly label: string;
+  readonly path: string;
+  readonly queryParams?: Record<string, string | number>;
+}
+
 @Component({
   selector: 'app-site-nav',
   standalone: true,
   imports: [BrandMarkComponent],
   templateUrl: './site-nav.component.html',
   styleUrl: './site-nav.component.scss',
+  host: { '(document:keydown.escape)': 'onEscape()' },
 })
 export class SiteNavComponent {
   protected readonly siteName = inject(ConfigService).get('site').name;
@@ -31,6 +38,23 @@ export class SiteNavComponent {
     { label: 'Community guides', path: '/communities' },
     { label: 'FAQ', path: '/faq' },
   ];
+
+  /**
+   * Mobile menu links (consumer review 2026-11-13 S6): the desktop links
+   * plus Compare and Developers, which the 3-link menu was missing.
+   */
+  protected readonly menuLinks: ReadonlyArray<NavLink> = [
+    { label: 'How it works', path: '/how-it-works' },
+    { label: 'Community guides', path: '/communities' },
+    { label: 'Compare neighbourhoods', path: '/estimate/compare', queryParams: { fresh: 1 } },
+    { label: 'FAQ', path: '/faq' },
+    { label: 'Developers', path: '/developers' },
+  ];
+
+  /** Primary action in the mobile menu (S6) — the address search on `/`. */
+  protected readonly menuCta: NavLink = { label: 'Get an estimate', path: '/' };
+
+  private readonly menuBtn = viewChild<ElementRef<HTMLButtonElement>>('menuBtn');
 
   /** Mobile menu open/closed. Desktop renders links inline (CSS). */
   protected readonly menuOpen = signal(false);
@@ -51,10 +75,31 @@ export class SiteNavComponent {
   }
 
   /** Nav-link navigation — same programmatic pattern as the brand link. */
-  go(event: Event, path: string): void {
+  go(event: Event, path: string, queryParams?: Record<string, string | number>): void {
     event.preventDefault();
     this.menuOpen.set(false);
-    void this.router.navigate([path]);
+    void (queryParams
+      ? this.router.navigate([path], { queryParams })
+      : this.router.navigate([path]));
+  }
+
+  /** Real href for a link (keyboard, open-in-new-tab, crawlers). */
+  protected href(link: NavLink): string {
+    return this.router.serializeUrl(
+      this.router.createUrlTree([link.path], { queryParams: link.queryParams }),
+    );
+  }
+
+  /** Scrim / outside tap closes the menu (S6). */
+  closeMenu(): void {
+    this.menuOpen.set(false);
+  }
+
+  /** Escape closes the open menu and returns focus to the hamburger (S6). */
+  onEscape(): void {
+    if (!this.menuOpen()) return;
+    this.menuOpen.set(false);
+    this.menuBtn()?.nativeElement.focus();
   }
 
   /** Mobile hamburger toggle. */

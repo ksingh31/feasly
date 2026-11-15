@@ -13,6 +13,7 @@
  *
  * Routes depend on the `AdminGuard` interface, not this implementation.
  */
+import { createHash } from 'node:crypto';
 import { ErrorCodes, HttpError } from './errors';
 import {
   extractSessionToken,
@@ -20,6 +21,12 @@ import {
   type HeaderRecord,
 } from './session-token';
 import type { AdminAuthService } from '../services/admin-auth.service';
+import {
+  createRequestPipeline,
+  type LogEntry,
+  type RequestPipeline,
+} from './pipeline';
+import type { RateLimiter } from './rate-limit';
 
 export interface AdminGuard {
   /**
@@ -51,6 +58,50 @@ export const ADMIN_SESSION_COOKIE = 'feasly_admin_session';
  */
 export function parseSessionCookie(headers: HeaderRecord): string | null {
   return parseCookieValue(headers, ADMIN_SESSION_COOKIE);
+}
+
+/**
+ * Rate-limiter key for per-admin-session limits (e.g. the ⌘K search
+ * pipeline). Uses the same token resolution as the guard (Bearer wins over
+ * the cookie) and keys on the token's SHA-256 so the raw credential never
+ * becomes a limiter map key. No token → `undefined` (the session limiter is
+ * skipped; the per-IP primary limiter still throttles anonymous probing).
+ *
+ * The token is NOT verified here — the limiter runs before the guard — so
+ * this key must only ever back a SECONDARY limiter behind a per-IP one.
+ * On its own, rotating random tokens would get a fresh bucket each time.
+ */
+export function adminSessionRateLimitKey(request: {
+  readonly headers: HeaderRecord;
+}): string | undefined {
+  const token = extractSessionToken(request.headers, ADMIN_SESSION_COOKIE);
+  return token
+    ? `session:${createHash('sha256').update(token, 'utf8').digest('hex')}`
+    : undefined;
+}
+
+/**
+ * Request pipeline for admin endpoints with a per-session budget (⌘K
+ * search). The primary limiter is keyed per client IP and checked first, so
+ * unverified tokens can't bypass throttling or flood the session limiter's
+ * key map; the per-session limiter then applies when a token is presented.
+ */
+export function createAdminSearchPipeline(deps: {
+  readonly ipLimiter: RateLimiter;
+  readonly sessionLimiter: RateLimiter;
+  readonly logger?: (entry: LogEntry) => void;
+}): RequestPipeline {
+  return createRequestPipeline({
+    rateLimiter: deps.ipLimiter,
+    extraLimiters: [
+      {
+        limiter: deps.sessionLimiter,
+        keyFor: adminSessionRateLimitKey,
+        label: 'admin-session',
+      },
+    ],
+    logger: deps.logger,
+  });
 }
 
 function unauthorized(): HttpError {

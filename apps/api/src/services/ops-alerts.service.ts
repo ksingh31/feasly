@@ -12,7 +12,7 @@
  * Alert bodies carry counts and timestamps only — no PII, no secrets.
  */
 
-import type { EmailService } from './email/email.service';
+import type { EmailDelivery, EmailService } from './email/email.service';
 import { EmailProviderError } from './email';
 import type { OpsAlertStore } from './ops-alerts.store';
 
@@ -61,6 +61,41 @@ const ALERT_COPY: Record<OpsAlertType, AlertCopy> = {
   },
 };
 
+/**
+ * Shared delivery check for every ops-alert send (issue #573).
+ *
+ * - `sent: true` → returns normally.
+ * - Accepted-but-unconfirmed (`acceptedByProvider: true`: ACS accepted the
+ *   message, delivery polling timed out) → logs a warning and returns
+ *   normally. The email service deliberately never re-sends these (P0
+ *   2026-09-27), so the caller must treat it like a send: record dedupe
+ *   state and don't fail the run — throwing would fail the timer/webhook
+ *   and re-send the alert on the next check (duplicate ops emails).
+ * - Never accepted → throws, so the caller skips recording and the next
+ *   check retries.
+ *
+ * The warning carries the alert title + sanitized provider reason only
+ * (no recipient, no body).
+ */
+export function ensureOpsAlertDelivered(
+  delivery: EmailDelivery,
+  title: string,
+  logWarning: (message: string) => void,
+): void {
+  if (delivery.sent) return;
+  if (delivery.acceptedByProvider) {
+    logWarning(
+      `ops-alert: "${title}" accepted by provider but delivery unconfirmed ` +
+        `(${delivery.failureReason}); treating as sent`,
+    );
+    return;
+  }
+  throw new EmailProviderError(
+    `Ops alert email failed: ${delivery.failureReason}`,
+    { retryable: false, failureCode: delivery.emailError },
+  );
+}
+
 export interface OpsAlertFailureContext {
   /** How many consecutive failures triggered this notification. */
   readonly consecutiveFailures: number;
@@ -77,6 +112,8 @@ export interface OpsAlertsServiceDeps {
   /** Dedupe window per alert class (config OPS_ALERT_DEDUPE_WINDOW_MS). */
   readonly dedupeWindowMs: number;
   readonly clock?: () => Date;
+  /** Warning sink for accepted-but-unconfirmed sends. Defaults to console.warn. */
+  readonly logWarning?: (message: string) => void;
 }
 
 export interface OpsAlertsService {
@@ -106,6 +143,7 @@ export function createOpsAlertsService(
     appBaseUrl,
     dedupeWindowMs,
     clock = () => new Date(),
+    logWarning = (message: string) => console.warn(message),
   } = deps;
 
   return {
@@ -119,9 +157,10 @@ export function createOpsAlertsService(
       ) {
         return; // deduped: already alerted inside the window
       }
+      const failureTitle = `${copy.name} is failing`;
       const failureDelivery = await email.sendOpsAlert({
         to: opsAlertEmail,
-        title: `${copy.name} is failing`,
+        title: failureTitle,
         summary:
           `The ${copy.name.toLowerCase()} has failed ` +
           `${context.consecutiveFailures} time(s) in a row ` +
@@ -130,14 +169,11 @@ export function createOpsAlertsService(
         detailsUrl: `${appBaseUrl}${copy.detailsPath}`,
         firedAt: now,
       });
-      if (!failureDelivery.sent) {
-        // Don't record the alert as fired — the email never went out, so
-        // the next check must try again instead of being deduped away.
-        throw new EmailProviderError(
-          `Ops alert email failed: ${failureDelivery.failureReason}`,
-          { retryable: false, failureCode: failureDelivery.emailError },
-        );
-      }
+      // Throws only when the provider never accepted the email: then the
+      // alert is not recorded as fired and the next check tries again.
+      // Accepted-but-unconfirmed is recorded like a send (issue #573) so
+      // dedupe holds and the timer run doesn't fail.
+      ensureOpsAlertDelivered(failureDelivery, failureTitle, logWarning);
       await store.upsert({ type, lastFiredAt: now });
     },
 
@@ -148,21 +184,17 @@ export function createOpsAlertsService(
       if (!state?.lastFiredAt) {
         return; // nothing to clear: no alert was fired for this class
       }
+      const recoveredTitle = `${copy.name} recovered`;
       const recoveredDelivery = await email.sendOpsAlert({
         to: opsAlertEmail,
-        title: `${copy.name} recovered`,
+        title: recoveredTitle,
         summary:
           `The ${copy.name.toLowerCase()} recovered successfully. ` +
           `Alerting for this class is re-armed.`,
         detailsUrl: `${appBaseUrl}${copy.detailsPath}`,
         firedAt: now,
       });
-      if (!recoveredDelivery.sent) {
-        throw new EmailProviderError(
-          `Ops alert email failed: ${recoveredDelivery.failureReason}`,
-          { retryable: false, failureCode: recoveredDelivery.emailError },
-        );
-      }
+      ensureOpsAlertDelivered(recoveredDelivery, recoveredTitle, logWarning);
       await store.upsert({
         type,
         lastFiredAt: null,

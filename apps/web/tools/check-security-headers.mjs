@@ -16,8 +16,8 @@
  *      it must allow exactly the browser's real external dependencies
  *      (Google Fonts + the City of Calgary Socrata API) — nothing else.
  *   3. HSTS must pin max-age >= 1 year with includeSubDomains + preload.
- *   4. The /embed/* route must override frame-ancestors (the embed track
- *      needs framing) WITHOUT opening a wildcard.
+ *   4. The /embed and /embed/* routes must override frame-ancestors (the
+ *      embed track needs framing) WITHOUT opening a wildcard (#516).
  *   5. No `$schema` key — swa-cli 1.1.10 crashes on it (see TOOLS.md).
  *
  * Usage: node apps/web/tools/check-security-headers.mjs (paths resolve
@@ -136,32 +136,38 @@ for (const feature of ['camera=()', 'microphone=()', 'geolocation=()']) {
   }
 }
 
-const embedRoute = (config.routes ?? []).find((r) => r.route === '/embed/*');
-if (!embedRoute) {
-  fail('missing /embed/* route overriding frame-ancestors for the embed track');
-} else {
+// Both embed shell routes need the override: `/embed?key=…` (loader snippet)
+// matches the exact `/embed` rule, `/embed/<tenant>` matches `/embed/*` (#516).
+// The frame-ancestors origins themselves are generated from config/builders
+// by tools/sync-embed-csp.mjs (`--check` runs in lint right after this).
+for (const routePath of ['/embed/*', '/embed']) {
+  const embedRoute = (config.routes ?? []).find((r) => r.route === routePath);
+  if (!embedRoute) {
+    fail(`missing ${routePath} route overriding frame-ancestors for the embed track`);
+    continue;
+  }
   const embedCsp = embedRoute.headers?.['Content-Security-Policy'] ?? '';
   if (!embedCsp) {
-    fail('/embed/* route must set its own Content-Security-Policy');
-  } else {
-    if (embedCsp.includes("'none'") && /frame-ancestors[^;]*'none'/.test(embedCsp)) {
-      fail('/embed/* CSP must NOT set frame-ancestors none — the embed needs framing');
-    }
-    if (/(^|\s)\*(;|$|\s)/.test(embedCsp)) {
-      fail("/embed/* CSP contains a wildcard '*' source");
-    }
-    if (!/frame-ancestors/.test(embedCsp)) fail('/embed/* CSP must declare frame-ancestors');
-    // The embed serves the same index.html, so it needs the same script-src
-    // allowances (NGXS eval + the two hashed inline scripts).
-    const embedHas = (token) => embedCsp.split(';').some((d) => {
-      const [name, ...rest] = d.trim().split(/\s+/);
-      return name === 'script-src' && rest.includes(token);
-    });
-    if (embedHas("'unsafe-inline'")) fail("/embed/* CSP script-src must not allow 'unsafe-inline'");
-    if (!embedHas("'unsafe-eval'")) fail("/embed/* CSP script-src must allow 'unsafe-eval' (NGXS)");
-    for (const hash of INLINE_SCRIPT_HASHES) {
-      if (!embedHas(hash)) fail(`/embed/* CSP script-src must allowlist ${hash}`);
-    }
+    fail(`${routePath} route must set its own Content-Security-Policy`);
+    continue;
+  }
+  if (/frame-ancestors[^;]*'none'/.test(embedCsp)) {
+    fail(`${routePath} CSP must NOT set frame-ancestors none — the embed needs framing`);
+  }
+  if (/(^|\s)\*(;|$|\s)/.test(embedCsp) || /frame-ancestors[^;]*(\*|http:)/.test(embedCsp)) {
+    fail(`${routePath} CSP contains a wildcard or http frame-ancestors source`);
+  }
+  if (!/frame-ancestors/.test(embedCsp)) fail(`${routePath} CSP must declare frame-ancestors`);
+  // The embed serves the same index.html, so it needs the same script-src
+  // allowances (NGXS eval + the two hashed inline scripts).
+  const embedHas = (token) => embedCsp.split(';').some((d) => {
+    const [name, ...rest] = d.trim().split(/\s+/);
+    return name === 'script-src' && rest.includes(token);
+  });
+  if (embedHas("'unsafe-inline'")) fail(`${routePath} CSP script-src must not allow 'unsafe-inline'`);
+  if (!embedHas("'unsafe-eval'")) fail(`${routePath} CSP script-src must allow 'unsafe-eval' (NGXS)`);
+  for (const hash of INLINE_SCRIPT_HASHES) {
+    if (!embedHas(hash)) fail(`${routePath} CSP script-src must allowlist ${hash}`);
   }
 }
 

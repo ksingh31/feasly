@@ -166,6 +166,11 @@ const targets = [
     entry: 'src/functions/admin-view-as.ts',
     out: 'admin-view-as/index.js',
   },
+  // Admin redesign — ⌘K global search.
+  {
+    entry: 'src/functions/admin-search.ts',
+    out: 'admin-search/index.js',
+  },
   // auth/03 — admin user management.
   {
     entry: 'src/functions/admin-users.ts',

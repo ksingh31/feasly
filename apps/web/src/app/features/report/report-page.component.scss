@@ -95,7 +95,7 @@
   font-family: var(--font-ui);
   font-size: 13px;
   font-weight: 600;
-  color: var(--accent);
+  color: var(--accent-text);
   background: none;
   border: none;
   padding: 0;
@@ -157,9 +157,12 @@
 }
 
 /* The one prominent total — the engine's deterministic base. */
+// #504: the hero is now a range ("$3.24M – $3.39M"), so it is sized to fit
+// 390px and may wrap at the dash rather than overflow.
 .hero-value {
   font-family: var(--font-ui);
-  font-size: 40px;
+  font-size: 32px;
+  overflow-wrap: anywhere;
   font-weight: 700;
   color: var(--text);
   margin: 0;
@@ -169,21 +172,15 @@
 
 @media (min-width: 640px) {
   .hero-value {
-    font-size: 48px;
+    font-size: 44px;
   }
 }
 
-.planning-range {
-  font-size: 14px;
+// Secondary base figure under a range-first headline ("Most likely ≈ $3.31M").
+.most-likely {
+  font-size: 15px;
   color: var(--muted);
   margin: 8px 0 0;
-}
-
-.planning-range strong {
-  font-family: var(--font-ui);
-  color: var(--text);
-  font-weight: 700;
-  white-space: nowrap;
 }
 
 // FIX(mobile-overflow): minmax(0, …) stops grid blowout on narrow screens.
@@ -494,7 +491,7 @@
   height: 32px;
   border-radius: 50%;
   background: var(--accent-bg);
-  color: var(--accent);
+  color: var(--accent-text);
   font-family: var(--font-ui);
   font-weight: 700;
   font-size: 15px;
@@ -634,7 +631,7 @@ a.cta.secondary.another-address {
   width: 100%;
   margin-top: 12px;
   background: transparent;
-  color: var(--accent);
+  color: var(--accent-text);
   border: 1px solid var(--accent);
   display: inline-flex;
   align-items: center;

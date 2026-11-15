@@ -158,6 +158,8 @@ describe('route registry', () => {
       'POST /api/v1/admin/builders': ['super_admin', 'admin'],
       'GET /api/v1/admin/api-keys': ['super_admin', 'admin'],
       'GET /api/v1/admin/billing': ['super_admin', 'admin', 'viewer'],
+      // Admin ⌘K global search — staff only; builder roles get 403.
+      'GET /api/v1/admin/search': ['super_admin', 'admin', 'viewer'],
       // auth/03 — admin user management.
       'GET /api/v1/admin/users': ['super_admin', 'admin', 'builder_admin'],
       'POST /api/v1/admin/users/invite': [

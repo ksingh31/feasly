@@ -14,10 +14,6 @@ packages/cost-engine/src/cost-data.ts :: PLACEHOLDER :: PLACEHOLDER_COST_DATA de
 @feasly/cost-engine :: PLACEHOLDER :: PLACEHOLDER_COST_DATA constant, blocked on Karan's cost Sheet
 apps/api/src/composition.ts :: PLACEHOLDER :: wires PLACEHOLDER_COST_DATA, blocked on Karan's cost Sheet
 
-# Embed frame-ancestors tenant placeholder — fail-closed by design (HRD-01):
-# matches no real tenant until embed/02 lands real origins. Must be replaced,
-# never widened casually.
-staticwebapp.config.json :: PLACEHOLDER :: PLACEHOLDER-TENANT fail-closed, replaced by embed/02 real origins
 apps/api/src/generated/builder-configs.ts :: PLACEHOLDER :: Elite Craft brand assets pending (embed/05), fill when provided
 config/builders/elite-craft-builders.json :: PLACEHOLDER :: Elite Craft brand assets pending (embed/05), fill when provided
 config/builders/demo.json :: PLACEHOLDER :: Demo QA tenant — fictional branding by design (555-01xx, example.com), superseded by real tenant-key provisioning (later story)

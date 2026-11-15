@@ -76,7 +76,13 @@ describe('SiteNavComponent', () => {
     const menuLinks = [
       ...fixture.nativeElement.querySelectorAll('.nav-menu-link'),
     ].map((l) => (l as HTMLElement).textContent?.trim());
-    expect(menuLinks).toEqual(['How it works', 'Community guides', 'FAQ']);
+    expect(menuLinks).toEqual([
+      'How it works',
+      'Community guides',
+      'Compare neighbourhoods',
+      'FAQ',
+      'Developers',
+    ]);
     btn.click();
     fixture.detectChanges();
     expect(fixture.nativeElement.querySelector('.nav-menu')).toBeNull();
@@ -115,5 +121,92 @@ describe('SiteNavComponent', () => {
     } finally {
       navigateSpy.mockRestore();
     }
+  });
+
+  describe('mobile menu (consumer review 2026-11-13 S6)', () => {
+    function openMenu(): HTMLButtonElement {
+      setup();
+      const btn = fixture.nativeElement.querySelector('.nav-menu-btn') as HTMLButtonElement;
+      btn.click();
+      fixture.detectChanges();
+      expect(fixture.nativeElement.querySelector('.nav-menu')).not.toBeNull();
+      return btn;
+    }
+
+    it('renders a scrim while open; tapping it closes the menu', () => {
+      setup();
+      expect(fixture.nativeElement.querySelector('.nav-scrim')).toBeNull();
+      const btn = fixture.nativeElement.querySelector('.nav-menu-btn') as HTMLButtonElement;
+      btn.click();
+      fixture.detectChanges();
+      const scrim = fixture.nativeElement.querySelector('.nav-scrim') as HTMLElement;
+      expect(scrim).not.toBeNull();
+      expect(scrim.getAttribute('aria-hidden')).toBe('true');
+      scrim.click();
+      fixture.detectChanges();
+      expect(fixture.nativeElement.querySelector('.nav-menu')).toBeNull();
+      expect(fixture.nativeElement.querySelector('.nav-scrim')).toBeNull();
+      expect(btn.getAttribute('aria-expanded')).toBe('false');
+    });
+
+    it('Escape closes the menu and returns focus to the hamburger', () => {
+      const btn = openMenu();
+      document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape' }));
+      fixture.detectChanges();
+      expect(fixture.nativeElement.querySelector('.nav-menu')).toBeNull();
+      expect(document.activeElement).toBe(btn);
+    });
+
+    it('Escape is a no-op while the menu is closed', () => {
+      setup();
+      const outside = document.createElement('button');
+      document.body.appendChild(outside);
+      outside.focus();
+      try {
+        document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape' }));
+        fixture.detectChanges();
+        expect(document.activeElement).toBe(outside);
+      } finally {
+        outside.remove();
+      }
+    });
+
+    it('lists Compare with a fresh-comparison link', () => {
+      openMenu();
+      const router = TestBed.inject(Router);
+      const navigateSpy = vi.spyOn(router, 'navigate').mockResolvedValue(true);
+      try {
+        const compare = [...fixture.nativeElement.querySelectorAll('.nav-menu-link')].find(
+          (l) => (l as HTMLElement).textContent?.trim() === 'Compare neighbourhoods',
+        ) as HTMLAnchorElement;
+        expect(compare.getAttribute('href')).toBe('/estimate/compare?fresh=1');
+        compare.click();
+        fixture.detectChanges();
+        expect(navigateSpy).toHaveBeenCalledWith(['/estimate/compare'], {
+          queryParams: { fresh: 1 },
+        });
+        expect(fixture.nativeElement.querySelector('.nav-menu')).toBeNull();
+      } finally {
+        navigateSpy.mockRestore();
+      }
+    });
+
+    it('ends with a primary "Get an estimate" action that goes home', () => {
+      openMenu();
+      const router = TestBed.inject(Router);
+      const navigateSpy = vi.spyOn(router, 'navigate').mockResolvedValue(true);
+      try {
+        const cta = fixture.nativeElement.querySelector('.nav-menu .nav-menu-cta') as HTMLAnchorElement;
+        expect(cta.textContent?.trim()).toBe('Get an estimate');
+        expect(cta.getAttribute('href')).toBe('/');
+        expect(cta.parentElement?.lastElementChild).toBe(cta);
+        cta.click();
+        fixture.detectChanges();
+        expect(navigateSpy).toHaveBeenCalledWith(['/']);
+        expect(fixture.nativeElement.querySelector('.nav-menu')).toBeNull();
+      } finally {
+        navigateSpy.mockRestore();
+      }
+    });
   });
 });

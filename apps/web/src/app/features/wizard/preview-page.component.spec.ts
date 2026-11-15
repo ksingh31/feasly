@@ -104,7 +104,7 @@ describe('PreviewPageComponent', () => {
     expect(store.selectSnapshot(ReportState.preview)).not.toBeNull();
     // Locked numbers: real computed digits behind CSS blur (no shimmer bars).
     const lockedValues = fixture.nativeElement.querySelectorAll('.locked-value');
-    expect(lockedValues.length).toBe(2);
+    expect(lockedValues.length).toBe(3); // total range + blurred "most likely" (#504) + build
     lockedValues.forEach((el: HTMLElement) => {
       expect(el.getAttribute('aria-hidden')).toBe('true');
       // Real digits present in the DOM — the blur hides them visually.
@@ -113,21 +113,6 @@ describe('PreviewPageComponent', () => {
       expect(getComputedStyle(el).filter).toContain('blur');
     });
     expect(text()).toContain('Your numbers are ready.');
-  });
-
-  it('shows every blurred band figure rounded to $1,000 (#488)', () => {
-    const lockedValues = fixture.nativeElement.querySelectorAll('.locked-value');
-    lockedValues.forEach((el: HTMLElement) => {
-      const figures = el.textContent?.match(/\$[\d,]+/g) ?? [];
-      expect(figures.length).toBe(2);
-      figures.forEach((f) => expect(f).toMatch(/,000$/));
-    });
-    const cmp = fixture.componentInstance as unknown as {
-      previewRange(r: { low: number; base: number; high: number }): string;
-    };
-    expect(cmp.previewRange({ low: 3235979, base: 3314460, high: 3392942 })).toBe(
-      '$3,236,000 – $3,393,000',
-    );
   });
 
   it('shows the visible estimate basis: property facts + chosen sqft/tier', () => {
@@ -145,7 +130,7 @@ describe('PreviewPageComponent', () => {
     // The real computed digits ARE in the DOM — blurred via CSS (8px),
     // aria-hidden, and unselectable. No animated placeholder bars remain.
     const lockedValues = figures.querySelectorAll('.locked-value');
-    expect(lockedValues.length).toBe(2);
+    expect(lockedValues.length).toBe(3); // total range + blurred "most likely" (#504) + build
     lockedValues.forEach((el) => {
       expect(el.getAttribute('aria-hidden')).toBe('true');
       expect(el.textContent).toMatch(/\$\d/);
@@ -153,6 +138,15 @@ describe('PreviewPageComponent', () => {
       expect(getComputedStyle(el).userSelect).toBe('none');
     });
     expect(figures.querySelectorAll('.blur-bar').length).toBe(0);
+    // #504: range-first and rounded — the total range is the hero line,
+    // "most likely" secondary, and no figure is unrounded.
+    const [total, mostLikely, build] = Array.from(lockedValues).map((el) => el.textContent?.trim() ?? '');
+    expect(total).toMatch(/^\$[\d.,]+M? – \$[\d.,]+M?$/);
+    expect(mostLikely).toMatch(/^Most likely ≈ \$[\d.,]+M?$/);
+    expect(build).toMatch(/ – /);
+    for (const amount of [total, mostLikely, build].join(' ').match(/\$[\d,.]+M?/g) ?? []) {
+      expect(amount).toMatch(/^\$\d+\.\d{2}M$|^\$[\d,]*,000$/);
+    }
   });
 
   it('renders the single "Unlock" CTA toward the gate', () => {
@@ -178,7 +172,7 @@ describe('PreviewPageComponent', () => {
   it('prompts the gate without promising finish-tier exploration', () => {
     // consumer/04 removed the tier what-if toggle from the report — the
     // preview must not promise it.
-    expect(text()).toContain('Unlock your report to see the full cost breakdown and next steps.');
+    expect(text()).toContain('Your full report adds the cost breakdown and next steps.');
     expect(text()).not.toContain('explore finish tiers');
   });
 
@@ -317,7 +311,7 @@ describe('PreviewPageComponent loading state', () => {
       // RENO-04 AC2 (updated 2026-09-26): the real computed digits ARE in
       // the DOM pre-gate — blurred via CSS, aria-hidden, and unselectable.
       const lockedValues = figures.querySelectorAll('.locked-value');
-      expect(lockedValues.length).toBe(2);
+      expect(lockedValues.length).toBe(3); // total range + blurred "most likely" (#504) + build
       lockedValues.forEach((el) => {
         expect(el.getAttribute('aria-hidden')).toBe('true');
         expect(el.textContent).toMatch(/\$\d/);

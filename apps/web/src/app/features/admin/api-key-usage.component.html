@@ -15,10 +15,10 @@
     <tbody>
       @for (row of usage(); track row.date + row.endpoint) {
         <tr>
-          <td>{{ row.date }}</td>
-          <td>{{ row.endpoint }}</td>
-          <td>{{ row.count }}</td>
-          <td>{{ row.estimates_created }}</td>
+          <td [attr.data-label]="copy.dateHeader">{{ row.date }}</td>
+          <td [attr.data-label]="copy.endpointHeader">{{ row.endpoint }}</td>
+          <td [attr.data-label]="copy.requestsHeader">{{ row.count }}</td>
+          <td [attr.data-label]="copy.estimatesHeader">{{ row.estimates_created }}</td>
         </tr>
       }
     </tbody>
