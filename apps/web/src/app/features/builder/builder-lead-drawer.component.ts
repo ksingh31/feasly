@@ -29,6 +29,7 @@ import {
 import { formatEdmontonMediumDate } from '../../shared/utils/edmonton';
 import { BUILDER_COPY } from './builder-copy';
 import { BuilderLeadCommentsComponent } from './builder-lead-comments.component';
+import { BuilderRecordContractPanelComponent } from './builder-record-contract-panel.component';
 import { UpdateBuilderLeadStatus } from './builder.actions';
 import { BuilderState } from './builder.state';
 import {
@@ -53,7 +54,8 @@ export interface BuilderLeadDrawerData {
  * - Contact actions (tap-to-call / email).
  * - Status stepper with one-tap "move to" buttons. Lead status is not a
  *   money change, so it applies immediately and a toast offers Undo
- *   (portal-ui-kit §5). Won → record-contract panel; Lost → optional
+ *   (portal-ui-kit §5). Won → record the contract inline (#529: value,
+ *   date, live commission, confirm, success); Lost → optional
  *   reason, saved to the notes thread.
  * - Details, an activity timeline from the fields the lead already carries,
  *   and the notes thread with its composer pinned in the drawer footer.
@@ -75,6 +77,7 @@ export interface BuilderLeadDrawerData {
     TimelineComponent,
     KitDatePipe,
     BuilderLeadCommentsComponent,
+    BuilderRecordContractPanelComponent,
   ],
   templateUrl: './builder-lead-drawer.component.html',
   styleUrl: './builder-lead-drawer.component.scss',
@@ -122,6 +125,9 @@ export class BuilderLeadDrawerComponent {
   });
 
   protected readonly stepper = computed(() => leadStepperModel(this.lead()?.status));
+
+  /** A contract recorded from this drawer: keep its success state on screen. */
+  protected readonly recordedHere = signal(false);
 
   /** Lost-reason panel: picked reason (unsaved) and whether one was saved here. */
   protected readonly lostReason = signal<string | null>(null);

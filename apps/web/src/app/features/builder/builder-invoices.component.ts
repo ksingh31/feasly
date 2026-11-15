@@ -164,7 +164,7 @@ export class BuilderInvoicesComponent implements OnInit {
     this.store.dispatch(new LoadInvoices(1));
     // Card summary for paid-invoice receipts (last4 display).
     this.store.dispatch(new LoadBillingCard());
-    // Deep link from the record-contract success card: ?invoice=<id>
+    // Deep link from the lead drawer's record-contract success state: ?invoice=<id>
     // opens the invoice detail directly. The detail fetch is independent
     // of the list, so no need to wait for the list to load.
     this.route.queryParamMap

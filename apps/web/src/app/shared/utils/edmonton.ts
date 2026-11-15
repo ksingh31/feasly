@@ -80,3 +80,18 @@ export function formatEdmontonDateTime(iso: string | null): string {
   const time = timeFormatter.format(date);
   return `${day} · ${time} ${EDMONTON_ZONE_LABEL}`;
 }
+
+const utcMediumFormatter = new Intl.DateTimeFormat('en-CA', {
+  timeZone: 'UTC',
+  dateStyle: 'medium',
+});
+
+/**
+ * Today on the Edmonton calendar plus `days` whole days, as a medium date
+ * ("Nov 22, 2026"). Calendar arithmetic only (no DST drift): used to name
+ * an expected charge date before the invoice that fixes it exists.
+ */
+export function formatEdmontonDatePlusDays(days: number, now: Date = new Date()): string {
+  const today = Date.parse(dayFormatter.format(now)); // yyyy-mm-dd → UTC midnight
+  return utcMediumFormatter.format(new Date(today + days * 86_400_000));
+}

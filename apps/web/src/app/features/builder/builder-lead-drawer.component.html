@@ -74,7 +74,7 @@
       }
 
       @if (lead.status === 'won') {
-        @if (lead.hasInvoice) {
+        @if (lead.hasInvoice && !recordedHere()) {
           <div class="lead-drawer__panel" data-testid="drawer-recorded">
             <p class="lead-drawer__panel-body">
               {{ copy.leadsRecordedCta }} —
@@ -85,17 +85,12 @@
           </div>
         } @else {
           <div class="lead-drawer__panel lead-drawer__panel--success" data-testid="drawer-won-panel">
-            <h4 class="lead-drawer__panel-title">{{ t.wonPanelHeading }}</h4>
-            <p class="lead-drawer__panel-body">{{ t.wonPanelBody }}</p>
+            @if (!recordedHere()) {
+              <h4 class="lead-drawer__panel-title">{{ t.wonPanelHeading }}</h4>
+              <p class="lead-drawer__panel-body">{{ t.wonPanelBody }}</p>
+            }
             @if (isAdmin()) {
-              <a
-                ui-button
-                class="lead-drawer__panel-cta"
-                data-testid="drawer-record"
-                [routerLink]="['/builder/record-contract']"
-                [queryParams]="{ lead: lead.id }"
-                >{{ home.recordContractCta }}</a
-              >
+              <app-builder-record-contract-panel [lead]="lead" (recorded)="recordedHere.set(true)" />
             } @else {
               <p class="lead-drawer__panel-body" data-testid="drawer-record-member">
                 {{ home.recordContractMemberNote }}

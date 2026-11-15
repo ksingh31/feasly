@@ -290,7 +290,8 @@ describe('BuilderDashboardComponent — Leads home (#527)', () => {
       const won = el.querySelector('[data-group="wonWithoutContract"] [data-testid="needs-card"]')!;
       const record = won.querySelector('[data-testid="needs-record"]') as HTMLAnchorElement;
       expect(record.textContent?.trim()).toBe(COPY.leadsHome.recordContractCta);
-      expect(record.getAttribute('href')).toBe('/builder/record-contract?lead=lead-c');
+      // Opens the lead drawer, where the contract is recorded (#529).
+      expect(record.getAttribute('href')).toBe('/builder?open=lead-c');
       expect(el.querySelectorAll('[data-testid="needs-record"]')).toHaveLength(1);
     });
 

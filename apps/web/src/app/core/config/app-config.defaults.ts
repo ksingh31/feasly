@@ -42,6 +42,7 @@ export const DEFAULT_APP_CONFIG: AppConfig = {
   billing: {
     stripePublishableKey: '',
     questionInvoiceHref: '',
+    chargeDelayDays: 7,
   },
   propertyData: {
     source: 'live',

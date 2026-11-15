@@ -29,6 +29,7 @@ import {
   LoadBuilderNeedsYou,
   LoadBuilderSession,
   LogoutBuilder,
+  RefreshBuilderLeadsQuietly,
   SetBuilderActiveOrg,
   UpdateBuilderLeadStatus,
 } from './builder.actions';
@@ -469,6 +470,11 @@ export class BuilderState {
         return of(null);
       }),
     );
+  }
+
+  @Action(RefreshBuilderLeadsQuietly)
+  refreshBuilderLeadsQuietly(ctx: StateContext<BuilderStateModel>): Observable<unknown> {
+    return forkJoin([this.refreshLeadsQuietly(ctx), this.refreshNeedsYouQuietly(ctx)]);
   }
 
   @Action(UpdateBuilderLeadStatus)
