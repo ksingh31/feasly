@@ -29,6 +29,12 @@ export interface LeadRecord {
   readonly quarantined: boolean;
   /** api-mcp/01: true when captured via a sandbox API key. */
   readonly sandbox: boolean;
+  /**
+   * #738: the API key that attested consent for an agent-submitted lead;
+   * null/absent for web and embed captures. Lets the dedupe path tell an
+   * attested API row (quarantined for review) from honeypot spam.
+   */
+  readonly consentAttestedByApiKeyId?: string | null;
   /** consumer/02: heuristic score, recomputed on every dedupe update. */
   readonly leadScore: number;
   /** Pipeline status: new | contacted | quoting | won | lost. */
@@ -108,6 +114,12 @@ export interface LeadStore {
     readonly addressKey: string;
     readonly since: Date;
     readonly tenantKey: string | null;
+    /**
+     * #738: sandbox scope. Real submissions only match real rows and
+     * sandbox-key submissions only match sandbox rows, so a real lead can
+     * never dedupe onto a test row (which the sandbox purge later deletes).
+     */
+    readonly sandbox: boolean;
   }): Promise<LeadRecord | null>;
   insert(lead: NewLead): Promise<LeadRecord>;
   /**
@@ -350,6 +362,7 @@ function toRecord(row: typeof leads.$inferSelect): LeadRecord {
     source: row.source,
     quarantined: row.quarantined,
     sandbox: row.sandbox,
+    consentAttestedByApiKeyId: row.consentAttestedByApiKeyId,
     leadScore: row.leadScore,
     status: row.status,
     unsubscribedAt: row.unsubscribedAt,
@@ -381,6 +394,8 @@ export function createDrizzleLeadStore(deps: DrizzleLeadStoreDeps): LeadStore {
             args.tenantKey === null
               ? isNull(leads.tenantKey)
               : eq(leads.tenantKey, args.tenantKey),
+            // #738: never match across the sandbox boundary either.
+            eq(leads.sandbox, args.sandbox),
           ),
         )
         .orderBy(desc(leads.createdAt))

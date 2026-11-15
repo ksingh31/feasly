@@ -125,7 +125,9 @@ don't count):
 | Per day | 100 requests | 00:00 UTC |
 | Per month | 2,000 requests | the 1st, 00:00 UTC |
 
-REST and MCP calls share the same counts. The limits hold across all Feasly
+REST and MCP calls share the same counts. On MCP, only `tools/call`
+requests count. Protocol messages (`initialize`, `tools/list`,
+notifications) are free. The limits hold across all Feasly
 server instances because they're counted in the database.
 
 Over a limit, you get `429` with RFC 7807 `application/problem+json` and a

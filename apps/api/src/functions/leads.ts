@@ -71,6 +71,7 @@ export async function leadsHandler(
     {
       headers,
       clientIp: clientIpFrom(req),
+      method: req.method,
       tenantKey:
         typeof rawBody.tenantKey === 'string' ? rawBody.tenantKey : undefined,
     },
@@ -81,7 +82,7 @@ export async function leadsHandler(
       app.withApiKeyRateLimit(
         headers,
         correlationId,
-        { endpoint: '/api/v1/leads' },
+        { endpoint: '/api/v1/leads', requiredScope: 'lead' },
         // #738: a Bearer key makes this an agent submission — the route
         // passes the key on so the consent attestation is enforced.
         (auth) =>

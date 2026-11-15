@@ -11,7 +11,8 @@
  * and non-breaking.
  *
  * 429s carry code=RATE_LIMITED plus X-RateLimit-Limit / -Remaining /
- * -Reset headers. Rejected requests write no usage rows.
+ * -Reset headers. Keys missing the endpoint's required scope get a 403
+ * FORBIDDEN (#802). Rejected requests write no usage rows.
  *
  * #738: after the per-minute window, the key's daily and monthly quotas
  * (UTC calendar periods, `config.apiAccess`) are checked against the same
@@ -20,8 +21,10 @@
  * Like the per-minute limit, check-then-record is not atomic: concurrent
  * calls at the edge can overshoot by at most the number in flight.
  */
+import type { ApiKeyScope } from '@feasly/contracts';
 import {
   authenticateApiKey,
+  requireScope,
   type ApiKeyAuthContext,
 } from './api-key-auth';
 import { quotaExceededProblem, rateLimitedProblem, type ProblemDetails } from './errors';
@@ -43,6 +46,22 @@ export interface ApiKeyRateLimitDeps {
 export interface ApiKeyRateLimitOptions {
   /** Route path for usage metering, e.g. '/api/v1/estimate'. */
   readonly endpoint: string;
+  /**
+   * Scope the API key must carry for this endpoint (#802). Checked right
+   * after authentication and before the rate-limit check: a key without
+   * it gets 403 FORBIDDEN, consumes no budget, and writes no usage row.
+   * Required so no REST adapter can forget it. `null` only for routes
+   * that gate scopes per operation themselves (MCP: per-tool checks).
+   */
+  readonly requiredScope: ApiKeyScope | null;
+  /**
+   * #738: whether this call counts against the key's daily/monthly quota
+   * and writes a usage row. Defaults to true. The MCP adapter passes
+   * false for protocol housekeeping (`initialize`, `tools/list`,
+   * notifications) so only `tools/call` is metered. Unmetered calls are
+   * still authenticated, scope-gated and per-minute checked.
+   */
+  readonly metered?: boolean;
   /**
    * Extract an estimate ID from a successful response for the
    * estimates_created aggregate. Omitted for non-estimate endpoints.
@@ -84,6 +103,11 @@ export function createApiKeyRateLimitMiddleware(deps: ApiKeyRateLimitDeps) {
     // Authenticate: throws 401 INVALID_API_KEY on any failure (no oracle).
     const auth = await authenticateApiKey(headers, apiKeys);
 
+    // #802: scope gate — throws 403 FORBIDDEN when the key lacks the scope.
+    if (options.requiredScope !== null) {
+      requireScope(auth, options.requiredScope);
+    }
+
     // Sliding-window check against the usage table.
     const verdict = await usage.checkRateLimit(auth.keyId, auth.rateLimitPerMin);
 
@@ -98,6 +122,11 @@ export function createApiKeyRateLimitMiddleware(deps: ApiKeyRateLimitDeps) {
         remaining: verdict.remaining,
         resetEpoch: verdict.resetEpoch,
       });
+    }
+
+    const metered = options.metered ?? true;
+    if (!metered) {
+      return handler(auth);
     }
 
     // #738: daily / monthly quota on the same usage table.

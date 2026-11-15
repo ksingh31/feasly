@@ -58,7 +58,7 @@ export async function stripeWebhooksHandler(
 
   // The raw body is never logged — it carries the signed payload.
   const result = await app.webhookPipeline.run(
-    { headers, clientIp: clientIpFrom(req) },
+    { headers, clientIp: clientIpFrom(req), method: req.method },
     () => app.stripeWebhooksRoute.handle(req.body, signatureFrom(req)),
   );
 

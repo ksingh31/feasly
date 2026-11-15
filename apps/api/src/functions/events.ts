@@ -67,6 +67,7 @@ export async function eventsHandler(
     {
       headers,
       clientIp: clientIpFrom(req),
+      method: req.method,
     },
     // The body is never logged — see module docstring.
     () => app.analyticsRoute.handle(req.body),

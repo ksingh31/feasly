@@ -320,7 +320,17 @@ export function createLeadService(deps: LeadServiceDeps): LeadService {
     readonly builderId?: string | null;
   }): Promise<LeadResponse> {
     const { existing, input, estimate, email, expiresInDays } = args;
-    if (existing.quarantined) {
+    // #738: an API-attested row is quarantined for review, not as spam.
+    // When the person later submits the gate themselves, they take the
+    // normal repeat path (token + email) — otherwise an agent submission
+    // would lock the real homeowner out for the whole dedupe window. The
+    // row stays in the review queue (`updateOnRepeat` never touches
+    // `quarantined`). Honeypot rows, and honeypot-tripping repeats, stay
+    // buried.
+    const attestedApiRow =
+      existing.consentAttestedByApiKeyId != null &&
+      (input.website ?? '').trim().length === 0;
+    if (existing.quarantined && !attestedApiRow) {
       // Spam stays buried: no update, no email, same response shape.
       return { leadId: existing.id, magicLinkSent: false, expiresInDays };
     }
@@ -511,6 +521,8 @@ export function createLeadService(deps: LeadServiceDeps): LeadService {
           // Without this, tenant B's repeat could rewrite tenant A's lead
           // and mint an owner token for it.
           tenantKey: tenantKey ?? null,
+          // #738: real and sandbox leads never dedupe onto each other.
+          sandbox: caller?.sandbox ?? false,
         });
       } catch (error) {
         throw new Error('lead store lookup failed', { cause: error });

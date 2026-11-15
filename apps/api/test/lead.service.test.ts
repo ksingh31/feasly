@@ -158,6 +158,7 @@ function toFakeRecord(lead: NewLead): LeadRecord {
     tenantKey: lead.tenantKey ?? null,
     quarantined: lead.quarantined ?? false,
     sandbox: lead.sandbox ?? false,
+    consentAttestedByApiKeyId: lead.consentAttestation?.apiKeyId ?? null,
     leadScore: 0,
     status: 'new',
     builderId: null,
@@ -1164,6 +1165,78 @@ describe('lead service: API-key callers (#738)', () => {
     expect(store.inserted).toHaveLength(0);
     expect(email.magicLinkSends).toHaveLength(0);
     expect(magicLinks.issued).toHaveLength(0);
+  });
+
+  /** Fake lookup mirroring the real store's sandbox-scoped dedupe. */
+  function dedupeOverInserted(store: FakeLeadStore) {
+    const seenSandbox: boolean[] = [];
+    store.findRecentByEmailAndAddress = async (args) => {
+      seenSandbox.push(args.sandbox);
+      const match = [...store.inserted]
+        .reverse()
+        .find(
+          (l) =>
+            l.email === args.email &&
+            l.addressKey === args.addressKey &&
+            (l.sandbox ?? false) === args.sandbox,
+        );
+      return match ? toFakeRecord(match) : null;
+    };
+    return seenSandbox;
+  }
+
+  it('review fix: an API lead does not lock the person out — their own web submission gets a token and the email', async () => {
+    const store = fakeLeadStore();
+    dedupeOverInserted(store);
+    const email = fakeEmailService();
+    const magicLinks = fakeMagicLinkStore();
+    const service = createLeadService({ ...DEPS, store, email, magicLinks });
+
+    const apiResult = await service.submitLead(ATTESTED, CALLER);
+    expect(store.inserted[0]!.quarantined).toBe(true);
+    expect(email.magicLinkSends).toHaveLength(0);
+
+    // The homeowner later fills in the gate on the site, same email + address.
+    const web = await service.submitLead(VALID_BODY);
+    expect(web.leadId).toBe(apiResult.leadId);
+    expect(web.magicLinkSent).toBe(true);
+    expect(typeof web.reportToken).toBe('string');
+    expect(web.reportToken!.length).toBeGreaterThan(0);
+    expect(email.magicLinkSends).toHaveLength(1);
+    // Repeat path: scalars refreshed in place, no duplicate row.
+    expect(store.updated).toHaveLength(1);
+    expect(store.inserted).toHaveLength(1);
+  });
+
+  it('review fix: a honeypot-tripping web repeat onto an API row stays buried', async () => {
+    const store = fakeLeadStore();
+    dedupeOverInserted(store);
+    const email = fakeEmailService();
+    const service = createLeadService({ ...DEPS, store, email });
+    await service.submitLead(ATTESTED, CALLER);
+    const bot = await service.submitLead({ ...VALID_BODY, website: 'http://spam.example' });
+    expect(bot.magicLinkSent).toBe(false);
+    expect(bot.reportToken).toBeUndefined();
+    expect(store.updated).toHaveLength(0);
+    expect(email.magicLinkSends).toHaveLength(0);
+  });
+
+  it('review fix: dedupe is sandbox-scoped — a real lead never dedupes onto a sandbox row', async () => {
+    const store = fakeLeadStore();
+    const seenSandbox = dedupeOverInserted(store);
+    const email = fakeEmailService();
+    const service = createLeadService({ ...DEPS, store, email });
+
+    await service.submitLead(ATTESTED, { ...CALLER, sandbox: true });
+    const web = await service.submitLead(VALID_BODY);
+
+    expect(seenSandbox).toEqual([true, false]);
+    // A fresh real row, not the test row the sandbox purge will delete.
+    expect(store.inserted).toHaveLength(2);
+    expect(store.inserted[1]!.sandbox).toBe(false);
+    expect(web.leadId).toBe(store.inserted[1]!.id);
+    expect(web.magicLinkSent).toBe(true);
+    expect(email.magicLinkSends).toHaveLength(1);
   });
 
   it('web/embed submissions (no caller) need no attestation and store none', async () => {

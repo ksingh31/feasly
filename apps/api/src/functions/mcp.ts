@@ -23,6 +23,7 @@ import {
 } from '../index';
 import type { FunctionContext, FunctionRequest } from './estimate';
 import { clientIpFromHeaders } from '../middleware/client-ip';
+import { isMeteredMcpBody } from '../middleware/mcp-metering';
 
 const CORRELATION_RESPONSE_HEADER = 'x-correlation-id';
 
@@ -95,12 +96,20 @@ export async function mcpHandler(
     {
       headers,
       clientIp: clientIpFrom(req),
+      method: req.method,
     },
     () =>
       app.withApiKeyRateLimit(
         headers,
         correlationId,
-        { endpoint: '/api/mcp/v1' },
+        {
+          endpoint: '/api/mcp/v1',
+          // MCP gates scopes per tool inside the route (#802).
+          requiredScope: null,
+          // #738: only tool calls count against the quota — protocol
+          // housekeeping (initialize, tools/list, notifications) is free.
+          metered: isMeteredMcpBody(req.body),
+        },
         (auth) => app.mcpRoute.handle(headers, req.body, auth ?? undefined),
       ),
   );

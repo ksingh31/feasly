@@ -142,6 +142,7 @@ describe('drizzle stores', () => {
       addressKey,
       since: new Date('2026-09-01T00:00:00Z'),
       tenantKey: null,
+      sandbox: false,
     });
     expect(hitOther?.id).toBe(inserted.id);
 
@@ -151,6 +152,7 @@ describe('drizzle stores', () => {
       addressKey,
       since: new Date('2026-09-01T00:00:00Z'),
       tenantKey: null,
+      sandbox: false,
     });
     expect(hit?.id).toBe(inserted.id);
 
@@ -162,6 +164,7 @@ describe('drizzle stores', () => {
       addressKey,
       since: new Date(Date.now() + 60_000),
       tenantKey: null,
+      sandbox: false,
     });
     expect(miss).toBeNull();
 
@@ -171,6 +174,7 @@ describe('drizzle stores', () => {
       addressKey: 'calgary-000-other-st-nw',
       since: new Date('2026-09-01T00:00:00Z'),
       tenantKey: null,
+      sandbox: false,
     });
     expect(other).toBeNull();
 
@@ -193,6 +197,7 @@ describe('drizzle stores', () => {
       addressKey,
       since: new Date('2026-09-01T00:00:00Z'),
       tenantKey: null,
+      sandbox: false,
     });
     expect(crossFromDirect?.id).toBe(inserted.id);
     const tenantHit = await leads.findRecentByEmailAndAddress({
@@ -200,6 +205,7 @@ describe('drizzle stores', () => {
       addressKey,
       since: new Date('2026-09-01T00:00:00Z'),
       tenantKey: 'elite-craft',
+      sandbox: false,
     });
     expect(tenantHit?.id).toBe(tenantLead.id);
     const unknownTenant = await leads.findRecentByEmailAndAddress({
@@ -207,6 +213,7 @@ describe('drizzle stores', () => {
       addressKey,
       since: new Date('2026-09-01T00:00:00Z'),
       tenantKey: 'someone-else',
+      sandbox: false,
     });
     expect(unknownTenant).toBeNull();
   });

@@ -13,7 +13,12 @@ export type AnalyticsEventName =
   | 'callback_request'
   | 'partner_share'
   | 'pdf_download'
-  | 'embed_loaded';
+  | 'embed_loaded'
+  // #704: returning-user recovery + link sharing.
+  | 'report_resume'
+  | 'report_link_request'
+  | 'report_link_copy'
+  | 'report_link_share';
 
 export interface AnalyticsEvent {
   readonly event: AnalyticsEventName;

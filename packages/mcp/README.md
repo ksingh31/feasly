@@ -96,5 +96,7 @@ emailed. A repeat for an existing lead never changes it.
 
 Every HTTP MCP call also goes through the per-key limiter like the REST
 endpoints: the per-minute window plus the daily and monthly quotas, with
-usage metered in `api_usage`. See `docs/api/developers.md`.
+usage metered in `api_usage`. Only `tools/call` requests are metered and
+count against the quotas; protocol housekeeping (`initialize`, `tools/list`,
+notifications) is authenticated but free. See `docs/api/developers.md`.
 

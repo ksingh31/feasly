@@ -6,6 +6,7 @@
  */
 import { describe, expect, it } from 'vitest';
 import { createApiKeyRateLimitMiddleware } from '../src/middleware/api-key-rate-limit';
+import { isMeteredMcpBody } from '../src/middleware/mcp-metering';
 import {
   HttpError,
   ErrorCodes,
@@ -110,7 +111,7 @@ describe('per-key rate limit middleware (api-mcp/07)', () => {
     const result = await withLimit(
       {},
       'corr-1',
-      { endpoint: '/api/v1/estimate' },
+      { endpoint: '/api/v1/estimate', requiredScope: 'estimate' },
       async () => {
         handlerRan = true;
         return { ok: true };
@@ -131,7 +132,7 @@ describe('per-key rate limit middleware (api-mcp/07)', () => {
 
     // 5 succeed
     for (let i = 0; i < 5; i++) {
-      const r = await withLimit(headers, 'corr-1', { endpoint: '/api/v1/estimate' }, async () => ({ ok: true }));
+      const r = await withLimit(headers, 'corr-1', { endpoint: '/api/v1/estimate', requiredScope: 'estimate' }, async () => ({ ok: true }));
       expect(isProblemDetails(r)).toBe(false);
     }
     expect(usageStore.rows.length).toBe(5);
@@ -140,7 +141,7 @@ describe('per-key rate limit middleware (api-mcp/07)', () => {
     const denied = await withLimit(
       headers,
       'corr-1',
-      { endpoint: '/api/v1/estimate' },
+      { endpoint: '/api/v1/estimate', requiredScope: 'estimate' },
       async () => ({ ok: true }),
     );
     expect(isProblemDetails(denied)).toBe(true);
@@ -170,13 +171,13 @@ describe('per-key rate limit middleware (api-mcp/07)', () => {
 
     // Exhaust key-A
     for (let i = 0; i < 2; i++) {
-      await withLimit({ authorization: 'Bearer token-a' }, 'c', { endpoint: '/e' }, async () => ({}));
+      await withLimit({ authorization: 'Bearer token-a' }, 'c', { endpoint: '/e', requiredScope: 'estimate' }, async () => ({}));
     }
-    const deniedA = await withLimit({ authorization: 'Bearer token-a' }, 'c', { endpoint: '/e' }, async () => ({}));
+    const deniedA = await withLimit({ authorization: 'Bearer token-a' }, 'c', { endpoint: '/e', requiredScope: 'estimate' }, async () => ({}));
     expect(isProblemDetails(deniedA)).toBe(true);
 
     // key-B still fine
-    const okB = await withLimit({ authorization: 'Bearer token-b' }, 'c', { endpoint: '/e' }, async () => ({ ok: 1 }));
+    const okB = await withLimit({ authorization: 'Bearer token-b' }, 'c', { endpoint: '/e', requiredScope: 'estimate' }, async () => ({ ok: 1 }));
     expect(isProblemDetails(okB)).toBe(false);
   });
 
@@ -192,6 +193,7 @@ describe('per-key rate limit middleware (api-mcp/07)', () => {
       'corr-1',
       {
         endpoint: '/api/v1/estimate',
+        requiredScope: 'estimate',
         extractEstimateId: (r) => (r as { estimateId: string }).estimateId,
       },
       async () => ({ estimateId: 'est-123' }),
@@ -211,11 +213,82 @@ describe('per-key rate limit middleware (api-mcp/07)', () => {
       withLimit(
         { authorization: 'Bearer bogus' },
         'corr-1',
-        { endpoint: '/api/v1/estimate' },
+        { endpoint: '/api/v1/estimate', requiredScope: 'estimate' },
         async () => ({}),
       ),
     ).rejects.toMatchObject({ status: 401, code: 'INVALID_API_KEY' });
     expect(usageStore.rows.length).toBe(0);
+  });
+  describe('#802: required scope', () => {
+    it('key without the required scope → 403 FORBIDDEN, handler not run, no usage, no budget', async () => {
+      const usageStore = createInMemoryUsageStore();
+      const usage = createUsageService({ store: usageStore });
+      const keyRecord = createKeyRecord({ scopes: ['property:read'] });
+      const apiKeys = createFakeApiKeys({ 'read-only': keyRecord });
+      const withLimit = createApiKeyRateLimitMiddleware({ apiKeys, usage, quota: NO_QUOTA });
+
+      let handlerRan = false;
+      await expect(
+        withLimit(
+          { authorization: 'Bearer read-only' },
+          'corr-1',
+          { endpoint: '/api/v1/estimate', requiredScope: 'estimate' },
+          async () => {
+            handlerRan = true;
+            return {};
+          },
+        ),
+      ).rejects.toMatchObject({ status: 403, code: 'FORBIDDEN' });
+      expect(handlerRan).toBe(false);
+      expect(usageStore.rows.length).toBe(0);
+    });
+
+    it('scope is checked before the rate limit (exhausted key still gets 403 for a missing scope)', async () => {
+      const usageStore = createInMemoryUsageStore();
+      const usage = createUsageService({ store: usageStore });
+      const keyRecord = createKeyRecord({ scopes: ['property:read'], rateLimitPerMin: 1 });
+      const apiKeys = createFakeApiKeys({ 'read-only': keyRecord });
+      const withLimit = createApiKeyRateLimitMiddleware({ apiKeys, usage, quota: NO_QUOTA });
+      const headers = { authorization: 'Bearer read-only' };
+      const lookup = { endpoint: '/api/v1/properties/lookup', requiredScope: 'property:read' } as const;
+
+      await withLimit(headers, 'c', lookup, async () => ({}));
+      const limited = await withLimit(headers, 'c', lookup, async () => ({}));
+      expect(isProblemDetails(limited) && limited.status).toBe(429);
+
+      await expect(
+        withLimit(headers, 'c', { endpoint: '/api/v1/leads', requiredScope: 'lead' }, async () => ({})),
+      ).rejects.toMatchObject({ status: 403, code: 'FORBIDDEN' });
+    });
+
+    it('key with the required scope among several → handler runs', async () => {
+      const usageStore = createInMemoryUsageStore();
+      const usage = createUsageService({ store: usageStore });
+      const keyRecord = createKeyRecord({ scopes: ['property:read', 'lead'] });
+      const apiKeys = createFakeApiKeys({ multi: keyRecord });
+      const withLimit = createApiKeyRateLimitMiddleware({ apiKeys, usage, quota: NO_QUOTA });
+
+      const result = await withLimit(
+        { authorization: 'Bearer multi' },
+        'corr-1',
+        { endpoint: '/api/v1/leads', requiredScope: 'lead' },
+        async () => ({ ok: true }),
+      );
+      expect(result).toEqual({ ok: true });
+      expect(usageStore.rows.length).toBe(1);
+    });
+
+    it('no Bearer key → passthrough regardless of required scope (first-party traffic)', async () => {
+      const usage = createUsageService({ store: createInMemoryUsageStore() });
+      const withLimit = createApiKeyRateLimitMiddleware({ apiKeys: createFakeApiKeys({}), usage, quota: NO_QUOTA });
+      const result = await withLimit(
+        {},
+        'corr-1',
+        { endpoint: '/api/v1/leads', requiredScope: 'lead' },
+        async () => ({ ok: true }),
+      );
+      expect(result).toEqual({ ok: true });
+    });
   });
 });
 
@@ -224,7 +297,7 @@ describe('per-key daily / monthly quota (#738)', () => {
   const call = (
     withLimit: ReturnType<typeof createApiKeyRateLimitMiddleware>,
     h: Record<string, string> = headers,
-  ) => withLimit(h, 'corr-q', { endpoint: '/api/v1/estimate' }, async () => ({ ok: true }));
+  ) => withLimit(h, 'corr-q', { endpoint: '/api/v1/estimate', requiredScope: 'estimate' }, async () => ({ ok: true }));
 
   it('AC2: the call past the daily quota → 429 QUOTA_EXCEEDED with Retry-After and quota headers, no usage row', async () => {
     const usageStore = createInMemoryUsageStore();
@@ -315,5 +388,67 @@ describe('per-key daily / monthly quota (#738)', () => {
     for (let i = 0; i < 3; i++) {
       expect(isProblemDetails(await call(withLimit, {}))).toBe(false);
     }
+  });
+});
+
+describe('unmetered calls and route-gated scopes (#738 review)', () => {
+  it('metered: false → handler runs, no quota check, no usage row (even at quota)', async () => {
+    const usageStore = createInMemoryUsageStore();
+    const usage = createUsageService({ store: usageStore });
+    const apiKeys = createFakeApiKeys({ 'valid-token': createKeyRecord({ rateLimitPerMin: 100 }) });
+    const withLimit = createApiKeyRateLimitMiddleware({
+      apiKeys,
+      usage,
+      quota: { daily: 1, monthly: 1 },
+    });
+    const headers = { authorization: 'Bearer valid-token' };
+    const metered = { endpoint: '/api/mcp/v1', requiredScope: null, metered: true } as const;
+    const housekeeping = { endpoint: '/api/mcp/v1', requiredScope: null, metered: false } as const;
+
+    expect(isProblemDetails(await withLimit(headers, 'c', metered, async () => ({})))).toBe(false);
+    expect(usageStore.rows.length).toBe(1);
+    // Quota now exhausted — housekeeping still goes through, unrecorded.
+    for (let i = 0; i < 3; i++) {
+      expect(await withLimit(headers, 'c', housekeeping, async () => ({ ok: true }))).toEqual({ ok: true });
+    }
+    expect(usageStore.rows.length).toBe(1);
+    const denied = await withLimit(headers, 'c', metered, async () => ({}));
+    expect(isProblemDetails(denied) && denied.code).toBe(ErrorCodes.QUOTA_EXCEEDED);
+  });
+
+  it('requiredScope: null skips the middleware scope gate (the route checks per operation)', async () => {
+    const usage = createUsageService({ store: createInMemoryUsageStore() });
+    const apiKeys = createFakeApiKeys({ ro: createKeyRecord({ scopes: ['property:read'] }) });
+    const withLimit = createApiKeyRateLimitMiddleware({ apiKeys, usage, quota: NO_QUOTA });
+    const result = await withLimit(
+      { authorization: 'Bearer ro' },
+      'c',
+      { endpoint: '/api/mcp/v1', requiredScope: null },
+      async () => ({ ok: true }),
+    );
+    expect(result).toEqual({ ok: true });
+  });
+});
+
+describe('isMeteredMcpBody (#738 review)', () => {
+  it('meters tools/call, single or in a batch, parsed or raw', () => {
+    const call = { jsonrpc: '2.0', id: 1, method: 'tools/call', params: { name: 'estimate' } };
+    expect(isMeteredMcpBody(call)).toBe(true);
+    expect(isMeteredMcpBody(JSON.stringify(call))).toBe(true);
+    expect(isMeteredMcpBody([{ jsonrpc: '2.0', method: 'notifications/initialized' }, call])).toBe(true);
+  });
+
+  it('does not meter protocol housekeeping', () => {
+    for (const method of ['initialize', 'tools/list', 'notifications/initialized', 'ping']) {
+      expect(isMeteredMcpBody({ jsonrpc: '2.0', id: 1, method })).toBe(false);
+    }
+    expect(isMeteredMcpBody(JSON.stringify({ jsonrpc: '2.0', id: 1, method: 'tools/list' }))).toBe(false);
+  });
+
+  it('meters anything unrecognisable (cautious default)', () => {
+    expect(isMeteredMcpBody('not json')).toBe(true);
+    expect(isMeteredMcpBody([])).toBe(true);
+    expect(isMeteredMcpBody(null)).toBe(true);
+    expect(isMeteredMcpBody(42)).toBe(true);
   });
 });
