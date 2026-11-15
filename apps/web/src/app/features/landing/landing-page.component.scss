@@ -31,7 +31,7 @@
   font-size: var(--type-eyebrow);
   letter-spacing: 0.14em;
   text-transform: uppercase;
-  color: var(--accent);
+  color: var(--accent-text);
   font-weight: 500;
 }
 
@@ -166,7 +166,7 @@
 }
 
 .sample-link a {
-  color: var(--accent);
+  color: var(--accent-text);
   font-weight: 600;
   text-decoration: none;
   border-bottom: 1px solid var(--accent-bg);
@@ -423,7 +423,7 @@
 .compare-arrow {
   font-size: 24px;
   font-weight: 700;
-  color: var(--accent);
+  color: var(--accent-text);
   flex-shrink: 0;
 }
 
@@ -475,7 +475,7 @@
 }
 
 .seo-links a {
-  color: var(--brass, #b08d3e);
+  color: var(--accent-text);
   font-weight: 600;
   text-decoration: none;
 }
@@ -531,10 +531,9 @@
   font-family: var(--font-ui);
   font-size: 12px;
   font-weight: 700;
-  color: var(--accent);
+  color: var(--accent-text);
   letter-spacing: 0.06em;
   padding-top: 3px;
-  opacity: 0.65;
 }
 
 .how-step-title {
