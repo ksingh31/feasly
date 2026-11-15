@@ -1478,3 +1478,25 @@ export function renderRegistryTable(): string {
   }
   return lines.join('\n');
 }
+
+/** Markers delimiting the generated table in docs/security/rate-limits.md (#729). */
+export const RATE_LIMIT_TABLE_BEGIN =
+  '<!-- BEGIN GENERATED: rate limits from apps/api/src/registry/route-registry.ts — do not edit by hand -->';
+export const RATE_LIMIT_TABLE_END = '<!-- END GENERATED: rate limits -->';
+
+/**
+ * #729: the per-route rate-limit table for `docs/security/rate-limits.md`.
+ * Generated from the registry so the security doc cannot drift; a test in
+ * `test/route-registry.conformance.test.ts` fails CI when it does.
+ * Regenerate with `npx tsx tools/insert-rate-limit-table.mts`.
+ */
+export function renderRateLimitTable(): string {
+  const lines = [
+    '| Method | Path | Auth | Rate limit | Status |',
+    '|---|---|---|---|---|',
+  ];
+  for (const e of ROUTE_REGISTRY) {
+    lines.push(`| ${e.method} | \`${e.path}\` | ${e.auth} | ${e.rateLimit} | ${e.status} |`);
+  }
+  return lines.join('\n');
+}

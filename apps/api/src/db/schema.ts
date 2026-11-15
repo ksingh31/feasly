@@ -1593,3 +1593,24 @@ export const waitlistSignups = pgTable(
   },
   (t) => [uniqueIndex('waitlist_signups_email_topic_idx').on(t.email, t.topic)],
 );
+
+/**
+ * Shared rate-limit counters (#729).
+ *
+ * Per-instance in-memory counters multiply with scale-out, so the
+ * money/mail endpoints (lead capture, estimates, magic-link resend) count
+ * here instead. One row per limiter key; `key` is `<scope>:<sha256>` — raw
+ * client IPs and email addresses are never stored. A fixed window restarts
+ * when a hit arrives for a later `window_start`. Rows past `expires_at` are
+ * dead and swept periodically by the limiter.
+ */
+export const rateLimitCounters = pgTable(
+  'rate_limit_counters',
+  {
+    key: text('key').primaryKey(),
+    windowStart: timestamp('window_start', { withTimezone: true }).notNull(),
+    count: integer('count').notNull().default(0),
+    expiresAt: timestamp('expires_at', { withTimezone: true }).notNull(),
+  },
+  (t) => [index('rate_limit_counters_expires_at_idx').on(t.expiresAt)],
+);

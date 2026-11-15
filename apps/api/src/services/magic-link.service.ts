@@ -30,6 +30,11 @@ import type {
 import { z } from 'zod';
 import { ErrorCodes, HttpError } from '../middleware/errors';
 import { createRateLimiter } from '../middleware/rate-limit';
+import {
+  createInMemoryCooldown,
+  type AnyRateLimiter,
+  type SharedCooldown,
+} from '../middleware/shared-rate-limit';
 import { sanitizeErrorMessage } from '../lib/sanitize-error';
 import type { EmailDelivery, EmailService } from './email/email.service';
 import type { LeadStore } from './lead.store';
@@ -58,9 +63,9 @@ export interface MagicLinkServiceDeps {
   readonly appBaseUrl: string;
   readonly magicLinkTtlSeconds: number;
   /**
-   * HRD-03: minimum ms between resend emails to the same address. In-memory
-   * per Functions instance, keyed by normalized email — same deliberate
-   * scale-out tradeoff as the pipeline rate limiters.
+   * HRD-03: minimum ms between resend emails to the same address, keyed by
+   * normalized email. Shared across instances when `reissueCooldown` is
+   * wired (#729); otherwise in-memory per instance.
    */
   readonly magicLinkReissueCooldownMs: number;
   /**
@@ -70,6 +75,17 @@ export interface MagicLinkServiceDeps {
    * email — same deliberate scale-out tradeoff as the cooldown above.
    */
   readonly magicLinkMaxSendsPerHour: number;
+  /**
+   * #729: cross-instance cooldown (Postgres-backed in production) so the
+   * one-email-per-address window holds under scale-out. Defaults to the
+   * per-instance in-memory cooldown.
+   */
+  readonly reissueCooldown?: SharedCooldown;
+  /**
+   * #729: cross-instance hourly send budget keyed by normalized email.
+   * Defaults to a per-instance in-memory limiter.
+   */
+  readonly sendBudget?: AnyRateLimiter;
   readonly clock?: () => Date;
 }
 
@@ -185,6 +201,9 @@ export async function issueAndSendMagicLink(
   return sendOwnerMagicLinkEmail({ ...args, token: issued.token });
 }
 
+/** P1-6: the per-email send budget is hourly (registry: "/hr per email"). */
+export const MAGIC_LINK_SEND_BUDGET_WINDOW_MS = 3_600_000;
+
 export function createMagicLinkService(
   deps: MagicLinkServiceDeps,
 ): MagicLinkService {
@@ -201,8 +220,8 @@ export function createMagicLinkService(
   } = deps;
 
   /**
-   * HRD-03: per-email resend cooldown. Maps normalized email → ms timestamp
-   * of the last email this service sent on the reissue path. The live-link
+   * HRD-03: per-email resend cooldown, started by each email this service
+   * sends on the reissue path (shared across instances, #729). The live-link
    * check above already blocks the common rapid-resend case (a fresh send
    * mints a live link); this covers the residual case where no live link
    * exists but an email went out recently (revoked link, clock skew between
@@ -210,7 +229,9 @@ export function createMagicLinkService(
    * identical to the live-link and unknown-email cases — so the endpoint
    * can't be used as a send oracle.
    */
-  const lastResendAtMs = new Map<string, number>();
+  const reissueCooldown: SharedCooldown =
+    deps.reissueCooldown ??
+    createInMemoryCooldown(magicLinkReissueCooldownMs, () => clock().getTime());
 
   /**
    * P1-6: hourly per-email send budget (fixed window, shared rate-limiter
@@ -219,12 +240,14 @@ export function createMagicLinkService(
    * an unknown address can never burn (or reveal) a budget. Exhaustion
    * answers `{ sent: false }`, identical to every other non-send outcome.
    */
-  const sendBudget = createRateLimiter({
-    windowMs: 3_600_000,
-    maxRequests: magicLinkMaxSendsPerHour,
-    maxTrackedKeys: 10_000,
-    clock: () => clock().getTime(),
-  });
+  const sendBudget: AnyRateLimiter =
+    deps.sendBudget ??
+    createRateLimiter({
+      windowMs: MAGIC_LINK_SEND_BUDGET_WINDOW_MS,
+      maxRequests: magicLinkMaxSendsPerHour,
+      maxTrackedKeys: 10_000,
+      clock: () => clock().getTime(),
+    });
 
   return {
     async verify(token: string): Promise<MagicLinkVerifyResponse> {
@@ -295,14 +318,12 @@ export function createMagicLinkService(
       }
       // HRD-03: per-email resend cooldown. Same `{ sent: false }` shape as
       // every other non-send outcome — no timing oracle for attackers.
-      const nowMs = now.getTime();
-      const lastSent = lastResendAtMs.get(lead.email);
-      if (lastSent !== undefined && nowMs - lastSent < magicLinkReissueCooldownMs) {
+      if (await reissueCooldown.isActive(lead.email)) {
         return { sent: false };
       }
       // P1-6: hourly per-email send budget — the email-bombing guard.
       // Same `{ sent: false }` shape as every other non-send outcome.
-      if (!sendBudget.check(lead.email).allowed) {
+      if (!(await sendBudget.check(lead.email)).allowed) {
         return { sent: false };
       }
       const delivery = await issueAndSendMagicLink({
@@ -318,7 +339,7 @@ export function createMagicLinkService(
       });
       // Only a delivered resend starts the cooldown — a failed send leaves
       // the window open so the user can retry immediately.
-      if (delivery.sent) lastResendAtMs.set(lead.email, nowMs);
+      if (delivery.sent) await reissueCooldown.start(lead.email);
       return { sent: delivery.sent };
     },
   };

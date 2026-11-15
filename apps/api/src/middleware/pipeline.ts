@@ -13,7 +13,7 @@ import {
   toProblemDetails,
   type ProblemDetails,
 } from './errors';
-import type { RateLimiter } from './rate-limit';
+import type { AnyRateLimiter } from './shared-rate-limit';
 
 export interface PipelineRequest {
   readonly headers: Record<string, HeaderValue>;
@@ -51,7 +51,8 @@ export interface RequestPipeline {
 }
 
 export interface RequestPipelineDeps {
-  readonly rateLimiter: RateLimiter;
+  /** In-memory or shared (#729) — async verdicts are awaited. */
+  readonly rateLimiter: AnyRateLimiter;
   /**
    * Derives the limiter key from the request. Defaults to the client IP.
    * Override for composite keys — e.g. `ip::tenantKey` for embed traffic —
@@ -67,7 +68,7 @@ export interface RequestPipelineDeps {
    * no tenant key). The first denial wins and produces the 429.
    */
   readonly extraLimiters?: ReadonlyArray<{
-    readonly limiter: RateLimiter;
+    readonly limiter: AnyRateLimiter;
     readonly keyFor: (request: PipelineRequest) => string | undefined;
     /** Log label for the denied dimension (e.g. 'tenant'). */
     readonly label: string;
@@ -106,7 +107,7 @@ export function createRequestPipeline(deps: RequestPipelineDeps): RequestPipelin
       const correlationId = ensureCorrelationId(request.headers);
       const ctx: PipelineContext = { correlationId, clientIp: request.clientIp };
 
-      const verdict = rateLimiter.check(keyFor(request));
+      const verdict = await rateLimiter.check(keyFor(request));
       if (!verdict.allowed) {
         logger({
           level: 'warn',
@@ -122,7 +123,7 @@ export function createRequestPipeline(deps: RequestPipelineDeps): RequestPipelin
       for (const extra of extraLimiters) {
         const key = extra.keyFor(request);
         if (key === undefined) continue;
-        const extraVerdict = extra.limiter.check(key);
+        const extraVerdict = await extra.limiter.check(key);
         if (!extraVerdict.allowed) {
           logger({
             level: 'warn',

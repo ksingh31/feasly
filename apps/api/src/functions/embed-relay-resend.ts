@@ -29,6 +29,7 @@ import type {
   FunctionContext,
   FunctionRequest,
 } from './communities-stats';
+import { clientIpFromHeaders } from '../middleware/client-ip';
 
 const CORRELATION_RESPONSE_HEADER = 'x-correlation-id';
 
@@ -39,11 +40,9 @@ function getApp(): AppComposition {
   return cached;
 }
 
+/** #729: right-most (platform-appended) X-Forwarded-For hop — see middleware/client-ip.ts. */
 function clientIpFrom(req: FunctionRequest): string | undefined {
-  const forwarded = req.headers?.['x-forwarded-for'];
-  const first = Array.isArray(forwarded) ? forwarded[0] : forwarded;
-  const ip = first?.split(',')[0]?.trim();
-  return ip ? ip : undefined;
+  return clientIpFromHeaders(req.headers);
 }
 
 export async function embedRelayResendHandler(

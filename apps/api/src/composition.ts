@@ -552,6 +552,14 @@ import {
 } from './routes/mcp.route';
 import { createRateLimiter, type RateLimiter } from './middleware/rate-limit';
 import {
+  createSharedCooldown,
+  createSharedRateLimiter,
+  type AnyRateLimiter,
+  type SharedCounterStore,
+} from './middleware/shared-rate-limit';
+import { createDrizzleRateLimitStore } from './services/rate-limit.store';
+import { MAGIC_LINK_SEND_BUDGET_WINDOW_MS } from './services/magic-link.service';
+import {
   createRequestPipeline,
   type LogEntry,
   type RequestPipeline,
@@ -563,14 +571,14 @@ export interface AppComposition {
   readonly rateLimiter: RateLimiter;
   readonly requestPipeline: RequestPipeline;
   /** Tight limiter + pipeline for the public lead-gate endpoint. */
-  readonly leadRateLimiter: RateLimiter;
+  readonly leadRateLimiter: AnyRateLimiter;
   readonly leadPipeline: RequestPipeline;
   /**
    * consumer/03 — dedicated pipeline for the estimates endpoint: 20/hr/IP
    * plus per-tenant aggregation for embed traffic.
    */
-  readonly estimateRateLimiter: RateLimiter;
-  readonly estimateTenantRateLimiter: RateLimiter;
+  readonly estimateRateLimiter: AnyRateLimiter;
+  readonly estimateTenantRateLimiter: AnyRateLimiter;
   readonly estimatePipeline: RequestPipeline;
   /** Generous limiter + pipeline for public analytics ingest. */
   readonly analyticsRateLimiter: RateLimiter;
@@ -792,6 +800,8 @@ export interface CompositionOptions {
    * integration tests). Production wiring always uses the real stores.
    */
   readonly estimateStore?: EstimateStore;
+  /** #729: shared rate-limit counters (default: Postgres via Drizzle). */
+  readonly rateLimitStore?: SharedCounterStore;
   readonly leadStore?: LeadStore;
   readonly leadStatusChangeStore?: LeadStatusChangeStore;
   readonly magicLinkStore?: MagicLinkStore;
@@ -904,11 +914,29 @@ export function createComposition(
   });
   // The lead gate is public by design, so it gets its own deliberately
   // tight limiter on a separate pipeline — general API traffic is unaffected.
-  const leadRateLimiter: RateLimiter = createRateLimiter({
-    windowMs: config.lead.rateLimit.windowMs,
-    maxRequests: config.lead.rateLimit.maxRequests,
-    maxTrackedKeys: config.rateLimit.maxTrackedKeys,
-  });
+  // #729: the money/mail limiters (lead capture, estimates, magic-link
+  // resend) count in Postgres so their ceilings hold across scale-out. On a
+  // store error each falls back to its in-memory limiter (the pre-#729
+  // behavior), so a database blip never blocks or un-limits traffic.
+  const rateLimitStore: SharedCounterStore =
+    options.rateLimitStore ?? createDrizzleRateLimitStore({ db: db.db });
+  const sharedLimiter = (
+    scope: string,
+    limit: { readonly windowMs: number; readonly maxRequests: number },
+  ): AnyRateLimiter =>
+    createSharedRateLimiter({
+      store: rateLimitStore,
+      scope,
+      windowMs: limit.windowMs,
+      maxRequests: limit.maxRequests,
+      sweepIntervalMs: config.sharedRateLimit.sweepIntervalMs,
+      fallback: createRateLimiter({
+        windowMs: limit.windowMs,
+        maxRequests: limit.maxRequests,
+        maxTrackedKeys: config.rateLimit.maxTrackedKeys,
+      }),
+    });
+  const leadRateLimiter: AnyRateLimiter = sharedLimiter('lead:ip', config.lead.rateLimit);
   const leadPipeline: RequestPipeline = createRequestPipeline({
     rateLimiter: leadRateLimiter,
     logger: options.logger,
@@ -918,16 +946,14 @@ export function createComposition(
   // per-tenant bucket so one builder's embed traffic can't starve the
   // endpoint. Non-embed traffic has no tenantKey, so the tenant limiter
   // only engages for embeds.
-  const estimateRateLimiter: RateLimiter = createRateLimiter({
-    windowMs: config.estimate.rateLimit.windowMs,
-    maxRequests: config.estimate.rateLimit.maxRequests,
-    maxTrackedKeys: config.rateLimit.maxTrackedKeys,
-  });
-  const estimateTenantRateLimiter: RateLimiter = createRateLimiter({
-    windowMs: config.estimate.tenantRateLimit.windowMs,
-    maxRequests: config.estimate.tenantRateLimit.maxRequests,
-    maxTrackedKeys: config.rateLimit.maxTrackedKeys,
-  });
+  const estimateRateLimiter: AnyRateLimiter = sharedLimiter(
+    'estimate:ip',
+    config.estimate.rateLimit,
+  );
+  const estimateTenantRateLimiter: AnyRateLimiter = sharedLimiter(
+    'estimate:tenant',
+    config.estimate.tenantRateLimit,
+  );
   const estimatePipeline: RequestPipeline = createRequestPipeline({
     rateLimiter: estimateRateLimiter,
     extraLimiters: [
@@ -1078,6 +1104,15 @@ export function createComposition(
     magicLinkTtlSeconds: config.auth.magicLinkTtlSeconds,
     magicLinkReissueCooldownMs: config.auth.magicLinkReissueCooldownMs,
     magicLinkMaxSendsPerHour: config.auth.magicLinkMaxSendsPerHour,
+    reissueCooldown: createSharedCooldown({
+      store: rateLimitStore,
+      scope: 'magic-link:cooldown',
+      cooldownMs: config.auth.magicLinkReissueCooldownMs,
+    }),
+    sendBudget: sharedLimiter('magic-link:send', {
+      windowMs: MAGIC_LINK_SEND_BUDGET_WINDOW_MS,
+      maxRequests: config.auth.magicLinkMaxSendsPerHour,
+    }),
   });
   const magicLinkRoute: MagicLinkRoute = createMagicLinkRoute({
     magicLinks: magicLinkService,

@@ -757,6 +757,18 @@ ALTER TABLE "waitlist_signups" ADD COLUMN IF NOT EXISTS "created_at" timestamp w
 ALTER TABLE "waitlist_signups" ADD COLUMN IF NOT EXISTS "consent_ts" timestamp with time zone DEFAULT now() NOT NULL;
 ALTER TABLE "waitlist_signups" ADD COLUMN IF NOT EXISTS "consent_version" text;
 CREATE UNIQUE INDEX IF NOT EXISTS "waitlist_signups_email_topic_idx" ON "waitlist_signups" USING btree ("email","topic");
+CREATE TABLE IF NOT EXISTS "rate_limit_counters" (
+
+	"key" text PRIMARY KEY NOT NULL,
+	"window_start" timestamp with time zone NOT NULL,
+	"count" integer DEFAULT 0 NOT NULL,
+	"expires_at" timestamp with time zone NOT NULL
+);
+ALTER TABLE "rate_limit_counters" ADD COLUMN IF NOT EXISTS "key" text PRIMARY KEY NOT NULL;
+ALTER TABLE "rate_limit_counters" ADD COLUMN IF NOT EXISTS "window_start" timestamp with time zone NOT NULL;
+ALTER TABLE "rate_limit_counters" ADD COLUMN IF NOT EXISTS "count" integer DEFAULT 0 NOT NULL;
+ALTER TABLE "rate_limit_counters" ADD COLUMN IF NOT EXISTS "expires_at" timestamp with time zone NOT NULL;
+CREATE INDEX IF NOT EXISTS "rate_limit_counters_expires_at_idx" ON "rate_limit_counters" USING btree ("expires_at");
 CREATE TABLE IF NOT EXISTS "partner_shares" (
 
 	"id" uuid PRIMARY KEY NOT NULL,
