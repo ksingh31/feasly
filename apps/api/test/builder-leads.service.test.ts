@@ -827,6 +827,7 @@ describe('builder-leads "Needs you" feed (issue #526)', () => {
                 invoiceNumber: `INV-${i}`,
                 contractValueCents: 1,
                 commissionCents: 1,
+                currency: 'CAD',
                 status: 'in_review',
                 reviewDueAt: null,
                 paymentMethod: 'card',

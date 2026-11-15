@@ -3,7 +3,6 @@ import { lazyProvider } from '@ngxs/store';
 import { leadGateGuard } from './features/compare';
 import { ErrorPageComponent } from './features/error/error-page.component';
 import { AnalyzingPageComponent } from './features/wizard/analyzing-page.component';
-import { DetailsPageComponent } from './features/wizard/details-page.component';
 import { GatePageComponent } from './features/wizard/gate-page.component';
 import { LandingPageComponent } from './features/landing/landing-page.component';
 import { NotFoundPageComponent } from './features/not-found/not-found-page.component';
@@ -171,15 +170,11 @@ export const routes: Routes = [
     canActivate: [robotsGuard],
     data: { noindex: true },
   },
-  {
-    path: 'estimate/details',
-    component: DetailsPageComponent,
-    // Deep links without a selected property bounce to the address step —
-    // same as scope/preview (FE-2). The empty-state template stays as a
-    // belt-and-suspenders fallback.
-    canActivate: [robotsGuard, wizardPropertyGuard],
-    data: { noindex: true },
-  },
+  // #507: the Details step is gone — it only repeated the scope choices.
+  // Old links and bookmarks redirect to the preview; wizard state lives in
+  // NGXS (storage plugin), so nothing is lost, and the preview's own
+  // property guard still bounces empty sessions to the address step.
+  { path: 'estimate/details', redirectTo: 'estimate/preview', pathMatch: 'full' },
   // Report (M1): needs a completed estimate basis (property + sqft), else the address step.
   // Private estimate data: noindex like the other wizard routes.
   {

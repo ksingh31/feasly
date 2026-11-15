@@ -29,7 +29,6 @@ import { AnalyticsService } from './analytics.service';
 const ROUTE_ANALYTICS: Readonly<Record<string, AnalyticsEventName>> = {
   '/estimate/scope': 'step_view',
   '/estimate/reno-scope': 'step_view',
-  '/estimate/details': 'step_view',
   '/estimate/preview': 'step_view',
   '/estimate/gate': 'gate_view',
   '/estimate/report': 'report_open',
