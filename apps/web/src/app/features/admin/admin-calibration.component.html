@@ -98,10 +98,10 @@
           <tbody>
             @for (house of cal.report.houses; track trackByHouseId($index, house)) {
               <tr>
-                <th scope="row">{{ house.houseId }}</th>
-                <td>{{ formatCents(house.actualTotalCents) }}</td>
-                <td>{{ formatCents(house.engineTotalCents) }}</td>
-                <td>{{ formatError(house.errorFraction) }}</td>
+                <th scope="row" data-label="House">{{ house.houseId }}</th>
+                <td data-label="Actual">{{ formatCents(house.actualTotalCents) }}</td>
+                <td data-label="Engine">{{ formatCents(house.engineTotalCents) }}</td>
+                <td data-label="Error">{{ formatError(house.errorFraction) }}</td>
               </tr>
             }
           </tbody>
@@ -148,11 +148,11 @@
           <tbody>
             @for (item of cal.importHistory; track trackById($index, item)) {
               <tr>
-                <td><code>{{ item.version }}</code></td>
-                <td>{{ item.importedAt }}</td>
-                <td>{{ item.houseCount }}</td>
-                <td>{{ item.importedBy }}</td>
-                <td>{{ item.status }}</td>
+                <td data-label="Version"><code>{{ item.version }}</code></td>
+                <td data-label="Imported">{{ item.importedAt }}</td>
+                <td data-label="Houses">{{ item.houseCount }}</td>
+                <td data-label="By">{{ item.importedBy }}</td>
+                <td data-label="Status">{{ item.status }}</td>
               </tr>
             }
           </tbody>

@@ -77,9 +77,9 @@
         <tbody>
           @for (user of users(); track user.id) {
             <tr>
-              <td>{{ user.name }}</td>
-              <td>{{ user.email }}</td>
-              <td>
+              <td [attr.data-label]="copy.teamColName">{{ user.name }}</td>
+              <td [attr.data-label]="copy.teamColEmail">{{ user.email }}</td>
+              <td [attr.data-label]="copy.teamColRole">
                 @if (isBuilderAdmin()) {
                   <select
                     class="builder-team__role-select"
@@ -115,12 +115,12 @@
                   {{ roleLabel(user.role) }}
                 }
               </td>
-              <td>
+              <td [attr.data-label]="copy.teamColStatus">
                 <span class="builder-team__status builder-team__status--{{ user.status }}">
                   {{ statusLabel(user.status) }}
                 </span>
               </td>
-              <td>{{ addedDate(user) }}</td>
+              <td [attr.data-label]="copy.teamColAdded">{{ addedDate(user) }}</td>
               @if (isBuilderAdmin()) {
                 <td class="builder-team__actions">
                   @if (updatingUserId() === user.id) {
