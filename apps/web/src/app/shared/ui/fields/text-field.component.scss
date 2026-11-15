@@ -1,0 +1,9 @@
+@use './field-control' as *;
+
+:host {
+  display: block;
+}
+
+.ui-field__control {
+  @include ui-field-control;
+}

@@ -146,6 +146,27 @@ export function formatRatePercent(ratePercent: number): string {
 }
 
 /**
+ * Groups a string of whole-dollar digits with en-CA thousands separators.
+ * "1250000" -> "1,250,000"; leading zeros drop ("007" -> "7"); "" -> "".
+ * Non-digits are ignored. Used by the UI-kit MoneyField while typing.
+ */
+export function groupDollarDigits(digits: string): string {
+  const clean = digits.replace(/\D/g, '').replace(/^0+(?=\d)/, '');
+  return clean.replace(/\B(?=(\d{3})+(?!\d))/g, ',');
+}
+
+/**
+ * Integer cents -> grouped whole dollars without the "$" (cents truncated).
+ * 125000000 -> "1,250,000"; null / non-finite / negative -> "".
+ */
+export function centsToGroupedDollars(cents: number | null): string {
+  if (cents === null || !Number.isFinite(cents) || cents < 0) {
+    return '';
+  }
+  return groupDollarDigits(String(Math.floor(Math.trunc(cents) / 100)));
+}
+
+/**
  * Formats integer cents as whole CAD dollars, rounded to the nearest dollar
  * (portal UI kit `money` pipe — "money is whole dollars").
  * 1980049 -> "$19,800", 1980050 -> "$19,801". Display formatting only.
