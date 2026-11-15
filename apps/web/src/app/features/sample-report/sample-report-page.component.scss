@@ -54,7 +54,7 @@
   border-radius: 999px;
   /* --accent-deep: white on --accent is only 3.98:1. */
   background: var(--accent-deep);
-  color: #fff;
+  color: var(--cta-on-accent-fg);
   font-family: var(--font-ui);
   font-size: 12px;
   font-weight: 700;

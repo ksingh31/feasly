@@ -1071,7 +1071,6 @@ describe('builder-leads "Needs you" feed (issue #526)', () => {
                 status: 'in_review',
                 reviewDueAt: null,
                 paymentMethod: 'card',
-                currency: 'CAD',
               }))
             : [],
         hasInvoiceForLead: async () => false,
