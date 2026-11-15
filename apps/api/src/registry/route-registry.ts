@@ -653,6 +653,18 @@ export const ROUTE_REGISTRY: readonly ApiRouteEntry[] = [
       'Builder-admin only.',
   },
   {
+    method: 'POST',
+    path: '/api/v1/builder/users/{id}/resend-invite',
+    auth: 'builder-session',
+    permissions: ['builder:users:manage'] as const,
+    rateLimit: '20/min per session',
+    status: 'live',
+    summary:
+      'Re-issue a pending invitation for a member of the session\u2019s ' +
+      'active org who never accepted (retries the Graph account when the ' +
+      'first attempt failed). Builder-admin only.',
+  },
+  {
     method: 'DELETE',
     path: '/api/v1/builder/users/{id}',
     auth: 'builder-session',

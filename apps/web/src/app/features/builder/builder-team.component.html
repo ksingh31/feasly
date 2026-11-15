@@ -76,123 +76,144 @@
         </thead>
         <tbody>
           @for (user of users(); track user.id) {
-            <tr>
-              <td [attr.data-label]="copy.teamColName">{{ user.name }}</td>
+            <tr [class.builder-team__row--deactivated]="user.status === 'deactivated'">
+              <td [attr.data-label]="copy.teamColName">
+                <span class="builder-team__name">{{ user.name }}</span>
+                @if (isSelf(user)) {
+                  <span class="builder-team__you">{{ copy.teamYouTag }}</span>
+                }
+              </td>
               <td [attr.data-label]="copy.teamColEmail">{{ user.email }}</td>
               <td [attr.data-label]="copy.teamColRole">
-                @if (isBuilderAdmin()) {
-                  <select
-                    class="builder-team__role-select"
-                    [value]="isSoleAdmin(user) ? user.role : pendingRoleFor(user)"
-                    (change)="onRoleSelect(user.id, $any($event.target).value)"
-                    [disabled]="updatingUserId() === user.id || isSoleAdmin(user)"
-                    [attr.aria-label]="copy.teamColRole"
-                    [attr.aria-describedby]="isSoleAdmin(user) ? lastAdminTipId(user, 'role') : null"
-                  >
-                    <option value="builder_admin">{{ copy.orgRoleAdmin }}</option>
-                    <option value="builder_member">{{ copy.orgRoleMember }}</option>
-                  </select>
-                  <!-- auth/07: the sole remaining active admin's role is
-                       locked by the backend 409 — the ⓘ tooltip beside the
-                       disabled select explains why (replaces the inline
-                       note, which bloated the column on mobile). -->
-                  @if (isSoleAdmin(user)) {
-                    <app-info-tooltip
-                      [tooltipId]="lastAdminTipId(user, 'role')"
-                      [text]="copy.teamLastAdminRoleNote"
-                      label="Why can't this role be changed?"
-                    />
-                  }
-                  <button
-                    type="button"
-                    class="builder-team__apply"
-                    [disabled]="!canApplyRole(user)"
-                    (click)="applyRole(user)"
-                  >
-                    {{ copy.teamApplyRole }}
-                  </button>
+                @if (canEditRole(user)) {
+                  <span class="builder-team__role-edit">
+                    <select
+                      class="builder-team__role-select"
+                      [value]="isSoleAdmin(user) ? user.role : pendingRoleFor(user)"
+                      (change)="onRoleSelect(user.id, $any($event.target).value)"
+                      [disabled]="updatingUserId() === user.id || isSoleAdmin(user)"
+                      [attr.aria-label]="copy.teamColRole + ' — ' + user.name"
+                      [attr.aria-describedby]="isSoleAdmin(user) ? lastAdminTipId(user, 'role') : null"
+                    >
+                      <option value="builder_admin">{{ copy.orgRoleAdmin }}</option>
+                      <option value="builder_member">{{ copy.orgRoleMember }}</option>
+                    </select>
+                    <!-- auth/07: the sole remaining active admin's role is
+                         locked by the backend 409 — the ⓘ tooltip explains. -->
+                    @if (isSoleAdmin(user)) {
+                      <app-info-tooltip
+                        [tooltipId]="lastAdminTipId(user, 'role')"
+                        [text]="copy.teamLastAdminRoleNote"
+                        label="Why can't this role be changed?"
+                      />
+                    }
+                    <button
+                      type="button"
+                      class="builder-team__apply"
+                      [disabled]="!canApplyRole(user)"
+                      (click)="applyRole(user)"
+                    >
+                      {{ copy.teamApplyRole }}
+                    </button>
+                  </span>
                 } @else {
                   {{ roleLabel(user.role) }}
                 }
               </td>
               <td [attr.data-label]="copy.teamColStatus">
-                <span class="builder-team__status builder-team__status--{{ user.status }}">
-                  {{ statusLabel(user.status) }}
-                </span>
+                <ui-status-chip domain="member" [status]="user.status" />
               </td>
               <td [attr.data-label]="copy.teamColAdded">{{ addedDate(user) }}</td>
               @if (isBuilderAdmin()) {
                 <td class="builder-team__actions">
-                  @if (updatingUserId() === user.id) {
-                    <span>…</span>
-                  } @else if (user.status === 'deactivated') {
-                    <button
-                      type="button"
-                      [disabled]="rowActionsDisabled()"
-                      (click)="reactivate(user)"
-                    >
-                      {{ copy.teamReactivateLabel }}
-                    </button>
-                  } @else {
-                    <button
-                      type="button"
-                      class="builder-team__danger-link"
-                      [disabled]="rowActionsDisabled() || isSoleAdmin(user)"
-                      [attr.aria-describedby]="isSoleAdmin(user) ? lastAdminTipId(user, 'deactivate') : null"
-                      (click)="askDeactivate(user)"
-                    >
-                      {{ copy.teamDeactivateLabel }}
-                    </button>
-                    <!-- auth/07: deactivating the last admin is refused by
-                         the backend 409 — the ⓘ tooltip beside the disabled
-                         action explains why (replaces the inline note,
-                         which bloated the ACTIONS column on mobile). -->
-                    @if (isSoleAdmin(user)) {
-                      <app-info-tooltip
-                        [tooltipId]="lastAdminTipId(user, 'deactivate')"
-                        [text]="copy.teamLastAdminDeactivateNote"
-                        label="Why can't this member be deactivated?"
-                      />
-                    }
-                    @if (user.status === 'invited') {
+                  <div class="builder-team__action-row">
+                    @if (updatingUserId() === user.id) {
+                      <span class="builder-team__busy" aria-hidden="true">…</span>
+                    } @else if (isSelf(user)) {
+                      <!-- Your own row: no manage controls (the backend
+                           refuses self-changes). -->
+                    } @else if (user.status === 'deactivated') {
+                      <button
+                        type="button"
+                        [disabled]="rowActionsDisabled()"
+                        (click)="reactivate(user)"
+                      >
+                        {{ copy.teamReactivateLabel }}
+                      </button>
+                    } @else if (user.status === 'invited') {
+                      <!-- #535: pending invites — Resend + Revoke only. -->
+                      <button
+                        type="button"
+                        [disabled]="rowActionsDisabled()"
+                        [attr.aria-label]="copy.teamResendLabel + ' — ' + user.name"
+                        (click)="resend(user)"
+                      >
+                        {{ copy.teamResendLabel }}
+                      </button>
                       <button
                         type="button"
                         class="builder-team__danger-link"
                         [disabled]="rowActionsDisabled()"
-                        (click)="askRemove(user)"
+                        [attr.aria-label]="copy.teamRevokeLabel + ' — ' + user.name"
+                        (click)="askRevoke(user)"
                       >
-                        {{ copy.teamRemoveLabel }}
+                        {{ copy.teamRevokeLabel }}
                       </button>
-                    }
-                    <!-- Builder-side view-as (2026-09-30, Karan): see the
-                         portal exactly as this member sees it. Only for
-                         active members — never other admins, never
-                         yourself (canViewAs); the backend re-checks org
-                         scope + the admin-target lockdown regardless. -->
-                    @if (canInitiateViewAs() && canViewAs(user)) {
-                      <button
-                        type="button"
-                        [disabled]="rowActionsDisabled() || viewAsBusy()"
-                        (click)="viewAs(user)"
-                      >
-                        @if (viewAsStartingUserId() === user.id) {
-                          {{ copy.teamViewAsStarting }}
-                        } @else {
-                          {{ copy.teamViewAsLabel }}
+                    } @else {
+                      <!-- Builder-side view-as (2026-09-30, Karan): only
+                           active members, never other admins, never
+                           yourself; the backend re-checks regardless. -->
+                      @if (canInitiateViewAs() && canViewAs(user)) {
+                        <span class="builder-team__with-tip">
+                          <button
+                            type="button"
+                            [disabled]="rowActionsDisabled() || viewAsBusy()"
+                            [attr.aria-describedby]="'view-as-hint-' + user.id"
+                            (click)="viewAs(user)"
+                          >
+                            @if (viewAsStartingUserId() === user.id) {
+                              {{ copy.teamViewAsStarting }}
+                            } @else {
+                              {{ copy.teamViewAsLabel }}
+                            }
+                          </button>
+                          <app-info-tooltip
+                            [tooltipId]="'view-as-hint-' + user.id"
+                            [text]="fill(copy.teamViewAsHint, user)"
+                            [label]="copy.teamViewAsLabel"
+                          />
+                        </span>
+                      }
+                      <span class="builder-team__with-tip">
+                        <button
+                          type="button"
+                          class="builder-team__danger-link"
+                          [disabled]="rowActionsDisabled() || isSoleAdmin(user)"
+                          [attr.aria-label]="copy.teamDeactivateLabel + ' — ' + user.name"
+                          [attr.aria-describedby]="isSoleAdmin(user) ? lastAdminTipId(user, 'deactivate') : null"
+                          (click)="askDeactivate(user)"
+                        >
+                          {{ copy.teamDeactivateLabel }}
+                        </button>
+                        <!-- auth/07: deactivating the last admin is refused
+                             by the backend 409 — the ⓘ tooltip explains. -->
+                        @if (isSoleAdmin(user)) {
+                          <app-info-tooltip
+                            [tooltipId]="lastAdminTipId(user, 'deactivate')"
+                            [text]="copy.teamLastAdminDeactivateNote"
+                            label="Why can't this member be deactivated?"
+                          />
                         }
-                      </button>
+                      </span>
                     }
-                  }
-                  <!-- auth/07: a backend 409 (e.g. the last-admin race)
-                       surfaces inline on the row it targeted, never as a
-                       generic banner. -->
+                  </div>
+                  <!-- auth/07: a backend error surfaces inline on the row
+                       it targeted, never as a generic banner. -->
                   @if (actionError() && actionErrorUserId() === user.id) {
                     <p class="builder-team__note builder-team__note--error" role="alert">
                       {{ actionErrorMessage() ?? copy.teamActionError }}
                     </p>
                   }
-                  <!-- View-as failures surface inline on the row they
-                       targeted, never as a generic banner. -->
                   @if (showViewAsError(user)) {
                     <p class="builder-team__note builder-team__note--error" role="alert">
                       {{ viewAsErrorMessage() }}
@@ -285,37 +306,6 @@
           </button>
         </div>
       </form>
-    </div>
-  </div>
-}
-
-<!-- Confirm dialog -->
-@if (confirmAction) {
-  <div class="builder-team__overlay" (click)="cancelConfirm()">
-    <div
-      class="builder-team__modal"
-      role="alertdialog"
-      aria-modal="true"
-      (click)="$event.stopPropagation()"
-    >
-      <p class="builder-team__confirm-text">{{ confirmText() }}</p>
-      <div class="builder-team__confirm-actions">
-        <button
-          type="button"
-          (click)="cancelConfirm()"
-          [disabled]="updatingUserId() !== null"
-        >
-          {{ copy.teamConfirmNo }}
-        </button>
-        <button
-          type="button"
-          class="builder-team__primary"
-          (click)="confirmDialog()"
-          [disabled]="updatingUserId() !== null"
-        >
-          {{ confirmYesLabel() }}
-        </button>
-      </div>
     </div>
   </div>
 }

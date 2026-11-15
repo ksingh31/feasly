@@ -16,6 +16,7 @@ import {
   InviteBuilderTeamUser,
   LoadBuilderTeam,
   RemoveBuilderTeamUser,
+  ResendBuilderTeamInvite,
   SetBuilderTeamUserRole,
   SetBuilderTeamUserStatus,
 } from './builder-team.state';
@@ -39,6 +40,11 @@ const BOB: BuilderTeamUser = {
   createdAt: '2026-09-28T00:00:00.000Z',
 };
 
+function omitCreatedAt(user: BuilderTeamUser): Omit<BuilderTeamUser, 'createdAt'> {
+  const { createdAt: _omit, ...rest } = user;
+  return rest;
+}
+
 function setup(apiOverrides: Partial<Record<string, unknown>> = {}) {
   TestBed.resetTestingModule();
   const api = {
@@ -59,6 +65,10 @@ function setup(apiOverrides: Partial<Record<string, unknown>> = {}) {
       of({ ...BOB, ...body }),
     ),
     deleteUser: vi.fn().mockReturnValue(of({ deleted: true })),
+    resendInvite: vi.fn().mockReturnValue(
+      // JSON omits the field entirely (an older API without createdAt).
+      of({ user: omitCreatedAt(BOB), emailSent: true }),
+    ),
     ...apiOverrides,
   };
   TestBed.configureTestingModule({
@@ -213,5 +223,34 @@ describe('BuilderTeamState (auth/05)', () => {
     expect(store.selectSnapshot(BuilderTeamState.actionError)).toBe(true);
     expect(store.selectSnapshot(BuilderTeamState.users)).toHaveLength(2);
     expect(store.selectSnapshot(BuilderTeamState.updatingUserId)).toBeNull();
+  });
+
+  describe('ResendBuilderTeamInvite (#535)', () => {
+    it('resends for the row, keeps it in place, and clears the busy flag', async () => {
+      const { store, api } = setup();
+      await store.dispatch(new LoadBuilderTeam()).toPromise();
+      await store.dispatch(new ResendBuilderTeamInvite('u2')).toPromise();
+      expect(api.resendInvite).toHaveBeenCalledWith('u2');
+      // Merged, so a field the response omits never blanks the row.
+      expect(store.selectSnapshot(BuilderTeamState.users)).toEqual([ALICE, BOB]);
+      expect(store.selectSnapshot(BuilderTeamState.updatingUserId)).toBeNull();
+      expect(store.selectSnapshot(BuilderTeamState.actionError)).toBe(false);
+    });
+
+    it('tags a failure to the row with the API message', async () => {
+      const { store } = setup({
+        resendInvite: vi
+          .fn()
+          .mockReturnValue(throwError(() => ({ message: 'Only pending invites can be resent.' }))),
+      });
+      await store.dispatch(new LoadBuilderTeam()).toPromise();
+      await store.dispatch(new ResendBuilderTeamInvite('u2')).toPromise();
+      expect(store.selectSnapshot(BuilderTeamState.actionError)).toBe(true);
+      expect(store.selectSnapshot(BuilderTeamState.actionErrorUserId)).toBe('u2');
+      expect(store.selectSnapshot(BuilderTeamState.actionErrorMessage)).toBe(
+        'Only pending invites can be resent.',
+      );
+      expect(store.selectSnapshot(BuilderTeamState.updatingUserId)).toBeNull();
+    });
   });
 });

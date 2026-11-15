@@ -45,6 +45,12 @@ export class RemoveBuilderTeamUser {
   constructor(public readonly id: string) {}
 }
 
+/** Re-send a pending invitation (builder_admin only, #535). */
+export class ResendBuilderTeamInvite {
+  static readonly type = '[BuilderTeam] Resend invite';
+  constructor(public readonly id: string) {}
+}
+
 /** Clear the last invite/action feedback. */
 export class ClearBuilderTeamFeedback {
   static readonly type = '[BuilderTeam] Clear feedback';
@@ -274,6 +280,29 @@ export class BuilderTeamState {
     );
   }
 
+  @Action(ResendBuilderTeamInvite)
+  resendInvite(
+    ctx: StateContext<BuilderTeamStateModel>,
+    action: ResendBuilderTeamInvite,
+  ): Observable<unknown> {
+    ctx.patchState({ updatingUserId: action.id, actionError: false, actionErrorMessage: null, actionErrorUserId: null });
+    return this.api.resendInvite(action.id).pipe(
+      tap((response) => {
+        this.replaceUser(ctx, response.user);
+      }),
+      catchError((err: { message?: string }) => {
+        ctx.patchState({
+          updatingUserId: null,
+          actionError: true,
+          actionErrorUserId: action.id,
+          actionErrorMessage:
+            err?.message ?? 'Something went wrong. Please try again.',
+        });
+        return of(null);
+      }),
+    );
+  }
+
   @Action(ClearBuilderTeamFeedback)
   clearFeedback(ctx: StateContext<BuilderTeamStateModel>): void {
     ctx.patchState({
@@ -291,7 +320,8 @@ export class BuilderTeamState {
     const state = ctx.getState();
     ctx.patchState({
       users: state.users.map((user) =>
-        user.id === updated.id ? updated : user,
+        // Merge, so a field the response omits (e.g. createdAt) never blanks.
+        user.id === updated.id ? { ...user, ...updated } : user,
       ),
       updatingUserId: null,
     });

@@ -282,20 +282,28 @@ export const DEFAULT_BUILDER_COPY: BuilderCopy = {
     'An invite is already on its way to this email address.',
   teamDeactivateLabel: 'Deactivate',
   teamReactivateLabel: 'Reactivate',
-  teamRemoveLabel: 'Remove',
-  teamRemoving: 'Removing…',
-  teamDeactivating: 'Deactivating…',
+  // Team v2 (#535): pending invites get Resend + Revoke; danger actions
+  // confirm in the shared ConfirmDialog; outcomes report in a toast.
+  teamYouTag: 'You',
+  teamResendLabel: 'Resend',
+  teamResent: 'Invite resent to {email}.',
+  teamRevokeLabel: 'Revoke',
+  teamRevokeTitle: 'Revoke the invite for {name}?',
+  teamRevokeBody:
+    'Their invite link stops working right away. You can invite them again later.',
+  teamRevoked: 'Invite for {name} revoked.',
+  teamDeactivateTitle: 'Deactivate {name}?',
+  teamDeactivateBody:
+    'They lose access to the builder portal immediately and are signed out. You can reactivate them later.',
+  teamDeactivated: '{name} deactivated.',
+  teamReactivated: '{name} reactivated.',
+  teamViewAsHint: 'See the portal as {name} sees it.',
   // auth/07: exact story copy — shown under the disabled controls when
   // the row is the sole remaining active admin.
   teamLastAdminRoleNote:
     "You can't change the role of the last administrator. Add another administrator first.",
   teamLastAdminDeactivateNote:
     'Every organization needs at least one active administrator.',
-  teamDeactivateConfirm:
-    'Deactivate {name}? They will lose access to the builder portal immediately and be signed out.',
-  teamRemoveConfirm:
-    'Remove the invite for {name}? They have not signed in yet, so this just cancels the invitation.',
-  teamConfirmYes: 'Yes, continue',
   teamConfirmNo: 'Cancel',
   teamActionError: 'Something went wrong. Please try again.',
   // Builder-side view-as (2026-09-30, Karan): a builder_admin sees the

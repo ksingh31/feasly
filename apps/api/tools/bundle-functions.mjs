@@ -275,6 +275,10 @@ const targets = [
     out: 'builder-users-id/index.js',
   },
   {
+    entry: 'src/functions/builder-users-resend-invite.ts',
+    out: 'builder-users-resend-invite/index.js',
+  },
+  {
     entry: 'src/functions/builder-auth-verify.ts',
     out: 'builder-auth-verify/index.js',
   },

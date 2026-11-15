@@ -291,21 +291,28 @@ export interface BuilderCopy {
   teamInviteDuplicatePending: string;
   teamDeactivateLabel: string;
   teamReactivateLabel: string;
-  teamRemoveLabel: string;
-  teamRemoving: string;
-  teamDeactivating: string;
+  /** Team v2 (#535): "You" tag, invite Resend/Revoke, ConfirmDialog + toast copy. */
+  teamYouTag: string;
+  teamResendLabel: string;
+  teamResent: string;
+  teamRevokeLabel: string;
+  teamRevokeTitle: string;
+  teamRevokeBody: string;
+  teamRevoked: string;
+  teamDeactivateTitle: string;
+  teamDeactivateBody: string;
+  teamDeactivated: string;
+  teamReactivated: string;
+  teamViewAsHint: string;
   /** Builder-side view-as (2026-09-30, Karan): row action + error copy. */
   teamViewAsLabel: string;
   teamViewAsStarting: string;
   teamViewAsError: string;
   teamViewAsForbidden: string;
-  teamDeactivateConfirm: string;
-  teamRemoveConfirm: string;
   /** auth/07: explainer shown under the disabled role select / Deactivate
       for the sole remaining active admin (exact story copy). */
   teamLastAdminRoleNote: string;
   teamLastAdminDeactivateNote: string;
-  teamConfirmYes: string;
   teamConfirmNo: string;
   teamActionError: string;
   shellHomeLabel: string;

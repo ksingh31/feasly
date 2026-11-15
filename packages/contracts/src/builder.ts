@@ -452,6 +452,8 @@ export interface BuilderOrgUser {
   readonly status: string;
   /** `builder_admin` | `builder_member`. */
   readonly role: string;
+  /** ISO-8601 when the user row was created (invite sent). Additive (#535). */
+  readonly createdAt?: string;
 }
 
 /** `GET /api/v1/builder/users` response. */
