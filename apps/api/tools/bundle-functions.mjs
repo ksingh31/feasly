@@ -295,6 +295,11 @@ const targets = [
     entry: 'src/functions/builder-leads.ts',
     out: 'builder-leads/index.js',
   },
+  // issue #526 Leads home "Needs you" feed.
+  {
+    entry: 'src/functions/builder-leads-needs-you.ts',
+    out: 'builder-leads-needs-you/index.js',
+  },
   {
     entry: 'src/functions/builder-leads-status.ts',
     out: 'builder-leads-status/index.js',
