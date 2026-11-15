@@ -12,10 +12,10 @@
  *
  *   node tools/agents/merger.mjs [--dry-run]
  */
-import { decideMerge } from './lib.mjs';
+import { decideMerge, linkedIssues } from './lib.mjs';
 import { ghJson, ghWrite } from './gh.mjs';
 
-const prs = ghJson(['pr', 'list', '--state', 'open', '--limit', '50', '--json', 'number,author,isDraft,labels,mergeStateStatus,reviews,headRefOid,headRefName,comments']) ?? [];
+const prs = ghJson(['pr', 'list', '--state', 'open', '--limit', '50', '--json', 'number,author,isDraft,labels,mergeStateStatus,reviews,headRefOid,headRefName,comments,body']) ?? [];
 const once = (p, key) => !(p.comments ?? []).some((c) => (c.body ?? '').includes(`<!-- agent:${key}:${p.headRefOid} -->`));
 const mark = (p, key, text) => ghWrite(['pr', 'comment', String(p.number), '--body', `<!-- agent:${key}:${p.headRefOid} -->\n${text}`]);
 // I: CI runs on agent pushes that GitHub holds for human approval (oversight gate) — surface once.
@@ -70,6 +70,16 @@ for (const p of prs) {
     try {
       ghWrite(['pr', 'merge', String(p.number), '--squash', '--delete-branch']);
       merged += 1;
+      // A GITHUB_TOKEN merge does not fire the auto-close for "Fixes #n", so stale
+      // agent:claimed issues pile up and eat dispatcher WIP slots. Close them here.
+      for (const n of linkedIssues(p.body)) {
+        try {
+          ghWrite(['issue', 'close', String(n), '--comment', `Done in #${p.number} (merged).`]);
+          ghWrite(['issue', 'edit', String(n), '--remove-label', 'agent:claimed']);
+        } catch (err) {
+          console.log(`  could not close #${n}: ${String(err.message).split('\n')[0]}`);
+        }
+      }
     } catch (err) {
       console.log(`  #${p.number} merge failed: ${String(err.message).split('\n')[0]}`);
     }
