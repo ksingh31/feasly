@@ -76,3 +76,20 @@ jobs:
             --model claude-opus-5-5
             --max-turns 120
             --allowedTools "Bash,Read,Edit,Write,Glob,Grep,WebFetch"
+      - name: Requeue the issue if this run failed
+        if: failure()
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          ISSUE: ${{ inputs.issue }}
+        run: |
+          # A failed run (model API error, timeout) must not leave the issue
+          # claimed for hours. Two failures in a row park it for Karan.
+          n=$(gh issue view "$ISSUE" -R "$GITHUB_REPOSITORY" --json comments -q '[.comments[]|select(.body|contains("<!-- agent:requeue -->"))]|length')
+          if [ "$n" -ge 2 ]; then
+            gh issue edit "$ISSUE" -R "$GITHUB_REPOSITORY" --remove-label agent:claimed --add-label needs:karan
+            gh issue comment "$ISSUE" -R "$GITHUB_REPOSITORY" --body "Dev agent failed again ($GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID) after $n requeues — parked for Karan."
+          else
+            gh issue edit "$ISSUE" -R "$GITHUB_REPOSITORY" --remove-label agent:claimed --add-label agent:ready
+            gh issue comment "$ISSUE" -R "$GITHUB_REPOSITORY" --body "<!-- agent:requeue -->
+          Dev agent run failed ($GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID) — requeued."
+          fi
