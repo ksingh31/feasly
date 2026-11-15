@@ -14,6 +14,7 @@ import {
   WizardState,
 } from '../wizard';
 import { RenoScopePageComponent } from './reno-scope-page.component';
+import { provideDataFreshnessStub } from '../../shared/test-helpers/data-freshness.stub';
 
 /** Blank route target for navigation assertions. */
 @Component({ standalone: true, template: '' })
@@ -52,6 +53,7 @@ describe('RenoScopePageComponent', () => {
       providers: [
         provideHttpClient(),
         provideHttpClientTesting(),
+        provideDataFreshnessStub(),
         provideRouter([
           { path: '', component: BlankComponent },
           { path: 'estimate/scope', component: BlankComponent },

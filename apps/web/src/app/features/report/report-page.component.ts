@@ -22,7 +22,7 @@ import {
 import { narrativeDisplayParagraphs } from '../../shared/utils/narrative-display';
 import { UpdateInputs, WizardState, LeadState, ClearLead, ResetWizard } from '../wizard';
 import { AnalyticsService } from '../consent';
-import { ClearReport, LoadLeadEstimate, LoadPreview, ReviseReport, ToggleStep, UnlockReport } from './report.actions';
+import { ClearReport, LoadLeadEstimate, LoadPreview, ReviseReport, UnlockReport } from './report.actions';
 import { ReportState } from './report.state';
 // NOTE: ReportPdfService is intentionally NOT statically imported — it is
 // lazy-loaded inside downloadPdf() so its layout engine never lands in the
@@ -80,11 +80,12 @@ function userFacingApiErrorMessage(error: unknown): string | null {
  * endpoint (no new data exposure); the token-gated extras (AI narrative,
  * token revise, share, callback) still need the magic-link email, whose
  * role is now return-access on other devices. The page renders the full
- * unlocked report: ONE prominent total with its likely planning range, the
- * highlighted build cost, the fixed City-assessed land figure, the always-on
- * sqft stepper (debounced live revise), the 3-bucket breakdown, the AI
- * narrative (honest empty state until the magic link is clicked), next
- * steps, email share, callback, and the print/PDF button.
+ * unlocked report in the consumer-review S3 order (#508): a header with the
+ * range total, the Build | Land "what makes up the total" row, the 3-bucket
+ * breakdown, ONE Adjust panel (sqft stepper + tier what-if side by side,
+ * debounced live revise), ONE "Talk to a builder" block (callback + builder
+ * explainer), a Share / PDF / New estimate action row, then collapsed
+ * reference sections (how we calculate, coverage, planning, AI summary).
  *
  * Money rule: the component never computes dollar figures — it displays what
  * the API returned, including the deterministic base from each range. The one
@@ -158,6 +159,13 @@ export class ReportPageComponent implements OnInit {
 
   /** Post-gate once a verified snapshot exists. */
   protected readonly unlocked = computed(() => this.snapshot() !== null);
+  /**
+   * #508: the single Adjust panel shows on the owner's report (live) and on
+   * the pre-gate preview (locked); never in the read-only partner view.
+   */
+  protected readonly showAdjustPanel = computed(
+    () => !this.partnerView() && (this.unlocked() || this.preview() !== null),
+  );
   protected readonly loading = computed(() => this.status() === 'loading');
 
   /** Wizard project type (reactive): the pre-gate source of truth for reno. */
@@ -365,27 +373,6 @@ export class ReportPageComponent implements OnInit {
 
   protected readonly snapshotSqft = computed(() => this.snapshot()?.inputs.sqft ?? 0);
   protected readonly version = computed(() => this.snapshot()?.version ?? null);
-
-  /**
-   * Next-steps checklist state (NGXS, persisted per report by leadId).
-   * The steps themselves are config copy; only the checked ids live here.
-   */
-  protected readonly stepsChecked = this.store.selectSignal(ReportState.stepsChecked);
-  protected isStepChecked(stepId: string): boolean {
-    return this.stepsChecked()[stepId] === true;
-  }
-  protected toggleStep(stepId: string): void {
-    this.store.dispatch(new ToggleStep(stepId));
-  }
-  protected readonly stepsDoneCount = computed(
-    () => this.copy.steps.filter((s) => this.isStepChecked(s.id)).length,
-  );
-  protected readonly stepsProgressLabel = computed(() =>
-    fillTemplate(this.copy.stepsProgress, {
-      done: String(this.stepsDoneCount()),
-      total: String(this.copy.steps.length),
-    }),
-  );
 
   /**
    * Unit-address honesty: a condo/apartment unit's City record carries the

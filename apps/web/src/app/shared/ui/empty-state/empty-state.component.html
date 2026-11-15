@@ -1,0 +1,48 @@
+<span class="ui-empty-state__icon" aria-hidden="true">
+  <svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" focusable="false">
+    @switch (variant()) {
+      @case ('zero-data') {
+        <path d="M4 7h16v12H4z" />
+        <path d="M4 7l2-3h12l2 3" />
+        <path d="M9 12h6" />
+      }
+      @case ('no-results') {
+        <circle cx="11" cy="11" r="6" />
+        <path d="M20 20l-4.5-4.5" />
+        <path d="M8.5 11h5" />
+      }
+      @case ('all-clear') {
+        <circle cx="12" cy="12" r="9" />
+        <path d="M8 12.5l2.5 2.5L16 9.5" />
+      }
+      @case ('error') {
+        <circle cx="12" cy="12" r="9" />
+        <path d="M12 7.5v5.5" />
+        <path d="M12 16.5h.01" />
+      }
+      @case ('not-found') {
+        <path d="M6 3h8l4 4v14H6z" />
+        <path d="M10 12l4 4M14 12l-4 4" />
+      }
+    }
+  </svg>
+</span>
+<h2 class="ui-empty-state__title">{{ heading() }}</h2>
+@if (message()) {
+  <p class="ui-empty-state__message">{{ message() }}</p>
+}
+@switch (actionKind()) {
+  @case ('button') {
+    <button type="button" class="button ui-empty-state__action" (click)="onAction()">
+      {{ buttonLabel() }}
+    </button>
+  }
+  @case ('link') {
+    <a class="button ui-empty-state__action" [routerLink]="actionLink()">{{ actionLabel() }}</a>
+  }
+  @case ('back') {
+    <a class="button ui-empty-state__action ui-empty-state__back" [routerLink]="backLink()">
+      {{ backPrefix() }} {{ listLabel() }}
+    </a>
+  }
+}

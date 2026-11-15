@@ -1,7 +1,10 @@
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { describe, expect, it, vi } from 'vitest';
 import type { PropertyRecord } from '@feasly/contracts';
+import { signal } from '@angular/core';
 import { ConfigService } from '../../../core/config';
+import { DataFreshnessService, type DataFreshness } from '../../../core/data-freshness';
+import { DEFAULT_APP_CONFIG } from '../../../core/config/app-config.defaults';
 import { PropertyCardComponent } from './property-card.component';
 
 /**
@@ -26,21 +29,33 @@ describe('PropertyCardComponent freshness line', () => {
   const landLabel = 'City-assessed property value (land + existing home)';
   const landHouseNote = 'Includes the current house; teardown value may differ.';
 
+  const dataFreshness = DEFAULT_APP_CONFIG.copy.dataFreshness;
+
+  let load: ReturnType<typeof vi.fn>;
+
   async function setup(
     source: 'mock' | 'live',
     showLandNote?: boolean,
+    freshness: DataFreshness = { refreshedMonth: 'November 2026', rollYear: 2026 },
   ): Promise<ComponentFixture<PropertyCardComponent>> {
     TestBed.resetTestingModule();
     const configStub = {
       get: vi.fn((key: string) => {
         if (key === 'propertyData') return { source };
-        if (key === 'copy') return { propertyCard: { freshnessMock }, report: { landLabel, landHouseNote } };
+        if (key === 'copy') {
+          return { propertyCard: { freshnessMock }, report: { landLabel, landHouseNote }, dataFreshness };
+        }
         throw new Error(`unexpected config key ${key}`);
       }),
     };
+    load = vi.fn();
+    const freshnessStub = { freshness: signal(freshness).asReadonly(), load };
     TestBed.configureTestingModule({
       imports: [PropertyCardComponent],
-      providers: [{ provide: ConfigService, useValue: configStub }],
+      providers: [
+        { provide: ConfigService, useValue: configStub },
+        { provide: DataFreshnessService, useValue: freshnessStub },
+      ],
     });
     const fixture = TestBed.createComponent(PropertyCardComponent);
     fixture.componentRef.setInput('property', fakeProperty);
@@ -55,10 +70,21 @@ describe('PropertyCardComponent freshness line', () => {
     expect(text).toBe(freshnessMock);
   });
 
-  it('shows the City-assessed freshness line when live City data serves the card', async () => {
+  // #513 (consumer review S9): one freshness story — the same line as the
+  // landing trust strip, built from the property's roll year + the shared
+  // dataset check month.
+  it('shows the shared "<year> assessment roll (City of Calgary) · checked <Mon Year>" line', async () => {
     const fixture = await setup('live');
     const text = fixture.nativeElement.querySelector('.pcard-freshness')?.textContent?.trim();
-    expect(text).toContain('City-assessed value, 2025');
+    expect(text).toBe('2025 assessment roll (City of Calgary) · checked Nov 2026');
+    expect(text).not.toContain('data as of');
+    expect(load).toHaveBeenCalledTimes(1);
+  });
+
+  it('drops the checked claim while the dataset check month is unknown', async () => {
+    const fixture = await setup('live', undefined, { refreshedMonth: null, rollYear: null });
+    const text = fixture.nativeElement.querySelector('.pcard-freshness')?.textContent?.trim();
+    expect(text).toBe('2025 assessment roll (City of Calgary)');
   });
 
   // #505 (consumer review M2): the assessed figure covers land + the house.

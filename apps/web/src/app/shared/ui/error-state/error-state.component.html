@@ -1,0 +1,9 @@
+<ui-empty-state
+  [variant]="kind()"
+  [heading]="heading()"
+  [message]="message()"
+  [actionLabel]="kind() === 'error' ? retryLabel() : null"
+  [listLabel]="listLabel()"
+  [backLink]="backLink()"
+  (action)="retry.emit()"
+/>

@@ -1,5 +1,9 @@
-<section class="option-section" [attr.aria-labelledby]="controlId + '-label'">
-  <h2 [id]="controlId + '-label'">{{ label() }}</h2>
+<section class="option-section" [class.flat]="flat()" [attr.aria-labelledby]="controlId + '-label'">
+  @if (flat()) {
+    <h3 [id]="controlId + '-label'">{{ label() }}</h3>
+  } @else {
+    <h2 [id]="controlId + '-label'">{{ label() }}</h2>
+  }
   @if (hint()) {
     <p class="hint">{{ hint() }}</p>
   }
