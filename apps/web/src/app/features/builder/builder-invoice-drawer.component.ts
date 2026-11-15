@@ -1,7 +1,6 @@
 import { DIALOG_DATA } from '@angular/cdk/dialog';
 import { ChangeDetectionStrategy, Component, DestroyRef, Injector, computed, inject } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
-import { RouterLink } from '@angular/router';
 import { Store } from '@ngxs/store';
 import {
   StatusChipComponent,
@@ -17,6 +16,7 @@ import { ConfigService } from '../../core/config/config.service';
 import { formatCentsToCad, formatRatePercent } from '../../shared/utils/money';
 import { formatEdmontonMediumDate } from '../../shared/utils/edmonton';
 import { BuilderBillingState } from './builder-billing.state';
+import { injectCardModal } from './builder-card-modal.component';
 import { BUILDER_COPY } from './builder-copy';
 import {
   BuilderInvoiceMethodModalComponent,
@@ -62,7 +62,7 @@ export interface BuilderInvoiceDrawerData {
   selector: 'app-builder-invoice-drawer',
   standalone: true,
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [RouterLink, UiDrawerComponent, UiButtonComponent, StatusChipComponent, StepperComponent, TimelineComponent],
+  imports: [UiDrawerComponent, UiButtonComponent, StatusChipComponent, StepperComponent, TimelineComponent],
   templateUrl: './builder-invoice-drawer.component.html',
   styleUrl: './builder-invoice-drawer.component.scss',
 })
@@ -82,6 +82,7 @@ export class BuilderInvoiceDrawerComponent {
   private readonly selected = this.store.selectSignal(BuilderInvoicesState.selected);
   private readonly detailStatus = this.store.selectSignal(BuilderInvoicesState.detailStatus);
   private readonly card = this.store.selectSignal(BuilderBillingState.card);
+  private readonly openCardModal = injectCardModal();
   private readonly pdfDownloadingId = this.store.selectSignal(BuilderInvoicesState.pdfDownloadingId);
   private readonly pdfErrorId = this.store.selectSignal(BuilderInvoicesState.pdfErrorId);
 
@@ -172,6 +173,11 @@ export class BuilderInvoiceDrawerComponent {
 
   protected retry(): void {
     this.store.dispatch(new SelectInvoice(this.data.invoiceId));
+  }
+
+  /** Failed-charge action: update the card in the shared Stripe modal (#534). */
+  protected openCard(): void {
+    this.openCardModal(this.card() ?? undefined);
   }
 
   /** "Change" → the before/after modal; a saved change shows a toast. */

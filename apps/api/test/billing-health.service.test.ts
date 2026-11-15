@@ -67,6 +67,7 @@ const fakeStripe: StripeService = {
     id: 'pi_test_123',
     status: 'requires_capture',
   }),
+  retrievePaymentIntent: async (id: string) => ({ id, status: 'processing' }),
   refundPaymentIntent: async (paymentIntentId) => ({
     id: `re_test_${paymentIntentId}`,
     status: 'succeeded',
@@ -471,6 +472,101 @@ describe('billing-health service', () => {
     expect(health.webhooks.unhandled24h).toBe(1);
     expect(health.webhooks.modelMismatch24h).toBe(1);
   });
+
+  it('surfaces unprocessed events and invoices awaiting settlement (#711)', async () => {
+    await testDb.db.insert(stripeEvents).values([
+      // Handler threw 3h ago and no redelivery succeeded → flagged.
+      { eventId: 'evt_stuck_711', type: 'payment_intent.succeeded', receivedAt: hoursAgo(3) },
+      // Processed → never flagged.
+      {
+        eventId: 'evt_done_711',
+        type: 'payment_intent.succeeded',
+        receivedAt: hoursAgo(3),
+        processedAt: hoursAgo(3),
+      },
+      // Unprocessed but 1 minute old → still in flight, not flagged.
+      {
+        eventId: 'evt_inflight_711',
+        type: 'payment_intent.succeeded',
+        receivedAt: new Date(FIXED_NOW.getTime() - 60_000),
+      },
+    ]);
+    const parents = await seedParents();
+    const stuckId = await seedInvoice(parents, {
+      status: 'finalized',
+      commissionCents: 70_000,
+      createdAt: hoursAgo(300),
+      updatedAt: hoursAgo(30),
+    });
+    const freshId = await seedInvoice(parents, {
+      status: 'finalized',
+      commissionCents: 80_000,
+      createdAt: hoursAgo(300),
+      updatedAt: hoursAgo(2),
+    });
+
+    const health = await makeService('commission').getHealth();
+
+    const unprocessedIds = health.webhooks.unprocessed.map((e) => e.eventId);
+    expect(unprocessedIds).toContain('evt_stuck_711');
+    expect(unprocessedIds).not.toContain('evt_done_711');
+    expect(unprocessedIds).not.toContain('evt_inflight_711');
+    expect(
+      health.webhooks.unprocessed.find((e) => e.eventId === 'evt_stuck_711'),
+    ).toEqual({
+      eventId: 'evt_stuck_711',
+      type: 'payment_intent.succeeded',
+      receivedAt: hoursAgo(3).toISOString(),
+    });
+    expect(health.webhooks.settlementThresholdHours).toBe(24);
+    const awaitingIds = health.webhooks.awaitingSettlement.map((i) => i.id);
+    expect(awaitingIds).toContain(stuckId);
+    expect(awaitingIds).not.toContain(freshId);
+    expect(
+      health.webhooks.awaitingSettlement.find((i) => i.id === stuckId),
+    ).toEqual({
+      id: stuckId,
+      tenantKey: 'test-builder',
+      commissionCents: 70_000,
+      currency: 'CAD',
+      awaitingSince: hoursAgo(30).toISOString(),
+    });
+  });
+
+  it('honours BILLING_SETTLEMENT_THRESHOLD_HOURS for the stuck cut-off', async () => {
+    const parents = await seedParents();
+    const id = await seedInvoice(parents, {
+      status: 'finalized',
+      commissionCents: 90_000,
+      createdAt: hoursAgo(300),
+      updatedAt: hoursAgo(5),
+    });
+    const service = createBillingHealthService({
+      db: testDb.db,
+      billing: { ...makeBilling('commission'), settlementThresholdHours: 4 },
+      stripe: fakeStripe,
+      now: () => FIXED_NOW,
+    });
+    const health = await service.getHealth();
+    expect(health.webhooks.settlementThresholdHours).toBe(4);
+    expect(health.webhooks.awaitingSettlement.map((i) => i.id)).toContain(id);
+  });
+
+  it('returns empty #711 lists when nothing is stuck', async () => {
+    const empty = await createTestDb();
+    try {
+      const health = await createBillingHealthService({
+        db: empty.db,
+        billing: makeBilling('commission'),
+        stripe: fakeStripe,
+        now: () => FIXED_NOW,
+      }).getHealth();
+      expect(health.webhooks.unprocessed).toEqual([]);
+      expect(health.webhooks.awaitingSettlement).toEqual([]);
+    } finally {
+      await empty.close();
+    }
+  }, 60_000);
 
   it('passes through Stripe config flags and a generation timestamp', async () => {
     const health = await makeService('commission').getHealth();

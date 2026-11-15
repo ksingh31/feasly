@@ -44,6 +44,9 @@ const HEALTH_RESPONSE: BillingHealthResponse = {
     byType24h: [{ type: 'payment_intent.succeeded', count: 3 }],
     unhandled24h: 0,
     modelMismatch24h: 0,
+    unprocessed: [],
+    awaitingSettlement: [],
+    settlementThresholdHours: 24,
   },
 };
 

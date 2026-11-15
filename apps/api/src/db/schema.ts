@@ -902,11 +902,13 @@ export const commissionInvoices = pgTable(
 );
 
 /**
- * Stripe webhook idempotency (billing/02).
+ * Stripe webhook idempotency (billing/02, #711).
  *
- * Every received Stripe event id is inserted BEFORE dispatch. A unique
- * violation means the event was already handled → the route returns 200
- * without re-dispatching, so Stripe retries never double-apply.
+ * Every received Stripe event id is inserted BEFORE dispatch and
+ * `processed_at` is stamped only after the handler completes. A redelivery
+ * of an event with `processed_at` set is a duplicate (200, no re-dispatch);
+ * a redelivery of a claimed-but-unprocessed event (handler threw) re-runs
+ * the handler — handlers are idempotent on terminal status.
  */
 export const stripeEvents = pgTable('stripe_events', {
   /** Stripe event id (`evt_…`) — the idempotency key. */
@@ -916,6 +918,11 @@ export const stripeEvents = pgTable('stripe_events', {
   receivedAt: timestamp('received_at', { withTimezone: true })
     .notNull()
     .defaultNow(),
+  /**
+   * When the handler finished (#711). Null = claimed but not (yet)
+   * processed — Stripe's redelivery re-runs the handler.
+   */
+  processedAt: timestamp('processed_at', { withTimezone: true }),
 });
 
 /**

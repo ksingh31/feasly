@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from 'vitest';
 import { version as packageVersion } from '../package.json';
 import { loadConfig, parseNarrativeModels } from '../src/config';
+import { WAITLIST_CONSENT_VERSION } from '../src/lib/legal-copy';
 
 const VALID_ENV = {
   NODE_ENV: 'test',
@@ -152,6 +153,7 @@ describe('loadConfig', () => {
         stripeFlatPriceId: undefined,
         isProduction: false,
         maxChargeRetries: 3,
+        settlementThresholdHours: 24,
       },
       sandboxPurge: {
         retentionDays: 30,
@@ -202,7 +204,15 @@ describe('loadConfig', () => {
         relayResendCooldownSeconds: 60,
         sessionTtlSeconds: 43_200,
       },
+      waitlist: {
+        consentVersion: WAITLIST_CONSENT_VERSION,
+      },
     });
+  });
+
+  it('reads the waitlist consent version from WAITLIST_CONSENT_VERSION (#740)', () => {
+    const config = loadConfig({ ...VALID_ENV, WAITLIST_CONSENT_VERSION: ' waitlist-2027-01-01 ' });
+    expect(config.waitlist.consentVersion).toBe('waitlist-2027-01-01');
   });
 
   it('reads the reno draft-data flag from COST_ENGINE_ALLOW_DRAFT', () => {
@@ -276,7 +286,18 @@ describe('loadConfig', () => {
       stripeFlatPriceId: undefined,
       isProduction: false,
       maxChargeRetries: 3,
+      settlementThresholdHours: 24,
     });
+  });
+
+  it('reads BILLING_SETTLEMENT_THRESHOLD_HOURS (#711) and rejects non-positive values', () => {
+    expect(
+      loadConfig({ ...VALID_ENV, BILLING_SETTLEMENT_THRESHOLD_HOURS: '48' }).billing
+        .settlementThresholdHours,
+    ).toBe(48);
+    expect(() =>
+      loadConfig({ ...VALID_ENV, BILLING_SETTLEMENT_THRESHOLD_HOURS: '0' }),
+    ).toThrow(/BILLING_SETTLEMENT_THRESHOLD_HOURS/);
   });
 
   it('rejects an unknown billing model naming the variable', () => {

@@ -18,6 +18,7 @@ import { DEFAULT_APP_CONFIG } from '../../core/config/app-config.defaults';
 import { BuilderBillingState } from './builder-billing.state';
 import { BUILDER_COPY } from './builder-copy';
 import { DEFAULT_BUILDER_COPY } from './builder-copy.defaults';
+import { BuilderCardModalComponent } from './builder-card-modal.component';
 import { BuilderInvoiceDrawerComponent } from './builder-invoice-drawer.component';
 import { BuilderInvoiceMethodModalComponent } from './builder-invoice-method-modal.component';
 import { SelectInvoice } from './builder-invoices.actions';
@@ -187,8 +188,10 @@ describe('BuilderInvoiceDrawerComponent (#533)', () => {
   it('shows the declined banner and an update-card action for a failed charge', async () => {
     const { el } = await setup({ invoice: invoice({ status: 'failed', finalizedAt: iso(-1), updatedAt: iso(-1) }) });
     expect(el.textContent).toContain('Your card was declined');
-    const cta = q(el, 'invoice-update-card') as HTMLAnchorElement;
-    expect(cta.getAttribute('href')).toBe('/builder/billing');
+    // The action opens the shared Stripe card modal in place (#534), not a page link.
+    const open = vi.spyOn(TestBed.inject(UiModalService), 'open').mockReturnValue({} as never);
+    (q(el, 'invoice-update-card') as HTMLButtonElement).click();
+    expect(open).toHaveBeenCalledWith(BuilderCardModalComponent, expect.objectContaining({ size: 'sm' }));
     expect(el.textContent).not.toMatch(/dispute this/i);
   });
 
@@ -267,7 +270,10 @@ describe('BuilderInvoiceDrawerComponent (#533)', () => {
     function stubDownload() {
       const createObjectURL = vi.fn(() => 'blob:invoice');
       const revokeObjectURL = vi.fn();
-      Object.assign(URL, { createObjectURL, revokeObjectURL });
+      // defineProperty, not assign: another spec may have left these
+      // non-writable (still configurable) on the shared URL global.
+      Object.defineProperty(URL, 'createObjectURL', { value: createObjectURL, configurable: true, writable: true });
+      Object.defineProperty(URL, 'revokeObjectURL', { value: revokeObjectURL, configurable: true, writable: true });
       const click = vi.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation(function (this: HTMLAnchorElement) {
         clicked.push(this.download);
       });

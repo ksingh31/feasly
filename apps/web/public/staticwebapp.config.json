@@ -52,6 +52,51 @@
       "rewrite": "/index.html"
     },
     {
+      "route": "/privacy",
+      "redirect": "/privacy/",
+      "statusCode": 301
+    },
+    {
+      "route": "/terms",
+      "redirect": "/terms/",
+      "statusCode": 301
+    },
+    {
+      "route": "/how-it-works",
+      "redirect": "/how-it-works/",
+      "statusCode": 301
+    },
+    {
+      "route": "/faq",
+      "redirect": "/faq/",
+      "statusCode": 301
+    },
+    {
+      "route": "/developers",
+      "redirect": "/developers/",
+      "statusCode": 301
+    },
+    {
+      "route": "/sample-report",
+      "redirect": "/sample-report/",
+      "statusCode": 301
+    },
+    {
+      "route": "/guides/cost-to-build-a-house-calgary",
+      "redirect": "/guides/cost-to-build-a-house-calgary/",
+      "statusCode": 301
+    },
+    {
+      "route": "/guides/calgary-zoning-explained",
+      "redirect": "/guides/calgary-zoning-explained/",
+      "statusCode": 301
+    },
+    {
+      "route": "/communities",
+      "redirect": "/communities/",
+      "statusCode": 301
+    },
+    {
       "route": "/communities/arbour-lake",
       "redirect": "/communities/arbour-lake/",
       "statusCode": 301

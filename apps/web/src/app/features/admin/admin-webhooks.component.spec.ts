@@ -40,6 +40,9 @@ function makeHealth(webhooks: Partial<BillingHealthWebhooks> = {}): BillingHealt
       ],
       unhandled24h: 0,
       modelMismatch24h: 0,
+      unprocessed: [],
+      awaitingSettlement: [],
+      settlementThresholdHours: 24,
       ...webhooks,
     },
   } as BillingHealthResponse;
@@ -106,6 +109,57 @@ describe('AdminWebhooksComponent (#547)', () => {
     expect(el.querySelector('ui-page-header ui-status-chip')?.textContent?.trim()).toBe('Problem');
     expect(el.querySelector('.webhooks-page__alert--danger')?.textContent).toContain('1 model mismatch');
     expect(el.querySelector('.kpi--danger')).not.toBeNull();
+  });
+
+  it('shows empty states for unprocessed events and awaiting settlement (#711)', async () => {
+    const { el } = await setup();
+    expect(el.querySelector('[data-testid="unprocessed-section"]')?.textContent).toContain(
+      'Every received event was processed',
+    );
+    expect(el.querySelector('[data-testid="awaiting-section"]')?.textContent).toContain(
+      'No invoices waiting on a charge result',
+    );
+    expect(el.querySelector('[data-testid="unprocessed-alert"]')).toBeNull();
+    expect(el.querySelector('[data-testid="awaiting-alert"]')).toBeNull();
+  });
+
+  it('flags events received but not processed as a problem and lists them (#711)', async () => {
+    const { el } = await setup(
+      makeHealth({
+        unprocessed: [
+          { eventId: 'evt_stuck_1', type: 'payment_intent.succeeded', receivedAt: '2026-07-12T12:00:00.000Z' },
+        ],
+      }),
+    );
+    expect(el.querySelector('ui-page-header ui-status-chip')?.textContent?.trim()).toBe('Problem');
+    expect(el.querySelector('[data-testid="unprocessed-alert"]')?.textContent).toContain(
+      '1 event received but not processed',
+    );
+    expect(el.querySelector('[data-testid="unprocessed-section"]')?.textContent).toContain('evt_stuck_1');
+  });
+
+  it('flags invoices awaiting settlement past the threshold (#711)', async () => {
+    const { el } = await setup(
+      makeHealth({
+        settlementThresholdHours: 24,
+        awaitingSettlement: [
+          {
+            id: 'inv-1',
+            tenantKey: 'elite-craft-builders',
+            commissionCents: 500_000,
+            currency: 'CAD',
+            awaitingSince: '2026-07-10T12:00:00.000Z',
+          },
+        ],
+      }),
+    );
+    expect(el.querySelector('ui-page-header ui-status-chip')?.textContent?.trim()).toBe('Needs attention');
+    const alert = el.querySelector('[data-testid="awaiting-alert"]');
+    expect(alert?.textContent).toContain('1 invoice awaiting settlement');
+    expect(alert?.textContent).toContain('24 hours');
+    const section = el.querySelector('[data-testid="awaiting-section"]')?.textContent ?? '';
+    expect(section).toContain('elite-craft-builders');
+    expect(section).toContain('$5,000');
   });
 
   it('formats dates through the kit pipes (no raw ISO, no seconds)', async () => {

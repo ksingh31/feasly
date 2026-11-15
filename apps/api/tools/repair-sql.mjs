@@ -551,6 +551,20 @@ CREATE TABLE IF NOT EXISTS "stripe_events" (
 ALTER TABLE "stripe_events" ADD COLUMN IF NOT EXISTS "event_id" text PRIMARY KEY NOT NULL;
 ALTER TABLE "stripe_events" ADD COLUMN IF NOT EXISTS "type" text NOT NULL;
 ALTER TABLE "stripe_events" ADD COLUMN IF NOT EXISTS "received_at" timestamp with time zone DEFAULT now() NOT NULL;
+DO $$
+BEGIN
+	-- #711: processed_at. Backfill ONLY when the column is first added, so
+	-- pre-existing (already handled) events are not re-run on redelivery;
+	-- re-running the repair never marks a genuinely unprocessed event done.
+	IF NOT EXISTS (
+		SELECT 1 FROM "information_schema"."columns"
+		WHERE "table_name" = 'stripe_events' AND "column_name" = 'processed_at'
+	) THEN
+		ALTER TABLE "stripe_events" ADD COLUMN "processed_at" timestamp with time zone;
+		UPDATE "stripe_events" SET "processed_at" = "received_at";
+	END IF;
+END
+$$;
 CREATE TABLE IF NOT EXISTS "ops_alert_state" (
 
 	"type" text PRIMARY KEY NOT NULL,
@@ -951,6 +965,31 @@ VALUES
   ('6f2c90fd-2395-4f6c-8e71-3b699cf68857', 'demo',
    'Demo Builder', 'Demo Builder', 'demo@example.com', '(555) 010-2030',
    '', '#0F766E', '["https://demo.example.com"]'::jsonb, NULL, 'active')
+ON CONFLICT ("tenant_key") DO NOTHING;
+
+-- #710 (2026-11-15): tenants backfill for every builder. Admin "Create
+-- builder" wrote only the builders table, but builder_sessions,
+-- builder_allowlist, commission_invoices, billing_disputes and the Stripe
+-- customer id all FK/hang off tenants(tenant_key) — so any builder created
+-- in the admin console could not sign in, save a card or be invoiced (the
+-- same FK failure as the 2026-09-29 incident). BuilderService now upserts
+-- the tenants row on create/update; this backfills builders created before
+-- that fix. Runs after the builder-seed guard above. ON CONFLICT DO NOTHING:
+-- idempotent, and never touches an existing row (stripe_customer_id kept).
+-- tenants columns are NOT NULL where builders allows null; '' mirrors the
+-- embed config's null fallback.
+INSERT INTO "tenants"
+  ("tenant_key", "business_name", "display_name", "logo_url",
+   "accent_color", "allowed_origins", "fallback_phone", "fallback_email",
+   "plan")
+SELECT
+  b."tenant_key", b."business_name", b."display_name",
+  COALESCE(b."logo_url", ''), COALESCE(b."accent_color", ''),
+  CASE WHEN jsonb_typeof(b."allowed_origins") = 'array'
+    THEN ARRAY(SELECT jsonb_array_elements_text(b."allowed_origins"))
+    ELSE ARRAY[]::text[] END,
+  COALESCE(b."phone", ''), COALESCE(b."email", ''), b."plan"
+FROM "builders" b
 ON CONFLICT ("tenant_key") DO NOTHING;
 
 -- P0 2026-09-28: builder-QA membership guard. drizzle-kit silently skipped

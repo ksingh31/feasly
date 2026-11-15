@@ -18,6 +18,7 @@
 
 import { z } from 'zod';
 import { version as packageVersion } from '../package.json';
+import { WAITLIST_CONSENT_VERSION } from './lib/legal-copy';
 
 export type NodeEnv = 'development' | 'test' | 'staging' | 'production';
 
@@ -143,6 +144,10 @@ const EnvSchema = z.object({
   // EMB-06 AC3: per-code resend cooldown (60 seconds per story) so the
   // "session expired" re-issue button can't be hammered into a code fountain.
   EMBED_RELAY_RESEND_COOLDOWN_SECONDS: z.coerce.number().int().positive().default(60),
+  // #740 (owner consent decision 2026-11-15): version tag of the CASL waitlist
+  // consent wording stored in waitlist_signups.consent_version. Defaults to the
+  // tag in lib/legal-copy.ts; override per environment without a code change.
+  WAITLIST_CONSENT_VERSION: z.string().trim().min(1).default(WAITLIST_CONSENT_VERSION),
   // INTERIM (api-mcp/01): pre-shared key for admin endpoints until
   // admin/01's session auth lands. Unset = admin endpoints fail closed.
   ADMIN_API_KEY: z.string().trim().min(1).optional(),
@@ -312,6 +317,10 @@ const EnvSchema = z.object({
   BILLING_REPORTING_SLA_DAYS: z.coerce.number().int().positive().default(14),
   // Max off-session charge retries per failed commission invoice (BILL-03).
   BILLING_MAX_CHARGE_RETRIES: z.coerce.number().int().min(1).default(3),
+  // #711: an invoice 'finalized' (charge in progress) longer than this is
+  // reconciled against Stripe by the daily reviewer and flagged on
+  // /admin/webhooks. 24h default (open owner question on #711 — tunable).
+  BILLING_SETTLEMENT_THRESHOLD_HOURS: z.coerce.number().int().positive().default(24),
   // Flat-plan fields — dormant until BILLING_MODEL=flat.
   BILLING_FLAT_PLAN_NAME: z.string().min(1).default('Builder Standard'),
   BILLING_FLAT_MONTHLY_CENTS: z.coerce.number().int().positive().default(30_000),
@@ -691,6 +700,12 @@ export interface CityDataFreshnessConfig {
   readonly cacheTtlMs: number;
 }
 
+/** Waitlist signups (#520, #740). */
+export interface WaitlistConfig {
+  /** Consent-wording version stored with every signup (`consent_version`). */
+  readonly consentVersion: string;
+}
+
 /**
  * Embed platform config (embed/02, embed/06).
  */
@@ -730,6 +745,12 @@ export interface BillingConfig {
   readonly reportingSlaDays: number;
   /** Max off-session charge retries per failed commission invoice (3). */
   readonly maxChargeRetries?: number;
+  /**
+   * Hours an invoice may sit 'finalized' (charge in progress) before the
+   * daily reconciliation reads the PaymentIntent from Stripe and the admin
+   * webhooks page flags it (#711). Default 24.
+   */
+  readonly settlementThresholdHours?: number;
   /** Flat-plan fields — dormant until model='flat'. */
   readonly flatPlanName: string;
   /** Flat monthly price in integer minor units (cents). */
@@ -920,6 +941,7 @@ export interface ApiConfig {
   readonly communityStatsRefresh: CommunityStatsRefreshConfig;
   readonly backupCheck: BackupCheckConfig;
   readonly embed: EmbedConfig;
+  readonly waitlist: WaitlistConfig;
 }
 
 /** Turn a ZodError into a readable startup failure naming each variable. */
@@ -1279,6 +1301,7 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): ApiConfig {
       attributionWindowDays: e.BILLING_ATTRIBUTION_WINDOW_DAYS,
       reportingSlaDays: e.BILLING_REPORTING_SLA_DAYS,
       maxChargeRetries: e.BILLING_MAX_CHARGE_RETRIES,
+      settlementThresholdHours: e.BILLING_SETTLEMENT_THRESHOLD_HOURS,
       flatPlanName: e.BILLING_FLAT_PLAN_NAME,
       flatMonthlyCents: e.BILLING_FLAT_MONTHLY_CENTS,
       flatCurrency: e.BILLING_FLAT_CURRENCY,
@@ -1318,6 +1341,9 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): ApiConfig {
       relayCodeTtlSeconds: e.EMBED_RELAY_CODE_TTL_SECONDS,
       sessionTtlSeconds: e.EMBED_SESSION_TTL_SECONDS,
       relayResendCooldownSeconds: e.EMBED_RELAY_RESEND_COOLDOWN_SECONDS,
+    },
+    waitlist: {
+      consentVersion: e.WAITLIST_CONSENT_VERSION,
     },
   };
 }

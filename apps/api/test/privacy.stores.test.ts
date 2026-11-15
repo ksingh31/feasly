@@ -15,6 +15,7 @@ import {
 import { createDrizzlePrivacyStore } from '../src/services/privacy.store';
 import { createDrizzleLeadStore } from '../src/services/lead.store';
 import { createDrizzleEstimateStore } from '../src/services/estimate.store';
+import { createDrizzleCallbackRequestStore } from '../src/services/callback-request.store';
 import { hashEmail } from '../src/services/privacy.service';
 import { createTestDb, type TestDb } from './pglite-db';
 
@@ -232,5 +233,69 @@ describe('lead store privacy methods', () => {
     ).toEqual([LEAD_ID]);
     expect(await store.deleteByEmail('alice@example.com')).toBe(1);
     expect(await store.findById(LEAD_ID)).toBeNull();
+  });
+});
+
+describe('callback request store privacy methods (#639)', () => {
+  const OTHER_LEAD = 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb';
+  let testDb: TestDb;
+  beforeAll(async () => {
+    testDb = await createTestDb();
+    await seedLeadAndEstimate(testDb);
+    await createDrizzleLeadStore({ db: testDb.db }).insert({
+      id: OTHER_LEAD,
+      estimateId: ESTIMATE_ID,
+      addressKey: 'calgary-123-fake-st-nw',
+      email: 'bob@example.com',
+      name: 'Bob',
+      timeline: 'exploring',
+      marketingConsent: false,
+      consentTs: NOW,
+      source: 'api',
+    });
+    const callbacks = createDrizzleCallbackRequestStore({ db: testDb.db });
+    for (const [id, leadId] of [
+      ['c1aaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa', LEAD_ID],
+      ['c2aaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa', LEAD_ID],
+      ['c3bbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb', OTHER_LEAD],
+    ] as const) {
+      await callbacks.insert({
+        id,
+        leadId,
+        name: 'Caller',
+        phone: '403-555-0100',
+        window: 'evening',
+      });
+    }
+  }, 60_000);
+  afterAll(async () => {
+    await testDb.close();
+  });
+
+  it('listByLeadIds returns only the given leads\u2019 requests', async () => {
+    const store = createDrizzleCallbackRequestStore({ db: testDb.db });
+    const listed = await store.listByLeadIds([LEAD_ID]);
+    expect(listed.map((c) => c.id).sort()).toEqual([
+      'c1aaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
+      'c2aaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
+    ]);
+    expect(listed[0]!.createdAt).toBeInstanceOf(Date);
+    expect(await store.listByLeadIds([])).toEqual([]);
+  });
+
+  it('callback rows block the lead delete until deleteByLeadIds removes them', async () => {
+    const store = createDrizzleCallbackRequestStore({ db: testDb.db });
+    const leads = createDrizzleLeadStore({ db: testDb.db });
+    // FK is ON DELETE NO ACTION — this is why erasure deletes callbacks first.
+    await expect(leads.deleteByEmail('alice@example.com')).rejects.toThrow();
+
+    expect(await store.deleteByLeadIds([])).toBe(0);
+    expect(await store.deleteByLeadIds([LEAD_ID])).toBe(2);
+    expect(await store.listByLeadIds([LEAD_ID])).toEqual([]);
+    expect(await leads.deleteByEmail('alice@example.com')).toBe(1);
+    // The other lead's request is untouched.
+    expect(
+      (await store.listByLeadIds([OTHER_LEAD])).map((c) => c.id),
+    ).toEqual(['c3bbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb']);
   });
 });

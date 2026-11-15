@@ -42,6 +42,10 @@ import type {
   WaitlistSignupRecord,
   WaitlistStore,
 } from '../src/services/waitlist.store';
+import type {
+  CallbackRequestRecord,
+  CallbackRequestStore,
+} from '../src/services/callback-request.store';
 import { HttpError } from '../src/middleware/errors';
 
 const NOW = new Date('2026-09-24T12:00:00Z');
@@ -108,6 +112,19 @@ interface World {
   audits: { leadId: string | null; action: PrivacyAuditAction; detail?: string }[];
   blockers: { kind: string; reason: string }[];
   waitlist: WaitlistSignupRecord[];
+  callbacks: CallbackRequestRecord[];
+}
+
+function callback(id: string, leadId: string): CallbackRequestRecord {
+  return {
+    id,
+    leadId,
+    name: 'Caller',
+    phone: '403-555-0100',
+    window: 'morning',
+    status: 'pending',
+    createdAt: NOW,
+  };
 }
 
 function signup(id: string, email: string, topic: string): WaitlistSignupRecord {
@@ -149,6 +166,7 @@ function setup(blockers: { kind: string; reason: string }[] = []): {
       signup('w2', ALICE, 'toronto'),
       signup('w3', BOB, 'vancouver'),
     ],
+    callbacks: [callback('cb1', ALICE_LEAD), callback('cb2', BOB_LEAD)],
   };
   const tokenToLinkId = new Map([
     [ALICE_TOKEN, 'l1'],
@@ -281,6 +299,20 @@ function setup(blockers: { kind: string; reason: string }[] = []): {
     },
   };
 
+  const callbacks: CallbackRequestStore = {
+    insert: async () => {
+      throw new Error('not used in these tests');
+    },
+    listByLeadId: async (id: string) => world.callbacks.filter((c) => c.leadId === id),
+    listByLeadIds: async (ids: readonly string[]) =>
+      world.callbacks.filter((c) => ids.includes(c.leadId)),
+    deleteByLeadIds: async (ids: readonly string[]) => {
+      const before = world.callbacks.length;
+      world.callbacks = world.callbacks.filter((c) => !ids.includes(c.leadId));
+      return before - world.callbacks.length;
+    },
+  };
+
   const checker: ErasureBlockerChecker = {
     findBlockers: async () => [...world.blockers],
   };
@@ -291,6 +323,7 @@ function setup(blockers: { kind: string; reason: string }[] = []): {
     estimates,
     privacy,
     waitlist,
+    callbacks,
     blockers: checker,
     clock: () => NOW,
   });
@@ -316,6 +349,21 @@ describe('privacy export', () => {
     // No cross-contamination from Bob's rows.
     expect(JSON.stringify(out)).not.toContain(BOB);
     expect(JSON.stringify(out)).not.toContain(BOB_LEAD);
+  });
+
+  it('#639: includes the requester\u2019s callback requests, and nobody else\u2019s', async () => {
+    const out = await service.exportMyData(ALICE_TOKEN);
+    expect(out.callbackRequests).toEqual([
+      {
+        id: 'cb1',
+        leadId: ALICE_LEAD,
+        name: 'Caller',
+        phone: '403-555-0100',
+        window: 'morning',
+        status: 'pending',
+        createdAt: NOW.toISOString(),
+      },
+    ]);
   });
 
   it('#520: includes the requester\u2019s waitlist signups with consent, and nobody else\u2019s', async () => {
@@ -471,6 +519,8 @@ describe('erasure confirm (step 2)', () => {
     expect(world.leads.map((l) => l.id)).toEqual([BOB_LEAD]);
     // #520: Alice's waitlist signups are gone too; Bob's stays.
     expect(world.waitlist.map((w) => w.id)).toEqual(['w3']);
+    // #639: Alice's callback requests are gone; Bob's stays.
+    expect(world.callbacks.map((c) => c.id)).toEqual(['cb2']);
     // Alice's magic link is revoked — her token no longer authenticates.
     const after = await service
       .exportMyData(ALICE_TOKEN)
@@ -484,7 +534,7 @@ describe('erasure confirm (step 2)', () => {
     // Audit trail.
     const confirms = world.audits.filter((a) => a.action === 'erase.confirm');
     expect(confirms).toHaveLength(1);
-    expect(confirms[0]!.detail).toBe('revoked:1,deleted:1,waitlist:2');
+    expect(confirms[0]!.detail).toBe('revoked:1,deleted:1,waitlist:2,callbacks:1');
     expect(world.requests[0]!.status).toBe('completed');
   });
 

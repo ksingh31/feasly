@@ -38,7 +38,13 @@
         [attr.aria-describedby]="(showInvalid() && email.invalid ? errorId + ' ' : '') + noteId"
         (keydown.enter)="onEmailEnter($event)"
       />
-      <button class="wl-submit" type="button" [disabled]="status() === 'sending'" (click)="submit()">
+      <button
+        class="wl-submit"
+        type="button"
+        [disabled]="status() === 'sending' || !consentGiven()"
+        [attr.aria-describedby]="consentGiven() ? null : consentHintId"
+        (click)="submit()"
+      >
         {{ status() === 'sending' ? copy.sendingLabel : copy.submitLabel }}
       </button>
     </div>
@@ -47,14 +53,10 @@
     }
     <!-- CASL consent (owner decision 2026-11-15): REQUIRED, unticked by
          default. Wording is DRAFT pending legal review and byte-checked
-         against docs/legal/approved-copy.md. -->
-    <label class="wl-consent">
-      <input
-        type="checkbox"
-        [formControl]="consent"
-        [attr.aria-invalid]="showConsentError() && consent.invalid ? 'true' : null"
-        [attr.aria-describedby]="showConsentError() && consent.invalid ? consentErrorId : null"
-      />
+         against docs/legal/approved-copy.md. Submit stays disabled until
+         it is ticked (#740). -->
+    <label class="wl-consent" [for]="consentId">
+      <input [id]="consentId" type="checkbox" [formControl]="consent" />
       <span
         >{{ consentParts.before
         }}@if (consentParts.link) {<a routerLink="/privacy">{{ consentParts.link }}</a>}{{
@@ -62,8 +64,9 @@
         }}</span
       >
     </label>
-    @if (showConsentError() && consent.invalid) {
-      <p class="wl-error" role="alert" [id]="consentErrorId">{{ copy.consentRequired }}</p>
+    @if (!consentGiven()) {
+      <!-- Why submit is disabled, for screen readers (button aria-describedby). -->
+      <p class="sr-only" [id]="consentHintId">{{ copy.consentRequired }}</p>
     }
     @if (status() === 'error') {
       <p class="wl-error" role="alert">{{ copy.error }}</p>

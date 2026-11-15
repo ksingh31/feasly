@@ -146,12 +146,21 @@ export class BillingHealthState {
     return (state.health?.dunning.length ?? 0) > 0;
   }
 
-  /** True when the webhook receiver looks unhealthy in the last 24h. */
+  /**
+   * True when the webhook receiver looks unhealthy: unhandled / mismatched
+   * events in the last 24h, or (#711) unprocessed events / invoices
+   * awaiting settlement.
+   */
   @Selector()
   static hasWebhookIssues(state: BillingHealthStateModel): boolean {
     const webhooks = state.health?.webhooks;
     if (!webhooks) return false;
-    return webhooks.unhandled24h > 0 || webhooks.modelMismatch24h > 0;
+    return (
+      webhooks.unhandled24h > 0 ||
+      webhooks.modelMismatch24h > 0 ||
+      (webhooks.unprocessed?.length ?? 0) > 0 ||
+      (webhooks.awaitingSettlement?.length ?? 0) > 0
+    );
   }
 
   /** Invoice id currently retrying its charge, or null. BILL-03. */

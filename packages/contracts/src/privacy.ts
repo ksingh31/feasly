@@ -67,10 +67,22 @@ export interface PrivacyWaitlistSignupExport {
   readonly consentVersion: string | null;
 }
 
+/** One "call me back" request (#639) attached to one of the subject's leads. */
+export interface PrivacyCallbackRequestExport {
+  readonly id: string;
+  readonly leadId: string;
+  readonly name: string;
+  readonly phone: string;
+  /** 'morning' | 'afternoon' | 'evening'. */
+  readonly window: string;
+  readonly status: string;
+  readonly createdAt: string;
+}
+
 /**
  * GET /api/v1/privacy/export — everything Feasly holds about the bearer
- * identity. `reportShares` / `callbackRequests` are empty arrays until their
- * server-side stores land (documented in the story); they are part of the
+ * identity. `reportShares` is an empty array until its
+ * server-side store lands (documented in the story); they are part of the
  * shape now so clients don't need a breaking change later.
  */
 export interface PrivacyExportResponse {
@@ -80,7 +92,8 @@ export interface PrivacyExportResponse {
   readonly estimates: readonly PrivacyEstimateExport[];
   readonly magicLinks: readonly PrivacyMagicLinkExport[];
   readonly reportShares: readonly unknown[];
-  readonly callbackRequests: readonly unknown[];
+  /** #639: callback requests attached to the subject's leads. */
+  readonly callbackRequests: readonly PrivacyCallbackRequestExport[];
   readonly erasureRequests: readonly PrivacyErasureRequestExport[];
   /** #520: waitlist signups under the subject's email. */
   readonly waitlistSignups?: readonly PrivacyWaitlistSignupExport[];

@@ -321,7 +321,14 @@
 			"idx": 45,
 			"version": "7",
 			"when": 1795305600000,
-			"tag": "0048_rate_limit_counters",
+			"tag": "0048_stripe_events_processed_at",
+			"breakpoints": true
+		},
+		{
+			"idx": 46,
+			"version": "7",
+			"when": 1795392000000,
+			"tag": "0049_rate_limit_counters",
 			"breakpoints": true
 		}
 	]
