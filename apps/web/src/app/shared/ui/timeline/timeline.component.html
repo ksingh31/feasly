@@ -1,0 +1,42 @@
+@if (rows().length === 0) {
+  <p class="timeline__empty">{{ emptyLabel() }}</p>
+} @else {
+  <ol class="timeline" [attr.aria-label]="label()">
+    @for (row of rows(); track row.event.id; let i = $index) {
+      <li class="timeline__item">
+        <span
+          [class]="'timeline__marker timeline__marker--' + (row.event.tone ?? 'neutral')"
+          aria-hidden="true"
+        ></span>
+        <div class="timeline__body">
+          <p class="timeline__title">{{ row.title }}</p>
+          <p class="timeline__meta">
+            @if (row.event.actor) {
+              <span class="timeline__actor">{{ row.event.actor }}</span>
+              <span aria-hidden="true"> · </span>
+            }
+            <time [attr.datetime]="row.event.at" [attr.title]="row.event.at | kitDateTime">{{
+              row.event.at | kitRelative: now()
+            }}</time>
+          </p>
+          @if (row.payload) {
+            <button
+              type="button"
+              class="timeline__toggle"
+              [attr.aria-expanded]="isExpanded(row.event.id)"
+              [attr.aria-controls]="uid + '-payload-' + i"
+              (click)="toggle(row.event.id)"
+            >
+              {{ isExpanded(row.event.id) ? hideDetailsLabel() : showDetailsLabel() }}
+            </button>
+            @if (isExpanded(row.event.id)) {
+              <pre class="timeline__payload" [id]="uid + '-payload-' + i">{{
+                row.payload
+              }}</pre>
+            }
+          }
+        </div>
+      </li>
+    }
+  </ol>
+}

@@ -1,0 +1,62 @@
+:host {
+  display: inline-flex;
+  max-width: 100%;
+  vertical-align: middle;
+}
+.entity-link {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  max-width: 100%;
+  min-width: 0;
+}
+.entity-link__label {
+  min-width: 0;
+  padding: 0;
+  border: 0;
+  background: none;
+  font: inherit;
+  font-weight: 600;
+  color: var(--accent-text);
+  text-align: left;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  cursor: pointer;
+}
+.entity-link__copy {
+  display: inline-grid;
+  flex: none;
+  place-items: center;
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  border: 0;
+  border-radius: var(--radius-sm);
+  background: none;
+  color: var(--muted);
+  cursor: pointer;
+  opacity: 0;
+}
+.entity-link:hover .entity-link__copy,
+.entity-link:focus-within .entity-link__copy,
+.entity-link__copy--done {
+  opacity: 1;
+}
+.entity-link__copy:hover {
+  background: var(--accent-bg);
+  color: var(--text);
+}
+.entity-link__copy--done {
+  color: var(--status-success-fg);
+}
+/* Touch screens have no hover: keep the copy button visible and tappable. */
+@media (hover: none) {
+  .entity-link__copy {
+    width: 44px;
+    height: 44px;
+    opacity: 1;
+  }
+}

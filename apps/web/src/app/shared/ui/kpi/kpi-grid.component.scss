@@ -1,0 +1,7 @@
+/* repeat(auto-fit, minmax(200px, 1fr)); min() keeps one column at 390px from overflowing. */
+:host {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(200px, 100%), 1fr));
+  gap: var(--space-4);
+  min-width: 0;
+}

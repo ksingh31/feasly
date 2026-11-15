@@ -1,0 +1,51 @@
+:host {
+  display: block;
+  min-width: 0;
+}
+.kpi {
+  --kpi-tone: var(--border);
+  box-sizing: border-box;
+  display: grid;
+  gap: var(--space-1);
+  width: 100%;
+  height: 100%;
+  padding: var(--space-4);
+  border: 1px solid var(--border);
+  border-left: 4px solid var(--kpi-tone);
+  border-radius: var(--radius-md);
+  background: var(--card);
+  color: var(--text);
+  text-align: left;
+}
+.kpi--interactive {
+  cursor: pointer;
+}
+.kpi--interactive:hover {
+  background: var(--accent-bg);
+}
+.kpi--interactive:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 3px var(--focus-ring);
+}
+.kpi__label {
+  font: var(--type-label);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+.kpi__value {
+  font: var(--type-product-h1);
+  font-variant-numeric: tabular-nums;
+  overflow-wrap: anywhere;
+}
+.kpi__sub {
+  font: var(--type-meta);
+  color: var(--muted);
+}
+.kpi--neutral { --kpi-tone: var(--status-neutral-fg); }
+.kpi--info { --kpi-tone: var(--status-info-fg); }
+.kpi--progress { --kpi-tone: var(--status-progress-fg); }
+.kpi--success { --kpi-tone: var(--status-success-fg); }
+.kpi--warning { --kpi-tone: var(--status-warning-fg); }
+.kpi--danger { --kpi-tone: var(--status-danger-fg); }
+.kpi--paused { --kpi-tone: var(--status-paused-fg); }
