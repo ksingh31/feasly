@@ -37,6 +37,7 @@ describe('PropertyCardComponent freshness line', () => {
     source: 'mock' | 'live',
     showLandNote?: boolean,
     freshness: DataFreshness = { refreshedMonth: 'November 2026', rollYear: 2026 },
+    property: PropertyRecord = fakeProperty,
   ): Promise<ComponentFixture<PropertyCardComponent>> {
     TestBed.resetTestingModule();
     const configStub = {
@@ -58,7 +59,7 @@ describe('PropertyCardComponent freshness line', () => {
       ],
     });
     const fixture = TestBed.createComponent(PropertyCardComponent);
-    fixture.componentRef.setInput('property', fakeProperty);
+    fixture.componentRef.setInput('property', property);
     if (showLandNote !== undefined) fixture.componentRef.setInput('showLandNote', showLandNote);
     fixture.detectChanges();
     return fixture;
@@ -85,6 +86,18 @@ describe('PropertyCardComponent freshness line', () => {
     const fixture = await setup('live', undefined, { refreshedMonth: null, rollYear: null });
     const text = fixture.nativeElement.querySelector('.pcard-freshness')?.textContent?.trim();
     expect(text).toBe('2025 assessment roll (City of Calgary)');
+  });
+
+  // #622: a roll year the API had to infer is never shown as a fact.
+  it('falls back to the generic roll copy when the assessment year was inferred', async () => {
+    const fixture = await setup('live', undefined, undefined, {
+      ...fakeProperty,
+      assessmentYear: 2026,
+      assessmentYearInferred: true,
+    });
+    const text = fixture.nativeElement.querySelector('.pcard-freshness')?.textContent?.trim();
+    expect(text).toBe(`${dataFreshness.rollUnknownYear} (City of Calgary) · checked Nov 2026`);
+    expect(text).not.toContain('2026 assessment roll');
   });
 
   // #505 (consumer review M2): the assessed figure covers land + the house.
