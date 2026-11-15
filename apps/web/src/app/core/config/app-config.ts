@@ -379,6 +379,8 @@ export interface BuilderCopy {
   contractCommissionRate: string;
   /** Leads home (#527): "Needs you" cards + pipeline table. */
   leadsHome: BuilderLeadsHomeCopy;
+  /** Builder lead drawer (#528). */
+  leadDrawer: BuilderLeadDrawerCopy;
   contractRetry: string;
   /** Money sub-nav: the overview page (#532). */
   shellNavMoneyOverview: string;
@@ -514,11 +516,64 @@ export interface BuilderLeadsHomeCopy {
   };
   /** Wire project types → labels; unknown values are humanised. */
   projectTypes: Record<string, string>;
-  /** Lead quick view (opened from a row until the lead drawer ships). */
-  panelContactHeading: string;
-  panelDetailsHeading: string;
-  panelStatusHeading: string;
   closeLabel: string;
+}
+
+/** Builder lead drawer copy (#528, artboard "Builder · Lead drawer"). */
+export interface BuilderLeadDrawerCopy {
+  /** Header meta: `{date}` is when the lead arrived. */
+  arrivedMeta: string;
+  contactHeading: string;
+  statusHeading: string;
+  detailsHeading: string;
+  activityHeading: string;
+  notesHeading: string;
+  /** Accessible name of the status stepper. */
+  progressLabel: string;
+  stepCompleteLabel: string;
+  stepCurrentLabel: string;
+  stepUpcomingLabel: string;
+  /** Group label for the "move to" buttons; `{name}` is the lead's name. */
+  moveToLabel: string;
+  /** Visible lead-in before the "move to" buttons. */
+  moveToPrompt: string;
+  /** Toast after a status change; `{status}` is the new status label. */
+  statusChangedToast: string;
+  /** Toast after Undo; `{status}` is the restored status label. */
+  statusRevertedToast: string;
+  undoLabel: string;
+  /** Won → record contract panel. */
+  wonPanelHeading: string;
+  wonPanelBody: string;
+  /** Lost → reason panel. */
+  lostPanelHeading: string;
+  lostPanelBody: string;
+  lostReasonLabel: string;
+  lostReasonPlaceholder: string;
+  /** Reason options; the pick is saved to the notes thread. */
+  lostReasons: readonly string[];
+  lostReasonSave: string;
+  /** Note body; `{reason}` is the picked reason. */
+  lostReasonNote: string;
+  lostReasonSaved: string;
+  /** Activity timeline titles. */
+  activityArrived: string;
+  /** `{status}` is the current status label. */
+  activityStatus: string;
+  activityEmpty: string;
+  showDetailsLabel: string;
+  hideDetailsLabel: string;
+  closeLabel: string;
+  /** Pinned notes composer (drawer footer). */
+  composerLabel: string;
+  composerPlaceholder: string;
+  postLabel: string;
+  postingLabel: string;
+  /** Unsaved note / lost reason: the discard question. */
+  discardTitle: string;
+  discardBody: string;
+  discardVerb: string;
+  discardCancel: string;
 }
 
 export interface AppConfig {

@@ -1,5 +1,6 @@
 import { Component, computed, DestroyRef, inject, input, OnInit, output, signal } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
+import { type Observable, catchError, map, of } from 'rxjs';
 import { Store } from '@ngxs/store';
 import {
   BUILDER_COMMENT_THREAD_CONFIG,
@@ -51,13 +52,23 @@ export class BuilderLeadCommentsComponent implements OnInit {
   readonly leadId = input.required<string>();
 
   /**
+   * Hide the thread's inline composer (#528): the lead drawer pins its own
+   * composer in the drawer footer and posts through {@link addNote}.
+   */
+  readonly externalComposer = input(false);
+
+  /**
    * The thread's current comments, emitted after the initial load and
    * after every successful post/edit. The lead card listens to keep its
    * notes count badge + latest-note preview live without a reload.
    */
   readonly commentsChanged = output<readonly Comment[]>();
 
-  protected readonly threadConfig = BUILDER_COMMENT_THREAD_CONFIG;
+  protected readonly threadConfig = computed(() =>
+    this.externalComposer()
+      ? { ...BUILDER_COMMENT_THREAD_CONFIG, allowPost: false }
+      : BUILDER_COMMENT_THREAD_CONFIG,
+  );
 
   protected readonly comments = signal<readonly Comment[]>([]);
   protected readonly loading = signal(true);
@@ -114,6 +125,29 @@ export class BuilderLeadCommentsComponent implements OnInit {
         error: (err: unknown) =>
           this.error.set(this.threadErrorCopy(err, this.copy.commentsPostFailed)),
       });
+  }
+
+  /**
+   * Posts a note from outside the thread (the drawer's pinned composer, the
+   * lost-reason panel). Emits `true` once the note is in the thread, `false`
+   * when the post failed (the thread shows the error).
+   */
+  addNote(body: string): Observable<boolean> {
+    this.error.set(null);
+    return this.api.postComment(this.leadId(), body).pipe(
+      map((comment) => {
+        this.comments.update((all) => {
+          const next = sortCommentsByOldest([...all, comment]);
+          this.emitChanged(next);
+          return next;
+        });
+        return true;
+      }),
+      catchError((err: unknown) => {
+        this.error.set(this.threadErrorCopy(err, this.copy.commentsPostFailed));
+        return of(false);
+      }),
+    );
   }
 
   protected onEdit(event: CommentEdit): void {

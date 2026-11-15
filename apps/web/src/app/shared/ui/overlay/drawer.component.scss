@@ -190,6 +190,10 @@
 .ui-drawer__footer-end {
   margin-left: auto;
 }
+/* Only the start slot is filled (e.g. a pinned composer): let it span the footer. */
+.ui-drawer__footer:not(:has(.ui-drawer__footer-end > *)) .ui-drawer__footer-start {
+  flex: 1 1 auto;
+}
 
 /* Below 768px: a full-height sheet across the whole viewport. */
 @media (max-width: 767px) {
