@@ -14,7 +14,8 @@ import { Router, provideRouter } from '@angular/router';
 import { provideStore } from '@ngxs/store';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { BuilderBillingOverviewResponse } from '@feasly/contracts';
-import { STATUS_DICTIONARY } from '@app/shared/ui';
+import { STATUS_DICTIONARY, UiModalService } from '@app/shared/ui';
+import { BuilderCardModalComponent } from './builder-card-modal.component';
 import { BuilderMoneyComponent, buildKpis, cardExpiry } from './builder-money.component';
 import { BUILDER_COPY } from './builder-copy';
 import { CHARGE_TIMING_COPY, DEFAULT_BUILDER_COPY } from './builder-copy.defaults';
@@ -206,7 +207,20 @@ describe('BuilderMoneyComponent (#532)', () => {
     const text = el.textContent ?? '';
     expect(text).toContain('Visa •••• 4242');
     expect(text).toContain('Expires 08/28');
-    expect(el.querySelector('a[href="/builder/billing"]')?.textContent).toContain('Manage card');
+    expect(el.querySelector('a[href="/builder/billing"]')).toBeNull();
+    expect(el.querySelector('.money__card-action')?.textContent).toContain('Update card');
+  });
+
+  it('opens the card modal from the card panel with the saved card (#534)', async () => {
+    const { fixture, http, el } = await setup();
+    flushAll(http);
+    await render(fixture);
+    const open = vi.spyOn(TestBed.inject(UiModalService), 'open').mockReturnValue({} as never);
+    (el.querySelector('.money__card-action') as HTMLButtonElement).click();
+    expect(open).toHaveBeenCalledWith(
+      BuilderCardModalComponent,
+      expect.objectContaining({ data: { card: OVERVIEW.card }, size: 'sm', dismissOnScrim: false }),
+    );
   });
 
   it('offers "Add a card" when none is saved', async () => {

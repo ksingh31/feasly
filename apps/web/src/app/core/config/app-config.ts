@@ -153,7 +153,6 @@ export interface BuilderCopy {
   billingSavingCard: string;
   billingCardSaved: string;
   billingSaveFailed: string;
-  billingUnavailable: string;
   billingCancel: string;
   billingExplainer: string;
   billingDefaultMethodTitle: string;
@@ -467,6 +466,26 @@ export interface BuilderCopy {
   moneyHowHeading: string;
   /** Link to question an invoice (href: config billing.questionInvoiceHref). */
   moneyQuestionInvoice: string;
+  /** Card modal (#534) title when a card is (or may be) on file. */
+  cardModalTitleUpdate: string;
+  /** Card modal title when no card is on file. */
+  cardModalTitleAdd: string;
+  /** "Replacing {card}." — {card} is "Visa •••• 4242". */
+  cardModalCurrent: string;
+  /** Shown while Stripe.js and the setup request load. */
+  cardModalLoading: string;
+  /** Stripe.js or the setup request failed (retry offered). */
+  cardModalLoadError: string;
+  /** Who handles the card number (no security claims). */
+  cardModalReassurance: string;
+  /** No publishable key, card on file: contact us to change it (no claim the card works — it may have just failed). */
+  cardModalUnavailableWithCard: string;
+  /** No publishable key, no card: billing is arranged by contacting Feasly. */
+  cardModalUnavailableNoCard: string;
+  /** Contact link label (href: config billing.questionInvoiceHref). */
+  cardModalContact: string;
+  /** Close button label / × aria-label. */
+  cardModalClose: string;
 }
 
 /** Builder Leads home copy and display thresholds (#527, builder review §Leads home). */
