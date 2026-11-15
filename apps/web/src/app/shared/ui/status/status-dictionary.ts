@@ -48,6 +48,11 @@ export type SyncHealthKey = 'healthy' | 'lagging' | 'failing' | 'not_started';
 /** Ops attention flag: webhooks, calibration facts. Callers pass `label`. */
 export type OpsFlagKey = 'ok' | 'attention' | 'problem';
 
+/** Admin Billing header: the active billing model (#544). */
+export type BillingModelKey = 'commission' | 'flat';
+/** Admin Billing header: which Stripe key is configured (#544). */
+export type StripeModeKey = 'test' | 'live' | 'not_configured';
+
 type Dictionary<K extends string> = Readonly<Record<K, StatusPresentation>>;
 
 const LEAD: Dictionary<LeadStatusKey> = {
@@ -121,6 +126,17 @@ const OPS_FLAG: Dictionary<OpsFlagKey> = {
   problem: { label: 'Problem', tone: 'danger' },
 };
 
+const BILLING_MODEL: Dictionary<BillingModelKey> = {
+  commission: { label: 'Commission', tone: 'neutral' },
+  flat: { label: 'Flat plan', tone: 'neutral' },
+};
+
+const STRIPE_MODE: Dictionary<StripeModeKey> = {
+  test: { label: 'Stripe test mode', tone: 'info' },
+  live: { label: 'Stripe live', tone: 'warning' },
+  not_configured: { label: 'Stripe not configured', tone: 'danger' },
+};
+
 export const STATUS_DICTIONARY = {
   lead: LEAD,
   invoice: INVOICE,
@@ -132,6 +148,8 @@ export const STATUS_DICTIONARY = {
   calibrationImport: CALIBRATION_IMPORT,
   syncHealth: SYNC_HEALTH,
   opsFlag: OPS_FLAG,
+  billingModel: BILLING_MODEL,
+  stripeMode: STRIPE_MODE,
 } as const;
 
 export type StatusDomain = keyof typeof STATUS_DICTIONARY;

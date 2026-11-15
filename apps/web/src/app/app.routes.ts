@@ -365,11 +365,18 @@ export const routes: Routes = [
           import('./features/admin/admin-billing.component').then(
             (m) => m.AdminBillingComponent,
           ),
+        // #544: queue rows open the invoice drawer in place, which reads
+        // AdminInvoicesState — lazy-registered here as on billing/invoices.
         canActivate: [
           lazyProvider(
             async () =>
               (await import('./features/admin/billing-health.state'))
                 .billingHealthStateProvider,
+          ),
+          lazyProvider(
+            async () =>
+              (await import('./features/admin/admin-invoices.state'))
+                .adminInvoicesStateProvider,
           ),
         ],
       },
