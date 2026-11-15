@@ -93,6 +93,10 @@ export interface BuilderLeadsService {
    * (LEAD_STATUS_LOCKED) when the lead has a recorded signed contract
    * (a commission invoice exists) — recorded leads are status-locked.
    * Writes `lead_status_history` + audit row with the builder's email.
+   * The write is a compare-and-set on the status read (#620): a request
+   * that loses a race to an identical transition succeeds without a second
+   * history row; one that loses to a different transition gets 409
+   * (CONFLICT).
    *
    * When the transition is to 'won', the billing charge path runs first
    * (billing/01): with contract details it creates the draft commission
@@ -570,11 +574,38 @@ export function createBuilderLeadsService(
       if (oldStatus !== newStatus) {
         // auth/04: the write is tenant-scoped in SQL too — even if the
         // read above were bypassed, this updates zero rows cross-tenant.
-        await leadStore.updateStatusForBuilder({
+        // #620: it is also a compare-and-set on the status we read, so two
+        // concurrent requests from the same read can't both append history.
+        const updated = await leadStore.updateStatusForBuilder({
           id,
           builderId: builder.id,
+          expectedStatus: oldStatus,
           status: newStatus,
         });
+        if (updated === null) {
+          // Lost the race: another request changed the status between our
+          // read and write. If it landed on the status we wanted, this is a
+          // duplicate of that transition — succeed without a second history
+          // row. Otherwise the builder is acting on a stale view: 409.
+          const current = await leadStore.findByIdAndBuilderId({
+            id,
+            builderId: builder.id,
+          });
+          if (current === null) {
+            throw new HttpError(404, ErrorCodes.NOT_FOUND, 'Lead not found.', false);
+          }
+          if (current.status !== newStatus) {
+            throw new HttpError(
+              409,
+              ErrorCodes.CONFLICT,
+              'This lead was updated by someone else. Refresh and try again.',
+              false,
+            );
+          }
+          const duplicate: { readonly ok: true; readonly billing?: BillableEventResult } =
+            billing === undefined ? { ok: true } : { ok: true, billing };
+          return duplicate;
+        }
         await leadStore.appendStatusHistory({
           id: randomUUID(),
           leadId: id,

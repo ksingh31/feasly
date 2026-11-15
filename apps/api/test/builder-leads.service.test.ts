@@ -145,14 +145,17 @@ function makeDeps() {
     updateStatusForBuilder: async ({
       id,
       builderId,
+      expectedStatus,
       status,
     }: {
       id: string;
       builderId: string;
+      expectedStatus: string;
       status: string;
     }) => {
+      // Mirrors the SQL compare-and-set (#620): WHERE id AND builder_id AND status.
       const lead = leads.get(id);
-      if (!lead || lead.builderId !== builderId) return null;
+      if (!lead || lead.builderId !== builderId || lead.status !== expectedStatus) return null;
       const updated = { ...lead, status, updatedAt: new Date() };
       leads.set(id, updated);
       return updated;
@@ -337,6 +340,52 @@ describe('builder-leads service (embed/09)', () => {
       'elite-craft',
       'builder@example.com',
     );
+    expect(statusHistory).toHaveLength(0);
+  });
+
+  it('two concurrent identical transitions append ONE history row (#620)', async () => {
+    const { service, statusHistory, leads } = makeDeps();
+    const results = await Promise.all([
+      service.updateStatus('lead-1', { status: 'quoted' }, 'elite-craft', 'a@example.com'),
+      service.updateStatus('lead-1', { status: 'quoted' }, 'elite-craft', 'b@example.com'),
+    ]);
+    expect(results.every((r) => r.ok)).toBe(true);
+    expect(leads.get('lead-1')?.status).toBe('quoted');
+    expect(statusHistory).toHaveLength(1);
+    expect(statusHistory[0]).toMatchObject({ oldStatus: 'new', newStatus: 'quoted' });
+  });
+
+  it('losing the race to the same transition succeeds without a history row (#620)', async () => {
+    const { service, statusHistory, leads, leadStore } = makeDeps();
+    // The read sees 'new', but another request already wrote 'contacted'.
+    const stale = leads.get('lead-1')!;
+    leads.set('lead-1', { ...stale, status: 'contacted' });
+    const realFind = leadStore.findByIdAndBuilderId;
+    leadStore.findByIdAndBuilderId = vi
+      .fn(realFind)
+      .mockResolvedValueOnce(stale);
+    const result = await service.updateStatus(
+      'lead-1',
+      { status: 'contacted' },
+      'elite-craft',
+      'builder@example.com',
+    );
+    expect(result.ok).toBe(true);
+    expect(statusHistory).toHaveLength(0);
+  });
+
+  it('losing the race to a different transition throws 409 CONFLICT and writes nothing (#620)', async () => {
+    const { service, statusHistory, leads, leadStore } = makeDeps();
+    const stale = leads.get('lead-1')!;
+    leads.set('lead-1', { ...stale, status: 'lost' });
+    const realFind = leadStore.findByIdAndBuilderId;
+    leadStore.findByIdAndBuilderId = vi
+      .fn(realFind)
+      .mockResolvedValueOnce(stale);
+    await expect(
+      service.updateStatus('lead-1', { status: 'quoted' }, 'elite-craft', 'builder@example.com'),
+    ).rejects.toMatchObject({ status: 409, code: 'CONFLICT' });
+    expect(leads.get('lead-1')?.status).toBe('lost');
     expect(statusHistory).toHaveLength(0);
   });
 
