@@ -16,7 +16,7 @@ import { HttpError, ErrorCodes } from '../../middleware/errors';
 import type { BillingAuditService } from './billing-audit.service';
 import type { StripeService } from './stripe.service';
 import type { EmailService } from '../email/email.service';
-import { EmailProviderError } from '../email';
+import { ensureOpsAlertDelivered } from '../ops-alerts.service';
 
 export interface FlatPlanService {
   /**
@@ -63,6 +63,8 @@ export interface FlatPlanServiceDeps {
   readonly opsInbox: string;
   /** Defaults to () => new Date(); tests inject a fixed clock. */
   readonly now?: () => Date;
+  /** Warning sink for accepted-but-unconfirmed ops alerts. Defaults to console.warn. */
+  readonly logWarning?: (message: string) => void;
 }
 
 export function createFlatPlanService(
@@ -70,6 +72,8 @@ export function createFlatPlanService(
 ): FlatPlanService {
   const { billing, audit, stripe, email } = deps;
   const now = deps.now ?? (() => new Date());
+  const logWarning =
+    deps.logWarning ?? ((message: string) => console.warn(message));
 
   function requireFlatModel(): void {
     if (billing.model !== 'flat') {
@@ -207,21 +211,20 @@ export function createFlatPlanService(
           customerId: input.customerId ?? null,
         },
       });
+      const dunningTitle = 'Flat-plan payment failed — dunning';
       const dunningDelivery = await email.sendOpsAlert({
         to: deps.opsInbox,
-        title: 'Flat-plan payment failed — dunning',
+        title: dunningTitle,
         summary:
           `Stripe invoice ${input.invoiceId} failed` +
           (input.tenantKey ? ` for tenant ${input.tenantKey}` : '') +
           `. Update the card on file to keep the flat plan active.`,
         firedAt: now(),
       });
-      if (!dunningDelivery.sent) {
-        throw new EmailProviderError(
-          `Ops alert email failed: ${dunningDelivery.failureReason}`,
-          { retryable: false, failureCode: dunningDelivery.emailError },
-        );
-      }
+      // Accepted-but-unconfirmed counts as sent (issue #573): throwing
+      // would fail the webhook, Stripe would redeliver it, and the alert
+      // would go out again. Only never-accepted sends throw.
+      ensureOpsAlertDelivered(dunningDelivery, dunningTitle, logWarning);
     },
 
     async handleInvoicePaymentSucceeded(input: {

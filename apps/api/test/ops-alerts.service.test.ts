@@ -12,8 +12,11 @@
 import { describe, expect, it, vi, beforeAll, afterAll } from 'vitest';
 import {
   createOpsAlertsService,
+  ensureOpsAlertDelivered,
   type OpsAlertType,
 } from '../src/services/ops-alerts.service';
+import { EmailProviderError } from '../src/services/email';
+import type { EmailDelivery } from '../src/services/email/email.service';
 import type { OpsAlertStore } from '../src/services/ops-alerts.store';
 import { createDrizzleOpsAlertStore } from '../src/services/ops-alerts.store';
 import type { OpsAlertEmailInput } from '../src/services/email/email.service';
@@ -172,6 +175,142 @@ describe('ops alerts (admin/06)', () => {
     await service.notifyFailure('sheets_sync_failed', FAILURE_CTX);
     const persisted = await store.findByType('sheets_sync_failed');
     expect(persisted?.lastFiredAt).toBeInstanceOf(Date);
+  });
+});
+
+/** ACS accepted the message but delivery polling timed out. */
+const ACCEPTED_UNCONFIRMED: EmailDelivery = {
+  sent: false,
+  provider: 'acs',
+  failureReason:
+    'Azure Communication Services email failed (delivery polling timed out after 7000ms).',
+  emailError: 'delivery-failed',
+  acceptedByProvider: true,
+};
+
+/** Provider never accepted the message. */
+const NEVER_ACCEPTED: EmailDelivery = {
+  sent: false,
+  provider: 'acs',
+  failureReason: 'Azure Communication Services email failed (503).',
+  emailError: 'delivery-failed',
+};
+
+function makeFailingHarness(now: Date, delivery: EmailDelivery) {
+  const store = makeStore();
+  const warnings: string[] = [];
+  const email = {
+    sendOpsAlert: vi.fn(async (_input: OpsAlertEmailInput) => delivery),
+  };
+  const service = createOpsAlertsService({
+    email,
+    store,
+    opsAlertEmail: OPS_EMAIL,
+    appBaseUrl: APP_URL,
+    dedupeWindowMs: DAY_MS,
+    clock: () => now,
+    logWarning: (m) => warnings.push(m),
+  });
+  return { service, store, email, warnings };
+}
+
+describe('ops alerts: accepted-but-unconfirmed delivery (#573)', () => {
+  const NOW = new Date('2026-10-24T06:00:00Z');
+
+  it('does not throw, records lastFiredAt, and logs a warning', async () => {
+    const { service, store, warnings } = makeFailingHarness(
+      NOW,
+      ACCEPTED_UNCONFIRMED,
+    );
+    await expect(
+      service.notifyFailure('backup_missed', FAILURE_CTX),
+    ).resolves.toBeUndefined();
+    const state = await store.findByType('backup_missed');
+    expect(state?.lastFiredAt?.toISOString()).toBe(NOW.toISOString());
+    expect(warnings).toHaveLength(1);
+    expect(warnings[0]).toMatch(/accepted by provider/);
+    expect(warnings[0]).toContain('Postgres backup is failing');
+    // No recipient in the log line.
+    expect(warnings[0]).not.toContain(OPS_EMAIL);
+  });
+
+  it('dedupes a second notifyFailure inside the window: no second email', async () => {
+    const { service, email } = makeFailingHarness(NOW, ACCEPTED_UNCONFIRMED);
+    await service.notifyFailure('backup_missed', FAILURE_CTX);
+    await service.notifyFailure('backup_missed', FAILURE_CTX);
+    expect(email.sendOpsAlert).toHaveBeenCalledTimes(1);
+  });
+
+  it('still throws and records nothing when the provider never accepted', async () => {
+    const { service, store, email, warnings } = makeFailingHarness(
+      NOW,
+      NEVER_ACCEPTED,
+    );
+    await expect(
+      service.notifyFailure('backup_missed', FAILURE_CTX),
+    ).rejects.toBeInstanceOf(EmailProviderError);
+    expect(await store.findByType('backup_missed')).toBeNull();
+    expect(warnings).toHaveLength(0);
+    // Not deduped: the next check retries the send.
+    await expect(
+      service.notifyFailure('backup_missed', FAILURE_CTX),
+    ).rejects.toThrow(/Ops alert email failed/);
+    expect(email.sendOpsAlert).toHaveBeenCalledTimes(2);
+  });
+
+  it('notifyRecovered treats accepted-but-unconfirmed as sent and re-arms', async () => {
+    const { service, store, warnings } = makeFailingHarness(
+      NOW,
+      ACCEPTED_UNCONFIRMED,
+    );
+    await store.upsert({ type: 'backup_missed', lastFiredAt: NOW });
+    await expect(
+      service.notifyRecovered('backup_missed'),
+    ).resolves.toBeUndefined();
+    const state = await store.findByType('backup_missed');
+    expect(state?.lastFiredAt).toBeNull();
+    expect(state?.lastRecoveredAt?.toISOString()).toBe(NOW.toISOString());
+    expect(warnings).toHaveLength(1);
+  });
+
+  it('notifyRecovered still throws and keeps state when never accepted', async () => {
+    const { service, store } = makeFailingHarness(NOW, NEVER_ACCEPTED);
+    await store.upsert({ type: 'backup_missed', lastFiredAt: NOW });
+    await expect(service.notifyRecovered('backup_missed')).rejects.toBeInstanceOf(
+      EmailProviderError,
+    );
+    const state = await store.findByType('backup_missed');
+    expect(state?.lastFiredAt?.toISOString()).toBe(NOW.toISOString());
+  });
+});
+
+describe('ensureOpsAlertDelivered (#573)', () => {
+  it('returns silently for a confirmed send', () => {
+    const warn = vi.fn();
+    ensureOpsAlertDelivered({ sent: true, provider: 'log' }, 'T', warn);
+    expect(warn).not.toHaveBeenCalled();
+  });
+
+  it('warns and returns for accepted-but-unconfirmed', () => {
+    const warn = vi.fn();
+    expect(() =>
+      ensureOpsAlertDelivered(ACCEPTED_UNCONFIRMED, 'T', warn),
+    ).not.toThrow();
+    expect(warn).toHaveBeenCalledTimes(1);
+  });
+
+  it('throws a non-retryable EmailProviderError when never accepted', () => {
+    const warn = vi.fn();
+    let caught: unknown;
+    try {
+      ensureOpsAlertDelivered(NEVER_ACCEPTED, 'T', warn);
+    } catch (e) {
+      caught = e;
+    }
+    expect(caught).toBeInstanceOf(EmailProviderError);
+    expect((caught as EmailProviderError).retryable).toBe(false);
+    expect((caught as EmailProviderError).failureCode).toBe('delivery-failed');
+    expect(warn).not.toHaveBeenCalled();
   });
 });
 
