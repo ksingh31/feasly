@@ -19,12 +19,13 @@
  *   `invoice.charge_failed` audit row (falls back to `updatedAt`).
  * - Webhook health: trailing-24h `stripe_events` volume, last received,
  *   by-type breakdown, plus `webhook.unhandled` / `webhook.model_mismatch`
- *   audit counts.
+ *   audit counts, plus (#711) events received but never processed and
+ *   invoices 'finalized' past BILLING_SETTLEMENT_THRESHOLD_HOURS.
  *
  * Only services and composition.ts may import from src/db/ — enforced by
  * test/boundaries.test.ts.
  */
-import { and, desc, eq, gte, inArray } from 'drizzle-orm';
+import { and, asc, desc, eq, gte, inArray, isNull, lte } from 'drizzle-orm';
 import type { BillingConfig } from '../../config';
 import type { AppDb } from '../../db/client';
 import {
@@ -37,6 +38,7 @@ import { effectiveRatePercent } from '../../lib/commission-math';
 import { BUILDER_PAYMENT_METHODS } from '../../lib/payment-method';
 import type { StripeService } from './stripe.service';
 import type {
+  BillingHealthAwaitingSettlementInvoice,
   BillingHealthBucket,
   BillingHealthDunningInvoice,
   BillingHealthInReviewInvoice,
@@ -62,6 +64,16 @@ const FRESH_WINDOW_MS = 48 * 60 * 60 * 1000;
 const AGING_WINDOW_MS = 7 * 24 * 60 * 60 * 1000;
 const WEBHOOK_WINDOW_MS = 24 * 60 * 60 * 1000;
 const COLLECTED_WINDOW_MS = 30 * 24 * 60 * 60 * 1000;
+/**
+ * #711: an unprocessed event younger than this is most likely still being
+ * handled (or awaiting Stripe's first retry) — not yet worth flagging.
+ */
+const UNPROCESSED_GRACE_MS = 10 * 60 * 1000;
+const HOUR_MS = 60 * 60 * 1000;
+/** Default settlement threshold when config omits it (#711). */
+const DEFAULT_SETTLEMENT_THRESHOLD_HOURS = 24;
+/** Bounded #711 work lists so the dashboard payload stays small. */
+const WEBHOOK_WORK_LIST_LIMIT = 50;
 
 interface InvoiceRow {
   readonly id: string;
@@ -300,6 +312,12 @@ export function createBillingHealthService(
     let collectedTrailing30d = emptyBucket();
     const dunningRows: InvoiceRow[] = [];
     const inReviewRows: InvoiceRow[] = [];
+    const awaitingSettlementRows: InvoiceRow[] = [];
+    const settlementThresholdHours =
+      billing.settlementThresholdHours ?? DEFAULT_SETTLEMENT_THRESHOLD_HOURS;
+    const settlementCutoff = new Date(
+      generatedAt.getTime() - settlementThresholdHours * HOUR_MS,
+    );
     const collectedCutoff = new Date(
       generatedAt.getTime() - COLLECTED_WINDOW_MS,
     );
@@ -324,6 +342,9 @@ export function createBillingHealthService(
         disputed = addToBucket(disputed, row);
       } else if (row.status === 'failed') {
         dunningRows.push(row);
+      } else if (row.status === 'finalized') {
+        // updatedAt = when the invoice entered 'finalized' (transition()).
+        if (row.updatedAt <= settlementCutoff) awaitingSettlementRows.push(row);
       } else if (
         row.status === 'paid' &&
         row.paidAt !== null &&
@@ -424,6 +445,42 @@ export function createBillingHealthService(
       else modelMismatch24h += 1;
     }
 
+    // #711: recorded-but-unprocessed events (handler threw), any age.
+    const unprocessedRows = await db
+      .select({
+        eventId: stripeEvents.eventId,
+        type: stripeEvents.type,
+        receivedAt: stripeEvents.receivedAt,
+      })
+      .from(stripeEvents)
+      .where(
+        and(
+          isNull(stripeEvents.processedAt),
+          lte(
+            stripeEvents.receivedAt,
+            new Date(generatedAt.getTime() - UNPROCESSED_GRACE_MS),
+          ),
+        ),
+      )
+      .orderBy(asc(stripeEvents.receivedAt))
+      .limit(WEBHOOK_WORK_LIST_LIMIT);
+    const unprocessed = unprocessedRows.map((row) => ({
+      eventId: row.eventId,
+      type: row.type,
+      receivedAt: row.receivedAt.toISOString(),
+    }));
+    const awaitingSettlement: BillingHealthAwaitingSettlementInvoice[] =
+      awaitingSettlementRows
+        .sort((a, b) => a.updatedAt.getTime() - b.updatedAt.getTime())
+        .slice(0, WEBHOOK_WORK_LIST_LIMIT)
+        .map((row) => ({
+          id: row.id,
+          tenantKey: row.tenantKey,
+          commissionCents: row.commissionCents,
+          currency: row.currency,
+          awaitingSince: row.updatedAt.toISOString(),
+        }));
+
     return {
       model: billing.model,
       stripe: {
@@ -458,6 +515,9 @@ export function createBillingHealthService(
         byType24h,
         unhandled24h,
         modelMismatch24h,
+        unprocessed,
+        awaitingSettlement,
+        settlementThresholdHours,
       },
     };
   }

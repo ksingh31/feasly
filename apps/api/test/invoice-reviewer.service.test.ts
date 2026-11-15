@@ -5,6 +5,8 @@
  * passed. Covers: due invoices get finalized, not-yet-due are skipped,
  * one failure doesn't stop the batch, disputed invoices are never
  * auto-finalized, and the cycle is a no-op under BILLING_MODEL=flat.
+ * #711: stuck 'finalized' invoices are reconciled from the PaymentIntent's
+ * real Stripe status.
  */
 import { describe, expect, it, beforeEach, afterEach } from 'vitest';
 import { randomUUID } from 'node:crypto';
@@ -24,9 +26,18 @@ import {
   createAttributionService,
   type AttributionService,
 } from '../src/services/billing/attribution.service';
-import type { StripeService } from '../src/services/billing/stripe.service';
+import type {
+  PaymentIntentStatus,
+  StripeService,
+} from '../src/services/billing/stripe.service';
 import type { EmailService } from '../src/services/email/email.service';
-import { estimates, leads, tenants, builders } from '../src/db/schema';
+import {
+  billingEvents,
+  estimates,
+  leads,
+  tenants,
+  builders,
+} from '../src/db/schema';
 import { createTestDb, type TestDb } from './pglite-db';
 
 import type { BillingConfig } from '../src/config';
@@ -55,7 +66,13 @@ function nextPiId(): string {
   return `pi_reviewer_${++piCounter}`;
 }
 
-function fakeStripe(failOnAmount?: number): StripeService {
+function fakeStripe(
+  failOnAmount?: number,
+  retrieve: (id: string) => Promise<PaymentIntentStatus> = async (id) => ({
+    id,
+    status: 'processing',
+  }),
+): StripeService {
   return {
     isConfigured: true,
     testMode: true,
@@ -70,6 +87,7 @@ function fakeStripe(failOnAmount?: number): StripeService {
     },
     createSubscription: async () => ({ id: 'sub_test', status: 'active' }),
     cancelSubscription: async (id) => ({ id }),
+    retrievePaymentIntent: retrieve,
     refundPaymentIntent: async (paymentIntentId) => ({ id: 're_test', status: 'succeeded' }),
     verifyWebhook: () => {
       throw new Error('not used');
@@ -124,7 +142,12 @@ function newFixtures(
     now: () => new Date('2026-09-24T12:00:00.000Z'),
     newId: nextId,
   });
-  const reviewer = createInvoiceReviewerService({ billing, commission, audit });
+  const reviewer = createInvoiceReviewerService({
+    billing,
+    commission,
+    audit,
+    stripe,
+  });
   return { reviewer, commission, attribution };
 }
 
@@ -318,6 +341,154 @@ describe('invoice reviewer timer', () => {
       new Date('2026-10-02T00:00:00.000Z'),
     );
 
-    expect(result).toEqual({ finalized: 0, skipped: 0, failed: 0, errors: [] });
+    expect(result).toEqual({
+      finalized: 0,
+      skipped: 0,
+      failed: 0,
+      reconciledPaid: 0,
+      reconciledFailed: 0,
+      stillPending: 0,
+      errors: [],
+    });
+  });
+
+  describe('settlement reconciliation (#711)', () => {
+    // The commission clock is fixed at 2026-09-24T12:00Z, so an invoice
+    // finalized by the first cycle entered 'finalized' then. A second cycle
+    // a week later is far past the 24h threshold.
+    const FIRST_CYCLE = new Date('2026-10-02T00:00:00.000Z');
+    const SECOND_CYCLE = new Date('2026-10-03T00:00:00.000Z');
+
+    async function settlementRows(testDb: TestDb, invoiceId: string) {
+      const rows = await testDb.db.select().from(billingEvents);
+      return rows.filter(
+        (r) =>
+          r.entityId === invoiceId &&
+          (r.eventType === 'invoice.charge_succeeded' ||
+            r.eventType === 'invoice.charge_failed'),
+      );
+    }
+
+    it('settles a stuck finalized invoice paid from a succeeded PaymentIntent', async () => {
+      const statuses = new Map<string, string>();
+      const retrieved: string[] = [];
+      const stripe = fakeStripe(undefined, async (id) => {
+        retrieved.push(id);
+        return { id, status: statuses.get(id) ?? 'processing' };
+      });
+      const { reviewer, commission, attribution } = newFixtures(testDb, stripe);
+      const invoiceId = await seedInvoice(testDb, attribution, commission, 50_000_000);
+
+      const first = await reviewer.runReviewCycle(FIRST_CYCLE);
+      expect(first.finalized).toBe(1);
+      // Just finalized this cycle → never reconciled in the same cycle.
+      expect(retrieved).toEqual([]);
+
+      const piId = (await commission.getById(invoiceId)).stripePaymentIntentId!;
+      statuses.set(piId, 'succeeded');
+      const second = await reviewer.runReviewCycle(SECOND_CYCLE);
+
+      expect(second.reconciledPaid).toBe(1);
+      expect(second.reconciledFailed).toBe(0);
+      expect(second.stillPending).toBe(0);
+      expect(retrieved).toEqual([piId]);
+      expect((await commission.getById(invoiceId)).status).toBe('paid');
+      const rows = await settlementRows(testDb, invoiceId);
+      expect(rows).toHaveLength(1);
+      expect(rows[0]!.payload).toMatchObject({
+        paymentIntentId: piId,
+        source: 'reconciliation',
+      });
+
+      // A later cycle has nothing left to reconcile.
+      const third = await reviewer.runReviewCycle(
+        new Date('2026-10-04T00:00:00.000Z'),
+      );
+      expect(third.reconciledPaid).toBe(0);
+      expect(await settlementRows(testDb, invoiceId)).toHaveLength(1);
+    });
+
+    it('settles a stuck invoice failed from a declined PaymentIntent, with the reason', async () => {
+      const stripe = fakeStripe(undefined, async (id) => ({
+        id,
+        status: 'requires_payment_method',
+        lastPaymentErrorMessage: 'Your card was declined.',
+      }));
+      const { reviewer, commission, attribution } = newFixtures(testDb, stripe);
+      const invoiceId = await seedInvoice(testDb, attribution, commission, 30_000_000);
+      await reviewer.runReviewCycle(FIRST_CYCLE);
+
+      const second = await reviewer.runReviewCycle(SECOND_CYCLE);
+
+      expect(second.reconciledFailed).toBe(1);
+      expect((await commission.getById(invoiceId)).status).toBe('failed');
+      const rows = await settlementRows(testDb, invoiceId);
+      expect(rows).toHaveLength(1);
+      expect(rows[0]!.payload).toMatchObject({
+        source: 'reconciliation',
+        failureReason: 'Your card was declined.',
+      });
+    });
+
+    it('leaves an in-flight PaymentIntent pending', async () => {
+      const { reviewer, commission, attribution } = newFixtures(
+        testDb,
+        fakeStripe(),
+      );
+      const invoiceId = await seedInvoice(testDb, attribution, commission, 30_000_000);
+      await reviewer.runReviewCycle(FIRST_CYCLE);
+
+      const second = await reviewer.runReviewCycle(SECOND_CYCLE);
+
+      expect(second.stillPending).toBe(1);
+      expect(second.reconciledPaid + second.reconciledFailed).toBe(0);
+      expect((await commission.getById(invoiceId)).status).toBe('finalized');
+    });
+
+    it('does not reconcile an invoice inside the threshold', async () => {
+      const retrieved: string[] = [];
+      const stripe = fakeStripe(undefined, async (id) => {
+        retrieved.push(id);
+        return { id, status: 'succeeded' };
+      });
+      // 30 days: the week-old finalized invoice is not stuck yet.
+      const { reviewer, commission, attribution } = newFixtures(testDb, stripe, {
+        ...BILLING,
+        settlementThresholdHours: 24 * 30,
+      });
+      const invoiceId = await seedInvoice(testDb, attribution, commission, 30_000_000);
+      await reviewer.runReviewCycle(FIRST_CYCLE);
+
+      const second = await reviewer.runReviewCycle(SECOND_CYCLE);
+
+      expect(retrieved).toEqual([]);
+      expect(second.stillPending).toBe(0);
+      expect((await commission.getById(invoiceId)).status).toBe('finalized');
+    });
+
+    it('a Stripe lookup failure on one invoice does not stop the batch', async () => {
+      let lookups = 0;
+      const stripe = fakeStripe(undefined, async (id) => {
+        lookups += 1;
+        if (lookups === 1) throw new Error('stripe unavailable (simulated)');
+        return { id, status: 'succeeded' };
+      });
+      const { reviewer, commission, attribution } = newFixtures(testDb, stripe);
+      const a = await seedInvoice(testDb, attribution, commission, 30_000_000);
+      const b = await seedInvoice(testDb, attribution, commission, 40_000_000);
+      await reviewer.runReviewCycle(FIRST_CYCLE);
+
+      const second = await reviewer.runReviewCycle(SECOND_CYCLE);
+
+      // The first lookup throws; the second invoice still settles.
+      expect(second.failed).toBe(1);
+      expect(second.errors).toHaveLength(1);
+      expect(second.reconciledPaid).toBe(1);
+      const statuses = [
+        (await commission.getById(a)).status,
+        (await commission.getById(b)).status,
+      ].sort();
+      expect(statuses).toEqual(['finalized', 'paid']);
+    });
   });
 });

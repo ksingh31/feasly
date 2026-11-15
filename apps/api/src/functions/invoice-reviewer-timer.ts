@@ -66,10 +66,19 @@ export async function runInvoiceReviewerTimer(
     );
     throw error;
   }
-  const { finalized, failed, skipped, errors } = result;
+  const {
+    finalized,
+    failed,
+    skipped,
+    reconciledPaid,
+    reconciledFailed,
+    stillPending,
+    errors,
+  } = result;
   // Aggregates only — never invoice ids, tenant keys, or amounts.
   context.log(
-    `invoice-reviewer-timer: cycle complete (finalized=${finalized} failed=${failed} skipped=${skipped})`,
+    `invoice-reviewer-timer: cycle complete (finalized=${finalized} failed=${failed} skipped=${skipped} ` +
+      `reconciledPaid=${reconciledPaid} reconciledFailed=${reconciledFailed} stillPending=${stillPending})`,
   );
   for (const error of errors) {
     context.log(

@@ -48,6 +48,23 @@
         </div>
       }
 
+      @if (unprocessedRows().length > 0) {
+        <div class="webhooks-page__alert webhooks-page__alert--danger" role="alert" data-testid="unprocessed-alert">
+          <p>
+            <strong>{{ unprocessedRows().length | kitCount }} event{{ unprocessedRows().length === 1 ? '' : 's' }} received but not processed</strong>
+            — the handler failed and Stripe hasn't redelivered successfully yet. Check the payment in Stripe.
+          </p>
+        </div>
+      }
+      @if (awaitingRows().length > 0) {
+        <div class="webhooks-page__alert webhooks-page__alert--warning" role="alert" data-testid="awaiting-alert">
+          <p>
+            <strong>{{ awaitingRows().length | kitCount }} invoice{{ awaitingRows().length === 1 ? '' : 's' }} awaiting settlement</strong>
+            for more than {{ w.settlementThresholdHours | kitCount }} hours. The daily reconciliation checks them against Stripe.
+          </p>
+        </div>
+      }
+
       <ui-kpi-grid>
         <ui-kpi-tile
           label="Events received"
@@ -65,6 +82,39 @@
           [tone]="w.modelMismatch24h > 0 ? 'danger' : undefined"
         />
       </ui-kpi-grid>
+
+      <section class="webhooks-page__card" aria-labelledby="webhooks-unprocessed-heading" data-testid="unprocessed-section">
+        <h2 id="webhooks-unprocessed-heading" class="webhooks-page__card-title">Received but not processed</h2>
+        <ui-data-table
+          label="Webhook events received but not processed"
+          [rows]="unprocessedRows()"
+          [columns]="unprocessedColumns"
+          [rowId]="unprocessedId"
+          emptyHeading="Every received event was processed"
+          compact
+        >
+          <ng-template uiCell="eventId" let-row>
+            <code class="webhooks-page__type">{{ row.eventId }}</code>
+          </ng-template>
+          <ng-template uiCell="type" let-row>
+            <code class="webhooks-page__type">{{ row.type }}</code>
+          </ng-template>
+        </ui-data-table>
+      </section>
+
+      <section class="webhooks-page__card" aria-labelledby="webhooks-awaiting-heading" data-testid="awaiting-section">
+        <h2 id="webhooks-awaiting-heading" class="webhooks-page__card-title">
+          Awaiting settlement · over {{ w.settlementThresholdHours | kitCount }} hours
+        </h2>
+        <ui-data-table
+          label="Invoices awaiting settlement past the threshold"
+          [rows]="awaitingRows()"
+          [columns]="awaitingColumns"
+          [rowId]="awaitingId"
+          emptyHeading="No invoices waiting on a charge result"
+          compact
+        />
+      </section>
 
       <section class="webhooks-page__card" aria-labelledby="webhooks-types-heading">
         <h2 id="webhooks-types-heading" class="webhooks-page__card-title">Event types · trailing 24h</h2>

@@ -24,7 +24,7 @@
  * Only services and composition.ts may import from src/db/ — enforced by
  * test/boundaries.test.ts.
  */
-import { and, desc, eq, ilike, inArray, lte, ne, sql } from 'drizzle-orm';
+import { and, desc, eq, ilike, inArray, isNotNull, lte, ne, sql } from 'drizzle-orm';
 import { randomUUID } from 'node:crypto';
 import type { BillingConfig } from '../../config';
 import type { AppDb } from '../../db/client';
@@ -153,6 +153,17 @@ export interface ManualPaymentInput {
   readonly adminEmail: string | null;
 }
 
+/**
+ * Who settled a PaymentIntent outcome (#711): the Stripe webhook (default)
+ * or the daily reconciliation pass reading the PaymentIntent from Stripe.
+ * Recorded as `source` in the settlement audit row.
+ */
+export type SettlementSource = 'webhook' | 'reconciliation';
+
+export interface SettlementOptions {
+  readonly source?: SettlementSource;
+}
+
 export interface CommissionService {
   /**
    * Won deal → draft invoice. Reads the reported contract from the
@@ -192,7 +203,10 @@ export interface CommissionService {
    * Webhook: payment_intent.succeeded. No-op (audited) while the invoice is
    * 'disputed' — the dispute freeze holds against webhooks.
    */
-  markPaidByPaymentIntent(paymentIntentId: string): Promise<CommissionInvoiceRecord>;
+  markPaidByPaymentIntent(
+    paymentIntentId: string,
+    options?: SettlementOptions,
+  ): Promise<CommissionInvoiceRecord>;
   /**
    * Admin manually marks an invoice paid for an off-Stripe payment
    * (cheque, bank draft, e-transfer, cash, separate card terminal…).
@@ -235,9 +249,16 @@ export interface CommissionService {
   markFailedByPaymentIntent(
     paymentIntentId: string,
     failureReason?: string,
+    options?: SettlementOptions,
   ): Promise<CommissionInvoiceRecord>;
   /** In-review invoices whose review window has passed (timer input). */
   findDueReviews(now: Date): Promise<CommissionInvoiceRecord[]>;
+  /**
+   * #711 reconciliation input: 'finalized' invoices (charge in progress)
+   * that entered 'finalized' at or before `cutoff` and carry a
+   * PaymentIntent — the webhook that should have settled them never landed.
+   */
+  findAwaitingSettlement(cutoff: Date): Promise<CommissionInvoiceRecord[]>;
   /**
    * In-review invoices whose review window has passed BUT whose
    * paymentMethod is manual (billing/12) — the timer must skip these
@@ -1143,6 +1164,7 @@ export function createCommissionService(
 
     async markPaidByPaymentIntent(
       paymentIntentId: string,
+      options?: SettlementOptions,
     ): Promise<CommissionInvoiceRecord> {
       requireCommissionModel();
       const row = await db.query.commissionInvoices.findFirst({
@@ -1168,7 +1190,7 @@ export function createCommissionService(
         'paid',
         { paidAt: now() },
         'invoice.charge_succeeded',
-        { paymentIntentId },
+        { paymentIntentId, source: options?.source ?? 'webhook' },
       );
       // BILL-04: receipt email on successful charge.
       await notifyBuilder(invoice, 'payment_received');
@@ -1353,6 +1375,7 @@ export function createCommissionService(
     async markFailedByPaymentIntent(
       paymentIntentId: string,
       failureReason?: string,
+      options?: SettlementOptions,
     ): Promise<CommissionInvoiceRecord> {
       requireCommissionModel();
       const row = await db.query.commissionInvoices.findFirst({
@@ -1377,9 +1400,13 @@ export function createCommissionService(
         {},
         'invoice.charge_failed',
         // BILL-03: the dunning queue shows the last failure reason.
-        failureReason !== undefined && failureReason.length > 0
-          ? { paymentIntentId, failureReason }
-          : { paymentIntentId },
+        {
+          paymentIntentId,
+          source: options?.source ?? 'webhook',
+          ...(failureReason !== undefined && failureReason.length > 0
+            ? { failureReason }
+            : {}),
+        },
       );
       // BILL-04: "card declined — update it" email on failed charge.
       await notifyBuilder(invoice, 'payment_failed');
@@ -1403,6 +1430,26 @@ export function createCommissionService(
           // they sit until staff marks them paid via the admin mark-paid
           // flow. Only 'card' invoices reach finalizeInvoice.
           eq(commissionInvoices.paymentMethod, 'card'),
+        ),
+      });
+      const names = await leadNamesById(
+        db,
+        rows.map((row) => row.leadId),
+      );
+      return rows.map((row) => toRecord(row, names.get(row.leadId) ?? '', billing.commissionRate));
+    },
+
+    async findAwaitingSettlement(
+      cutoff: Date,
+    ): Promise<CommissionInvoiceRecord[]> {
+      requireCommissionModel();
+      // updatedAt is stamped by transition() when the invoice entered
+      // 'finalized' (first charge or retry) — the charge-in-progress clock.
+      const rows = await db.query.commissionInvoices.findMany({
+        where: and(
+          eq(commissionInvoices.status, 'finalized'),
+          lte(commissionInvoices.updatedAt, cutoff),
+          isNotNull(commissionInvoices.stripePaymentIntentId),
         ),
       });
       const names = await leadNamesById(

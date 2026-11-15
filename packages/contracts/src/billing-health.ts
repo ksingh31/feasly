@@ -86,6 +86,30 @@ export interface BillingHealthMrr {
   readonly source: 'stripe' | 'not_applicable';
 }
 
+/**
+ * A Stripe event recorded in `stripe_events` whose handler never completed
+ * (#711) — Stripe's redelivery re-runs it; it lingers here if Stripe gave up.
+ */
+export interface BillingHealthUnprocessedEvent {
+  readonly eventId: string;
+  readonly type: string;
+  readonly receivedAt: string;
+}
+
+/**
+ * A commission invoice 'finalized' (charge in progress) for longer than the
+ * settlement threshold (#711) — the settling webhook never landed. The daily
+ * reconciliation reads the PaymentIntent from Stripe and settles it.
+ */
+export interface BillingHealthAwaitingSettlementInvoice {
+  readonly id: string;
+  readonly tenantKey: string;
+  readonly commissionCents: number;
+  readonly currency: string;
+  /** When the invoice entered 'finalized' (ISO). */
+  readonly awaitingSince: string;
+}
+
 /** Stripe webhook receiver health over the trailing 24h. */
 export interface BillingHealthWebhooks {
   readonly received24h: number;
@@ -103,6 +127,19 @@ export interface BillingHealthWebhooks {
   readonly unhandled24h: number;
   /** `webhook.model_mismatch` audit rows in the last 24h. */
   readonly modelMismatch24h: number;
+  /**
+   * #711: events received but not processed (handler threw and no
+   * successful redelivery yet), oldest first, bounded. Any age — excludes
+   * only events received in the last few minutes (still in flight).
+   */
+  readonly unprocessed: ReadonlyArray<BillingHealthUnprocessedEvent>;
+  /**
+   * #711: invoices awaiting settlement longer than
+   * `settlementThresholdHours`, oldest first, bounded.
+   */
+  readonly awaitingSettlement: ReadonlyArray<BillingHealthAwaitingSettlementInvoice>;
+  /** BILLING_SETTLEMENT_THRESHOLD_HOURS — the "stuck" cut-off. */
+  readonly settlementThresholdHours: number;
 }
 
 /**

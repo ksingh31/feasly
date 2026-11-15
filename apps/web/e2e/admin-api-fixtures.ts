@@ -311,6 +311,9 @@ export const BILLING_HEALTH: BillingHealthResponse = {
     ],
     unhandled24h: 0,
     modelMismatch24h: 0,
+    unprocessed: [],
+    awaitingSettlement: [],
+    settlementThresholdHours: 24,
   },
 };
 

@@ -2,9 +2,13 @@
  * Billing webhook service (billing/02).
  *
  * Owns `POST /api/v1/stripe/webhooks` dispatch: verify the Stripe signature,
- * insert the event id into `stripe_events` FIRST (idempotency — a unique
- * violation means Stripe retried an already-handled event → return
- * `duplicate: true` without re-dispatching), then route by event type.
+ * record the event id in `stripe_events` FIRST, route by event type, and
+ * stamp `processed_at` only after the handler completes (#711). A
+ * redelivery of a PROCESSED event returns `duplicate: true` without
+ * re-dispatching; a redelivery of a claimed-but-unprocessed event (the
+ * handler threw, Stripe got a non-2xx and retried) re-runs the handler —
+ * every handler is idempotent on terminal status, so this never
+ * double-applies.
  *
  * Dispatch table (TECH_PLAN §5.2):
  * - `payment_intent.succeeded` → commission invoice paid, dunning cleared
@@ -14,13 +18,18 @@
  * - `payment_method.attached` → tenant billing-ready audit event
  * - `customer.subscription.updated|deleted` → audit event
  * - anything else → logged audit event, 200 (never 500-retry loops)
+ * - `payment_intent.*` for a PaymentIntent no invoice owns → audited as
+ *   `webhook.orphan_payment_intent`, one ops alert, 200 (#711)
  *
  * Only services and composition.ts may import from src/db/ — enforced by
  * test/boundaries.test.ts.
  */
+import { eq } from 'drizzle-orm';
 import type { AppDb } from '../../db/client';
 import { stripeEvents } from '../../db/schema';
 import { HttpError, ErrorCodes } from '../../middleware/errors';
+import type { EmailService } from '../email/email.service';
+import { ensureOpsAlertDelivered } from '../ops-alerts.service';
 import type { BillingAuditService } from './billing-audit.service';
 import type { CommissionService } from './commission.service';
 import type { FlatPlanService } from './flat-plan.service';
@@ -44,30 +53,112 @@ export interface BillingWebhookServiceDeps {
   readonly audit: BillingAuditService;
   readonly commission: CommissionService;
   readonly flatPlan: FlatPlanService;
+  /** Ops alert delivery for orphan PaymentIntents (#711). */
+  readonly email: Pick<EmailService, 'sendOpsAlert'>;
+  readonly opsInbox: string;
+  /** Defaults to () => new Date(); tests inject a fixed clock. */
+  readonly now?: () => Date;
+  /** Warning sink for best-effort alert failures. Defaults to console.warn. */
+  readonly logWarning?: (message: string) => void;
 }
+
+/**
+ * Result of recording an event id:
+ * - `new`: first delivery — dispatch.
+ * - `unprocessed`: recorded earlier but the handler never completed — re-run.
+ * - `processed`: fully handled earlier — duplicate, no-op.
+ */
+type ClaimOutcome = 'new' | 'unprocessed' | 'processed';
 
 export function createBillingWebhookService(
   deps: BillingWebhookServiceDeps,
 ): BillingWebhookService {
-  const { db, stripe, audit, commission, flatPlan } = deps;
+  const { db, stripe, audit, commission, flatPlan, email, opsInbox } = deps;
+  const now = deps.now ?? (() => new Date());
+  const logWarning =
+    deps.logWarning ?? ((message: string) => console.warn(message));
 
-  async function tryClaimEvent(event: NormalizedStripeEvent): Promise<boolean> {
+  async function claimEvent(
+    event: NormalizedStripeEvent,
+  ): Promise<ClaimOutcome> {
+    const inserted = await db
+      .insert(stripeEvents)
+      .values({ eventId: event.id, type: event.type })
+      .onConflictDoNothing({ target: stripeEvents.eventId })
+      .returning({ eventId: stripeEvents.eventId });
+    if (inserted.length > 0) return 'new';
+    const existing = await db.query.stripeEvents.findFirst({
+      where: eq(stripeEvents.eventId, event.id),
+      columns: { processedAt: true },
+    });
+    return existing?.processedAt ? 'processed' : 'unprocessed';
+  }
+
+  async function markProcessed(eventId: string): Promise<void> {
+    await db
+      .update(stripeEvents)
+      .set({ processedAt: now() })
+      .where(eq(stripeEvents.eventId, eventId));
+  }
+
+  /**
+   * #711: a `payment_intent.*` event for a PaymentIntent no commission
+   * invoice owns (created outside Feasly, or an invoice since removed) must
+   * not 404 — Stripe would retry for days. Audit it, alert ops once, 200.
+   */
+  async function tolerateOrphanPaymentIntent(
+    event: NormalizedStripeEvent,
+    paymentIntentId: string,
+    run: () => Promise<unknown>,
+  ): Promise<void> {
     try {
-      await db
-        .insert(stripeEvents)
-        .values({ eventId: event.id, type: event.type });
-      return true;
+      await run();
     } catch (error) {
-      // Unique violation on event_id = already handled (Stripe retry).
-      // Drizzle wraps the PG error, so walk the cause chain.
-      let current: unknown = error;
-      while (current instanceof Error) {
-        if (/unique|duplicate/i.test(current.message)) {
-          return false;
-        }
-        current = current.cause;
+      if (
+        error instanceof HttpError &&
+        error.status === 404 &&
+        error.code === ErrorCodes.NOT_FOUND
+      ) {
+        await audit.append({
+          tenantKey: null,
+          eventType: 'webhook.orphan_payment_intent',
+          entityType: 'stripe_event',
+          entityId: event.id,
+          payload: { stripeType: event.type, paymentIntentId },
+        });
+        await alertOrphan(event, paymentIntentId);
+        return;
       }
       throw error;
+    }
+  }
+
+  /**
+   * Best-effort: the event is acknowledged either way. Throwing here would
+   * leave the event unprocessed, and Stripe's redelivery would write a
+   * second orphan audit row.
+   */
+  async function alertOrphan(
+    event: NormalizedStripeEvent,
+    paymentIntentId: string,
+  ): Promise<void> {
+    const title = 'Stripe webhook for an unknown payment';
+    try {
+      const delivery = await email.sendOpsAlert({
+        to: opsInbox,
+        title,
+        summary:
+          `Stripe sent ${event.type} (event ${event.id}) for payment intent ` +
+          `${paymentIntentId}, which no Feasly invoice owns. The event was ` +
+          `acknowledged and logged. Check the payment in the Stripe dashboard.`,
+        firedAt: now(),
+      });
+      ensureOpsAlertDelivered(delivery, title, logWarning);
+    } catch (error) {
+      logWarning(
+        `stripe-webhook: orphan payment intent alert not delivered ` +
+          `(${error instanceof Error ? error.message : 'unknown error'})`,
+      );
     }
   }
 
@@ -122,8 +213,8 @@ export function createBillingWebhookService(
       // 401 on a bad signature — verifyWebhook never throws 500 for this.
       const event = stripe.verifyWebhook(rawBody, signature ?? '');
 
-      const claimed = await tryClaimEvent(event);
-      if (!claimed) {
+      const claim = await claimEvent(event);
+      if (claim === 'processed') {
         return { received: true, duplicate: true };
       }
 
@@ -133,7 +224,10 @@ export function createBillingWebhookService(
         eventType: 'webhook.received',
         entityType: 'stripe_event',
         entityId: event.id,
-        payload: { stripeType: event.type },
+        payload:
+          claim === 'unprocessed'
+            ? { stripeType: event.type, redelivery: true }
+            : { stripeType: event.type },
       });
 
       switch (event.type) {
@@ -141,7 +235,9 @@ export function createBillingWebhookService(
           if (event.paymentIntentId) {
             const piId = event.paymentIntentId;
             await tolerateModelMismatch(event, () =>
-              commission.markPaidByPaymentIntent(piId),
+              tolerateOrphanPaymentIntent(event, piId, () =>
+                commission.markPaidByPaymentIntent(piId),
+              ),
             );
           }
           break;
@@ -149,7 +245,9 @@ export function createBillingWebhookService(
           if (event.paymentIntentId) {
             const piId = event.paymentIntentId;
             await tolerateModelMismatch(event, () =>
-              commission.markFailedByPaymentIntent(piId, event.failureMessage),
+              tolerateOrphanPaymentIntent(event, piId, () =>
+                commission.markFailedByPaymentIntent(piId, event.failureMessage),
+              ),
             );
           }
           break;
@@ -203,6 +301,9 @@ export function createBillingWebhookService(
           break;
       }
 
+      // Only now is the event done: a throw above leaves processed_at null
+      // so Stripe's redelivery re-runs the handler (#711).
+      await markProcessed(event.id);
       return { received: true, duplicate: false };
     },
   };

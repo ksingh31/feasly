@@ -314,6 +314,10 @@ const EnvSchema = z.object({
   BILLING_REPORTING_SLA_DAYS: z.coerce.number().int().positive().default(14),
   // Max off-session charge retries per failed commission invoice (BILL-03).
   BILLING_MAX_CHARGE_RETRIES: z.coerce.number().int().min(1).default(3),
+  // #711: an invoice 'finalized' (charge in progress) longer than this is
+  // reconciled against Stripe by the daily reviewer and flagged on
+  // /admin/webhooks. 24h default (open owner question on #711 — tunable).
+  BILLING_SETTLEMENT_THRESHOLD_HOURS: z.coerce.number().int().positive().default(24),
   // Flat-plan fields — dormant until BILLING_MODEL=flat.
   BILLING_FLAT_PLAN_NAME: z.string().min(1).default('Builder Standard'),
   BILLING_FLAT_MONTHLY_CENTS: z.coerce.number().int().positive().default(30_000),
@@ -732,6 +736,12 @@ export interface BillingConfig {
   readonly reportingSlaDays: number;
   /** Max off-session charge retries per failed commission invoice (3). */
   readonly maxChargeRetries?: number;
+  /**
+   * Hours an invoice may sit 'finalized' (charge in progress) before the
+   * daily reconciliation reads the PaymentIntent from Stripe and the admin
+   * webhooks page flags it (#711). Default 24.
+   */
+  readonly settlementThresholdHours?: number;
   /** Flat-plan fields — dormant until model='flat'. */
   readonly flatPlanName: string;
   /** Flat monthly price in integer minor units (cents). */
@@ -1278,6 +1288,7 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): ApiConfig {
       attributionWindowDays: e.BILLING_ATTRIBUTION_WINDOW_DAYS,
       reportingSlaDays: e.BILLING_REPORTING_SLA_DAYS,
       maxChargeRetries: e.BILLING_MAX_CHARGE_RETRIES,
+      settlementThresholdHours: e.BILLING_SETTLEMENT_THRESHOLD_HOURS,
       flatPlanName: e.BILLING_FLAT_PLAN_NAME,
       flatMonthlyCents: e.BILLING_FLAT_MONTHLY_CENTS,
       flatCurrency: e.BILLING_FLAT_CURRENCY,

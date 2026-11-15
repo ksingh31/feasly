@@ -152,6 +152,7 @@ describe('loadConfig', () => {
         stripeFlatPriceId: undefined,
         isProduction: false,
         maxChargeRetries: 3,
+        settlementThresholdHours: 24,
       },
       sandboxPurge: {
         retentionDays: 30,
@@ -284,7 +285,18 @@ describe('loadConfig', () => {
       stripeFlatPriceId: undefined,
       isProduction: false,
       maxChargeRetries: 3,
+      settlementThresholdHours: 24,
     });
+  });
+
+  it('reads BILLING_SETTLEMENT_THRESHOLD_HOURS (#711) and rejects non-positive values', () => {
+    expect(
+      loadConfig({ ...VALID_ENV, BILLING_SETTLEMENT_THRESHOLD_HOURS: '48' }).billing
+        .settlementThresholdHours,
+    ).toBe(48);
+    expect(() =>
+      loadConfig({ ...VALID_ENV, BILLING_SETTLEMENT_THRESHOLD_HOURS: '0' }),
+    ).toThrow(/BILLING_SETTLEMENT_THRESHOLD_HOURS/);
   });
 
   it('rejects an unknown billing model naming the variable', () => {

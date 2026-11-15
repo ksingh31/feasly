@@ -551,6 +551,20 @@ CREATE TABLE IF NOT EXISTS "stripe_events" (
 ALTER TABLE "stripe_events" ADD COLUMN IF NOT EXISTS "event_id" text PRIMARY KEY NOT NULL;
 ALTER TABLE "stripe_events" ADD COLUMN IF NOT EXISTS "type" text NOT NULL;
 ALTER TABLE "stripe_events" ADD COLUMN IF NOT EXISTS "received_at" timestamp with time zone DEFAULT now() NOT NULL;
+DO $$
+BEGIN
+	-- #711: processed_at. Backfill ONLY when the column is first added, so
+	-- pre-existing (already handled) events are not re-run on redelivery;
+	-- re-running the repair never marks a genuinely unprocessed event done.
+	IF NOT EXISTS (
+		SELECT 1 FROM "information_schema"."columns"
+		WHERE "table_name" = 'stripe_events' AND "column_name" = 'processed_at'
+	) THEN
+		ALTER TABLE "stripe_events" ADD COLUMN "processed_at" timestamp with time zone;
+		UPDATE "stripe_events" SET "processed_at" = "received_at";
+	END IF;
+END
+$$;
 CREATE TABLE IF NOT EXISTS "ops_alert_state" (
 
 	"type" text PRIMARY KEY NOT NULL,
