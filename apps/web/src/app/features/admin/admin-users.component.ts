@@ -9,15 +9,13 @@ import {
   signal,
   untracked,
 } from '@angular/core';
+import type { DialogRef } from '@angular/cdk/dialog';
 import { ActivatedRoute, Router } from '@angular/router';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
-import { FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
 import { Store } from '@ngxs/store';
 import { filter } from 'rxjs';
 import type {
   AdminUser,
-  AdminUserBuilderRole,
-  AdminUserStaffRole,
   AdminUserStatus,
   Builder,
 } from '@feasly/contracts';
@@ -28,6 +26,8 @@ import {
   injectDrawerParam,
   UiConfirmService,
   UiDrawerService,
+  UiButtonComponent,
+  UiModalService,
   UiRowActionsComponent,
 } from '@app/shared/ui';
 import {
@@ -36,7 +36,6 @@ import {
   DeactivateAdminUser,
   DeleteAdminUser,
   DismissAdminUsersNotice,
-  InviteAdminUser,
   LoadAdminUsers,
   OpenEditAdminUser,
   OpenInviteAdminUser,
@@ -51,15 +50,10 @@ import { LoadBuilders } from './admin-builders.actions';
 import {
   ADMIN_BUILDER_ROLE_LABELS,
   ADMIN_STAFF_ROLE_LABELS,
-  ADMIN_STAFF_ROLES,
   AdminUserEditDrawerComponent,
   type AdminUserEditDrawerData,
 } from './admin-user-edit-drawer.component';
-
-const BUILDER_ROLES: readonly AdminUserBuilderRole[] = [
-  'builder_admin',
-  'builder_member',
-];
+import { AdminUserInviteModalComponent } from './admin-user-invite-modal.component';
 
 /** Row-menu action ids (#542). */
 type UserRowAction = 'edit' | 'resend' | 'reactivate' | 'deactivate' | 'delete';
@@ -93,16 +87,16 @@ const LAST_ADMIN_DEACTIVATE_HINT = 'Every organization needs at least one active
 @Component({
   selector: 'app-admin-users',
   standalone: true,
-  imports: [ReactiveFormsModule, UiRowActionsComponent],
+  imports: [UiRowActionsComponent, UiButtonComponent],
   templateUrl: './admin-users.component.html',
   styleUrls: ['./admin-users.component.scss'],
 })
 export class AdminUsersComponent implements OnInit {
   private readonly store = inject(Store);
-  private readonly fb = inject(FormBuilder);
   private readonly injector = inject(Injector);
   private readonly destroyRef = inject(DestroyRef);
   private readonly drawers = inject(UiDrawerService);
+  private readonly modals = inject(UiModalService);
   private readonly confirms = inject(UiConfirmService);
   private readonly router = inject(Router);
   private readonly route = inject(ActivatedRoute);
@@ -112,8 +106,6 @@ export class AdminUsersComponent implements OnInit {
   protected readonly listStatus = this.store.selectSignal(AdminUsersState.listStatus);
   protected readonly listError = this.store.selectSignal(AdminUsersState.listError);
   protected readonly inviteOpen = this.store.selectSignal(AdminUsersState.inviteOpen);
-  protected readonly inviting = this.store.selectSignal(AdminUsersState.inviting);
-  protected readonly inviteError = this.store.selectSignal(AdminUsersState.inviteError);
   protected readonly editingId = this.store.selectSignal(AdminUsersState.editingId);
   protected readonly updating = this.store.selectSignal(AdminUsersState.updating);
   protected readonly updateError = this.store.selectSignal(AdminUsersState.updateError);
@@ -137,19 +129,6 @@ export class AdminUsersComponent implements OnInit {
   protected readonly notice = this.store.selectSignal(AdminUsersState.notice);
   protected readonly builders = this.store.selectSignal(AdminBuildersState.builders);
 
-  /** Invite form: email, name, role, and (for builder roles) the org. */
-  protected readonly inviteForm = this.fb.nonNullable.group({
-    email: ['', [Validators.required, Validators.email]],
-    name: ['', [Validators.required, Validators.maxLength(200)]],
-    role: ['viewer' as string, [Validators.required]],
-    builderId: [''],
-  });
-
-  protected readonly staffRoles = ADMIN_STAFF_ROLES;
-  protected readonly staffRoleLabels = ADMIN_STAFF_ROLE_LABELS;
-  protected readonly builderRoles = BUILDER_ROLES;
-  protected readonly builderRoleLabels = ADMIN_BUILDER_ROLE_LABELS;
-
   /** The ⋮ menu items for each row, keyed by user id (#542). */
   protected readonly rowActions = computed(() => {
     const map = new Map<string, UiRowAction[]>();
@@ -158,6 +137,8 @@ export class AdminUsersComponent implements OnInit {
   });
 
   private drawerRef: UiDrawerRef<boolean, AdminUserEditDrawerComponent> | null = null;
+  /** The open invite modal, if any — driven by `AdminUsersState.inviteOpen`. */
+  private inviteRef: DialogRef<void, AdminUserInviteModalComponent> | null = null;
 
   /** `?open=<id>` — the user whose edit drawer is open (⌘K hits, #538). */
   protected readonly openId = injectDrawerParam();
@@ -171,6 +152,12 @@ export class AdminUsersComponent implements OnInit {
       const id = this.openId();
       const ready = this.loaded() && this.manageUsersSignal();
       untracked(() => this.syncDrawer(id, ready));
+    });
+    // #548: the invite modal follows `inviteOpen` — opened by the header
+    // button, closed by the state on a successful invite.
+    effect(() => {
+      const open = this.inviteOpen();
+      untracked(() => this.syncInvite(open));
     });
   }
 
@@ -203,38 +190,27 @@ export class AdminUsersComponent implements OnInit {
   // ------------------------------------------------------------- invite
 
   protected openInvite(): void {
-    this.inviteForm.reset({ email: '', name: '', role: 'viewer', builderId: '' });
     this.store.dispatch(new OpenInviteAdminUser());
   }
 
-  protected closeInvite(): void {
-    this.store.dispatch(new CloseInviteAdminUser());
-  }
-
-  protected inviteRoleIsBuilder(): boolean {
-    const role = this.inviteForm.controls.role.value;
-    return (BUILDER_ROLES as readonly string[]).includes(role);
-  }
-
-  protected submitInvite(): void {
-    if (this.inviteForm.invalid || this.inviting()) {
-      this.inviteForm.markAllAsTouched();
-      return;
+  private syncInvite(open: boolean): void {
+    if (open && !this.inviteRef) {
+      const ref = this.modals.open<AdminUserInviteModalComponent, void>(AdminUserInviteModalComponent, {
+        size: 'sm',
+        injector: this.injector,
+      });
+      this.inviteRef = ref;
+      ref.closed.pipe(takeUntilDestroyed(this.destroyRef)).subscribe(() => {
+        if (this.inviteRef !== ref) return;
+        this.inviteRef = null;
+        // User dismissal (Esc, scrim, Cancel): clear the state flag too.
+        if (this.inviteOpen()) this.store.dispatch(new CloseInviteAdminUser());
+      });
+    } else if (!open && this.inviteRef) {
+      const ref = this.inviteRef;
+      this.inviteRef = null;
+      ref.close();
     }
-    const { email, name, role, builderId } = this.inviteForm.getRawValue();
-    if (this.inviteRoleIsBuilder() && !builderId) {
-      this.inviteForm.controls.builderId.setErrors({ required: true });
-      this.inviteForm.controls.builderId.markAsTouched();
-      return;
-    }
-    this.store.dispatch(
-      new InviteAdminUser({
-        email: email.trim(),
-        name: name.trim(),
-        role: role as AdminUserStaffRole | AdminUserBuilderRole,
-        builderId: this.inviteRoleIsBuilder() && builderId ? builderId : undefined,
-      }),
-    );
   }
 
   // ---------------------------------------------------------- row menu

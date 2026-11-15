@@ -8,11 +8,7 @@
       </p>
     </div>
     @if (canManageUsers()) {
-      <button
-        type="button"
-        class="users-page__primary"
-        (click)="openInvite()"
-      >
+      <button type="button" ui-button class="users-page__primary" (click)="openInvite()">
         Invite user
       </button>
     }
@@ -124,80 +120,3 @@
     }
   }
 </div>
-
-<!-- Invite modal -->
-@if (inviteOpen()) {
-  <div class="users-page__overlay" (click)="closeInvite()">
-    <div
-      class="users-page__modal"
-      role="dialog"
-      aria-modal="true"
-      aria-labelledby="invite-title"
-      (click)="$event.stopPropagation()"
-    >
-      <h2 id="invite-title">Invite user</h2>
-      <p class="users-page__modal-sub">
-        They'll get an email invite and sign in with their Microsoft account —
-        Feasly never sees a password.
-      </p>
-      <form [formGroup]="inviteForm" (ngSubmit)="submitInvite()">
-        <label class="users-page__field">
-          <span>Email</span>
-          <input type="email" formControlName="email" autocomplete="off" />
-          @if (inviteForm.controls.email.touched && inviteForm.controls.email.invalid) {
-            <span class="users-page__field-error">Enter a valid email address.</span>
-          }
-        </label>
-        <label class="users-page__field">
-          <span>Name</span>
-          <input type="text" formControlName="name" autocomplete="off" />
-          @if (inviteForm.controls.name.touched && inviteForm.controls.name.invalid) {
-            <span class="users-page__field-error">Enter the person's name.</span>
-          }
-        </label>
-        <label class="users-page__field">
-          <span>Role</span>
-          <select formControlName="role">
-            <optgroup label="Staff">
-              @for (role of staffRoles; track role) {
-                <option [value]="role">{{ staffRoleLabels[role] }}</option>
-              }
-            </optgroup>
-            <optgroup label="Builder">
-              @for (role of builderRoles; track role) {
-                <option [value]="role">{{ builderRoleLabels[role] }}</option>
-              }
-            </optgroup>
-          </select>
-        </label>
-        @if (inviteRoleIsBuilder()) {
-          <label class="users-page__field">
-            <span>Organization</span>
-            <select formControlName="builderId">
-              <option value="">Choose an organization…</option>
-              @for (b of builders(); track b.id) {
-                <option [value]="b.id">{{ b.displayName }}</option>
-              }
-            </select>
-            @if (inviteForm.controls.builderId.touched && inviteForm.controls.builderId.invalid) {
-              <span class="users-page__field-error">Choose the builder organization.</span>
-            }
-          </label>
-        }
-        @if (inviteError()) {
-          <p class="users-page__state users-page__state--error">{{ inviteError() }}</p>
-        }
-        <div class="users-page__modal-actions">
-          <button type="button" (click)="closeInvite()">Cancel</button>
-          <button
-            type="submit"
-            class="users-page__primary"
-            [disabled]="inviting()"
-          >
-            {{ inviting() ? 'Sending…' : 'Send invite' }}
-          </button>
-        </div>
-      </form>
-    </div>
-  </div>
-}

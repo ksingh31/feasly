@@ -21,6 +21,7 @@ import {
 } from '../src/routes/billing.route';
 import type { BillingService } from '../src/services/billing/billing.service';
 import type { CommissionCardService } from '../src/services/billing/commission-card.service';
+import type { InvoicePdfService } from '../src/services/billing/invoice-pdf.service';
 import type { BuilderGuard } from '../src/middleware/builder-guard';
 import type { AdminGuard } from '../src/middleware/admin-guard';
 
@@ -39,6 +40,7 @@ function makeDeps(opts?: {
   route: ReturnType<typeof createBillingRoute>;
   billing: BillingService;
   commissionCard: CommissionCardService;
+  invoicePdf: InvoicePdfService;
 } {
   const builderSession = opts?.builderSession === undefined ? BUILDER_SESSION : opts.builderSession;
   const builderGuard: BuilderGuard = {
@@ -139,13 +141,21 @@ function makeDeps(opts?: {
     }),
   } as unknown as CommissionCardService;
 
+  const invoicePdf: InvoicePdfService = {
+    renderInvoicePdf: vi.fn(async (invoiceId: string) => ({
+      pdf: Buffer.from('%PDF-1.4'),
+      filename: `feasly-${invoiceId}.pdf`,
+    })),
+  };
+
   const deps: BillingRouteDeps = {
     billing,
     commissionCard,
+    invoicePdf,
     builderGuard,
     adminGuard,
   };
-  return { route: createBillingRoute(deps), billing, commissionCard };
+  return { route: createBillingRoute(deps), billing, commissionCard, invoicePdf };
 }
 
 describe('POST /api/v1/billing/report-contract', () => {
@@ -221,6 +231,34 @@ describe('GET /api/v1/billing/invoices/{id}', () => {
     await expect(route.getInvoice({}, 'nope')).rejects.toMatchObject({
       status: 400,
     });
+  });
+});
+
+describe('GET /api/v1/billing/invoices/{id}/pdf (#661)', () => {
+  const id = '00000000-0000-4000-8000-000000000002';
+
+  it('builder renders their invoice scoped to the session tenant', async () => {
+    const { route, invoicePdf } = makeDeps();
+    const result = await route.getInvoicePdf({}, id);
+    expect(invoicePdf.renderInvoicePdf).toHaveBeenCalledWith(id, 'elite-craft');
+    expect(result.filename).toBe(`feasly-${id}.pdf`);
+  });
+
+  it('admin renders any invoice (tenantKey null)', async () => {
+    const { route, invoicePdf } = makeDeps({ builderSession: null, admin: true });
+    await route.getInvoicePdf({}, id);
+    expect(invoicePdf.renderInvoicePdf).toHaveBeenCalledWith(id, null);
+  });
+
+  it('unauthenticated callers are rejected', async () => {
+    const { route, invoicePdf } = makeDeps({ builderSession: null, admin: false });
+    await expect(route.getInvoicePdf({}, id)).rejects.toMatchObject({ status: 401 });
+    expect(invoicePdf.renderInvoicePdf).not.toHaveBeenCalled();
+  });
+
+  it('rejects a non-uuid id with 400', async () => {
+    const { route } = makeDeps();
+    await expect(route.getInvoicePdf({}, 'nope')).rejects.toMatchObject({ status: 400 });
   });
 });
 

@@ -308,8 +308,12 @@ apps/web/src/app/core/api/api-error.ts
 # backend list default. Copy-pinned by admin-users.component.spec.ts.
 # The edit drawer (#542) carries the same edit-form copy and the same
 # maxLength(200) contract limit, moved out of admin-users.component.html.
+# The invite modal (#548) carries the invite-form copy and the same
+# maxLength(200) limit, moved out of admin-users.component.html onto the kit.
 apps/web/src/app/features/admin/admin-user-edit-drawer.component.html
 apps/web/src/app/features/admin/admin-user-edit-drawer.component.ts
+apps/web/src/app/features/admin/admin-user-invite-modal.component.html
+apps/web/src/app/features/admin/admin-user-invite-modal.component.ts
 apps/web/src/app/features/admin/admin-users-api.service.ts
 apps/web/src/app/features/admin/admin-users.component.html
 apps/web/src/app/features/admin/admin-users.component.ts

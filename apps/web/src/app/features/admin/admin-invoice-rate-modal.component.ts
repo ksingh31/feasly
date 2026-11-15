@@ -27,9 +27,10 @@ export class AdminInvoiceRateModalComponent extends AdminInvoiceActionModal {
 
   protected readonly beforeRate = invoiceRateLabel(this.invoice.effectiveRatePercent);
   protected readonly newRate = computed(() => parseInvoiceRate(this.rateText()));
+  /** Null until a valid rate is typed: the "after" side (and its arrow) stays hidden (#675). */
   protected readonly afterRate = computed(() => {
     const rate = this.newRate();
-    return rate === null ? '—' : invoiceRateLabel(rate);
+    return rate === null ? null : invoiceRateLabel(rate);
   });
   protected readonly afterCents = computed(() => {
     const rate = this.newRate();

@@ -502,6 +502,10 @@ import {
   type CommissionCardService,
 } from './services/billing/commission-card.service';
 import {
+  createInvoicePdfService,
+  type InvoicePdfService,
+} from './services/billing/invoice-pdf.service';
+import {
   createBillingWebhookService,
   type BillingWebhookService,
 } from './services/billing/billing-webhook.service';
@@ -1754,9 +1758,16 @@ export function createComposition(
       audit: billingAuditService,
       stripe: stripeService,
     });
+  // #661 — builder invoice PDF/receipt download.
+  const invoicePdfService: InvoicePdfService = createInvoicePdfService({
+    billing: billingService,
+    commissionCard: commissionCardService,
+    builders: builderService,
+  });
   const billingRoute: BillingRoute = createBillingRoute({
     billing: billingService,
     commissionCard: commissionCardService,
+    invoicePdf: invoicePdfService,
     builderGuard,
     adminGuard,
   });

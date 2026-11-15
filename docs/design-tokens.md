@@ -50,8 +50,9 @@ body line-height 1.65–1.7; buttons 15–16px semibold.
 | `--cream`      | `#f7f4ef`            | Default page background (warm cream).       |
 | `--cream-2`    | `#f0ece4`            | Alt section background (e.g. "How it works").|
 | `--card`       | `#ffffff`            | Cards.                                      |
+| `--surface-sunken` | `var(--cream-2)` | Inset panel on a light surface (modal before → after boxes). `--text` and `--muted` both clear 4.5:1 on it. |
 | `--canvas`     | `#1c1914`            | Dark surfaces (nav, trust strip, primary CTA).|
-| `--canvas-2`   | `#242018`            | Dark surface variant.                       |
+| `--canvas-2`   | `#242018`            | Dark surface variant. Dark surfaces only (pair with `--on-dark`); never a light inset. |
 | `--text`       | `#1a1612`            | Headings & primary text (charcoal).         |
 | `--muted`      | `#6b5f53`            | Secondary text. Darkened from `#7a6e62` (4.2:1 on `--cream-2`) to clear 4.5:1 on every light surface. Never lower it with `opacity`. |
 | `--on-dark`    | `#ede9e2`            | Text on dark surfaces.                      |
