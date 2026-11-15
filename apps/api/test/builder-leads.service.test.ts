@@ -770,6 +770,246 @@ describe('builder-leads comment summaries (notes section redesign)', () => {
   });
 });
 
+describe('builder-leads markWon → needs recording (#530)', () => {
+  type Sent = { readonly to: string; readonly leadId: string; readonly markedBy: string };
+
+  function makeMarkWonService(opts?: {
+    readonly adminEmails?: readonly string[];
+    readonly adminLookupFails?: boolean;
+    readonly fallbackAdminInbox?: string;
+    readonly emailFails?: boolean;
+    readonly recordedLeadIds?: readonly string[];
+    readonly withBillingHook?: boolean;
+  }) {
+    const base = makeDeps();
+    const sent: Sent[] = [];
+    const recorded = new Set(opts?.recordedLeadIds ?? []);
+    const hookCalls: Array<{ readonly detail: Record<string, unknown> }> = [];
+    const service = createBuilderLeadsService({
+      leadStore: base.leadStore,
+      audit: base.audit,
+      builders: base.builders,
+      invoiceSummaries: {
+        findByTenantKey: async () => [],
+        hasInvoiceForLead: async ({ leadId }) => recorded.has(leadId),
+      },
+      memberships: {
+        listActiveOrgAdminEmails: async (builderId: string) => {
+          if (opts?.adminLookupFails) throw new Error('db down');
+          return builderId === ELITE_BUILDER_ID
+            ? [...(opts?.adminEmails ?? ['owner@elite.example'])]
+            : [];
+        },
+      },
+      email: {
+        sendContractNeedsRecording: async (input) => {
+          if (opts?.emailFails) throw new Error('provider down');
+          sent.push({ to: input.to, leadId: input.leadId, markedBy: input.markedBy });
+          return { sent: true as const, provider: 'log' as const };
+        },
+      },
+      fallbackAdminInbox: opts?.fallbackAdminInbox,
+      billingHook: opts?.withBillingHook
+        ? ({
+            recordBillableEvent: async (
+              _tenantKey: string,
+              _type: string,
+              detail: Record<string, unknown>,
+            ) => {
+              hookCalls.push({ detail });
+              return { billed: false as const, reason: 'contract_pending' };
+            },
+          } as unknown as NonNullable<BuilderLeadsServiceDeps['billingHook']>)
+        : undefined,
+    });
+    return { ...base, service, sent, hookCalls };
+  }
+
+  it('a member marks a lead won: status, history, audit and needsRecording', async () => {
+    const { service, leads, statusHistory, audit } = makeMarkWonService();
+    const result = await service.markWon('lead-1', 'elite-craft', 'member@elite.example');
+
+    expect(result).toEqual({
+      ok: true,
+      status: 'won',
+      needsRecording: true,
+      changed: true,
+      adminsNotified: 1,
+    });
+    expect(leads.get('lead-1')?.status).toBe('won');
+    expect(statusHistory).toEqual([
+      {
+        leadId: 'lead-1',
+        oldStatus: 'new',
+        newStatus: 'won',
+        changedBy: 'member@elite.example',
+      },
+    ]);
+    expect(audit.log).toHaveBeenCalledWith(
+      expect.objectContaining({
+        actorEmail: 'member@elite.example',
+        action: 'builder_leads_marked_won',
+      }),
+    );
+
+    // The admin "Needs recording" item: flag on the lead + summary count.
+    const list = await service.listLeads('elite-craft');
+    expect(list.leads[0]?.needsRecording).toBe(true);
+    expect(list.summary.needsRecording).toBe(1);
+  });
+
+  it('emails every org admin a "Needs recording" notice', async () => {
+    const { service, sent } = makeMarkWonService({
+      adminEmails: ['owner@elite.example', 'ops@elite.example'],
+    });
+    await service.markWon('lead-1', 'elite-craft', 'member@elite.example');
+    expect(sent.map((s) => s.to).sort()).toEqual([
+      'ops@elite.example',
+      'owner@elite.example',
+    ]);
+    expect(sent.every((s) => s.leadId === 'lead-1')).toBe(true);
+    expect(sent.every((s) => s.markedBy === 'member@elite.example')).toBe(true);
+  });
+
+  it('never emails the actor, even when they are an admin', async () => {
+    const { service, sent } = makeMarkWonService({
+      adminEmails: ['Owner@Elite.example', 'ops@elite.example'],
+      fallbackAdminInbox: 'ops@feasly.example',
+    });
+    const result = await service.markWon('lead-1', 'elite-craft', 'owner@elite.example');
+    expect(sent.map((s) => s.to)).toEqual(['ops@elite.example']);
+    expect(result.adminsNotified).toBe(1);
+  });
+
+  it('does not fall back to Feasly ops when the actor is the sole admin', async () => {
+    const { service, sent } = makeMarkWonService({
+      adminEmails: ['owner@elite.example'],
+      fallbackAdminInbox: 'ops@feasly.example',
+    });
+    const result = await service.markWon('lead-1', 'elite-craft', 'owner@elite.example');
+    expect(sent).toEqual([]);
+    expect(result.adminsNotified).toBe(0);
+  });
+
+  it('falls back to the Feasly ops inbox when the org has no admin', async () => {
+    const { service, sent } = makeMarkWonService({
+      adminEmails: [],
+      fallbackAdminInbox: 'ops@feasly.example',
+    });
+    const result = await service.markWon('lead-1', 'elite-craft', 'member@elite.example');
+    expect(sent.map((s) => s.to)).toEqual(['ops@feasly.example']);
+    expect(result.adminsNotified).toBe(1);
+  });
+
+  it('an email failure never fails the request (needsRecording is the durable item)', async () => {
+    const { service, leads } = makeMarkWonService({ emailFails: true });
+    const result = await service.markWon('lead-1', 'elite-craft', 'member@elite.example');
+    expect(result.changed).toBe(true);
+    expect(result.adminsNotified).toBe(0);
+    expect(leads.get('lead-1')?.status).toBe('won');
+  });
+
+  it('an admin-lookup failure is not "no admin": no ops fallback, warns, still marks won', async () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
+    const { service, sent, leads } = makeMarkWonService({
+      adminLookupFails: true,
+      fallbackAdminInbox: 'ops@feasly.example',
+    });
+    const result = await service.markWon('lead-1', 'elite-craft', 'member@elite.example');
+    expect(result.changed).toBe(true);
+    expect(result.adminsNotified).toBe(0);
+    expect(leads.get('lead-1')?.status).toBe('won');
+    // The lead's name/address never goes to Feasly ops on a lookup blip.
+    expect(sent).toEqual([]);
+    expect(warn).toHaveBeenCalledWith(expect.stringContaining('org admin lookup failed'));
+    // The warning carries ids only — no lead PII.
+    expect(String(warn.mock.calls[0]?.[0])).not.toContain('member@elite.example');
+    warn.mockRestore();
+  });
+
+  it('runs the won billing path WITHOUT contract details (no invoice)', async () => {
+    const { service, hookCalls } = makeMarkWonService({ withBillingHook: true });
+    await service.markWon('lead-1', 'elite-craft', 'member@elite.example');
+    expect(hookCalls).toHaveLength(1);
+    expect(hookCalls[0]?.detail['contractValueCents']).toBeUndefined();
+    expect(hookCalls[0]?.detail['contractSignedAt']).toBeUndefined();
+  });
+
+  it('already-won lead: idempotent, no write and no re-notify', async () => {
+    const { service, leads, sent, statusHistory } = makeMarkWonService();
+    leads.set('lead-1', makeLead({ id: 'lead-1', status: 'won' }));
+    const result = await service.markWon('lead-1', 'elite-craft', 'member@elite.example');
+    expect(result).toEqual({
+      ok: true,
+      status: 'won',
+      needsRecording: true,
+      changed: false,
+      adminsNotified: 0,
+    });
+    expect(sent).toEqual([]);
+    expect(statusHistory).toEqual([]);
+  });
+
+  it('a lead with a recorded contract is rejected with 409 LEAD_STATUS_LOCKED', async () => {
+    const { service, leads, sent } = makeMarkWonService({ recordedLeadIds: ['lead-1'] });
+    await expect(
+      service.markWon('lead-1', 'elite-craft', 'member@elite.example'),
+    ).rejects.toMatchObject({ status: 409, code: 'LEAD_STATUS_LOCKED' });
+    expect(leads.get('lead-1')?.status).toBe('new');
+    expect(sent).toEqual([]);
+  });
+
+  it("another builder's lead is 403 (audit-logged), never notified", async () => {
+    const { service, sent, audit } = makeMarkWonService();
+    await expect(
+      service.markWon('lead-2', 'elite-craft', 'member@elite.example'),
+    ).rejects.toMatchObject({ status: 403 });
+    expect(audit.log).toHaveBeenCalledWith(
+      expect.objectContaining({ action: 'builder_leads_cross_builder_denied' }),
+    );
+    expect(sent).toEqual([]);
+  });
+
+  it('an unknown lead is 404; an unknown tenant is 404', async () => {
+    const { service } = makeMarkWonService();
+    await expect(
+      service.markWon('nope', 'elite-craft', 'member@elite.example'),
+    ).rejects.toMatchObject({ status: 404 });
+    await expect(
+      service.markWon('lead-1', 'nope', 'member@elite.example'),
+    ).rejects.toMatchObject({ status: 404 });
+  });
+
+  it('listLeads: needsRecording is false for won leads with a recorded contract', async () => {
+    const base = makeDeps();
+    base.leads.set('lead-1', makeLead({ id: 'lead-1', status: 'won' }));
+    const service = createBuilderLeadsService({
+      leadStore: base.leadStore,
+      audit: base.audit,
+      builders: base.builders,
+      invoiceSummaries: {
+        findByTenantKey: async () => [
+          {
+            id: 'inv-1',
+            leadId: 'lead-1',
+            invoiceNumber: 'INV-0042',
+            contractValueCents: 50000000,
+            commissionCents: 500000,
+            status: 'in_review',
+            reviewDueAt: null,
+            paymentMethod: 'card',
+            currency: 'CAD',
+          },
+        ],
+        hasInvoiceForLead: async () => true,
+      },
+    });
+    const list = await service.listLeads('elite-craft');
+    expect(list.leads[0]?.needsRecording).toBe(false);
+    expect(list.summary.needsRecording).toBe(0);
+  });
+});
+
 describe('builder-leads "Needs you" feed (issue #526)', () => {
   const NOW = new Date('2026-11-15T12:00:00.000Z');
   const daysAgo = (d: number) => new Date(NOW.getTime() - d * 24 * 60 * 60 * 1000);
