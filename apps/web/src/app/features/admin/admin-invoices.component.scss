@@ -29,9 +29,9 @@
 }
 
 .invoices-page__banner--error {
-  background: var(--danger-soft, #fdecec);
-  color: var(--danger, #b3261e);
-  border: 1px solid var(--danger, #b3261e);
+  background: var(--danger-bg);
+  color: var(--danger);
+  border: 1px solid var(--danger);
 }
 
 .invoices-page__filters {

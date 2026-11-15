@@ -16,4 +16,5 @@ export * from './mcp.route';
 export * from './preview.route';
 export * from './report.route';
 export * from './callback.route';
+export * from './waitlist.route';
 export * from './share.route';

@@ -9,6 +9,8 @@ export * from './report.service';
 export * from './report-snapshot.store';
 export * from './callback.service';
 export * from './callback-request.store';
+export * from './waitlist.service';
+export * from './waitlist.store';
 export * from './share.service';
 export * from './partner-share.store';
 export * from './analytics.service';

@@ -393,7 +393,8 @@
     }
   },
   "features": {
-    "renovationWaitlist": false,
+    "cityWaitlist": true,
+    "renovationWaitlist": true,
     "sampleReport": false
   },
   "legal": {

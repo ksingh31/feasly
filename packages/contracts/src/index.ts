@@ -12,6 +12,7 @@ export * from './lead';
 export * from './magic-link';
 export * from './report';
 export * from './callback';
+export * from './waitlist';
 export * from './share';
 export * from './events';
 export * from './embed';

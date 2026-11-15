@@ -38,6 +38,10 @@ import type {
   PrivacyAuditAction,
   PrivacyStore,
 } from '../src/services/privacy.store';
+import type {
+  WaitlistSignupRecord,
+  WaitlistStore,
+} from '../src/services/waitlist.store';
 import { HttpError } from '../src/middleware/errors';
 
 const NOW = new Date('2026-09-24T12:00:00Z');
@@ -103,6 +107,11 @@ interface World {
   requests: ErasureRequestRecord[];
   audits: { leadId: string | null; action: PrivacyAuditAction; detail?: string }[];
   blockers: { kind: string; reason: string }[];
+  waitlist: WaitlistSignupRecord[];
+}
+
+function signup(id: string, email: string, topic: string): WaitlistSignupRecord {
+  return { id, email, topic, createdAt: NOW, consentTs: NOW, consentVersion: 'v-test' };
 }
 
 function link(
@@ -135,6 +144,11 @@ function setup(blockers: { kind: string; reason: string }[] = []): {
     requests: [],
     audits: [],
     blockers,
+    waitlist: [
+      signup('w1', ALICE, 'renovation'),
+      signup('w2', ALICE, 'toronto'),
+      signup('w3', BOB, 'vancouver'),
+    ],
   };
   const tokenToLinkId = new Map([
     [ALICE_TOKEN, 'l1'],
@@ -256,6 +270,17 @@ function setup(blockers: { kind: string; reason: string }[] = []): {
     },
   };
 
+  const waitlist: WaitlistStore = {
+    insertIfAbsent: async () => undefined,
+    find: async () => null,
+    listByEmail: async (email: string) => world.waitlist.filter((w) => w.email === email),
+    deleteByEmail: async (email: string) => {
+      const before = world.waitlist.length;
+      world.waitlist = world.waitlist.filter((w) => w.email !== email);
+      return before - world.waitlist.length;
+    },
+  };
+
   const checker: ErasureBlockerChecker = {
     findBlockers: async () => [...world.blockers],
   };
@@ -265,6 +290,7 @@ function setup(blockers: { kind: string; reason: string }[] = []): {
     leads,
     estimates,
     privacy,
+    waitlist,
     blockers: checker,
     clock: () => NOW,
   });
@@ -290,6 +316,14 @@ describe('privacy export', () => {
     // No cross-contamination from Bob's rows.
     expect(JSON.stringify(out)).not.toContain(BOB);
     expect(JSON.stringify(out)).not.toContain(BOB_LEAD);
+  });
+
+  it('#520: includes the requester\u2019s waitlist signups with consent, and nobody else\u2019s', async () => {
+    const out = await service.exportMyData(ALICE_TOKEN);
+    expect(out.waitlistSignups).toEqual([
+      { topic: 'renovation', createdAt: NOW.toISOString(), consentTs: NOW.toISOString(), consentVersion: 'v-test' },
+      { topic: 'toronto', createdAt: NOW.toISOString(), consentTs: NOW.toISOString(), consentVersion: 'v-test' },
+    ]);
   });
 
   it('never includes token hashes (AC1)', async () => {
@@ -435,6 +469,8 @@ describe('erasure confirm (step 2)', () => {
 
     // Alice's lead rows are gone; Bob's are untouched.
     expect(world.leads.map((l) => l.id)).toEqual([BOB_LEAD]);
+    // #520: Alice's waitlist signups are gone too; Bob's stays.
+    expect(world.waitlist.map((w) => w.id)).toEqual(['w3']);
     // Alice's magic link is revoked — her token no longer authenticates.
     const after = await service
       .exportMyData(ALICE_TOKEN)
@@ -446,9 +482,9 @@ describe('erasure confirm (step 2)', () => {
     // Estimates are insert-only: both snapshots remain (anonymized).
     expect(world.estimates).toHaveLength(2);
     // Audit trail.
-    expect(
-      world.audits.filter((a) => a.action === 'erase.confirm'),
-    ).toHaveLength(1);
+    const confirms = world.audits.filter((a) => a.action === 'erase.confirm');
+    expect(confirms).toHaveLength(1);
+    expect(confirms[0]!.detail).toBe('revoked:1,deleted:1,waitlist:2');
     expect(world.requests[0]!.status).toBe('completed');
   });
 

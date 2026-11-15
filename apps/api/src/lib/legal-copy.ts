@@ -46,6 +46,11 @@ export const RETENTION_RULES_DRAFT: readonly RetentionRule[] = [
     status: LEGAL_REVIEW_PENDING,
   },
   {
+    record: 'waitlist_signups (email, topic, consent)',
+    retention: 'Deleted when an erasure request is confirmed. Otherwise retained until the topic launches and the launch email is sent.',
+    status: LEGAL_REVIEW_PENDING,
+  },
+  {
     record: 'estimates (anonymized snapshots)',
     retention: 'Retained indefinitely, detached from identity, for cost-model calibration.',
     status: LEGAL_REVIEW_PENDING,
@@ -66,6 +71,14 @@ export const RETENTION_RULES_DRAFT: readonly RetentionRule[] = [
     status: LEGAL_REVIEW_PENDING,
   },
 ];
+
+/**
+ * Version tag of the waitlist consent wording (#520, owner decision
+ * 2026-11-15) stored in `waitlist_signups.consent_version`. Bump it when the
+ * wording in docs/legal/approved-copy.md "CASL waitlist consent wording"
+ * (and the web `copy.waitlist.consentLabel`) changes.
+ */
+export const WAITLIST_CONSENT_VERSION = 'waitlist-2026-11-15-draft' as const;
 
 /** Short retention notice embedded in the export payload. */
 export const EXPORT_RETENTION_NOTICE_DRAFT: string =

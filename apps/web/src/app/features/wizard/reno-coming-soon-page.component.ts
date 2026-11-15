@@ -3,7 +3,12 @@ import { Router } from '@angular/router';
 import { Store } from '@ngxs/store';
 import { ConfigService } from '../../core/config/config.service';
 import { SeoService } from '../../core/seo/seo.service';
-import { SiteFooterComponent, SiteNavComponent, WizardBackComponent } from '../../shared/components';
+import {
+  SiteFooterComponent,
+  SiteNavComponent,
+  WaitlistSignupComponent,
+  WizardBackComponent,
+} from '../../shared/components';
 import { ChooseProjectType } from '../wizard';
 
 /**
@@ -21,7 +26,7 @@ import { ChooseProjectType } from '../wizard';
 @Component({
   selector: 'app-reno-coming-soon-page',
   standalone: true,
-  imports: [SiteFooterComponent, SiteNavComponent, WizardBackComponent],
+  imports: [SiteFooterComponent, SiteNavComponent, WaitlistSignupComponent, WizardBackComponent],
   templateUrl: './reno-coming-soon-page.component.html',
   styleUrls: ['./wizard-shell.scss', './reno-coming-soon-page.component.scss'],
 })
@@ -33,6 +38,8 @@ export class RenoComingSoonPageComponent implements OnInit {
 
   /** Coming-soon copy (config-owned). */
   protected readonly copy = this.config.get('copy').renoComingSoon;
+  /** #520: email capture here too (direct links / old sessions reach this page). */
+  protected readonly renoWaitlist = this.config.get('features').renovationWaitlist;
 
   ngOnInit(): void {
     this.seo.setForRoute('estimate/reno-coming-soon');

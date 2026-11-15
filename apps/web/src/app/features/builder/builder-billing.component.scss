@@ -18,13 +18,13 @@
 
 .builder-billing__sub {
   margin: 0.25rem 0 0;
-  color: var(--color-text-muted, #6b6257);
+  color: var(--muted);
 }
 
 /* White-card panel (admin billing-panel__stat treatment). */
 .builder-billing__panel {
   background: #fff;
-  border: 1px solid var(--color-border, #e5e0d8);
+  border: 1px solid var(--border);
   border-radius: 0.5rem;
   padding: 1rem 1.25rem;
   display: flex;
@@ -73,7 +73,7 @@
     font-size: 0.8125rem;
     text-transform: uppercase;
     letter-spacing: 0.04em;
-    color: var(--color-text-muted, #6b6257);
+    color: var(--muted);
   }
 
   dd {
@@ -92,9 +92,9 @@
   border-radius: 999px;
   font-size: 0.875rem;
   font-weight: 700;
-  border: 1px solid var(--color-border, #e5e0d8);
+  border: 1px solid var(--border);
   background: #fff;
-  color: var(--color-text, #2b2620);
+  color: var(--text);
 }
 
 .builder-billing__panel-actions {
@@ -117,7 +117,7 @@
 
 .builder-billing__empty-body {
   margin: 0;
-  color: var(--color-text-muted, #6b6257);
+  color: var(--muted);
 }
 
 /* Loading skeleton. */
@@ -126,7 +126,7 @@
   flex-direction: column;
   gap: 0.75rem;
   background: #fff;
-  border: 1px solid var(--color-border, #e5e0d8);
+  border: 1px solid var(--border);
   border-radius: 0.5rem;
   padding: 1rem 1.25rem;
 }
@@ -137,9 +137,9 @@
   border-radius: 0.25rem;
   background: linear-gradient(
     90deg,
-    var(--color-background, #faf9f7) 25%,
-    var(--color-border, #e5e0d8) 50%,
-    var(--color-background, #faf9f7) 75%
+    var(--cream) 25%,
+    var(--border) 50%,
+    var(--cream) 75%
   );
   background-size: 200% 100%;
   animation: builder-billing__shimmer 1.2s ease-in-out infinite;
@@ -191,9 +191,9 @@
   display: inline-flex;
   align-items: center;
   padding: 0.5rem 1rem;
-  border: 1px solid var(--color-border, #d8d2c7);
+  border: 1px solid var(--border);
   border-radius: 0.375rem;
-  background: var(--color-surface, #fff);
+  background: var(--card);
   color: inherit;
   font: inherit;
   font-size: 0.875rem;
@@ -208,8 +208,8 @@
 }
 
 .builder-billing__btn--primary {
-  border-color: var(--color-accent, #a8761a);
-  background: var(--color-accent, #a8761a);
+  border-color: var(--accent);
+  background: var(--accent);
   color: #fff;
 }
 
@@ -250,9 +250,9 @@
   align-items: center;
   justify-content: center;
   padding: 0.5rem 1rem;
-  border: 1px solid var(--color-accent, #a8761a);
+  border: 1px solid var(--accent);
   border-radius: 0.375rem;
-  background: var(--color-accent, #a8761a);
+  background: var(--accent);
   color: #fff;
   font: inherit;
   font-size: 0.9375rem;

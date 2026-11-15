@@ -1,0 +1,73 @@
+<section class="wl" [attr.aria-labelledby]="headingId" [attr.data-variant]="variant()">
+  @if (status() === 'sent') {
+    <p class="wl-heading" [id]="headingId">{{ variantCopy().heading }}</p>
+    <p class="wl-success" role="status">{{ successMessage() }}</p>
+  } @else {
+    <p class="wl-heading" [id]="headingId">{{ variantCopy().heading }}</p>
+    <p class="wl-body">{{ variantCopy().body }}</p>
+
+    @if (variant() === 'city') {
+      <fieldset class="wl-cities">
+        <legend class="wl-label">{{ copy.city.topicLabel }}</legend>
+        @for (c of cities; track c.id) {
+          <label class="wl-city" [class.selected]="topic() === c.id">
+            <input
+              type="radio"
+              [name]="radioName"
+              [value]="c.id"
+              [checked]="topic() === c.id"
+              (change)="pickCity(c.id)"
+            />
+            <span>{{ c.name }}</span>
+          </label>
+        }
+      </fieldset>
+    }
+
+    <label class="wl-label" [for]="emailId">{{ copy.emailLabel }}</label>
+    <div class="wl-row">
+      <input
+        [id]="emailId"
+        class="wl-input"
+        type="email"
+        inputmode="email"
+        autocomplete="email"
+        [placeholder]="copy.emailPlaceholder"
+        [formControl]="email"
+        [attr.aria-invalid]="showInvalid() && email.invalid ? 'true' : null"
+        [attr.aria-describedby]="(showInvalid() && email.invalid ? errorId + ' ' : '') + noteId"
+        (keydown.enter)="onEmailEnter($event)"
+      />
+      <button class="wl-submit" type="button" [disabled]="status() === 'sending'" (click)="submit()">
+        {{ status() === 'sending' ? copy.sendingLabel : copy.submitLabel }}
+      </button>
+    </div>
+    @if (showInvalid() && email.invalid) {
+      <p class="wl-error" role="alert" [id]="errorId">{{ copy.invalidEmail }}</p>
+    }
+    <!-- CASL consent (owner decision 2026-11-15): REQUIRED, unticked by
+         default. Wording is DRAFT pending legal review and byte-checked
+         against docs/legal/approved-copy.md. -->
+    <label class="wl-consent">
+      <input
+        type="checkbox"
+        [formControl]="consent"
+        [attr.aria-invalid]="showConsentError() && consent.invalid ? 'true' : null"
+        [attr.aria-describedby]="showConsentError() && consent.invalid ? consentErrorId : null"
+      />
+      <span
+        >{{ consentParts.before
+        }}@if (consentParts.link) {<a routerLink="/privacy">{{ consentParts.link }}</a>}{{
+          consentParts.after
+        }}</span
+      >
+    </label>
+    @if (showConsentError() && consent.invalid) {
+      <p class="wl-error" role="alert" [id]="consentErrorId">{{ copy.consentRequired }}</p>
+    }
+    @if (status() === 'error') {
+      <p class="wl-error" role="alert">{{ copy.error }}</p>
+    }
+    <p class="wl-note" [id]="noteId">{{ copy.privacyNote }}</p>
+  }
+</section>

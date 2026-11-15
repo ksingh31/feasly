@@ -28,3 +28,5 @@ export { OptionSelectorComponent } from './option-selector';
 export type { OptionCard, TierOption } from './option-selector';
 export { WizardBackComponent } from './wizard-back';
 export { WizardStepsComponent } from './wizard-steps';
+export { WaitlistSignupComponent } from './waitlist-signup';
+export type { WaitlistVariant } from './waitlist-signup';

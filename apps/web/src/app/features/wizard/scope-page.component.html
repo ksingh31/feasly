@@ -25,7 +25,12 @@
                 [class.selected]="projectType() === pt.id"
                 (click)="chooseProjectType(pt.id)"
               >
-                <span class="ptype-name">{{ pt.name }}</span>
+                <span class="ptype-name">
+                  {{ pt.name }}
+                  @if (pt.id === 'renovation' && renoWaitlist) {
+                    <span class="ptype-badge">{{ copy.renoComingSoonBadge }}</span>
+                  }
+                </span>
                 <span class="ptype-blurb">{{ pt.blurb }}</span>
               </button>
             }
@@ -69,13 +74,22 @@
           />
         }
 
-        @if (projectType() === 'renovation') {
-          <p class="hint reno-note">{{ copy.renoSelectedNote }}</p>
-        }
+        @if (projectType() === 'renovation' && renoWaitlist) {
+          <app-waitlist-signup class="reno-waitlist" variant="renovation" />
+          <div class="actions">
+            <button class="reno-new-build" type="button" (click)="chooseProjectType('new-build')">
+              {{ copy.renoNewBuildCta }}
+            </button>
+          </div>
+        } @else {
+          @if (projectType() === 'renovation') {
+            <p class="hint reno-note">{{ copy.renoSelectedNote }}</p>
+          }
 
-        <div class="actions">
-          <button class="cta" type="button" [disabled]="projectType() == null" (click)="seePreview()">{{ copy.scopeCta }}</button>
-        </div>
+          <div class="actions">
+            <button class="cta" type="button" [disabled]="projectType() == null" (click)="seePreview()">{{ copy.scopeCta }}</button>
+          </div>
+        }
       } @else {
         <div class="empty">
           <p>{{ copy.scopeEmpty }}</p>

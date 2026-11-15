@@ -5,6 +5,7 @@ import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { provideRouter, Router } from '@angular/router';
 import { provideStore, Store } from '@ngxs/store';
 import { beforeEach, describe, expect, it } from 'vitest';
+import { API_SERVICE, type ApiService } from '../../core/api';
 import { ConfigService } from '../../core/config/config.service';
 import { ChooseProjectType, WizardState } from '../wizard';
 import { RenoComingSoonPageComponent } from './reno-coming-soon-page.component';
@@ -36,6 +37,7 @@ describe('RenoComingSoonPageComponent', () => {
           { path: 'estimate/reno-scope', component: BlankComponent },
         ]),
         provideStore([WizardState]),
+        { provide: API_SERVICE, useValue: {} as ApiService },
       ],
     });
     const httpMock = TestBed.inject(HttpTestingController);
@@ -75,5 +77,11 @@ describe('RenoComingSoonPageComponent', () => {
       await new Promise((r) => setTimeout(r, 25));
     }
     expect(router.url).toBe('/estimate/scope');
+  });
+
+  it('#520: offers the renovation waitlist capture', () => {
+    expect(
+      fixture.nativeElement.querySelector('app-waitlist-signup[variant="renovation"]'),
+    ).not.toBeNull();
   });
 });

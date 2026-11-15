@@ -34,6 +34,8 @@ import type {
   UnsubscribePreferencesInput,
   UnsubscribeResultResponse,
   UnsubscribeStateResponse,
+  WaitlistRequest,
+  WaitlistResponse,
 } from '@feasly/contracts';
 import { ConfigService } from '../config/config.service';
 import type { FunnelQuery, FunnelReport } from './funnel.types';
@@ -137,6 +139,8 @@ export interface ApiService {
   ): Observable<TierRevisionResponse>;
   /** Callback request from the report. */
   requestCallback(request: CallbackRequest): Observable<CallbackResponse>;
+  /** #520: join a "tell me when it's ready" waitlist (renovation / other cities). */
+  joinWaitlist(request: WaitlistRequest): Observable<WaitlistResponse>;
   /** Email the report to a partner (mints their own link). */
   shareWithPartner(
     request: PartnerShareRequest,
@@ -296,6 +300,10 @@ class LazyApiService implements ApiService {
 
   requestCallback(request: CallbackRequest): Observable<CallbackResponse> {
     return this.resolve().requestCallback(request);
+  }
+
+  joinWaitlist(request: WaitlistRequest): Observable<WaitlistResponse> {
+    return this.resolve().joinWaitlist(request);
   }
 
   shareWithPartner(request: PartnerShareRequest): Observable<PartnerShareResponse> {

@@ -58,7 +58,7 @@
   flex-direction: column;
   gap: 4px;
   padding: 16px;
-  background: var(--bg);
+  background: var(--card);
   border: 2px solid var(--border);
   border-radius: 12px;
   cursor: pointer;
@@ -68,7 +68,7 @@
 
 .reno-card.selected {
   border-color: var(--accent);
-  background: color-mix(in srgb, var(--accent) 8%, var(--bg));
+  background: color-mix(in srgb, var(--accent) 8%, var(--card));
 }
 
 .reno-name {
@@ -97,7 +97,7 @@
   font-size: 18px;
   font-weight: 700;
   color: var(--text);
-  background: var(--bg);
+  background: var(--card);
   border: 2px solid var(--border);
   border-radius: 8px;
   text-align: right;
@@ -169,7 +169,7 @@
   flex-direction: column;
   gap: 4px;
   padding: 16px;
-  background: var(--bg);
+  background: var(--card);
   border: 2px solid var(--border);
   border-radius: 12px;
   cursor: pointer;
@@ -179,7 +179,7 @@
 
 .tier-card.selected {
   border-color: var(--accent);
-  background: color-mix(in srgb, var(--accent) 8%, var(--bg));
+  background: color-mix(in srgb, var(--accent) 8%, var(--card));
 }
 
 .tier-name {

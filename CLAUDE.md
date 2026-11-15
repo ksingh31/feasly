@@ -83,7 +83,7 @@ keeps existing guarantees, note why on the issue), file a bug, and fix it.
 - Reads/diagnostics freely (`az`, Azure MCP in read-only mode, Log Analytics
   workspace `feasly-dev-law`). Infra changes go through Bicep PRs.
 - Status 2026-11-13: subscription upgraded to **Pay-As-You-Go** (spending limit
-  off). Budget `feasly-monthly-cap` = $100/mo. It was disabled 2026-10-24 →
+  off). Budget `feasly-monthly-cap` = **CA$10/mo** (owner confirmed 2026-11-15, #680). It was disabled 2026-10-24 →
   2026-11-13, so telemetry has a gap for those dates.
 
 ## Agent team (`.claude/agents/`)

@@ -52,3 +52,22 @@ checkbox in the lead-gate UI once approved.)_
 ```text
 I agree to the Terms and Privacy Policy, and that Feasly and builders associated with us may contact me about my estimate. I can opt out anytime.
 ```
+
+### CASL waitlist consent wording
+
+_(lawyer: the exact consent wording for the "tell me when it's ready"
+waitlist capture — renovation estimates and other cities, issue #520; must
+byte-match the required consent checkbox in the waitlist UI once approved.)_
+
+> **Status: draft-pending-lawyer.** Owner decision 2026-11-15 (option (a),
+> the lead-gate pattern): a required, unticked checkbox with the wording
+> below; "Privacy Policy" links to the privacy page. Same status as the
+> lead-gate consent above. The API stores `consent_ts` and
+> `consent_version` (`WAITLIST_CONSENT_VERSION` in
+> `apps/api/src/lib/legal-copy.ts` — bump it when this wording changes) and
+> rejects a signup without consent. `apps/web/tools/check-casl-copy.mjs`
+> keeps the app's `copy.waitlist.consentLabel` byte-identical to it.
+
+```text
+I agree to the Privacy Policy and that Feasly may email me when this launches. I can unsubscribe anytime.
+```

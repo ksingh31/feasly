@@ -5,6 +5,9 @@
     <span class="soon-badge" aria-hidden="true"></span>
     <h1 class="soon-heading">{{ copy.heading }}</h1>
     <p class="soon-body">{{ copy.body }}</p>
+    @if (renoWaitlist) {
+      <app-waitlist-signup variant="renovation" />
+    }
     <div class="soon-actions">
       <button class="cta" type="button" (click)="startNewBuild()">{{ copy.newBuildCta }}</button>
     </div>
