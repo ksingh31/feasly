@@ -87,6 +87,18 @@ export class ApiKeysState {
     return state.plaintext;
   }
 
+  /** Name of the key the once-only plaintext belongs to (secret modal). */
+  @Selector()
+  static plaintextKeyName(state: ApiKeysStateModel): string | null {
+    return state.plaintextKey?.name ?? null;
+  }
+
+  /** True while an issue/rotate/revoke/update is in flight. */
+  @Selector()
+  static mutating(state: ApiKeysStateModel): boolean {
+    return state.mutating;
+  }
+
   @Selector()
   static usage(state: ApiKeysStateModel): readonly ApiKeyUsageAggregate[] {
     return state.usage;

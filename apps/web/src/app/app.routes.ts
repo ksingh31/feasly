@@ -315,6 +315,11 @@ export const routes: Routes = [
         async () =>
           (await import('./features/admin/admin-users.state')).adminUsersStateProvider,
       ),
+      // ⌘K command palette + lead picker (#538): admin global search.
+      lazyProvider(
+        async () =>
+          (await import('./features/admin/admin-search.state')).adminSearchStateProvider,
+      ),
     ],
     data: { noindex: true },
     children: [

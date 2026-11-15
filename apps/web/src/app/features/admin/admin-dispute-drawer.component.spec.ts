@@ -134,7 +134,7 @@ afterEach(() => {
 describe('AdminDisputeDrawerComponent (#545)', () => {
   it('renders the heading, SLA chip and opened / SLA-due meta', async () => {
     const { el } = await setup();
-    expect(el.querySelector('.ui-drawer__title')?.textContent?.trim()).toBe('Dispute on inv-1');
+    expect(el.querySelector('.ui-drawer__title')?.textContent?.trim()).toBe('Dispute · elite-craft');
     expect(q(el, 'drawer-sla')?.textContent?.trim()).toBe('Due today');
     expect(el.querySelector('.ui-drawer__sub')?.textContent).toContain('SLA due');
   });
@@ -158,9 +158,16 @@ describe('AdminDisputeDrawerComponent (#545)', () => {
     expect(timeline?.textContent).not.toContain('contractValueCents');
   });
 
-  it('links the invoice', async () => {
+  it('links the invoice and the lead by label, never by raw id (#538)', async () => {
     const { el } = await setup();
-    expect(q(el, 'drawer-invoice-link')?.textContent).toContain('inv-1');
+    expect(q(el, 'drawer-invoice-link')?.textContent).toContain('View invoice');
+    expect(q(el, 'drawer-lead-link')?.textContent).toContain('View lead');
+    const ids = q(el, 'drawer-technical-ids') as HTMLElement;
+    expect(ids.querySelector('details')?.open).toBe(false);
+    expect(ids.textContent).toContain('inv-1');
+    const clone = el.cloneNode(true) as HTMLElement;
+    clone.querySelector('[data-testid="drawer-technical-ids"]')?.remove();
+    expect(clone.textContent).not.toContain('inv-1');
   });
 
   it('Accept goes through ConfirmDialog stating the void and refund amount (AC2), then resolves', async () => {

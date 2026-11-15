@@ -19,13 +19,24 @@
     <section class="dispute-drawer__section" aria-labelledby="dispute-drawer-summary">
       <h3 id="dispute-drawer-summary" class="dispute-drawer__heading">Summary</h3>
       <div class="dispute-drawer__invoice">
-        <span class="dispute-drawer__label">Invoice</span>
+        <span class="dispute-drawer__label">Records</span>
         <ui-entity-link
-          kind="Invoice"
+          kind="invoice"
           [entityId]="d.invoiceId"
-          [label]="d.invoiceId"
+          [label]="entityCopy.viewInvoice"
+          [copyLabel]="entityCopy.copyId"
+          [copiedLabel]="entityCopy.idCopied"
           (opened)="openInvoice($event)"
           data-testid="drawer-invoice-link"
+        />
+        <ui-entity-link
+          kind="lead"
+          [entityId]="d.evidenceSnapshot.leadId"
+          [label]="entityCopy.viewLead"
+          [copyLabel]="entityCopy.copyId"
+          [copiedLabel]="entityCopy.idCopied"
+          (opened)="openLead($event)"
+          data-testid="drawer-lead-link"
         />
       </div>
       <ui-key-value-list [items]="summary()" />
@@ -42,6 +53,13 @@
         Captured when the dispute opened. It never changes, even if the invoice is later voided or refunded.
       </p>
       <ui-key-value-list [items]="evidence()" data-testid="drawer-evidence" />
+      <ui-technical-ids
+        data-testid="drawer-technical-ids"
+        [ids]="technicalIds()"
+        [summary]="entityCopy.technicalIds"
+        [copyLabel]="entityCopy.copyId"
+        [copiedLabel]="entityCopy.idCopied"
+      />
     </section>
 
     <section class="dispute-drawer__section" aria-labelledby="dispute-drawer-audit">

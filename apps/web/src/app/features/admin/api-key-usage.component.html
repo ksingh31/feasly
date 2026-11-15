@@ -1,26 +1,47 @@
 @if (loading()) {
-  <p class="usage__loading">{{ copy.loading }}</p>
+  <p class="usage__loading">{{ copy.usageLoading }}</p>
 } @else if (usage().length === 0) {
-  <p class="usage__empty">{{ copy.empty }}</p>
+  <p class="usage__empty">{{ copy.usageEmpty }}</p>
 } @else {
-  <table class="usage__table">
-    <thead>
-      <tr>
-        <th scope="col">{{ copy.dateHeader }}</th>
-        <th scope="col">{{ copy.endpointHeader }}</th>
-        <th scope="col">{{ copy.requestsHeader }}</th>
-        <th scope="col">{{ copy.estimatesHeader }}</th>
-      </tr>
-    </thead>
-    <tbody>
-      @for (row of usage(); track row.date + row.endpoint) {
-        <tr>
-          <td [attr.data-label]="copy.dateHeader">{{ row.date }}</td>
-          <td [attr.data-label]="copy.endpointHeader">{{ row.endpoint }}</td>
-          <td [attr.data-label]="copy.requestsHeader">{{ row.count }}</td>
-          <td [attr.data-label]="copy.estimatesHeader">{{ row.estimates_created }}</td>
-        </tr>
+  <figure class="usage__figure">
+    <figcaption class="usage__caption">
+      <span class="usage__caption-title">{{ copy.usageChartLabel }}</span>
+      <span class="usage__caption-total">{{ total() }}</span>
+    </figcaption>
+    <ol class="usage__chart" [attr.aria-label]="copy.usageChartLabel" data-testid="usage-chart">
+      @for (day of days(); track day.date) {
+        <li class="usage__day" [title]="day.label + ': ' + (day.count | kitCount)">
+          <span class="usage__bar-track" aria-hidden="true">
+            <span class="usage__bar" [style.--share]="day.share"></span>
+          </span>
+          <span class="usage__day-label" aria-hidden="true">{{ day.tick }}</span>
+          <span class="usage__sr">{{ day.label }}: {{ day.count | kitCount }} {{ copy.usageRequestsHeader }}</span>
+        </li>
       }
-    </tbody>
-  </table>
+    </ol>
+  </figure>
+
+  <details class="usage__details" data-testid="usage-details">
+    <summary class="usage__summary">{{ copy.usageShowTable }}</summary>
+    <table class="usage__table">
+      <thead>
+        <tr>
+          <th scope="col">{{ copy.usageDateHeader }}</th>
+          <th scope="col">{{ copy.usageEndpointHeader }}</th>
+          <th scope="col" class="usage__num">{{ copy.usageRequestsHeader }}</th>
+          <th scope="col" class="usage__num">{{ copy.usageEstimatesHeader }}</th>
+        </tr>
+      </thead>
+      <tbody>
+        @for (row of usage(); track row.date + row.endpoint) {
+          <tr>
+            <td [attr.data-label]="copy.usageDateHeader">{{ row.date }}</td>
+            <td [attr.data-label]="copy.usageEndpointHeader"><code>{{ row.endpoint }}</code></td>
+            <td class="usage__num" [attr.data-label]="copy.usageRequestsHeader">{{ row.count | kitCount }}</td>
+            <td class="usage__num" [attr.data-label]="copy.usageEstimatesHeader">{{ row.estimates_created | kitCount }}</td>
+          </tr>
+        }
+      </tbody>
+    </table>
+  </details>
 }

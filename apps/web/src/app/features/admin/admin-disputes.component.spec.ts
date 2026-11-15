@@ -78,6 +78,13 @@ describe('AdminDisputesComponent (#545)', () => {
     expect(el.querySelector('[data-testid="disputes-count"]')?.textContent).toContain('3 open disputes');
   });
 
+  it('invoice cells are EntityLinks with a label, never the raw invoice id (#538)', async () => {
+    const { el } = await setup();
+    const body = el.querySelector('tbody')?.textContent ?? '';
+    expect(body).toContain('View invoice');
+    expect(body).not.toMatch(/inv-\d/);
+  });
+
   it('SLA chip: days left / due today / overdue (AC1)', async () => {
     const { el } = await setup();
     const chips = Array.from(el.querySelectorAll('tbody [data-testid="sla-chip"]')).map((c) => c.textContent?.trim());

@@ -1,12 +1,14 @@
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { provideStore, Store } from '@ngxs/store';
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { of, throwError } from 'rxjs';
 import type { Builder } from '@feasly/contracts';
 import { AdminBillingApiService } from './admin-billing-api.service';
 import { AdminBuildersApiService } from './admin-builders-api.service';
 import { BillingHealthState } from './billing-health.state';
 import { AdminBuildersState } from './admin-builders.state';
+import { AdminSearchApiService } from './admin-search-api.service';
+import { AdminSearchState } from './admin-search.state';
 import {
   AdminCreateInvoiceComponent,
   toIsoWithOffset,
@@ -59,6 +61,7 @@ function fillValidForm(
 describe('AdminCreateInvoiceComponent (manual invoice creation)', () => {
   let fixture: ComponentFixture<AdminCreateInvoiceComponent>;
   let component: AdminCreateInvoiceComponent;
+  let searchApi: { search: ReturnType<typeof vi.fn> };
   let billingApi: {
     getBillingHealth: ReturnType<typeof vi.fn>;
     retryInvoiceCharge: ReturnType<typeof vi.fn>;
@@ -71,13 +74,25 @@ describe('AdminCreateInvoiceComponent (manual invoice creation)', () => {
       retryInvoiceCharge: vi.fn().mockReturnValue(of(null)),
       createManualInvoice: vi.fn().mockReturnValue(of(INVOICE_RESPONSE)),
     };
+    searchApi = {
+      search: vi.fn().mockReturnValue(
+        of({
+          query: 'jordan',
+          hits: [
+            { kind: 'lead', id: LEAD_ID, label: 'Jordan Lee', sublabel: '12 Elm St SW' },
+            { kind: 'builder', id: 'b-1', label: 'Test Builder', sublabel: 'test-builder' },
+          ],
+        }),
+      ),
+    };
     const buildersApi = {
       listBuilders: vi.fn().mockReturnValue(of({ builders: BUILDERS })),
     };
     await TestBed.configureTestingModule({
       imports: [AdminCreateInvoiceComponent],
       providers: [
-        provideStore([BillingHealthState, AdminBuildersState]),
+        provideStore([BillingHealthState, AdminBuildersState, AdminSearchState]),
+        { provide: AdminSearchApiService, useValue: searchApi },
         { provide: AdminBillingApiService, useValue: billingApi },
         { provide: AdminBuildersApiService, useValue: buildersApi },
       ],
@@ -189,6 +204,76 @@ describe('AdminCreateInvoiceComponent (manual invoice creation)', () => {
     const text = fixture.nativeElement.textContent as string;
     expect(text).toContain('outside the 12-month attribution window');
   });
+  describe('lead picker (#538)', () => {
+    beforeEach(() => vi.useFakeTimers());
+    afterEach(() => vi.useRealTimers());
+
+    it('replaces the paste-a-UUID field with a lead search combobox', () => {
+      const input = fixture.nativeElement.querySelector(
+        '.create-invoice__lead input[role="combobox"]',
+      ) as HTMLInputElement | null;
+      expect(input).not.toBeNull();
+      expect(fixture.nativeElement.textContent).not.toContain('UUID');
+    });
+
+    it('searches leads (debounced) and lists only lead hits', () => {
+      const input = fixture.nativeElement.querySelector(
+        '.create-invoice__lead input',
+      ) as HTMLInputElement;
+      input.value = 'jordan';
+      input.dispatchEvent(new Event('input'));
+      vi.advanceTimersByTime(100);
+      expect(searchApi.search).not.toHaveBeenCalled();
+      vi.advanceTimersByTime(300);
+      fixture.detectChanges();
+      expect(searchApi.search).toHaveBeenCalledWith('jordan');
+      expect(component.leadOptions()).toEqual([
+        { id: LEAD_ID, label: 'Jordan Lee', meta: '12 Elm St SW' },
+      ]);
+      const options = Array.from(
+        fixture.nativeElement.querySelectorAll('.create-invoice__lead [role="option"]'),
+      ) as HTMLElement[];
+      expect(options.map((o) => o.textContent?.trim())).toEqual([
+        expect.stringContaining('Jordan Lee'),
+      ]);
+    });
+
+    it('picking a lead sets the id as the value and shows its name on review', () => {
+      const input = fixture.nativeElement.querySelector(
+        '.create-invoice__lead input',
+      ) as HTMLInputElement;
+      input.value = 'jordan';
+      input.dispatchEvent(new Event('input'));
+      vi.advanceTimersByTime(300);
+      fixture.detectChanges();
+      input.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter' }));
+      fixture.detectChanges();
+      expect(component.form.controls.leadId.value).toBe(LEAD_ID);
+
+      component.form.controls.builder.setValue('test-builder');
+      component.form.controls.contractDollars.setValue(850_000);
+      component.form.controls.signedDate.setValue('2026-09-20');
+      component.startReview();
+      fixture.detectChanges();
+      const review = fixture.nativeElement.querySelector('.create-invoice__review') as HTMLElement;
+      expect(review.textContent).toContain('Jordan Lee');
+      expect(review.textContent).not.toContain(LEAD_ID);
+    });
+
+    it('the confirmation links to the invoice instead of printing its UUID', async () => {
+      vi.useRealTimers();
+      fillValidForm(component);
+      component.startReview();
+      component.confirmCreate();
+      await fixture.whenStable();
+      fixture.detectChanges();
+      const feedback = fixture.nativeElement.querySelector(
+        '.create-invoice__feedback--ok',
+      ) as HTMLElement;
+      expect(feedback.querySelector('ui-entity-link')?.textContent).toContain('View invoice');
+      expect(feedback.textContent).not.toContain(INVOICE_RESPONSE.invoiceId);
+    });
+  });
 });
 
 describe('toIsoWithOffset', () => {
@@ -196,4 +281,5 @@ describe('toIsoWithOffset', () => {
     const out = toIsoWithOffset(new Date(2026, 8, 20, 12, 0, 0));
     expect(out).toMatch(/^2026-09-20T12:00:00[+-]\d{2}:\d{2}$/);
   });
+
 });

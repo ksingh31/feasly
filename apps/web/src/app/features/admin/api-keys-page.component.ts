@@ -1,197 +1,210 @@
-import { Component, DestroyRef, inject, OnInit, signal } from '@angular/core';
-import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
-import { FormsModule } from '@angular/forms';
-import { Store } from '@ngxs/store';
-import { ConfigService } from '../../core/config/config.service';
-import type { ApiKeyScope } from '@feasly/contracts';
+import { DialogRef } from '@angular/cdk/dialog';
 import {
-  API_KEY_SCOPES,
-  ClearPlaintext,
-  IssueApiKey,
-  LoadApiKeyUsage,
-  LoadApiKeys,
-  RevokeApiKey,
-  RotateApiKey,
-  SelectApiKey,
-  UpdateApiKey,
-} from './api-keys.actions';
+  Component,
+  DestroyRef,
+  Injector,
+  OnInit,
+  computed,
+  effect,
+  inject,
+  signal,
+  untracked,
+} from '@angular/core';
+import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
+import { ActivatedRoute, Router } from '@angular/router';
+import { Store } from '@ngxs/store';
+import type { ApiKeyRecordResponse } from '@feasly/contracts';
+import {
+  DataTableComponent,
+  type DataTableColumn,
+  KitDateTimePipe,
+  KitRelativePipe,
+  PageHeaderComponent,
+  UI_DRAWER_URL_PARAM,
+  UiButtonComponent,
+  UiCellDirective,
+  UiDrawerService,
+  UiModalService,
+  UiRowActionsDirective,
+  injectDrawerParam,
+} from '@app/shared/ui';
+import { ConfigService } from '../../core/config/config.service';
+import { LoadBuilders } from './admin-builders.actions';
+import { AdminBuildersState } from './admin-builders.state';
+import { ADMIN_PERMISSIONS, adminCan } from './admin-permissions';
+import { ClearPlaintext, LoadApiKeys } from './api-keys.actions';
 import { ApiKeysState } from './api-keys.state';
-import { ApiKeyUsageComponent } from './api-key-usage.component';
+import { ApiKeyDrawerComponent, type ApiKeyDrawerData } from './api-key-drawer.component';
+import { ApiKeyIssueModalComponent } from './api-key-issue-modal.component';
+import { ApiKeySecretModalComponent } from './api-key-secret-modal.component';
+import { apiKeyStatus, builderName } from './api-keys-view';
+
+/** A key row with its builder name resolved for display. */
+export interface ApiKeyRow extends ApiKeyRecordResponse {
+  readonly status: 'active' | 'revoked';
+  readonly builderName: string | null;
+}
 
 /**
- * API key management (story api-mcp/02).
+ * Admin API keys (api-mcp/02; redesign #546, review S13) — `/admin/api-keys`.
  *
- * `/admin/api-keys` — Karan's key lifecycle UI: issue (plaintext shown
- * once with a copy button — navigating away loses it permanently), rotate /
- * revoke with confirm dialogs, scope + rate-limit editors (take effect on
- * the next request, no restart), and a per-key usage panel.
+ * Kit DataTable (Name · Builder · Prefix · Scopes chips · Last used · Status)
+ * that becomes a card list on phones. A row opens the key drawer
+ * (`?open=<id>`: Overview + Usage tabs). "Issue key" opens the issue modal
+ * (builder picked from a combobox). Whenever a plaintext lands in state
+ * (issue or rotate), the one-time secret modal opens — it can't be
+ * dismissed by the scrim, Esc or a ×; only "Done" after the acknowledgment.
  *
- * Guarded by {@link adminGuard} (admin/01 session-cookie auth).
- * State lives in {@link ApiKeysState} (not persisted — the once-only
- * plaintext must never survive a refresh).
+ * ApiKeysState is provided at this route via lazyProvider and is not
+ * persisted: the once-only plaintext never survives a refresh, and it is
+ * cleared when the page is left.
  */
 @Component({
   selector: 'app-api-keys-page',
   standalone: true,
-  imports: [FormsModule, ApiKeyUsageComponent],
-  // ApiKeysState is provided at the `admin/api-keys` child route via
-  // lazyProvider (see app.routes.ts): the state + its actions stay in this
-  // lazy chunk, keeping the initial bundle under budget. Memory-only by
-  // design — the once-only plaintext must never survive a refresh.
+  imports: [
+    PageHeaderComponent,
+    DataTableComponent,
+    UiCellDirective,
+    UiRowActionsDirective,
+    UiButtonComponent,
+    KitRelativePipe,
+    KitDateTimePipe,
+  ],
   templateUrl: './api-keys-page.component.html',
   styleUrl: './api-keys-page.component.scss',
 })
 export class ApiKeysPageComponent implements OnInit {
   private readonly store = inject(Store);
-  private readonly config = inject(ConfigService);
   private readonly destroyRef = inject(DestroyRef);
+  private readonly injector = inject(Injector);
+  private readonly router = inject(Router);
+  private readonly route = inject(ActivatedRoute);
+  private readonly drawers = inject(UiDrawerService);
+  private readonly modals = inject(UiModalService);
 
-  protected readonly copy = this.config.get('copy').admin.apiKeys;
-  protected readonly scopes: readonly ApiKeyScope[] = API_KEY_SCOPES;
+  protected readonly copy = inject(ConfigService).get('copy').admin.apiKeys;
 
-  // NGXS selectors
-  protected readonly keys = this.store.selectSignal(ApiKeysState.keys);
-  protected readonly selected = this.store.selectSignal(ApiKeysState.selected);
-  protected readonly plaintext = this.store.selectSignal(ApiKeysState.plaintext);
+  private readonly keys = this.store.selectSignal(ApiKeysState.keys);
+  private readonly builders = this.store.selectSignal(AdminBuildersState.builders);
   protected readonly loading = this.store.selectSignal(ApiKeysState.loading);
   protected readonly loadFailed = this.store.selectSignal(ApiKeysState.loadFailed);
+  private readonly plaintext = this.store.selectSignal(ApiKeysState.plaintext);
 
-  // Issue form state
-  protected readonly showIssueForm = signal(false);
-  protected readonly issueName = signal('');
-  protected readonly issueTenant = signal('');
-  protected readonly issueScopes = signal<readonly ApiKeyScope[]>(['estimate']);
-  protected readonly issueRateLimit = signal(this.config.get('admin').defaultRateLimit);
-  protected readonly issueSandbox = signal(false);
+  /** `api_keys:manage` — viewers get the table and a read-only drawer. */
+  protected readonly canManage = adminCan(this.store, ADMIN_PERMISSIONS.apiKeysManage);
 
-  // Edit state (for the selected key)
-  protected readonly editing = signal(false);
-  protected readonly editScopes = signal<readonly ApiKeyScope[]>([]);
-  protected readonly editRateLimit = signal(this.config.get('admin').defaultRateLimit);
+  /** `?open=<id>` — the key whose drawer is open. */
+  protected readonly openId = injectDrawerParam();
 
-  // Confirm dialog state: 'rotate' | 'revoke' | null
-  protected readonly confirmAction = signal<'rotate' | 'revoke' | null>(null);
-  protected readonly copied = signal(false);
+  protected readonly rows = computed<readonly ApiKeyRow[]>(() =>
+    this.keys().map((k) => ({
+      ...k,
+      status: apiKeyStatus(k),
+      builderName: builderName(k.tenant_id, this.builders()),
+    })),
+  );
+
+  protected readonly rowId = (k: ApiKeyRow): string => k.id;
+
+  protected readonly columns: readonly DataTableColumn<ApiKeyRow>[] = [
+    { key: 'name', header: this.copy.colName, cardRole: 'title' },
+    { key: 'builder', header: this.copy.colBuilder, value: (k) => k.builderName ?? this.copy.noBuilder, cardRole: 'meta' },
+    { key: 'prefix', header: this.copy.colPrefix, kind: 'id', value: (k) => k.key_prefix, cardRole: 'meta' },
+    { key: 'scopes', header: this.copy.colScopes, value: (k) => k.scopes.join(', '), cardRole: 'hidden' },
+    { key: 'lastUsed', header: this.copy.colLastUsed, value: (k) => k.last_used_at, cardRole: 'meta' },
+    { key: 'status', header: this.copy.colStatus, kind: 'status', statusDomain: 'apiKey', cardRole: 'chip' },
+  ];
+
+  /** The first LoadApiKeys on this page has settled. */
+  private readonly loaded = signal(false);
+  private secretRef: DialogRef<unknown, ApiKeySecretModalComponent> | null = null;
+
+  constructor() {
+    // Deep links and Back/Forward drive the drawer off the URL once the
+    // list is loaded; a param naming an unknown key is dropped.
+    effect(() => {
+      const id = this.openId();
+      const ready = this.loaded();
+      untracked(() => this.syncDrawer(id, ready));
+    });
+    // A fresh plaintext (issue or rotate) opens the one-time secret modal.
+    effect(() => {
+      const plaintext = this.plaintext();
+      untracked(() => {
+        if (plaintext && !this.secretRef) this.openSecret();
+      });
+    });
+  }
 
   ngOnInit(): void {
-    // Title comes from the seo-routes table — the admin shell sets it
-    // centrally on every navigation (admin/api-keys).
-    this.store.dispatch(new LoadApiKeys());
-    // Clear the once-only plaintext when leaving the page.
+    this.store
+      .dispatch(new LoadApiKeys())
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe({
+        next: () => this.loaded.set(true),
+        error: () => this.loaded.set(true),
+      });
+    // Builder names for the table and the issue modal's picker.
+    this.store.dispatch(new LoadBuilders()).pipe(takeUntilDestroyed(this.destroyRef)).subscribe({ error: () => undefined });
+    // Leaving the page loses the once-only plaintext for good.
     this.destroyRef.onDestroy(() => {
+      this.secretRef?.close();
       this.store.dispatch(new ClearPlaintext());
     });
   }
 
-  protected selectKey(id: string | null): void {
-    this.editing.set(false);
-    this.store.dispatch(new SelectApiKey(id));
-    if (id) {
-      this.store.dispatch(new LoadApiKeyUsage(id));
-    }
-  }
-
-  protected toggleScope(list: 'issue' | 'edit', scope: ApiKeyScope): void {
-    const current = list === 'issue' ? this.issueScopes() : this.editScopes();
-    const next = current.includes(scope)
-      ? current.filter((s) => s !== scope)
-      : [...current, scope];
-    if (list === 'issue') {
-      this.issueScopes.set(next);
-    } else {
-      this.editScopes.set(next);
-    }
+  protected retry(): void {
+    this.store.dispatch(new LoadApiKeys());
   }
 
   protected issue(): void {
-    const name = this.issueName().trim();
-    if (!name || this.issueScopes().length === 0) return;
-    this.copied.set(false);
-    this.store
-      .dispatch(
-        new IssueApiKey({
-          name,
-          tenant_id: this.issueTenant().trim() || undefined,
-          scopes: this.issueScopes(),
-          rate_limit: this.issueRateLimit(),
-          sandbox: this.issueSandbox(),
-        }),
-      )
-      .pipe(takeUntilDestroyed(this.destroyRef))
-      .subscribe(() => {
-        this.showIssueForm.set(false);
-        this.issueName.set('');
-        this.issueTenant.set('');
-        this.issueScopes.set(['estimate']);
-        this.issueRateLimit.set(this.config.get('admin').defaultRateLimit);
-        this.issueSandbox.set(false);
+    this.modals.open<ApiKeyIssueModalComponent, boolean>(ApiKeyIssueModalComponent, {
+      size: 'md',
+      injector: this.injector,
+    });
+  }
+
+  protected openKey(key: ApiKeyRow): void {
+    this.openDrawer(key.id);
+  }
+
+  private syncDrawer(id: string | null, ready: boolean): void {
+    if (id === null || !ready || this.drawers.openDrawer?.urlId === id) return;
+    if (!this.keys().some((k) => k.id === id)) {
+      void this.router.navigate([], {
+        relativeTo: this.route,
+        queryParams: { [UI_DRAWER_URL_PARAM]: null },
+        queryParamsHandling: 'merge',
+        replaceUrl: true,
       });
-  }
-
-  protected copyPlaintext(): void {
-    const text = this.plaintext();
-    if (!text) return;
-    navigator.clipboard
-      .writeText(text)
-      .then(() => this.copied.set(true))
-      .catch(() => this.copied.set(false));
-  }
-
-  protected dismissPlaintext(): void {
-    this.store.dispatch(new ClearPlaintext());
-  }
-
-  protected requestRotate(): void {
-    this.confirmAction.set('rotate');
-  }
-
-  protected requestRevoke(): void {
-    this.confirmAction.set('revoke');
-  }
-
-  protected confirmDialog(): void {
-    const action = this.confirmAction();
-    const key = this.selected();
-    if (!action || !key) {
-      this.confirmAction.set(null);
       return;
     }
-    this.confirmAction.set(null);
-    if (action === 'rotate') {
-      this.copied.set(false);
-      this.store.dispatch(new RotateApiKey(key.id));
-    } else {
-      this.store.dispatch(new RevokeApiKey(key.id));
-    }
+    this.openDrawer(id);
   }
 
-  protected cancelDialog(): void {
-    this.confirmAction.set(null);
+  private openDrawer(keyId: string): void {
+    this.drawers.open<ApiKeyDrawerComponent, void, ApiKeyDrawerData>(ApiKeyDrawerComponent, {
+      data: { keyId, canManage: this.canManage() },
+      size: 'md',
+      urlId: keyId,
+      injector: this.injector,
+    });
   }
 
-  protected startEdit(): void {
-    const key = this.selected();
-    if (!key) return;
-    this.editScopes.set([...key.scopes]);
-    this.editRateLimit.set(key.rate_limit_per_min);
-    this.editing.set(true);
-  }
-
-  protected cancelEdit(): void {
-    this.editing.set(false);
-  }
-
-  protected saveEdit(): void {
-    const key = this.selected();
-    if (!key || this.editScopes().length === 0) return;
-    this.store
-      .dispatch(
-        new UpdateApiKey(key.id, {
-          scopes: this.editScopes(),
-          rate_limit_per_min: this.editRateLimit(),
-        }),
-      )
-      .pipe(takeUntilDestroyed(this.destroyRef))
-      .subscribe(() => this.editing.set(false));
+  private openSecret(): void {
+    const ref = this.modals.open<ApiKeySecretModalComponent>(ApiKeySecretModalComponent, {
+      size: 'md',
+      // AC1: a scrim click (or swipe / Esc) must never lose the key.
+      dismissOnScrim: false,
+      dismissOnEsc: false,
+      injector: this.injector,
+    });
+    this.secretRef = ref;
+    ref.closed.pipe(takeUntilDestroyed(this.destroyRef)).subscribe(() => {
+      this.secretRef = null;
+      // Closed without Done (e.g. navigation): the key is still gone for good.
+      if (this.plaintext()) this.store.dispatch(new ClearPlaintext());
+    });
   }
 }

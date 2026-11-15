@@ -31,7 +31,13 @@
 
   @if (closable()) {
     <!-- Last in DOM so it never takes initial focus; placed top-right by CSS. -->
-    <button type="button" class="ui-modal__close" [attr.aria-label]="closeLabel()" (click)="close()">
+    <button
+      type="button"
+      class="ui-modal__close"
+      [attr.aria-label]="closeLabel()"
+      [disabled]="closeLocked()"
+      (click)="close()"
+    >
       <span aria-hidden="true">×</span>
     </button>
   }
