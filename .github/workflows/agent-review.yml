@@ -71,7 +71,7 @@ jobs:
             Post each finding as an inline comment (mcp__github_inline_comment__create_inline_comment),
             then one summary review with `gh pr review ${{ env.PR }} --comment --body-file <file>` that starts
             with `Verdict: APPROVE` or `Verdict: REQUEST_CHANGES` or `Verdict: NEEDS_KARAN`.
-            Use NEEDS_KARAN for pricing/engine parameters, legal copy, billing, Azure spend, or destructive data changes.
+            Use NEEDS_KARAN only for app/product-flow decisions, legal copy, Azure spend, or genuine unknowns (CLAUDE.md escalation policy); engineering trade-offs you decide.
             Return the same verdict in the structured output.
           claude_args: |
             --model claude-opus-5-5
