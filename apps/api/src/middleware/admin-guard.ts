@@ -13,6 +13,7 @@
  *
  * Routes depend on the `AdminGuard` interface, not this implementation.
  */
+import { createHash } from 'node:crypto';
 import { ErrorCodes, HttpError } from './errors';
 import {
   extractSessionToken,
@@ -51,6 +52,23 @@ export const ADMIN_SESSION_COOKIE = 'feasly_admin_session';
  */
 export function parseSessionCookie(headers: HeaderRecord): string | null {
   return parseCookieValue(headers, ADMIN_SESSION_COOKIE);
+}
+
+/**
+ * Rate-limiter key for per-admin-session limits (e.g. the ⌘K search
+ * pipeline). Uses the same token resolution as the guard (Bearer wins over
+ * the cookie) and keys on the token's SHA-256 so the raw credential never
+ * becomes a limiter map key. No token → the client IP (the request will
+ * 401 anyway, but anonymous probing still gets throttled).
+ */
+export function adminSessionRateLimitKey(request: {
+  readonly headers: HeaderRecord;
+  readonly clientIp: string | undefined;
+}): string {
+  const token = extractSessionToken(request.headers, ADMIN_SESSION_COOKIE);
+  return token
+    ? `session:${createHash('sha256').update(token, 'utf8').digest('hex')}`
+    : `ip:${request.clientIp ?? 'unknown'}`;
 }
 
 function unauthorized(): HttpError {

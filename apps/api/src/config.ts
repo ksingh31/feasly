@@ -75,6 +75,14 @@ const EnvSchema = z.object({
   ANALYTICS_RATE_LIMIT_WINDOW_MS: z.coerce.number().int().positive().default(60_000),
   ANALYTICS_RATE_LIMIT_MAX_REQUESTS: z.coerce.number().int().positive().default(300),
 
+  // Admin global search (⌘K palette): dedicated limiter keyed per admin
+  // session — palettes fire per keystroke, so it is separate from the
+  // general API budget. 60/min per session (frozen registry).
+  ADMIN_SEARCH_RATE_LIMIT_WINDOW_MS: z.coerce.number().int().positive().default(60_000),
+  ADMIN_SEARCH_RATE_LIMIT_MAX_REQUESTS: z.coerce.number().int().positive().default(60),
+  /** Max hits returned per kind (leads, invoices, builders, users). */
+  ADMIN_SEARCH_MAX_HITS_PER_KIND: z.coerce.number().int().positive().max(50).default(5),
+
   // Stripe webhook receiver (billing/02): 100/min per IP (frozen registry).
   WEBHOOK_RATE_LIMIT_WINDOW_MS: z.coerce.number().int().positive().default(60_000),
   WEBHOOK_RATE_LIMIT_MAX_REQUESTS: z.coerce.number().int().positive().default(100),
@@ -428,6 +436,13 @@ export interface EstimateConfig {
 export interface AnalyticsConfig {
   /** Generous rate limiter for the public analytics-ingest endpoint. */
   readonly rateLimit: Omit<RateLimitConfig, 'maxTrackedKeys'>;
+}
+
+export interface AdminSearchConfig {
+  /** Per-session limiter for GET /api/v1/admin/search. */
+  readonly rateLimit: Omit<RateLimitConfig, 'maxTrackedKeys'>;
+  /** Max hits returned per kind. */
+  readonly maxHitsPerKind: number;
 }
 
 export interface WebhookConfig {
@@ -847,6 +862,7 @@ export interface ApiConfig {
   readonly lead: LeadConfig;
   readonly estimate: EstimateConfig;
   readonly analytics: AnalyticsConfig;
+  readonly adminSearch: AdminSearchConfig;
   readonly webhook: WebhookConfig;
   readonly auth: AuthConfig;
   readonly entra: EntraConfig;
@@ -1135,6 +1151,13 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): ApiConfig {
         windowMs: e.ANALYTICS_RATE_LIMIT_WINDOW_MS,
         maxRequests: e.ANALYTICS_RATE_LIMIT_MAX_REQUESTS,
       },
+    },
+    adminSearch: {
+      rateLimit: {
+        windowMs: e.ADMIN_SEARCH_RATE_LIMIT_WINDOW_MS,
+        maxRequests: e.ADMIN_SEARCH_RATE_LIMIT_MAX_REQUESTS,
+      },
+      maxHitsPerKind: e.ADMIN_SEARCH_MAX_HITS_PER_KIND,
     },
     webhook: {
       rateLimit: {

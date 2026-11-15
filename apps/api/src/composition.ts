@@ -217,8 +217,21 @@ import {
 } from './services/builder-auth.store';
 import {
   createSessionAdminGuard,
+  adminSessionRateLimitKey,
   type AdminGuard,
 } from './middleware/admin-guard';
+import {
+  createAdminSearchRoute,
+  type AdminSearchRoute,
+} from './routes/admin-search.route';
+import {
+  createAdminSearchService,
+  type AdminSearchService,
+} from './services/admin-search.service';
+import {
+  createDrizzleAdminSearchStore,
+  type AdminSearchStore,
+} from './services/admin-search.store';
 import {
   createSessionBuilderGuard,
   type BuilderGuard,
@@ -609,6 +622,11 @@ export interface AppComposition {
   readonly builderViewAsRoute: BuilderViewAsRoute;
   /** auth/03: admin user management (invite, edit, deactivate, delete). */
   readonly adminUsersRoute: AdminUsersRoute;
+  /** Admin ⌘K global search: dedicated per-session limiter + route. */
+  readonly adminSearchRateLimiter: RateLimiter;
+  readonly adminSearchPipeline: RequestPipeline;
+  readonly adminSearchService: AdminSearchService;
+  readonly adminSearchRoute: AdminSearchRoute;
   /** embed/09: magic-link + allowlist session auth for /builder/*. */
   readonly builderAuthService: BuilderAuthService;
   readonly builderAuthRoute: BuilderAuthRoute;
@@ -748,6 +766,8 @@ export interface CompositionOptions {
   readonly membershipStore?: MembershipStore;
   readonly adminAuditStore?: AdminAuditStore;
   readonly adminLeadsStore?: AdminLeadsStore;
+  /** Admin global search store override (tests). */
+  readonly adminSearchStore?: AdminSearchStore;
   /**
    * Test seam: substitute the database liveness probe (defaults to pinging
    * the real pool). Production wiring always uses the real ping.
@@ -1335,6 +1355,27 @@ export function createComposition(
     permissionGuard,
     builders: builderService,
   });
+  // Admin ⌘K global search. The palette fires per keystroke, so it runs on
+  // its own limiter keyed per admin session (token hash; client IP when
+  // there is no session — see adminSessionRateLimitKey).
+  const adminSearchRateLimiter: RateLimiter = createRateLimiter({
+    windowMs: config.adminSearch.rateLimit.windowMs,
+    maxRequests: config.adminSearch.rateLimit.maxRequests,
+    maxTrackedKeys: config.rateLimit.maxTrackedKeys,
+  });
+  const adminSearchPipeline: RequestPipeline = createRequestPipeline({
+    rateLimiter: adminSearchRateLimiter,
+    keyFor: adminSessionRateLimitKey,
+    logger: options.logger,
+  });
+  const adminSearchService: AdminSearchService = createAdminSearchService({
+    store: options.adminSearchStore ?? createDrizzleAdminSearchStore({ db: db.db }),
+    config: { maxHitsPerKind: config.adminSearch.maxHitsPerKind },
+  });
+  const adminSearchRoute: AdminSearchRoute = createAdminSearchRoute({
+    search: adminSearchService,
+    permissionGuard,
+  });
   const adminAuthRoute: AdminAuthRoute = createAdminAuthRoute({
     adminAuth: adminAuthService,
     permissionGuard,
@@ -1853,6 +1894,10 @@ export function createComposition(
     adminViewAsRoute,
     builderViewAsRoute,
     adminUsersRoute,
+    adminSearchRateLimiter,
+    adminSearchPipeline,
+    adminSearchService,
+    adminSearchRoute,
     userService,
     userStore,
     invitationStore,
