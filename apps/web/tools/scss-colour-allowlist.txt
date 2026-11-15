@@ -1,0 +1,50 @@
+# Feature SCSS files that still contain colour literals (hex / rgb / hsl).
+# Ratchet baseline for tools/check-scss-colours.mjs — counts may only go DOWN.
+# Migrate a page to tokens, then lower its count (or delete the line at zero).
+# `node apps/web/tools/check-scss-colours.mjs --update` does this for you.
+apps/web/src/app/features/admin/_admin-lead-badges.scss 18
+apps/web/src/app/features/admin/admin-billing.component.scss 44
+apps/web/src/app/features/admin/admin-builders.component.scss 10
+apps/web/src/app/features/admin/admin-calibration.component.scss 14
+apps/web/src/app/features/admin/admin-create-invoice.component.scss 20
+apps/web/src/app/features/admin/admin-disputes.component.scss 33
+apps/web/src/app/features/admin/admin-error.component.scss 3
+apps/web/src/app/features/admin/admin-estimate-lookup.component.scss 20
+apps/web/src/app/features/admin/admin-invoice-detail.component.scss 20
+apps/web/src/app/features/admin/admin-invoices.component.scss 18
+apps/web/src/app/features/admin/admin-lead-detail.component.scss 10
+apps/web/src/app/features/admin/admin-leads.component.scss 8
+apps/web/src/app/features/admin/admin-login.component.scss 6
+apps/web/src/app/features/admin/admin-manage-invoice.component.scss 21
+apps/web/src/app/features/admin/admin-sheets-status.component.scss 28
+apps/web/src/app/features/admin/admin-shell.component.scss 9
+apps/web/src/app/features/admin/admin-users.component.scss 27
+apps/web/src/app/features/admin/api-key-usage.component.scss 2
+apps/web/src/app/features/admin/api-keys-page.component.scss 22
+apps/web/src/app/features/admin/funnels-page.component.scss 2
+apps/web/src/app/features/builder/builder-billing.component.scss 32
+apps/web/src/app/features/builder/builder-dashboard.component.scss 18
+apps/web/src/app/features/builder/builder-invoices.component.scss 57
+apps/web/src/app/features/builder/builder-login.component.scss 11
+apps/web/src/app/features/builder/builder-org-picker.component.scss 4
+apps/web/src/app/features/builder/builder-report-contract.component.scss 34
+apps/web/src/app/features/builder/builder-shell.component.scss 10
+apps/web/src/app/features/builder/builder-team.component.scss 26
+apps/web/src/app/features/builder/due-invoice-banners.component.scss 9
+apps/web/src/app/features/communities/communities-index-page.component.scss 3
+apps/web/src/app/features/communities/community-page.component.scss 5
+apps/web/src/app/features/communities/community-profile-page.component.scss 5
+apps/web/src/app/features/compare/compare-picker-page.component.scss 3
+apps/web/src/app/features/compare/compare-results/compare-results.component.scss 3
+apps/web/src/app/features/consent/consent-banner.component.scss 7
+apps/web/src/app/features/developers/developers.scss 6
+apps/web/src/app/features/embed/embed-shell.component.scss 3
+apps/web/src/app/features/landing/landing-page.component.scss 5
+apps/web/src/app/features/magic-link/magic-link-page.component.scss 3
+apps/web/src/app/features/report/report-page.component.scss 5
+apps/web/src/app/features/sample-report/sample-report-page.component.scss 1
+apps/web/src/app/features/unsubscribe/unsubscribe-page.scss 6
+apps/web/src/app/features/wizard/analyzing-page.component.scss 1
+apps/web/src/app/features/wizard/gate-page.component.scss 4
+apps/web/src/app/features/wizard/reno-coming-soon-page.component.scss 3
+apps/web/src/app/features/wizard/reno-scope-page.component.scss 2
