@@ -3,7 +3,9 @@
  * SEO-05 link-integrity test: verifies the /communities/ index in build output.
  *
  * Checks:
- * 1. Index page contains exactly 40 community cards.
+ * 1. Index page contains exactly one card per community in
+ *    community-aggregates.json (config-driven since #690; at least the
+ *    original 40 so no indexed page silently drops out).
  * 2. Every card href matches /communities/{slug} for a slug in
  *    community-aggregates.json (these resolve to prerendered output once
  *    SEO-04's community pages land).
@@ -28,8 +30,9 @@ const fail = (msg) => {
 const aggregatesPath = join(root, 'src', 'content', 'data', 'community-aggregates.json');
 const aggregates = JSON.parse(readFileSync(aggregatesPath, 'utf8'));
 const expectedSlugs = new Set(aggregates.communities.map((c) => c.slug));
-if (expectedSlugs.size !== 40) {
-  fail(`expected 40 communities in aggregates, found ${expectedSlugs.size}`);
+const total = expectedSlugs.size;
+if (total < 40) {
+  fail(`expected at least 40 communities in aggregates, found ${total}`);
 }
 
 // 2. Parse index HTML.
@@ -42,8 +45,8 @@ const indexHtml = readFileSync(indexPath, 'utf8');
 
 // Count cards.
 const cardMatches = indexHtml.match(/class="community-card"/g) || [];
-if (cardMatches.length !== 40) {
-  fail(`expected 40 community cards, found ${cardMatches.length}`);
+if (cardMatches.length !== total) {
+  fail(`expected ${total} community cards, found ${cardMatches.length}`);
 }
 
 // Extract hrefs.
@@ -53,8 +56,8 @@ let m;
 while ((m = hrefPattern.exec(indexHtml)) !== null) {
   hrefs.add(m[1]);
 }
-if (hrefs.size !== 40) {
-  fail(`expected 40 unique community hrefs, found ${hrefs.size}`);
+if (hrefs.size !== total) {
+  fail(`expected ${total} unique community hrefs, found ${hrefs.size}`);
 }
 
 // Every href slug must be in aggregates.
@@ -92,4 +95,4 @@ if (failures > 0) {
   console.error(`check-community-index-links: ${failures} failure(s)`);
   process.exit(1);
 }
-console.log('check-community-index-links: OK (40 cards, 40 slugs, landing link present)');
+console.log(`check-community-index-links: OK (${total} cards, ${total} slugs, landing link present)`);

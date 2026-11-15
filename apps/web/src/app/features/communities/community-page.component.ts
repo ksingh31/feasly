@@ -408,9 +408,10 @@ export class CommunityPageComponent implements OnInit {
     const resolvedCopy = resolveFn(
       {
         ...profileCopyRaw,
-        // Reuse the guide's assessed-value label/note — same figure semantics.
+        // Reuse the guide's assessed-value label; the note says what the
+        // profile average is built from (all residential dwellings, #690).
         statLabel: this.copy.statLabel,
-        statNote: this.copy.statNote,
+        statNote: this.copy.profileStatNote,
       },
       profileView,
       this.config.get('limits').estimateRoundingStep,

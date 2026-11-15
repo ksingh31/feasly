@@ -7,9 +7,16 @@
  */
 import { existsSync, mkdtempSync, readFileSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
-import { join } from 'node:path';
+import { dirname, join } from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
-import { applyNoindexToSwaConfig, buildSeoArtifacts, loadConfig } from './build-seo-artifacts.js';
+import {
+  applyNoindexToSwaConfig,
+  buildSeoArtifacts,
+  loadConfig,
+  serializeSwaConfig,
+  SWA_CONFIG_MAX_BYTES,
+} from './build-seo-artifacts.js';
 
 describe('build-seo-artifacts (SEO-02)', () => {
   it('generates sitemap.xml with static routes and all 40 community pages', () => {
@@ -22,16 +29,22 @@ describe('build-seo-artifacts (SEO-02)', () => {
       expect(sitemapXml).toContain(`<loc>https://example.com${path}</loc>`);
     }
 
-    // All 40 community pages present (spot-check + count).
+    // Every community page present (spot-check + count from the aggregates).
+    const total = (
+      JSON.parse(
+        readFileSync(join(dirname(fileURLToPath(import.meta.url)), '..', 'src', 'content', 'data', 'community-aggregates.json'), 'utf-8'),
+      ) as { communities: unknown[] }
+    ).communities.length;
+    expect(total).toBeGreaterThanOrEqual(40);
     expect(sitemapXml).toContain('<loc>https://example.com/communities/beltline/</loc>');
     expect(sitemapXml).toContain('<loc>https://example.com/communities/panorama-hills/</loc>');
-    const communityUrls = sitemapXml.match(/\/communities\/[a-z-]+\//g) ?? [];
-    // 40 community pages (the /communities/ index is matched separately above).
-    expect(communityUrls.length).toBe(40);
+    const communityUrls = sitemapXml.match(/\/communities\/[a-z0-9-]+\//g) ?? [];
+    // One per community page (the /communities/ index is matched separately above).
+    expect(communityUrls.length).toBe(total);
 
-    // Total: 9 static + 40 community. /sample-report is deliberately
+    // Total: 9 static + the community pages. /sample-report is deliberately
     // excluded (noindex route — must never appear in the sitemap).
-    expect(urlCount).toBe(49);
+    expect(urlCount).toBe(9 + total);
 
     expect(readFileSync(join(dir, 'sitemap.xml'), 'utf-8')).toBe(sitemapXml);
   });
@@ -138,11 +151,25 @@ describe('build-seo-artifacts non-production noindex (#707)', () => {
     expect(readFileSync(join(dir, 'robots.txt'), 'utf-8')).toBe(result.robotsTxt);
   });
 
-  it('with SITE_URL: SWA config untouched, no noindex robots file', () => {
+  it('the checked-in SWA config fits the Static Web Apps size limit once minified (#690)', () => {
+    const swa = JSON.parse(readFileSync(join(dirname(fileURLToPath(import.meta.url)), '..', 'public', 'staticwebapp.config.json'), 'utf-8'));
+    // Both the production form and the non-production (noindex) form.
+    expect(Buffer.byteLength(serializeSwaConfig(swa))).toBeLessThanOrEqual(SWA_CONFIG_MAX_BYTES);
+    expect(Buffer.byteLength(serializeSwaConfig(applyNoindexToSwaConfig(swa)))).toBeLessThanOrEqual(SWA_CONFIG_MAX_BYTES);
+  });
+
+  it('fails the build when the SWA config is over the size limit', () => {
+    const huge = { routes: Array.from({ length: 400 }, (_, i) => ({ route: `/communities/c-${i}`, redirect: `/communities/c-${i}/` })) };
+    expect(() => serializeSwaConfig(huge)).toThrow(/Static Web Apps limit/);
+  });
+
+  it('with SITE_URL: SWA config content untouched (minified), no noindex robots file', () => {
     const dir = withSwaConfig();
     const result = buildSeoArtifacts({ siteUrl: 'https://example.com', outputDir: dir, indexable: true });
     expect(result.noindexApplied).toBe(false);
-    expect(JSON.parse(readFileSync(join(dir, 'staticwebapp.config.json'), 'utf-8'))).toEqual(swaFixture);
+    const written = readFileSync(join(dir, 'staticwebapp.config.json'), 'utf-8');
+    expect(JSON.parse(written)).toEqual(swaFixture);
+    expect(written).toBe(`${JSON.stringify(swaFixture)}\n`);
     expect(existsSync(join(dir, 'robots.noindex.txt'))).toBe(false);
   });
 

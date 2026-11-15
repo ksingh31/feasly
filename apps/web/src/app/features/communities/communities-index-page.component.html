@@ -5,20 +5,26 @@
     <h1>Calgary Community Guides</h1>
     <p class="lede">{{ indexCopy.intro }}</p>
 
-    <ul class="community-grid">
-      @for (community of communities; track community.slug) {
-        <li>
-          <a class="community-card" [routerLink]="communityLink(community)">
-            <h2>{{ community.name }}</h2>
-            <p class="assessed">
-              Avg. assessed value
-              <strong>{{ assessedValue(community) }}</strong>
-            </p>
-            <span class="card-cta" aria-hidden="true">{{ cardCta(community) }}</span>
-          </a>
-        </li>
-      }
-    </ul>
+    @for (section of sections; track section.id) {
+      <section class="community-section" [attr.aria-labelledby]="'community-section-' + section.id">
+        <h2 class="section-heading" [id]="'community-section-' + section.id">{{ section.heading }}</h2>
+        <p class="section-body">{{ section.body }}</p>
+        <ul class="community-grid">
+          @for (c of section.communities; track c.slug) {
+            <li>
+              <a class="community-card" [routerLink]="communityLink(c)">
+                <h3>{{ c.name }}</h3>
+                <p class="assessed">
+                  Avg. assessed value
+                  <strong>{{ assessedValue(c) }}</strong>
+                </p>
+                <span class="card-cta" aria-hidden="true">{{ cardCta(c) }}</span>
+              </a>
+            </li>
+          }
+        </ul>
+      </section>
+    }
   </div>
 </main>
 <app-site-footer />

@@ -4,6 +4,10 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { CommunitiesIndexPageComponent } from './communities-index-page.component';
 import { ConfigService } from '../../core/config';
 import { SeoService } from '../../core/seo';
+import indexData from '../../../content/data/community-index.json';
+
+/** Every community with a generated page (#690: config-driven, not a fixed 40). */
+const TOTAL = indexData.communities.length;
 
 describe('CommunitiesIndexPageComponent', () => {
   let fixture: ComponentFixture<CommunitiesIndexPageComponent>;
@@ -23,6 +27,10 @@ describe('CommunitiesIndexPageComponent', () => {
             landingTitle: 'Browse community guides',
             landingBody: 'Guides body',
             intro: 'Intro paragraph',
+            groups: {
+              established: { heading: 'Established and inner-city communities', body: 'Established body' },
+              newer: { heading: 'Newer communities', body: 'Newer body' },
+            },
           },
         },
       }),
@@ -39,8 +47,44 @@ describe('CommunitiesIndexPageComponent', () => {
     await fixture.whenStable();
   });
 
-  it('lists exactly 40 communities', () => {
-    expect(component['communities']).toHaveLength(40);
+  it('lists every generated community (at least the original 40)', () => {
+    expect(TOTAL).toBeGreaterThanOrEqual(40);
+    expect(component['communities']).toHaveLength(TOTAL);
+  });
+
+  it('includes the established infill communities (#690 AC1)', () => {
+    const slugs = component['communities'].map((c) => c.slug);
+    for (const slug of [
+      'altadore',
+      'south-calgary',
+      'killarney-glengarry',
+      'mount-pleasant',
+      'capitol-hill',
+      'renfrew',
+      'parkdale',
+      'west-hillhurst',
+    ]) {
+      expect(slugs).toContain(slug);
+    }
+  });
+
+  it('shows established/infill communities first, then newer ones (#690)', () => {
+    fixture.detectChanges();
+    const headings = [...fixture.nativeElement.querySelectorAll('h2.section-heading')].map((h: Element) =>
+      h.textContent?.trim(),
+    );
+    expect(headings).toEqual(['Established and inner-city communities', 'Newer communities']);
+    const sections = [...fixture.nativeElement.querySelectorAll('section.community-section')] as Element[];
+    const namesIn = (i: number): string[] =>
+      [...sections[i]!.querySelectorAll('.community-card h3')].map((h) => h.textContent ?? '');
+    expect(namesIn(0)).toContain('ALTADORE');
+    expect(namesIn(0)).not.toContain('PANORAMA HILLS');
+    expect(namesIn(1)).toContain('PANORAMA HILLS');
+    // Each section is labelled by its heading.
+    for (const section of sections) {
+      const id = section.getAttribute('aria-labelledby');
+      expect(section.querySelector(`h2#${id}`)).not.toBeNull();
+    }
   });
 
   it('renders the exact H1', () => {
@@ -49,15 +93,15 @@ describe('CommunitiesIndexPageComponent', () => {
     expect(h1?.textContent?.trim()).toBe('Calgary Community Guides');
   });
 
-  it('renders 40 cards each linking to its community page', () => {
+  it('renders one card per community, each linking to its community page', () => {
     fixture.detectChanges();
     const cards = fixture.nativeElement.querySelectorAll('a.community-card');
-    expect(cards).toHaveLength(40);
+    expect(cards).toHaveLength(TOTAL);
     const hrefs = Array.from(cards).map((a) =>
       (a as HTMLAnchorElement).getAttribute('href'),
     );
     // Every card links to /communities/{slug}; slugs are unique.
-    expect(new Set(hrefs).size).toBe(40);
+    expect(new Set(hrefs).size).toBe(TOTAL);
     for (const href of hrefs) {
       expect(href).toMatch(/^\/communities\/[a-z0-9-]+$/);
     }
@@ -66,7 +110,7 @@ describe('CommunitiesIndexPageComponent', () => {
   it('shows the assessed value on each card', () => {
     fixture.detectChanges();
     const assessed = fixture.nativeElement.querySelectorAll('.assessed strong');
-    expect(assessed).toHaveLength(40);
+    expect(assessed).toHaveLength(TOTAL);
     for (const el of Array.from(assessed)) {
       expect((el as HTMLElement).textContent).toMatch(/^\$\d{1,3}(,\d{3})*$/);
     }
@@ -74,7 +118,7 @@ describe('CommunitiesIndexPageComponent', () => {
 
   it('shows no "from $X" teaser — build costs are not community-specific (U1)', () => {
     fixture.detectChanges();
-    // 28 of 40 communities shared one identical buildLow in the ranges
+    // Most communities shared one identical buildLow in the ranges
     // file; repeating it looked like placeholder data. Cards show the
     // community's own average assessed value instead.
     const teasers = fixture.nativeElement.querySelectorAll('.from-price');
@@ -103,7 +147,7 @@ describe('CommunitiesIndexPageComponent', () => {
     fixture.detectChanges();
     const cards = [...fixture.nativeElement.querySelectorAll('.community-card')];
     const ctaFor = (name: string): string =>
-      cards.find((c: Element) => c.querySelector('h2')?.textContent === name)
+      cards.find((c: Element) => c.querySelector('h3')?.textContent === name)
         ?.querySelector('.card-cta')?.textContent ?? '';
     // Profile communities (condo/apartment-dominated per community-mix.json).
     expect(ctaFor('BELTLINE')).toBe('View community profile →');
@@ -112,31 +156,35 @@ describe('CommunitiesIndexPageComponent', () => {
     expect(ctaFor('MAHOGANY')).toBe('View cost guide →');
     expect(ctaFor('PANORAMA HILLS')).toBe('View cost guide →');
   });
-  it('lists single-family build-guide communities first, condo profiles last (S8)', () => {
+  it('lists single-family build-guide communities first, condo profiles last, in each section (S8)', () => {
     fixture.detectChanges();
-    const cards = [...fixture.nativeElement.querySelectorAll('.community-card')] as Element[];
-    const isProfile = cards.map(
-      (c) => c.querySelector('.card-cta')?.textContent === 'View community profile →',
-    );
-    // Beltline (condo district we can't quote) is never the first card.
-    expect(cards[0].querySelector('h2')?.textContent).not.toBe('BELTLINE');
-    expect(isProfile[0]).toBe(false);
-    // No build-guide card appears after the first profile card.
-    const firstProfile = isProfile.indexOf(true);
-    expect(firstProfile).toBeGreaterThan(0);
-    expect(isProfile.slice(firstProfile).every(Boolean)).toBe(true);
+    const sections = [...fixture.nativeElement.querySelectorAll('section.community-section')] as Element[];
+    for (const section of sections) {
+      const cards = [...section.querySelectorAll('.community-card')];
+      const isProfile = cards.map(
+        (c) => c.querySelector('.card-cta')?.textContent === 'View community profile →',
+      );
+      // Beltline (condo district we can't quote) is never a section's first card.
+      expect(cards[0]?.querySelector('h3')?.textContent).not.toBe('BELTLINE');
+      expect(isProfile[0]).toBe(false);
+      // No build-guide card appears after the first profile card.
+      const firstProfile = isProfile.indexOf(true);
+      if (firstProfile >= 0) expect(isProfile.slice(firstProfile).every(Boolean)).toBe(true);
+    }
   });
 
-  it('orders each group alphabetically by name', () => {
+  it('orders each card group alphabetically by name', () => {
     fixture.detectChanges();
-    const cards = [...fixture.nativeElement.querySelectorAll('.community-card')] as Element[];
-    const rows = cards.map((c) => ({
-      name: c.querySelector('h2')?.textContent ?? '',
-      profile: c.querySelector('.card-cta')?.textContent === 'View community profile →',
-    }));
-    for (const profile of [false, true]) {
-      const names = rows.filter((r) => r.profile === profile).map((r) => r.name);
-      expect(names).toEqual([...names].sort((a, b) => a.localeCompare(b, 'en-CA')));
+    const sections = [...fixture.nativeElement.querySelectorAll('section.community-section')] as Element[];
+    for (const section of sections) {
+      const rows = [...section.querySelectorAll('.community-card')].map((c) => ({
+        name: c.querySelector('h3')?.textContent ?? '',
+        profile: c.querySelector('.card-cta')?.textContent === 'View community profile →',
+      }));
+      for (const profile of [false, true]) {
+        const names = rows.filter((r) => r.profile === profile).map((r) => r.name);
+        expect(names).toEqual([...names].sort((a, b) => a.localeCompare(b, 'en-CA')));
+      }
     }
   });
 });
