@@ -48,6 +48,7 @@ jobs:
             *) echo "agent=frontend-dev" >> "$GITHUB_OUTPUT" ;;
           esac
       - name: Implement issue
+        id: claude
         uses: anthropics/claude-code-action@v1
         with:
           claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
@@ -81,7 +82,14 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           ISSUE: ${{ inputs.issue }}
+          EXEC: ${{ steps.claude.outputs.execution_file }}
         run: |
+          # Usage limit / overload: requeue without counting it as a failure.
+          if [ -n "$EXEC" ] && [ -f "$EXEC" ] && grep -qiE 'rate.?limit|usage limit|overloaded|529|quota' "$EXEC"; then
+            gh issue edit "$ISSUE" -R "$GITHUB_REPOSITORY" --remove-label agent:claimed --add-label agent:ready
+            gh issue comment "$ISSUE" -R "$GITHUB_REPOSITORY" --body "Model capacity error — requeued (not counted)."
+            exit 0
+          fi
           # A failed run (model API error, timeout) must not leave the issue
           # claimed for hours. Two failures in a row park it for Karan.
           n=$(gh issue view "$ISSUE" -R "$GITHUB_REPOSITORY" --json comments -q '[.comments[]|select(.body|contains("<!-- agent:requeue -->"))]|length')
