@@ -39,7 +39,7 @@ Never run bare `tsc`/`tsc -b` inside `apps/web` (emits .js next to .ts). Web
 typecheck: `npx tsc -p tsconfig.app.json --noEmit`. Web tests: `--include='**/*.spec.ts'`.
 
 ## Traps (each cost the previous team real time)
-- New API endpoint = `function.json` + `apps/api/src/registry/route-registry.ts` + `apps/api/tools/bundle-functions.mjs`, same commit.
+- New API endpoint = `function.json` + `apps/api/src/registry/route-registry.ts` + `apps/api/tools/bundle-functions.mjs`, same commit. Then regenerate the route tables (`npm run gen:route-docs` — TECH_PLAN §16 + `docs/security/rate-limits.md`; `verify-local.sh` does it too) and commit them; redo after merging `main`.
 - New DB column/table → update `apps/api/tools/repair-sql.mjs` (schema-repair coverage test).
 - New config property → update full-object expectations in `apps/api/test/config.test.ts`.
 - Migrations: expand → migrate → contract. Never NOT NULL without default in one step.

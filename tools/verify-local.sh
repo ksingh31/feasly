@@ -37,6 +37,12 @@ rm -rf apps/web/dist
 step "dependency audit (high)" npm audit --audit-level=high
 step "build:configs" npm run build:configs --workspace @feasly/api
 step "tsc -b (root)" npx tsc -b
+# #816: the TECH_PLAN §16 and rate-limits.md tables are generated from the
+# route registry. Regenerate them before the tests so a stale table (e.g.
+# after merging main with another route-adding PR) is fixed locally instead
+# of failing. CI does NOT run this: the conformance test still fails on a
+# stale committed table, so commit what this writes.
+step "regenerate route tables" npm run -s gen:route-docs
 step "tests (all workspaces)" npm run test --workspaces --if-present
 step "lint (all workspaces)" npm run lint --workspaces --if-present
 step "secrets-gate self-test" node --test tools/check-secrets.test.mjs
@@ -52,6 +58,10 @@ step "backup bicep check" bash tools/check-backup-bicep.sh
 step "CASL copy" node apps/web/tools/check-casl-copy.mjs
 step "banned phrases" node apps/web/tools/check-banned-phrases.mjs
 step "placeholders" node tools/check-placeholders.mjs
+
+if ! git diff --quiet -- docs/plan/TECH_PLAN.md docs/security/rate-limits.md; then
+  echo "note: the route tables were regenerated from the registry (uncommitted). Commit docs/plan/TECH_PLAN.md and docs/security/rate-limits.md with your change."
+fi
 
 # Generated community data must not be committed by accident.
 if ! git diff --quiet -- apps/web/src/content/data apps/web/prerender-routes.txt; then
