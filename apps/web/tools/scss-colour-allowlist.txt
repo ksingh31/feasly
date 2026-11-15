@@ -4,7 +4,6 @@
 # `node apps/web/tools/check-scss-colours.mjs --update` does this for you.
 apps/web/src/app/features/admin/_admin-lead-badges.scss 18
 apps/web/src/app/features/admin/admin-billing.component.scss 44
-apps/web/src/app/features/admin/admin-builders.component.scss 10
 apps/web/src/app/features/admin/admin-calibration.component.scss 14
 apps/web/src/app/features/admin/admin-create-invoice.component.scss 20
 apps/web/src/app/features/admin/admin-disputes.component.scss 33
