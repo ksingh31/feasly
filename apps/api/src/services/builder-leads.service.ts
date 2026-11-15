@@ -385,10 +385,14 @@ export function createBuilderLeadsService(
     const actor = input.actorEmail.trim().toLowerCase();
     const recipients = new Set<string>();
     let orgAdminCount = 0;
+    let lookupFailed = false;
     if (memberships !== undefined) {
       const adminEmails = await memberships
         .listActiveOrgAdminEmails(input.builderId)
-        .catch(() => [] as string[]);
+        .catch(() => {
+          lookupFailed = true;
+          return [] as string[];
+        });
       orgAdminCount = adminEmails.length;
       for (const adminEmail of adminEmails) {
         const address = adminEmail.trim().toLowerCase();
@@ -397,9 +401,17 @@ export function createBuilderLeadsService(
         }
       }
     }
+    // A failed lookup is NOT "the org has no admin": don't send the lead's
+    // name/address to Feasly ops on a DB blip. Warn (ids only, no PII); the
+    // lead still shows as "Needs recording" in the portal and Needs-you feed.
+    if (lookupFailed) {
+      console.warn(
+        `builder-leads: org admin lookup failed for builder ${input.builderId}; skipping ops fallback`,
+      );
+    }
     // Fallback only when the org has NO active admin — if the actor is the
     // sole admin, they can record it themselves; Feasly ops isn't needed.
-    if (orgAdminCount === 0 && fallbackAdminInbox) {
+    if (!lookupFailed && orgAdminCount === 0 && fallbackAdminInbox) {
       recipients.add(fallbackAdminInbox);
     }
 

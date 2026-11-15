@@ -1,6 +1,6 @@
 import { inject, Injectable } from '@angular/core';
 import { of } from 'rxjs';
-import { catchError, tap } from 'rxjs/operators';
+import { catchError, switchMap, tap } from 'rxjs/operators';
 import type { Observable } from 'rxjs';
 import { Action, Selector, State, StateContext } from '@ngxs/store';
 import type {
@@ -435,6 +435,10 @@ export class BuilderState {
     ctx.patchState({ updatingLeadId: action.leadId, updateError: null });
     return this.leadsApi.updateStatus(action.leadId, action.status).pipe(
       tap(() => this.applyStatusLocally(ctx, action.leadId, action.status)),
+      // `needsRecording` is derived server-side only (#530) — refresh the
+      // pipeline quietly (no loading skeleton) so the flag and its summary
+      // count come from the backend, never from a client-side rule.
+      switchMap(() => this.refreshLeadsQuietly(ctx)),
       catchError((error: unknown) => {
         const code =
           typeof error === 'object' && error !== null && 'code' in error
@@ -470,8 +474,6 @@ export class BuilderState {
             ...lead,
             status,
             statusUpdatedAt: now,
-            // Mirrors the server's #530 flag until the next load refreshes it.
-            needsRecording: status === 'won' && !lead.hasInvoice,
           }
         : lead,
     );
@@ -484,6 +486,18 @@ export class BuilderState {
     }
     summary.total = leads.length;
     ctx.patchState({ leads, summary, updatingLeadId: null, updateError: null });
+  }
+
+  /**
+   * Re-reads the pipeline after a confirmed write without flipping
+   * `leadsStatus` to 'loading'. A failed refresh keeps the optimistic state —
+   * the write itself already succeeded.
+   */
+  private refreshLeadsQuietly(ctx: StateContext<BuilderStateModel>): Observable<unknown> {
+    return this.leadsApi.listLeads().pipe(
+      tap((response) => ctx.patchState({ leads: response.leads, summary: response.summary })),
+      catchError(() => of(null)),
+    );
   }
 
   @Action(LogoutBuilder)

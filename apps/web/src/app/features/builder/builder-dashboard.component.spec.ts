@@ -345,6 +345,11 @@ describe('BuilderDashboardComponent (embed/09 redesign)', () => {
     expect(req.request.method).toBe('PATCH');
     expect(req.request.body).toEqual({ status: 'won' });
     req.flush({ ok: true });
+    // The state re-reads the pipeline so #530's needsRecording stays server-derived.
+    loadLeads(httpMock, {
+      ...LEADS_RESPONSE,
+      leads: [{ ...LEADS_RESPONSE.leads[0], status: 'won', needsRecording: true }],
+    });
     fixture.detectChanges();
     await fixture.whenStable();
 
@@ -498,6 +503,7 @@ describe('BuilderDashboardComponent (embed/09 redesign)', () => {
       expect(req.request.method).toBe('PATCH');
       expect(req.request.body).toEqual({ status: 'won' });
       req.flush({ ok: true });
+      loadLeads(httpMock, invoicedLeadWithStatus('quoted'));
       httpMock.verify();
     });
 

@@ -909,14 +909,22 @@ describe('builder-leads markWon → needs recording (#530)', () => {
     expect(leads.get('lead-1')?.status).toBe('won');
   });
 
-  it('an admin-lookup failure degrades to the fallback inbox', async () => {
-    const { service, sent } = makeMarkWonService({
+  it('an admin-lookup failure is not "no admin": no ops fallback, warns, still marks won', async () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
+    const { service, sent, leads } = makeMarkWonService({
       adminLookupFails: true,
       fallbackAdminInbox: 'ops@feasly.example',
     });
     const result = await service.markWon('lead-1', 'elite-craft', 'member@elite.example');
     expect(result.changed).toBe(true);
-    expect(sent.map((s) => s.to)).toEqual(['ops@feasly.example']);
+    expect(result.adminsNotified).toBe(0);
+    expect(leads.get('lead-1')?.status).toBe('won');
+    // The lead's name/address never goes to Feasly ops on a lookup blip.
+    expect(sent).toEqual([]);
+    expect(warn).toHaveBeenCalledWith(expect.stringContaining('org admin lookup failed'));
+    // The warning carries ids only — no lead PII.
+    expect(String(warn.mock.calls[0]?.[0])).not.toContain('member@elite.example');
+    warn.mockRestore();
   });
 
   it('runs the won billing path WITHOUT contract details (no invoice)', async () => {
