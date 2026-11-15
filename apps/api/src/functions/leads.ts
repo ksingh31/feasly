@@ -82,7 +82,12 @@ export async function leadsHandler(
         headers,
         correlationId,
         { endpoint: '/api/v1/leads' },
-        () => app.leadRoute.handle(req.body),
+        // #793: a sandbox (feasly_test_) key writes a sandbox-flagged lead
+        // and never sends email.
+        (auth) =>
+          auth?.sandbox
+            ? app.leadRoute.handle(req.body, { sandbox: true })
+            : app.leadRoute.handle(req.body),
       ),
   );
 

@@ -28,6 +28,11 @@ export interface EstimateRecord {
   readonly narrativeGeneratedAt: Date | null;
   /** consumer/06: engine-authored assumptions (renovation only). */
   readonly assumptions: readonly string[] | null;
+  /**
+   * #793: true when written via a `feasly_test_` (sandbox) API key — the
+   * sandbox-purge timer hard-deletes these rows. Omitted → false.
+   */
+  readonly sandbox?: boolean;
 }
 
 export interface EstimateStore {
@@ -76,6 +81,7 @@ export function createDrizzleEstimateStore(
         narrative: record.narrative,
         narrativeGeneratedAt: record.narrativeGeneratedAt,
         assumptions: record.assumptions,
+        sandbox: record.sandbox ?? false,
       });
     },
 

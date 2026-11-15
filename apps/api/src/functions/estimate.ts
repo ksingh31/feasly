@@ -110,7 +110,11 @@ export async function estimateHandler(
               ? String((r as { estimateId: unknown }).estimateId)
               : undefined,
         },
-        () => app.estimateRoute.handle(req.body),
+        // #793: a sandbox (feasly_test_) key writes a sandbox-flagged row.
+        (auth) =>
+          auth?.sandbox
+            ? app.estimateRoute.handle(req.body, { sandbox: true })
+            : app.estimateRoute.handle(req.body),
       ),
   );
 

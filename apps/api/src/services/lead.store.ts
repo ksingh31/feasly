@@ -98,6 +98,12 @@ export interface LeadStore {
     readonly addressKey: string;
     readonly since: Date;
     readonly tenantKey: string | null;
+    /**
+     * #793: sandbox isolation. When set, only rows with the same sandbox
+     * flag match — test-key traffic never rewrites a real lead (and vice
+     * versa). Omitted → no filter (legacy callers).
+     */
+    readonly sandbox?: boolean;
   }): Promise<LeadRecord | null>;
   insert(lead: NewLead): Promise<LeadRecord>;
   /**
@@ -371,6 +377,9 @@ export function createDrizzleLeadStore(deps: DrizzleLeadStoreDeps): LeadStore {
             args.tenantKey === null
               ? isNull(leads.tenantKey)
               : eq(leads.tenantKey, args.tenantKey),
+            args.sandbox === undefined
+              ? undefined
+              : eq(leads.sandbox, args.sandbox),
           ),
         )
         .orderBy(desc(leads.createdAt))

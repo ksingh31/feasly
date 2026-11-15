@@ -56,6 +56,8 @@ export interface IssueMagicLinkArgs {
   readonly email?: string | null;
   /** Seconds from now until expiry — from config, never hardcoded. */
   readonly ttlSeconds: number;
+  /** #793: true when issued for a sandbox (test API key) lead. */
+  readonly sandbox?: boolean;
   /** Injected clock for tests; defaults to wall time. */
   readonly clock?: () => Date;
 }
@@ -125,6 +127,7 @@ export function createDrizzleMagicLinkStore(
           email: args.email ?? null,
           tokenHash: hashMagicToken(token),
           expiresAt: new Date(now.getTime() + args.ttlSeconds * 1000),
+          sandbox: args.sandbox ?? false,
         })
         .returning({ id: magicLinks.id, expiresAt: magicLinks.expiresAt });
       const row = rows[0];

@@ -1036,3 +1036,93 @@ describe('consumer/02 duplicate-estimate semantics', () => {
     expect(result.magicLinkSent).toBe(true);
   });
 });
+
+describe('#793 sandbox (feasly_test_ key) writes', () => {
+  /** Magic-link fake that also records the sandbox flag of each issue. */
+  function recordingMagicLinks() {
+    const inner = fakeMagicLinkStore();
+    const sandboxFlags: Array<boolean | undefined> = [];
+    return {
+      ...inner,
+      sandboxFlags,
+      issue: async (args: Parameters<MagicLinkStore['issue']>[0]) => {
+        sandboxFlags.push(args.sandbox);
+        return inner.issue(args);
+      },
+    };
+  }
+
+  it('a sandbox write is sandbox-flagged and sends no email', async () => {
+    const store = fakeLeadStore();
+    const email = fakeEmailService();
+    const magicLinks = recordingMagicLinks();
+    const lookups: Array<boolean | undefined> = [];
+    store.findRecentByEmailAndAddress = async (args) => {
+      lookups.push(args.sandbox);
+      return null;
+    };
+    const service = createLeadService({ ...DEPS, store, email, magicLinks });
+    const result = await service.submitLead(VALID_BODY, { sandbox: true });
+
+    expect(store.inserted).toHaveLength(1);
+    expect(store.inserted[0]!.sandbox).toBe(true);
+    expect(magicLinks.sandboxFlags).toEqual([true]);
+    // Dedupe is scoped to sandbox rows — a test key never rewrites a real lead.
+    expect(lookups).toEqual([true]);
+    // No real email: the sandbox decorator swallowed the send.
+    expect(email.magicLinkSends).toHaveLength(0);
+    // The response shape is unchanged for the integrating agent developer.
+    expect(result.magicLinkSent).toBe(true);
+    expect(typeof result.reportToken).toBe('string');
+  });
+
+  it('a live write is not sandbox-flagged and sends the email', async () => {
+    const store = fakeLeadStore();
+    const email = fakeEmailService();
+    const magicLinks = recordingMagicLinks();
+    const lookups: Array<boolean | undefined> = [];
+    store.findRecentByEmailAndAddress = async (args) => {
+      lookups.push(args.sandbox);
+      return null;
+    };
+    const service = createLeadService({ ...DEPS, store, email, magicLinks });
+    await service.submitLead(VALID_BODY);
+
+    expect(store.inserted[0]!.sandbox).toBe(false);
+    expect(magicLinks.sandboxFlags).toEqual([undefined]);
+    expect(lookups).toEqual([false]);
+    expect(email.magicLinkSends).toHaveLength(1);
+  });
+
+  it('a sandbox repeat (dedupe hit) sends no email and flags the reissued link', async () => {
+    const store = fakeLeadStore();
+    store.recent = existingLeadFixture({ sandbox: true });
+    const email = fakeEmailService();
+    const magicLinks = recordingMagicLinks();
+    const service = createLeadService({ ...DEPS, store, email, magicLinks });
+    const result = await service.submitLead(VALID_BODY, { sandbox: true });
+
+    expect(store.updated).toHaveLength(1);
+    expect(magicLinks.sandboxFlags).toEqual([true]);
+    expect(email.magicLinkSends).toHaveLength(0);
+    expect(result.magicLinkSent).toBe(true);
+  });
+
+  it('a suppressed sandbox send never masks a later real send for the same email + property', async () => {
+    const store = fakeLeadStore();
+    const email = fakeEmailService();
+    const service = createLeadService({ ...DEPS, store, email });
+    await service.submitLead(VALID_BODY, { sandbox: true });
+    await service.submitLead(VALID_BODY);
+    expect(email.magicLinkSends).toHaveLength(1);
+  });
+
+  it('the sandbox flag is never read from the request body', async () => {
+    const store = fakeLeadStore();
+    const email = fakeEmailService();
+    const service = createLeadService({ ...DEPS, store, email });
+    await service.submitLead({ ...VALID_BODY, sandbox: true });
+    expect(store.inserted[0]!.sandbox).toBe(false);
+    expect(email.magicLinkSends).toHaveLength(1);
+  });
+});
