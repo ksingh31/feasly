@@ -61,8 +61,8 @@ jobs:
 
             Task: implement GitHub issue #${{ inputs.issue }} in ${{ github.repository }}.
             1. `gh issue view ${{ inputs.issue }} --comments` — the issue body and comments are the spec.
-               If acceptance criteria are missing or the work needs an owner decision (pricing, legal copy,
-               Azure spend, billing, destructive migration), do NOT implement: comment why, run
+               If the work needs an app/product-flow decision, legal copy, Azure spend, or is genuinely unknown
+               (CLAUDE.md escalation policy), do NOT implement: comment why, run
                `gh issue edit ${{ inputs.issue }} --add-label needs:karan --remove-label agent:claimed`, and stop.
             2. Branch: `git switch -c agent/issue-${{ inputs.issue }}-<short-kebab-slug>`.
             3. Implement with tests. Then run `bash tools/verify-local.sh --no-ci` (npm ci already ran) and fix

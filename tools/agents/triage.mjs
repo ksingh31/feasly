@@ -67,6 +67,11 @@ switch (verdict.action) {
     ghWrite(['pr', 'comment', String(pr.number), '--body', `CI failed (${run.workflowName}): ${list(verdict.codeJobs)} — ${run.url}`]);
     break;
   case 'main-issue': {
+    // Environment-only blips (DB timeouts, Azure hiccups): re-run once before filing anything.
+    if (verdict.codeJobs.length === 0) {
+      const attempt = ghJson(['api', `repos/${repo}/actions/runs/${runId}`, '--jq', '{a: .run_attempt}'])?.a ?? 1;
+      if (attempt < 2) { ghWrite(['run', 'rerun', String(runId), '--failed']); console.log('env-only failure on main — re-run'); break; }
+    }
     const title = 'main is red';
     const existing = [...listIssues(LABELS.bug), ...listIssues('ops')].find((i) => i.title === title);
     const codeOnly = verdict.codeJobs.length > 0;
@@ -78,9 +83,10 @@ switch (verdict.action) {
     if (existing) {
       ghWrite(['issue', 'comment', String(existing.number), '--body', body]);
     } else {
+      // Escalation policy: environment failures are not owner decisions — devops/SRE agents fix them.
       const labels = codeOnly
         ? [LABELS.bug, LABELS.priorityHigh, LABELS.ready, LABELS.areaWeb, 'size:S']
-        : ['ops', LABELS.needsKaran];
+        : ['ops', LABELS.areaInfra];
       ghWrite(['issue', 'create', '--title', title, '--body', body, ...labels.flatMap((l) => ['--label', l])]);
     }
     break;
