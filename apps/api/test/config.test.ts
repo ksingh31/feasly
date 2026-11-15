@@ -579,12 +579,12 @@ describe('loadConfig', () => {
   it('refuses the simulated provider alongside a live Stripe key, whatever NODE_ENV says (#753)', () => {
     const { NODE_ENV: _omit, ...noNodeEnv } = VALID_ENV as Record<string, string>;
     // Built from parts so the HRD-07 secrets scan doesn't read it as a live key.
-    const liveKeyFixture = ['sk', 'live', 'placeholder'].join('_');
+    const fakeLiveKey = ['sk', 'live', 'placeholder'].join('_');
     expect(() =>
       loadConfig({
         ...noNodeEnv,
         PAYMENTS_PROVIDER: 'simulated',
-        STRIPE_SECRET_KEY: liveKeyFixture,
+        STRIPE_SECRET_KEY: fakeLiveKey,
       }),
     ).toThrow(/PAYMENTS_PROVIDER: the simulated payment provider cannot run with a live/);
   });
