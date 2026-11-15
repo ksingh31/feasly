@@ -253,6 +253,19 @@ app-terms-page > main {
   }
 }
 
+/* ── Print (#509) ──────────────────────────── */
+/* Page margins + white paper for every printed page (the report owns its
+   own print-only header/disclaimer). */
+@page {
+  margin: 16mm 14mm;
+}
+
+@media print {
+  body {
+    background: var(--card);
+  }
+}
+
 /* ── Disclosure headings ────────────────────── */
 /* Common fix for <details>/<summary> accordions whose summary pairs the
    native disclosure marker with a block-level heading: without this the

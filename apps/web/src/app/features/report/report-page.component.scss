@@ -562,15 +562,63 @@ a.cta.secondary.another-address {
   box-sizing: border-box;
 }
 
-/* PRINT (browser Ctrl+P): hero, Build | Land and breakdown print in full;
-   the collapsed reference <details> print their headings only unless the
-   reader opened them (Download PDF is the full print path; D-P6 open).
-   Interactive chrome (adjust, talk, action row) is hidden. */
+/* PRINT (browser Ctrl+P) — #509, consumer review B18: branded header
+   (mark + name + prepared date), address, always-printed disclaimer, white
+   paper, page margins (global @page in styles.scss). Interactive chrome
+   (adjust, talk, action row, CTAs, retry) is hidden and the collapsed
+   reference <details> print open with no disclosure marker. What prints
+   (one-page summary vs the whole report) stays D-P6; this is the
+   stylesheet only. Print-only blocks never show on screen. */
+.print-only {
+  display: none;
+}
+
 @media print {
   app-site-nav,
   app-site-footer,
-  .no-print {
+  .no-print,
+  /* Interactive leftovers: CTAs, retry buttons, the email-link note. */
+  .unlock,
+  .error-card .cta,
+  .link-btn,
+  .lead-link-note {
     display: none !important;
+  }
+
+  .print-only {
+    display: block;
+  }
+
+  .print-brand {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding-bottom: 8px;
+    border-bottom: 1px solid var(--border);
+    font-family: var(--font-ui);
+  }
+
+  .print-wordmark {
+    font-weight: 700;
+    font-size: 16px;
+    color: var(--text);
+  }
+
+  .print-date {
+    margin-left: auto;
+    font-size: 12px;
+    color: var(--muted);
+  }
+
+  .print-disclaimer {
+    margin: 24px 0 0;
+    padding-top: 8px;
+    border-top: 1px solid var(--border);
+    font-family: var(--font-ui);
+    font-size: 11px;
+    line-height: 1.5;
+    color: var(--muted);
+    break-inside: avoid;
   }
 
   .wrap {
@@ -578,10 +626,48 @@ a.cta.secondary.another-address {
     max-width: none;
   }
 
+  .report-heading {
+    margin-top: 12px;
+  }
+
+  .report-address {
+    font-size: 16px;
+    color: var(--text);
+  }
+
+  /* White paper: no cream fills or tinted cards. */
+  .card,
+  .figure-card,
+  .uncalibrated-note,
+  .partner-note,
+  .reno-permit-note {
+    background: var(--card);
+    box-shadow: none;
+  }
+
   .card,
   .figure-card {
     break-inside: avoid;
-    border-color: #ccc;
+    border-color: var(--border);
+  }
+
+  /* Collapsed reference sections print open, without the disclosure
+     affordance: on paper there is nothing to click. */
+  details::details-content {
+    content-visibility: visible;
+    display: block;
+  }
+
+  summary {
+    list-style: none;
+    pointer-events: none;
+  }
+
+  summary::-webkit-details-marker,
+  summary::marker,
+  .ref summary::before {
+    display: none;
+    content: '';
   }
 
   .bucket-seg,
