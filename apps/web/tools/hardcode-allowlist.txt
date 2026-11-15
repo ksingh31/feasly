@@ -161,6 +161,14 @@ apps/web/src/app/shared/utils/money.ts
 # and accept/reject confirmations are pinned story copy describing the
 # dispute SLA + resolution semantics — not tunables.
 apps/web/src/app/features/admin/admin-disputes.component.html
+# Dispute queue + drawer copy (#545, admin review S12): the confirm titles/
+# bodies (void + refund amount, fresh review window), the resolution toasts
+# and the drawer meta line are pinned story copy — the admin console has no
+# copy config. Copy-pinned by admin-disputes-view.spec.ts and
+# admin-dispute-drawer.component.spec.ts.
+apps/web/src/app/features/admin/admin-disputes-view.ts
+apps/web/src/app/features/admin/admin-dispute-drawer.component.ts
+apps/web/src/app/features/admin/admin-dispute-drawer.component.html
 
 # Calibration console copy (admin/09): the subtitle, warning, and empty-state
 # strings are UI copy pinned by the story's acceptance criteria — they change
@@ -292,6 +300,10 @@ apps/web/src/app/core/api/api-error.ts
 # tuning. The maxLength(200) validation limits mirror the backend zod schema
 # (API contract, not tunables), and the page-size default (50) matches the
 # backend list default. Copy-pinned by admin-users.component.spec.ts.
+# The edit drawer (#542) carries the same edit-form copy and the same
+# maxLength(200) contract limit, moved out of admin-users.component.html.
+apps/web/src/app/features/admin/admin-user-edit-drawer.component.html
+apps/web/src/app/features/admin/admin-user-edit-drawer.component.ts
 apps/web/src/app/features/admin/admin-users-api.service.ts
 apps/web/src/app/features/admin/admin-users.component.html
 apps/web/src/app/features/admin/admin-users.component.ts

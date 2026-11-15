@@ -11,8 +11,6 @@ import type {
 } from '@feasly/contracts';
 import { AdminUsersApiService } from './admin-users-api.service';
 import {
-  CloseDeactivateAdminUser,
-  CloseDeleteAdminUser,
   CloseEditAdminUser,
   CloseInviteAdminUser,
   DeactivateAdminUser,
@@ -20,8 +18,6 @@ import {
   DismissAdminUsersNotice,
   InviteAdminUser,
   LoadAdminUsers,
-  OpenDeactivateAdminUser,
-  OpenDeleteAdminUser,
   OpenEditAdminUser,
   OpenInviteAdminUser,
   ReactivateAdminUser,
@@ -53,20 +49,16 @@ export interface AdminUsersStateModel {
   updating: boolean;
   updateError: string | null;
   /**
-   * auth/07: the table row a failed row action (deactivate/reactivate)
-   * targeted — its 409 surfaces inline on that row, never as a generic
-   * banner. Null for drawer-save failures (shown inside the drawer).
+   * auth/07: the table row a failed row action (deactivate/reactivate/
+   * delete) targeted — its error surfaces inline on that row, never as a
+   * generic banner. Null for drawer-save failures (shown inside the drawer).
    */
   updateErrorUserId: string | null;
   /**
-   * #473: user whose deactivate confirmation is open. Cleared on cancel
-   * and when the deactivate request settles (success or failure).
+   * Delete in flight. The confirmation itself is the shared ConfirmDialog
+   * (#542), so no open/closed flag lives here.
    */
-  deactivatingId: string | null;
-  /** Delete confirmation state. */
-  deletingId: string | null;
   deleting: boolean;
-  deleteError: string | null;
   /** Resend-invite in flight for a user id. */
   resendingId: string | null;
   /** Transient success/error banner. */
@@ -85,10 +77,7 @@ const defaults: AdminUsersStateModel = {
   updating: false,
   updateError: null,
   updateErrorUserId: null,
-  deactivatingId: null,
-  deletingId: null,
   deleting: false,
-  deleteError: null,
   resendingId: null,
   notice: null,
 };
@@ -170,23 +159,8 @@ export class AdminUsersState {
   }
 
   @Selector()
-  static deactivatingId(state: AdminUsersStateModel): string | null {
-    return state.deactivatingId;
-  }
-
-  @Selector()
-  static deletingId(state: AdminUsersStateModel): string | null {
-    return state.deletingId;
-  }
-
-  @Selector()
   static deleting(state: AdminUsersStateModel): boolean {
     return state.deleting;
-  }
-
-  @Selector()
-  static deleteError(state: AdminUsersStateModel): string | null {
-    return state.deleteError;
   }
 
   @Selector()
@@ -308,24 +282,6 @@ export class AdminUsersState {
     );
   }
 
-  @Action(OpenDeactivateAdminUser)
-  openDeactivate(
-    ctx: StateContext<AdminUsersStateModel>,
-    action: OpenDeactivateAdminUser,
-  ): void {
-    ctx.patchState({
-      deactivatingId: action.id,
-      updateError: null,
-      updateErrorUserId: null,
-      notice: null,
-    });
-  }
-
-  @Action(CloseDeactivateAdminUser)
-  closeDeactivate(ctx: StateContext<AdminUsersStateModel>): void {
-    ctx.patchState({ deactivatingId: null });
-  }
-
   @Action(DeactivateAdminUser)
   deactivate(
     ctx: StateContext<AdminUsersStateModel>,
@@ -342,25 +298,12 @@ export class AdminUsersState {
     return this.toggleActive(ctx, action.id, true);
   }
 
-  @Action(OpenDeleteAdminUser)
-  openDelete(
-    ctx: StateContext<AdminUsersStateModel>,
-    action: OpenDeleteAdminUser,
-  ): void {
-    ctx.patchState({ deletingId: action.id, deleteError: null, notice: null });
-  }
-
-  @Action(CloseDeleteAdminUser)
-  closeDelete(ctx: StateContext<AdminUsersStateModel>): void {
-    ctx.patchState({ deletingId: null, deleteError: null });
-  }
-
   @Action(DeleteAdminUser)
   delete(
     ctx: StateContext<AdminUsersStateModel>,
     action: DeleteAdminUser,
   ): Observable<AdminUserDeleteResponse> {
-    ctx.patchState({ deleting: true, deleteError: null });
+    ctx.patchState({ deleting: true, updateError: null, updateErrorUserId: null });
     return this.api.deleteUser(action.id).pipe(
       tap({
         next: () => {
@@ -369,8 +312,6 @@ export class AdminUsersState {
             .users.find((u) => u.id === action.id);
           ctx.patchState({
             deleting: false,
-            deletingId: null,
-            deleteError: null,
             users: ctx.getState().users.filter((u) => u.id !== action.id),
             total: Math.max(0, ctx.getState().total - 1),
             notice: {
@@ -382,9 +323,11 @@ export class AdminUsersState {
           });
         },
         error: (err: { message?: string }) => {
+          // The confirmation already closed; the failure shows on the row.
           ctx.patchState({
             deleting: false,
-            deleteError: err?.message ?? 'Could not delete the user. Please try again.',
+            updateErrorUserId: action.id,
+            updateError: err?.message ?? 'Could not delete the user. Please try again.',
           });
         },
       }),
@@ -450,7 +393,6 @@ export class AdminUsersState {
               updating: false,
               updateError: null,
               updateErrorUserId: null,
-              deactivatingId: null,
               users: ctx
                 .getState()
                 .users.map((u) => (u.id === user.id ? user : u)),
@@ -466,7 +408,6 @@ export class AdminUsersState {
             // The confirmation closes; the failure shows inline on the row.
             ctx.patchState({
               updating: false,
-              deactivatingId: null,
               updateErrorUserId: id,
               updateError:
                 err?.message ?? 'Could not change the user. Please try again.',
