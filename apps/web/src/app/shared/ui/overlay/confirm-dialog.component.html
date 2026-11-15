@@ -1,0 +1,41 @@
+<ui-modal [heading]="options.title" asForm (submitted)="confirm()">
+  <p class="confirm__body">{{ options.body }}</p>
+
+  @if (phrase !== null) {
+    <label class="confirm__type">
+      <span class="confirm__type-label">
+        {{ options.typeToConfirmPrompt ?? 'Type' }} <strong class="confirm__phrase">{{ phrase }}</strong>
+      </span>
+      <input
+        class="confirm__input"
+        type="text"
+        autocomplete="off"
+        autocapitalize="off"
+        spellcheck="false"
+        [value]="typed()"
+        (input)="onInput($event)"
+      />
+    </label>
+  }
+
+  <ng-container uiModalFooter>
+    <button
+      type="button"
+      ui-button
+      variant="secondary"
+      [attr.cdkFocusInitial]="danger ? '' : null"
+      (click)="cancel()"
+    >
+      {{ options.cancelLabel ?? 'Cancel' }}
+    </button>
+    <button
+      type="submit"
+      ui-button
+      [variant]="danger ? 'danger' : 'primary'"
+      [disabled]="!canConfirm()"
+      [attr.cdkFocusInitial]="!danger && phrase === null ? '' : null"
+    >
+      {{ options.verb }}
+    </button>
+  </ng-container>
+</ui-modal>

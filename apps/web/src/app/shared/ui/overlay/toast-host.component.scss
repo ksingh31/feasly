@@ -1,0 +1,131 @@
+// Toast stack — portal-ui-kit §3. Tokens only (colours live in styles.scss).
+// Unencapsulated (the CDK pane lives outside any component view); every
+// selector is `ui-toast*`-prefixed.
+
+// Above an open modal (--z-modal) when popovers are unavailable.
+.cdk-global-overlay-wrapper:has(> .ui-toast-pane) {
+  z-index: calc(1000 + var(--z-toast));
+}
+
+// The pane spans only the stack, and lets clicks through its empty area.
+.cdk-overlay-pane.ui-toast-pane {
+  pointer-events: none;
+}
+
+ui-toast-host {
+  display: block;
+  width: 100%;
+  pointer-events: none;
+}
+
+.ui-toasts {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: var(--space-2);
+  padding: var(--space-5);
+}
+
+.ui-toast {
+  pointer-events: auto;
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  box-sizing: border-box;
+  width: max-content;
+  max-width: min(420px, 100%);
+  min-height: 48px;
+  padding: var(--space-2) var(--space-2) var(--space-2) var(--space-4);
+  border-radius: var(--radius-md);
+  background: var(--canvas);
+  color: var(--on-dark);
+  box-shadow: var(--shadow-overlay);
+  font: var(--type-body-sm);
+  animation: ui-toast-in 0.2s ease-out;
+}
+
+.ui-toast__dot {
+  flex: none;
+  width: 8px;
+  height: 8px;
+  border-radius: var(--radius-pill);
+  background: var(--on-dark-muted);
+}
+.ui-toast--success .ui-toast__dot {
+  background: var(--status-success-bg);
+}
+.ui-toast--info .ui-toast__dot {
+  background: var(--status-info-bg);
+}
+.ui-toast--warning .ui-toast__dot {
+  background: var(--status-warning-bg);
+}
+.ui-toast--danger .ui-toast__dot {
+  background: var(--status-danger-bg);
+}
+
+.ui-toast__message {
+  flex: 1 1 auto;
+  min-width: 0;
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+
+.ui-toast__undo,
+.ui-toast__close {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 44px;
+  min-height: 44px;
+  padding: 0 var(--space-3);
+  border: 0;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--on-dark);
+  cursor: pointer;
+
+  &:hover {
+    background: var(--canvas-2);
+  }
+  &:focus-visible {
+    outline: none;
+    box-shadow: 0 0 0 3px var(--focus-ring);
+  }
+}
+
+.ui-toast__undo {
+  font-weight: 600;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+.ui-toast__close {
+  padding: 0;
+  color: var(--on-dark-muted);
+  font-size: 20px;
+  line-height: 1;
+}
+
+/* Mobile: bottom-centre, full width minus the gutter, above the home indicator. */
+@media (max-width: 767px) {
+  .cdk-overlay-pane.ui-toast-pane {
+    width: 100%;
+  }
+  .ui-toasts {
+    align-items: center;
+    padding: var(--space-4) var(--space-4) calc(var(--space-4) + env(safe-area-inset-bottom, 0px));
+  }
+  .ui-toast {
+    width: 100%;
+    max-width: 100%;
+  }
+}
+
+@keyframes ui-toast-in {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+}

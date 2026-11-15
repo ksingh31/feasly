@@ -128,11 +128,39 @@ const hoursBetween = (fromIso, now) => (now - Date.parse(fromIso)) / 3_600_000;
 const countMarker = (comments, marker) => (comments ?? []).filter((c) => (c.body ?? '').includes(marker)).length;
 
 /**
- * Watchdog decisions for one claimed issue.
- * @param {{issue:any, claimedAt:string, linkedPr:any|null, comments:any[], now:number, cfg?:object}} s
- * @returns {{action:'none'|'requeue'|'escalate'|'overdue', reason:string}}
+ * The merged PR that already delivered an issue, if any: one whose closing references
+ * include the issue, or one from the issue's agent branch. Only PRs merged at or after
+ * `since` (the current claim) count, so a reopened, re-claimed issue is not closed by
+ * the PR that shipped its first attempt.
+ * @param {number} issueNumber
+ * @param {{number:number, headRefName?:string, mergedAt?:string, closingIssuesReferences?:{number:number}[]}[]} mergedPrs
+ * @param {string} [since] ISO time of the current claim
  */
-export function judgeClaimedIssue({ issue, claimedAt, linkedPr, comments, now, cfg = DEFAULTS }) {
+export function findMergedPrFor(issueNumber, mergedPrs, since) {
+  const sinceMs = since ? Date.parse(since) : Number.NEGATIVE_INFINITY;
+  return (
+    (mergedPrs ?? []).find(
+      (p) =>
+        p.mergedAt &&
+        Date.parse(p.mergedAt) >= sinceMs &&
+        ((p.closingIssuesReferences ?? []).some((r) => r.number === issueNumber) ||
+          (p.headRefName ?? '').startsWith(branchPrefixFor(issueNumber))),
+    ) ?? null
+  );
+}
+
+/**
+ * Watchdog decisions for one claimed issue.
+ * `mergedPr`: a PR merged since the claim that delivers this issue (see findMergedPrFor).
+ * When there is no open PR but the work already merged, the issue is closed as completed
+ * instead of being requeued (GitHub does not always auto-close on merge — #635).
+ * @param {{issue:any, claimedAt:string, linkedPr:any|null, mergedPr?:any|null, comments:any[], now:number, cfg?:object}} s
+ * @returns {{action:'none'|'requeue'|'escalate'|'overdue'|'close', reason:string}}
+ */
+export function judgeClaimedIssue({ issue, claimedAt, linkedPr, mergedPr = null, comments, now, cfg = DEFAULTS }) {
+  if (!linkedPr && mergedPr) {
+    return { action: 'close', reason: `delivered by merged PR #${mergedPr.number}` };
+  }
   if (!linkedPr) {
     const idle = hoursBetween(claimedAt, now);
     if (idle < cfg.claimStallHours) return { action: 'none', reason: `claimed ${idle.toFixed(1)}h ago` };

@@ -179,17 +179,17 @@ export class SampleReportPageComponent implements OnInit {
 
   /** Estimate line items, rounded to $1,000 (#504). */
   protected formatRounded(value: number): string {
-    return formatRoundedCad(value);
+    return formatRoundedCad(value, this.config.get('limits').estimateRoundingStep);
   }
 
   /** Range-first headline, e.g. "$3.24M – $3.39M" (#504). */
   protected formatRange(range: { readonly low: number; readonly high: number }): string {
-    return formatCompactRange(range);
+    return formatCompactRange(range, this.config.get('limits').estimateRoundingStep);
   }
 
   /** Secondary "most likely" base figure (#504). */
   protected formatCompact(value: number): string {
-    return formatCompactCad(value);
+    return formatCompactCad(value, this.config.get('limits').estimateRoundingStep);
   }
 
   /** Whole-dollar per-sq-ft (#504). */

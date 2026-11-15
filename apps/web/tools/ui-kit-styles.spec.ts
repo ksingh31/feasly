@@ -62,6 +62,38 @@ describe('ui fields styles', () => {
   });
 });
 
+describe('ui overlays styles (issue #498)', () => {
+  const modal = read('overlay/modal.component.scss');
+  const toast = read('overlay/toast-host.component.scss');
+  const mobile = (css: string): string => /@media \(max-width: 767px\)\s*\{([\s\S]*)$/.exec(css)?.[1] ?? '';
+
+  it('modal: centred sm 400 / md 560 / lg 720, max-height 85vh, scrim token', () => {
+    expect(modal).toMatch(/\.ui-modal-pane\s*\{[^}]*max-width:\s*560px;[^}]*max-height:\s*85vh;/);
+    expect(modal).toMatch(/\.ui-modal-pane--sm\s*\{[^}]*max-width:\s*400px;/);
+    expect(modal).toMatch(/\.ui-modal-pane--lg\s*\{[^}]*max-width:\s*720px;/);
+    expect(modal).toMatch(/\.ui-modal-scrim\s*\{[^}]*background:\s*var\(--scrim\);/);
+  });
+
+  it('modal: bottom sheet below 768px — full width, bottom-aligned, drag handle, safe-area padding', () => {
+    const sheet = mobile(modal);
+    expect(sheet).toMatch(/\.ui-modal-pane[^{]*\{[^}]*align-self:\s*flex-end;[^}]*width:\s*100%;/);
+    expect(sheet).toMatch(/\.ui-modal__sheet\s*\{[^}]*padding-bottom:\s*env\(safe-area-inset-bottom/);
+    expect(sheet).toMatch(/\.ui-modal__handle\s*\{[^}]*display:\s*block;/);
+  });
+
+  it('toast: bottom-centre on mobile above the safe area; 44px buttons', () => {
+    const phone = mobile(toast);
+    expect(phone).toMatch(/\.ui-toasts\s*\{[^}]*align-items:\s*center;[^}]*safe-area-inset-bottom/);
+    expect(toast).toMatch(/\.ui-toasts\s*\{[^}]*align-items:\s*flex-end;/);
+    expect(toast).toMatch(/min-height:\s*44px;/);
+  });
+
+  it('close and toast buttons show the spec focus ring', () => {
+    expect(modal).toMatch(/\.ui-modal__close:focus-visible\s*\{[^}]*box-shadow:\s*0 0 0 3px var\(--focus-ring\)/);
+    expect(toast).toMatch(/&:focus-visible\s*\{[^}]*box-shadow:\s*0 0 0 3px var\(--focus-ring\)/);
+  });
+});
+
 describe('shared/ui uses tokens only', () => {
   it('has no hex or rgb() colour literals', () => {
     for (const file of scssFiles(UI)) {

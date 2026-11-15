@@ -478,6 +478,8 @@ export interface AppConfig {
     mockLatencyMaxMs: number;
     /** Analyzing pipeline stage timeout (an API stage slower than this fails honestly). */
     analyzingTimeoutMs: number;
+    /** Portal UI kit Toast auto-dismiss (portal-ui-kit §3: 5s). */
+    toastDurationMs: number;
   };
   /** Collection limits. */
   limits: {
@@ -499,6 +501,13 @@ export interface AppConfig {
     maxLotSizeSqft: number;
     minAssessedLandValue: number;
     maxAssessedLandValue: number;
+    /**
+     * Display rounding step (whole dollars) for consumer estimate figures
+     * (#504, #608): no estimate renders more precise than this. Mirrors the
+     * top-level `roundTo` of the pinned cost-data file;
+     * estimate-input-bounds-drift.spec.ts fails CI if they diverge.
+     */
+    estimateRoundingStep: number;
   };
   /** Analytics consent. */
   analytics: {

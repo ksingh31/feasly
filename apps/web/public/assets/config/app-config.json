@@ -414,7 +414,8 @@
     "minLotSizeSqft": 1200,
     "maxLotSizeSqft": 20000,
     "minAssessedLandValue": 25000,
-    "maxAssessedLandValue": 10000000
+    "maxAssessedLandValue": 10000000,
+    "estimateRoundingStep": 1000
   },
   "site": {
     "name": "Feasly",
@@ -427,7 +428,8 @@
     "mockLatencyMaxMs": 900,
     "mockLatencyMinMs": 400,
     "resendCooldownSec": 60,
-    "reviseDebounceMs": 400
+    "reviseDebounceMs": 400,
+    "toastDurationMs": 5000
   },
   "wizard": {
     "sqftDefault": 2200,

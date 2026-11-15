@@ -106,6 +106,6 @@ export class CommunitiesIndexPageComponent implements OnInit {
   }
 
   private formatCad(value: number): string {
-    return formatRoundedCad(value);
+    return formatRoundedCad(value, this.config.get('limits').estimateRoundingStep);
   }
 }

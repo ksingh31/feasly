@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import { DEFAULT_APP_CONFIG } from '../../core/config/app-config.defaults';
 import {
   centsToGroupedDollars,
   formatCentsRangeToCad,
@@ -9,6 +10,9 @@ import {
   formatRoundedCad,
   groupDollarDigits,
 } from './money';
+
+/** The configured estimate display step (#608) — 1000 in the defaults. */
+const STEP = DEFAULT_APP_CONFIG.limits.estimateRoundingStep;
 
 /**
  * Money utils: integer-math CAD formatting (admin/02 AC2 — no float math
@@ -55,27 +59,40 @@ describe('formatCentsRangeToCad', () => {
 /** #504 / review M1: consumer estimate figures never render unrounded. */
 describe('estimate display rounding', () => {
   it('rounds to the nearest $1,000', () => {
-    expect(formatRoundedCad(609_901)).toBe('$610,000');
-    expect(formatRoundedCad(580_499)).toBe('$580,000');
-    expect(formatRoundedCad(Number.NaN)).toBe('$0');
+    expect(formatRoundedCad(609_901, STEP)).toBe('$610,000');
+    expect(formatRoundedCad(580_499, STEP)).toBe('$580,000');
+    expect(formatRoundedCad(Number.NaN, STEP)).toBe('$0');
+  });
+
+  it('rounds to whatever step the caller passes (#608: step comes from ConfigService)', () => {
+    expect(formatRoundedCad(609_901, 5_000)).toBe('$610,000');
+    expect(formatRoundedCad(612_600, 5_000)).toBe('$615,000');
+    expect(formatRoundedCad(609_901, 100)).toBe('$609,900');
+    expect(formatCompactCad(612_600, 5_000)).toBe('$615,000');
+  });
+
+  it('falls back to whole dollars for a non-positive or non-finite step', () => {
+    expect(formatRoundedCad(609_901.4, 0)).toBe('$609,901');
+    expect(formatRoundedCad(609_901, -1_000)).toBe('$609,901');
+    expect(formatRoundedCad(609_901, Number.NaN)).toBe('$609,901');
   });
 
   it('renders millions compact with $10k precision', () => {
-    expect(formatCompactCad(3_243_817)).toBe('$3.24M');
-    expect(formatCompactCad(3_305_000)).toBe('$3.31M');
-    expect(formatCompactCad(1_000_000)).toBe('$1.00M');
-    expect(formatCompactCad(12_049_999)).toBe('$12.05M');
+    expect(formatCompactCad(3_243_817, STEP)).toBe('$3.24M');
+    expect(formatCompactCad(3_305_000, STEP)).toBe('$3.31M');
+    expect(formatCompactCad(1_000_000, STEP)).toBe('$1.00M');
+    expect(formatCompactCad(12_049_999, STEP)).toBe('$12.05M');
   });
 
   it('renders sub-million figures rounded to $1,000', () => {
-    expect(formatCompactCad(608_456)).toBe('$608,000');
+    expect(formatCompactCad(608_456, STEP)).toBe('$608,000');
     // Rounds up across the boundary into compact form.
-    expect(formatCompactCad(999_999)).toBe('$1.00M');
+    expect(formatCompactCad(999_999, STEP)).toBe('$1.00M');
   });
 
   it('formats a headline range', () => {
-    expect(formatCompactRange({ low: 3_241_000, high: 3_386_200 })).toBe('$3.24M – $3.39M');
-    expect(formatCompactRange({ low: 608_456, high: 734_900 })).toBe('$608,000 – $735,000');
+    expect(formatCompactRange({ low: 3_241_000, high: 3_386_200 }, STEP)).toBe('$3.24M – $3.39M');
+    expect(formatCompactRange({ low: 608_456, high: 734_900 }, STEP)).toBe('$608,000 – $735,000');
   });
 
   it('formats per-sq-ft in whole dollars', () => {

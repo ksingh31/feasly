@@ -35,3 +35,4 @@ export { SkeletonComponent } from './skeleton';
 export type { SkeletonVariant } from './skeleton';
 export * from './data-table';
 export * from './filter-bar';
+export * from './overlay';
