@@ -159,6 +159,6 @@ button.cta.pdf {
 @media print {
   .stepper-card {
     break-inside: avoid;
-    border-color: #ccc;
+    border-color: var(--border);
   }
 }
