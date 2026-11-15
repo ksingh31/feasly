@@ -667,7 +667,8 @@ export interface AppConfig {
     wizard: {
       stepAddress: string;
       stepScope: string;
-      stepDetails: string;
+      /** #507: third step of Address → Your home → Estimate (preview + gate). */
+      stepEstimate: string;
       scopeHeading: string;
       scopeSqftLabel: string;
       scopeSqftHint: string;
@@ -722,14 +723,6 @@ export interface AppConfig {
       renoScopeCta: string;
       renoScopeEmpty: string;
       renoScopeEmptyCta: string;
-      detailsLivingArea: string;
-      detailsFinishTier: string;
-      detailsGarage: string;
-      detailsBasement: string;
-      detailsPreviewCta: string;
-      detailsEmpty: string;
-      detailsEmptyCta: string;
-      detailsBackLabel: string;
     };
     /**
      * Neighbourhood comparison flow copy (NBH-04): the landing entry card
@@ -827,12 +820,12 @@ export interface AppConfig {
     preview: {
       heading: string;
       readyNote: string;
+      /** Back to the scope step (new build and reno alike — #507 removed Details). */
       backLabel: string;
-      /** BUG-6: reno preview goes back to the reno scope step, not "details". */
-      renoBackLabel: string;
-      /** RENO-04: reno-specific visible fact labels. */
-      renoTypeLabel: string;
-      renoSqftLabel: string;
+      /** #507 recap chip: "Edit" link text, its accessible name, and the sq ft unit. */
+      recapEditLabel: string;
+      recapEditAriaLabel: string;
+      recapSqftUnit: string;
       /**
        * Validation-failure explainer (consumer/06): shown when the preview
        * API rejects the request (e.g. assessed value out of range). Retry
@@ -1136,8 +1129,6 @@ export interface AppConfig {
       scope: string;
       renoScopeTitle: string;
       renoScope: string;
-      detailsTitle: string;
-      details: string;
       previewTitle: string;
       preview: string;
       reportTitle: string;

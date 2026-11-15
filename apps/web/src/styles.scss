@@ -201,7 +201,6 @@ textarea {
    pages; on long pages the footer is pushed below the content as normal. */
 app-landing-page,
 app-scope-page,
-app-details-page,
 app-privacy-page,
 app-terms-page {
   display: flex;
@@ -211,7 +210,6 @@ app-terms-page {
 
 app-landing-page > main,
 app-scope-page > main,
-app-details-page > main,
 app-privacy-page > main,
 app-terms-page > main {
   flex: 1;
