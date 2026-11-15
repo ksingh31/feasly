@@ -476,6 +476,8 @@ export interface AppConfig {
     mockLatencyMaxMs: number;
     /** Analyzing pipeline stage timeout (an API stage slower than this fails honestly). */
     analyzingTimeoutMs: number;
+    /** Portal UI kit Toast auto-dismiss (portal-ui-kit §3: 5s). */
+    toastDurationMs: number;
   };
   /** Collection limits. */
   limits: {

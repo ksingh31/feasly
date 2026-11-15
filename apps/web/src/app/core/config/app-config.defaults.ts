@@ -80,6 +80,8 @@ export const DEFAULT_APP_CONFIG: AppConfig = {
     mockLatencyMaxMs: 900,
     /** Analyzing pipeline: an API stage that takes longer than this fails honestly instead of hanging. */
     analyzingTimeoutMs: 20000,
+    /** Portal UI kit Toast auto-dismiss (portal-ui-kit §3). */
+    toastDurationMs: 5000,
   },
   limits: {
     communityPageLimit: 24,

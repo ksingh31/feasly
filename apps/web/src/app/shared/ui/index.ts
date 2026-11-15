@@ -33,3 +33,4 @@ export { PageLayoutComponent } from './page-layout';
 export type { PageLayoutPortal } from './page-layout';
 export { SkeletonComponent } from './skeleton';
 export type { SkeletonVariant } from './skeleton';
+export * from './overlay';

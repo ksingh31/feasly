@@ -1,0 +1,25 @@
+<div class="ui-toasts" role="status" aria-live="polite" aria-atomic="false">
+  @for (toast of service.toasts(); track toast.id) {
+    <div
+      class="ui-toast ui-toast--{{ toast.tone }}"
+      (mouseenter)="service.pause(toast.id)"
+      (mouseleave)="service.resume(toast.id)"
+      (focusin)="service.pause(toast.id)"
+      (focusout)="service.resume(toast.id)"
+    >
+      <span class="ui-toast__dot" aria-hidden="true"></span>
+      <p class="ui-toast__message">{{ toast.message }}</p>
+      @if (toast.undoLabel) {
+        <button type="button" class="ui-toast__undo" (click)="service.undo(toast.id)">{{ toast.undoLabel }}</button>
+      }
+      <button
+        type="button"
+        class="ui-toast__close"
+        [attr.aria-label]="dismissLabel()"
+        (click)="service.dismiss(toast.id, 'close')"
+      >
+        <span aria-hidden="true">×</span>
+      </button>
+    </div>
+  }
+</div>
