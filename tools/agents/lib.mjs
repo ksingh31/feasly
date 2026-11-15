@@ -177,17 +177,11 @@ export function judgeAgentPr({ pr, now, cfg = DEFAULTS }) {
  * (owner standing rules: spend, legal, pricing math, destructive data changes).
  */
 export const SENSITIVE_PATHS = [
-  /^infra\/bicep\//,
-  /^\.github\/workflows\//,
-  /^tools\/agents\//,
-  /^\.claude\//,
-  /^CLAUDE\.md$/,
-  /^apps\/api\/src\/db\/migrations\//,
-  /^infra\/db\//,
+  // Owner escalation policy (2026-11-15): hold only what is an app/business decision or
+  // costs money — legal copy, infrastructure spend, builder tenant data. Everything else
+  // merges after review + every check green.
   /^docs\/legal\//,
-  /^packages\/cost-engine\//,
-  /billing/i,
-  /stripe/i,
+  /^infra\/bicep\//,
   /^config\/builders\//,
 ];
 
