@@ -1,0 +1,117 @@
+:host {
+  display: block;
+}
+.invoice-drawer__countdown {
+  font-weight: 600;
+  color: var(--status-warning-fg);
+}
+.invoice-drawer__section + .invoice-drawer__section,
+.invoice-drawer__banner + .invoice-drawer__section {
+  margin-top: var(--space-6);
+}
+.invoice-drawer__heading {
+  margin: 0 0 var(--space-3);
+  font: var(--type-label);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+.invoice-drawer__banner {
+  margin: 0;
+  padding: var(--space-3) var(--space-4);
+  border-radius: var(--radius-md);
+  font: var(--type-body-sm);
+}
+.invoice-drawer__banner--danger {
+  background: var(--status-danger-bg);
+  color: var(--status-danger-fg);
+}
+.invoice-drawer__banner--success {
+  background: var(--status-success-bg);
+  color: var(--status-success-fg);
+}
+/* Label left, value right — but in a narrow drawer, so the eye never has to cross a wide gap. */
+.invoice-drawer__rows {
+  margin: 0;
+  display: grid;
+  gap: var(--space-2);
+}
+.invoice-drawer__rows > div {
+  display: flex;
+  justify-content: space-between;
+  gap: var(--space-4);
+}
+.invoice-drawer__rows dt {
+  font: var(--type-body-sm);
+  color: var(--muted);
+}
+.invoice-drawer__rows dd {
+  margin: 0;
+  font: var(--type-body-sm);
+  font-variant-numeric: tabular-nums;
+  color: var(--text);
+  text-align: right;
+}
+.invoice-drawer__total {
+  padding-top: var(--space-2);
+  border-top: 1px solid var(--border);
+}
+.invoice-drawer__total dt,
+.invoice-drawer__total dd {
+  font-weight: 600;
+  color: var(--text);
+}
+.invoice-drawer__formula {
+  margin: var(--space-2) 0 0;
+  font: var(--type-meta);
+  font-variant-numeric: tabular-nums;
+  color: var(--muted);
+}
+.invoice-drawer__method-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+}
+.invoice-drawer__method {
+  font: var(--type-body);
+  font-weight: 600;
+  color: var(--text);
+}
+.invoice-drawer__link {
+  min-height: 44px;
+  min-width: 44px;
+  padding: 0 var(--space-2);
+  border: 0;
+  background: none;
+  color: var(--accent-text);
+  font: var(--type-body-sm);
+  font-weight: 600;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+  cursor: pointer;
+}
+.invoice-drawer__link:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 3px var(--focus-ring);
+  border-radius: var(--radius-sm);
+}
+.invoice-drawer__note {
+  margin: var(--space-2) 0 0;
+  font: var(--type-body-sm);
+  color: var(--muted);
+}
+.invoice-drawer__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
+.invoice-drawer__actions a {
+  min-height: 44px;
+}
+.invoice-drawer__error p,
+.invoice-drawer__loading {
+  margin: 0 0 var(--space-3);
+  font: var(--type-body-sm);
+  color: var(--text);
+}

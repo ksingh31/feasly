@@ -381,6 +381,8 @@ export interface BuilderCopy {
   leadsHome: BuilderLeadsHomeCopy;
   /** Builder lead drawer (#528). */
   leadDrawer: BuilderLeadDrawerCopy;
+  /** Invoice drawer + change-method modal (#533). */
+  invoiceDrawer: BuilderInvoiceDrawerCopy;
   contractRetry: string;
   /** Money sub-nav: the overview page (#532). */
   shellNavMoneyOverview: string;
@@ -517,6 +519,54 @@ export interface BuilderLeadsHomeCopy {
   /** Wire project types → labels; unknown values are humanised. */
   projectTypes: Record<string, string>;
   closeLabel: string;
+}
+
+/** Builder invoice drawer + change-payment-method modal copy (#533). */
+export interface BuilderInvoiceDrawerCopy {
+  /** Drawer heading while the invoice loads. */
+  loadingHeading: string;
+  /** Header meta: `{number}` invoice number, `{lead}` lead name. */
+  headerMeta: string;
+  closeLabel: string;
+  /** Accessible name of the lifecycle stepper. */
+  lifecycleLabel: string;
+  stepCompleteLabel: string;
+  stepCurrentLabel: string;
+  stepUpcomingLabel: string;
+  breakdownHeading: string;
+  /** Rate row label. */
+  breakdownRate: string;
+  /** Commission row label. */
+  breakdownCommission: string;
+  /** One-line summary: `{contract} × {rate} = {commission}` (all server figures). */
+  breakdownFormula: string;
+  paymentHeading: string;
+  /** Opens the change-method modal. */
+  changeMethod: string;
+  /** Accessible name of the Change link: `{number}`. */
+  changeMethodAria: string;
+  timelineHeading: string;
+  timelineEmpty: string;
+  actionsHeading: string;
+  questionInvoice: string;
+  /** Toast after a method change: `{method}`. */
+  methodChangedToast: string;
+  modalHeading: string;
+  /** "Before" label in the modal. */
+  modalBefore: string;
+  /** "After" label in the modal. */
+  modalAfter: string;
+  /** Radio group legend. */
+  modalChooseLabel: string;
+  /** Marker next to the saved method in the radio list. */
+  modalCurrentTag: string;
+  /** After-panel text until a different method is picked. */
+  modalNoChange: string;
+  /** Effect line for the card on file. */
+  modalEffectCard: string;
+  modalSave: string;
+  modalSaving: string;
+  modalCancel: string;
 }
 
 /** Builder lead drawer copy (#528, artboard "Builder · Lead drawer"). */
