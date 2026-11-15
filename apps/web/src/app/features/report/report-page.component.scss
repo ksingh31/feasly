@@ -562,8 +562,10 @@ a.cta.secondary.another-address {
   box-sizing: border-box;
 }
 
-/* PRINT: hero, Build | Land, breakdown and reference sections print;
-   interactive chrome (adjust, talk, action row) is hidden. */
+/* PRINT (browser Ctrl+P): hero, Build | Land and breakdown print in full;
+   the collapsed reference <details> print their headings only unless the
+   reader opened them (Download PDF is the full print path; D-P6 open).
+   Interactive chrome (adjust, talk, action row) is hidden. */
 @media print {
   app-site-nav,
   app-site-footer,
