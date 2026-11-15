@@ -10,7 +10,7 @@ import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
-import { buildLlmsFiles } from './build-llms-txt.js';
+import { buildLlmsFiles, pageLines } from './build-llms-txt.js';
 import { DEFAULT_APP_CONFIG } from '../src/app/core/config/app-config.defaults.js';
 
 const SPEC_DIR = dirname(fileURLToPath(import.meta.url));
@@ -31,9 +31,40 @@ describe('build-llms-txt (SEO-07)', () => {
     const dir = mkdtempSync(join(tmpdir(), 'llms-'));
     const { llmsTxt, llmsFullTxt } = buildLlmsFiles({ siteUrl: 'https://example.com', outputDir: dir });
 
-    // The version comes from the aggregates JSON — assert it appears, not a hardcoded value.
-    expect(llmsTxt).toMatch(/cost data version:\s*v/i);
-    expect(llmsFullTxt).toMatch(/cost data version:\s*v/i);
+    // The version comes from the ranges JSON (the engine table behind the
+    // figures) — assert it appears, not a hardcoded value.
+    const ranges = JSON.parse(readFileSync(join(DATA_DIR, 'community-ranges.json'), 'utf-8')) as {
+      costDataVersion: string;
+    };
+    expect(llmsTxt).toContain(`Cost data version: ${ranges.costDataVersion}`);
+    expect(llmsFullTxt).toContain(`Cost data version: ${ranges.costDataVersion}`);
+    // SEO/GEO gap 5: the published id was misspelled.
+    expect(llmsTxt).not.toMatch(/unclibrated/);
+    expect(llmsFullTxt).not.toMatch(/unclibrated/);
+  });
+
+  it('lists every guide and indexable page with its canonical URL and a one-line summary', () => {
+    const dir = mkdtempSync(join(tmpdir(), 'llms-'));
+    const { llmsTxt, llmsFullTxt } = buildLlmsFiles({ siteUrl: 'https://example.com', outputDir: dir });
+    const lines = pageLines('https://example.com');
+    expect(lines.map((l) => l.url)).toEqual(
+      expect.arrayContaining([
+        'https://example.com/',
+        'https://example.com/guides/cost-to-build-a-house-calgary/',
+        'https://example.com/guides/calgary-zoning-explained/',
+        'https://example.com/communities/',
+        'https://example.com/faq/',
+      ]),
+    );
+    for (const l of lines) {
+      expect(l.summary).not.toContain('\n');
+      for (const file of [llmsTxt, llmsFullTxt]) {
+        expect(file).toContain(`- [${l.label}](${l.url}): ${l.summary}`);
+      }
+    }
+    expect(llmsTxt).toContain('## Guides');
+    // Noindex pages never appear.
+    expect(llmsTxt).not.toContain('/sample-report');
   });
 
   it('includes all 40 community summaries with assessed values', () => {

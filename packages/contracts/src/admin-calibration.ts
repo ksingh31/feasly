@@ -60,7 +60,7 @@ export interface CalibrationReport {
 
 /** Frozen-params summary for one cost-data version. */
 export interface CalibrationVersionInfo {
-  /** Version string, e.g. "v0.3.0-unclibrated" or "v1.0.0-calgary". */
+  /** Version string, e.g. "v0.4.1-uncalibrated" or "v1.0.0-calgary". */
   readonly version: string;
   /** True once a real calibration import has been frozen. */
   readonly calibrated: boolean;

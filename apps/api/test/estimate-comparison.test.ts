@@ -104,7 +104,7 @@ describe('estimate service — comparison (NBH-02)', () => {
 
     expect(comparison.rowSets.map((rs) => rs.slug)).toEqual(['community-a', 'community-b']);
     expect(comparison.rowSets).toHaveLength(2);
-    expect(comparison.costDataVersion).toBe('v0.4.0-unclibrated');
+    expect(comparison.costDataVersion).toBe('v0.4.1-uncalibrated');
 
     // Exactly one lowestLand
     const lowest = comparison.rowSets.filter((rs) => rs.lowestLand);
