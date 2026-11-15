@@ -81,7 +81,7 @@ export async function leadsHandler(
       app.withApiKeyRateLimit(
         headers,
         correlationId,
-        { endpoint: '/api/v1/leads' },
+        { endpoint: '/api/v1/leads', requiredScope: 'lead' },
         () => app.leadRoute.handle(req.body),
       ),
   );
