@@ -9,6 +9,7 @@ export type {
   ApiKeyStatusKey,
   BuilderStatusKey,
   DisputeSlaKey,
+  LeadHeatKey,
   LeadStatusKey,
   MemberStatusKey,
   StatusDomain,

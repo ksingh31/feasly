@@ -1,11 +1,12 @@
 import { inject, Injectable } from '@angular/core';
-import { of } from 'rxjs';
+import { forkJoin, of } from 'rxjs';
 import { catchError, switchMap, tap } from 'rxjs/operators';
 import type { Observable } from 'rxjs';
 import { Action, Selector, State, StateContext } from '@ngxs/store';
 import type {
   BuilderLeadListItem,
   BuilderLeadListResponse,
+  BuilderLeadsNeedsYouResponse,
   BuilderLeadStatus,
 } from '@feasly/contracts';
 import type {
@@ -25,6 +26,7 @@ import {
   FailBuilderEntraSignIn,
   LoadBuilderLeads,
   LoadBuilderMemberships,
+  LoadBuilderNeedsYou,
   LoadBuilderSession,
   LogoutBuilder,
   SetBuilderActiveOrg,
@@ -70,6 +72,12 @@ export interface BuilderStateModel {
   leads: readonly BuilderLeadListItem[];
   summary: BuilderLeadListResponse['summary'];
   leadsStatus: BuilderLeadsStatus;
+  /**
+   * Leads home "Needs you" feed (#527), memory-only (homeowner PII).
+   * Null until the first load succeeds.
+   */
+  needsYou: BuilderLeadsNeedsYouResponse | null;
+  needsYouStatus: BuilderLeadsStatus;
   /** Lead id currently being status-updated (disables its action buttons). */
   updatingLeadId: string | null;
   /** Last lead-update failure: 'forbidden' | 'failed' | null. */
@@ -108,6 +116,8 @@ const defaults: BuilderStateModel = {
   leads: [],
   summary: EMPTY_SUMMARY,
   leadsStatus: 'idle',
+  needsYou: null,
+  needsYouStatus: 'idle',
   updatingLeadId: null,
   updateError: null,
   viewAsBusy: false,
@@ -240,6 +250,16 @@ export class BuilderState {
   @Selector()
   static leadsStatus(state: BuilderStateModel): BuilderLeadsStatus {
     return state.leadsStatus;
+  }
+
+  @Selector()
+  static needsYou(state: BuilderStateModel): BuilderLeadsNeedsYouResponse | null {
+    return state.needsYou;
+  }
+
+  @Selector()
+  static needsYouStatus(state: BuilderStateModel): BuilderLeadsStatus {
+    return state.needsYouStatus;
   }
 
   @Selector()
@@ -439,6 +459,18 @@ export class BuilderState {
     );
   }
 
+  @Action(LoadBuilderNeedsYou)
+  loadBuilderNeedsYou(ctx: StateContext<BuilderStateModel>): Observable<unknown> {
+    ctx.patchState({ needsYouStatus: 'loading' });
+    return this.leadsApi.needsYou().pipe(
+      tap((response) => ctx.patchState({ needsYou: response, needsYouStatus: 'ready' })),
+      catchError(() => {
+        ctx.patchState({ needsYouStatus: 'error' });
+        return of(null);
+      }),
+    );
+  }
+
   @Action(UpdateBuilderLeadStatus)
   updateBuilderLeadStatus(
     ctx: StateContext<BuilderStateModel>,
@@ -450,7 +482,11 @@ export class BuilderState {
       // `needsRecording` is derived server-side only (#530) — refresh the
       // pipeline quietly (no loading skeleton) so the flag and its summary
       // count come from the backend, never from a client-side rule.
-      switchMap(() => this.refreshLeadsQuietly(ctx)),
+      // The "Needs you" groups are server-derived too (#527): a status
+      // change can move a lead in or out of a group.
+      switchMap(() =>
+        forkJoin([this.refreshLeadsQuietly(ctx), this.refreshNeedsYouQuietly(ctx)]),
+      ),
       catchError((error: unknown) => {
         const code =
           typeof error === 'object' && error !== null && 'code' in error
@@ -508,6 +544,14 @@ export class BuilderState {
   private refreshLeadsQuietly(ctx: StateContext<BuilderStateModel>): Observable<unknown> {
     return this.leadsApi.listLeads().pipe(
       tap((response) => ctx.patchState({ leads: response.leads, summary: response.summary })),
+      catchError(() => of(null)),
+    );
+  }
+
+  /** Re-reads the "Needs you" feed after a write; a failure keeps the last feed. */
+  private refreshNeedsYouQuietly(ctx: StateContext<BuilderStateModel>): Observable<unknown> {
+    return this.leadsApi.needsYou().pipe(
+      tap((response) => ctx.patchState({ needsYou: response, needsYouStatus: 'ready' })),
       catchError(() => of(null)),
     );
   }

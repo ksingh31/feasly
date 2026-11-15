@@ -34,6 +34,9 @@ const SPEC_TABLE: ReadonlyArray<readonly [StatusDomain, string, StatusTone, stri
   ['disputeSla', 'on_track', 'neutral', 'On track'],
   ['disputeSla', 'due_today', 'warning', 'Due today'],
   ['disputeSla', 'overdue', 'danger', 'Overdue'],
+  ['leadHeat', 'hot', 'danger', 'Hot'],
+  ['leadHeat', 'warm', 'warning', 'Warm'],
+  ['leadHeat', 'cool', 'info', 'Cool'],
 ];
 
 const SENTENCE_CASE = /^[A-Z][a-z0-9 -]*$/;

@@ -370,6 +370,8 @@ export interface BuilderCopy {
   contractCommissionPanelSub: string;
   contractCommissionContractValue: string;
   contractCommissionRate: string;
+  /** Leads home (#527): "Needs you" cards + pipeline table. */
+  leadsHome: BuilderLeadsHomeCopy;
   contractRetry: string;
   /** Money sub-nav: the overview page (#532). */
   shellNavMoneyOverview: string;
@@ -447,6 +449,69 @@ export interface BuilderCopy {
   moneyHowHeading: string;
   /** Link to question an invoice (href: config billing.questionInvoiceHref). */
   moneyQuestionInvoice: string;
+}
+
+/** Builder Leads home copy and display thresholds (#527, builder review §Leads home). */
+export interface BuilderLeadsHomeCopy {
+  heading: string;
+  needsYouHeading: string;
+  /** Group titles; `{days}` is the server's staleness threshold. */
+  groups: { uncontacted: string; stale: string; wonWithoutContract: string };
+  /** Age prefix per group, followed by a relative time ("2 hours ago"). */
+  ageLabels: { uncontacted: string; stale: string; wonWithoutContract: string };
+  allClearHeading: string;
+  allClearMessage: string;
+  needsYouError: string;
+  callLabel: string;
+  emailLabel: string;
+  /** Accessible names; `{name}` is the lead's name. */
+  callAria: string;
+  emailAria: string;
+  recordContractCta: string;
+  /** Shown to members on won-without-contract cards (recording is admin-only). */
+  recordContractMemberNote: string;
+  pipelineHeading: string;
+  statusFilterLabel: string;
+  allStatusesLabel: string;
+  searchLabel: string;
+  searchPlaceholder: string;
+  tableLabel: string;
+  columns: { lead: string; status: string; details: string; activity: string };
+  /** Details-cell timeline prefix ("Timeline 0–3 months"). */
+  timelinePrefix: string;
+  /** Text marker on stale rows (the highlight is never colour-only). */
+  staleLabel: string;
+  noResultsHeading: string;
+  noResultsMessage: string;
+  clearFiltersLabel: string;
+  sortByLabel: string;
+  defaultSortLabel: string;
+  ascendingLabel: string;
+  descendingLabel: string;
+  previousLabel: string;
+  nextLabel: string;
+  pageLabel: string;
+  pageOfLabel: string;
+  actionsHeader: string;
+  /** Rows per pipeline page. */
+  pageSize: number;
+  /** Lead-score heat pill (Hot ≥ hotMin, Warm ≥ warmMin, else Cool). */
+  heat: {
+    hot: string;
+    warm: string;
+    cool: string;
+    hotMin: number;
+    warmMin: number;
+    /** Pill text: `{heat}` is Hot/Warm/Cool, `{score}` the 0–100 lead score. */
+    chipLabel: string;
+  };
+  /** Wire project types → labels; unknown values are humanised. */
+  projectTypes: Record<string, string>;
+  /** Lead quick view (opened from a row until the lead drawer ships). */
+  panelContactHeading: string;
+  panelDetailsHeading: string;
+  panelStatusHeading: string;
+  closeLabel: string;
 }
 
 export interface AppConfig {
