@@ -19,6 +19,8 @@ import { GlobalErrorHandler } from '../../core/errors/global-error.handler';
 import { SeoService } from '../../core/seo/seo.service';
 import { LoadAdminDisputes } from './admin-disputes.actions';
 import { AdminDisputesState } from './admin-disputes.state';
+import { RefreshQuarantineCount } from './admin-quarantine.actions';
+import { AdminQuarantineState } from './admin-quarantine.state';
 import { AdminAuthState } from './admin-auth.state';
 import { LogoutAdmin } from './admin-auth.actions';
 import { AdminErrorComponent } from './admin-error.component';
@@ -32,14 +34,18 @@ class BlankComponent {}
 interface StoreSignals {
   permissions: WritableSignal<string[] | null>;
   disputes: WritableSignal<unknown[]>;
+  quarantine: WritableSignal<number | null>;
   email: WritableSignal<string | null>;
   name: WritableSignal<string | null>;
 }
 
-function makeStore(overrides: Partial<{ permissions: string[]; disputes: unknown[] }> = {}) {
+function makeStore(
+  overrides: Partial<{ permissions: string[]; disputes: unknown[]; quarantine: number | null }> = {},
+) {
   const signals: StoreSignals = {
     permissions: signal(overrides.permissions ?? ['billing:read']),
     disputes: signal(overrides.disputes ?? []),
+    quarantine: signal(overrides.quarantine ?? null),
     email: signal('ops@example.com'),
     name: signal('Riley Ops'),
   };
@@ -48,6 +54,7 @@ function makeStore(overrides: Partial<{ permissions: string[]; disputes: unknown
     [AdminAuthState.email, signals.email],
     [AdminAuthState.name, signals.name],
     [AdminDisputesState.disputes, signals.disputes],
+    [AdminQuarantineState.queueCount, signals.quarantine],
     [AdminSearchState.palette, signal({ query: '', hits: [], status: 'idle', error: null })],
   ]);
   const store = {
@@ -58,7 +65,7 @@ function makeStore(overrides: Partial<{ permissions: string[]; disputes: unknown
 }
 
 async function setup(
-  opts: { permissions?: string[]; disputes?: unknown[]; url?: string } = {},
+  opts: { permissions?: string[]; disputes?: unknown[]; quarantine?: number | null; url?: string } = {},
 ) {
   TestBed.resetTestingModule();
   const seo = { setPage: vi.fn(), setForRoute: vi.fn() };
@@ -133,6 +140,7 @@ describe('AdminShellComponent — sidebar', () => {
     ]);
     expect(qa(fixture, '.admin-nav__link').map((a) => a.getAttribute('href'))).toEqual([
       '/admin/leads',
+      '/admin/quarantine',
       '/admin/estimates',
       '/admin/builders',
       '/admin/users',
@@ -167,6 +175,13 @@ describe('AdminShellComponent — sidebar', () => {
     expect(store.dispatch).toHaveBeenCalledWith(expect.any(LoadAdminDisputes));
     // Other items carry no badge.
     expect(qa(fixture, '.admin-nav__badge')).toHaveLength(1);
+  });
+
+  it('shows the quarantine queue badge and refreshes its count on load', async () => {
+    const { fixture, store } = await setup({ permissions: [], quarantine: 3 });
+    const badge = q(fixture, 'a[href="/admin/quarantine"] .admin-nav__badge');
+    expect(text(badge)).toBe('3 open');
+    expect(store.dispatch).toHaveBeenCalledWith(expect.any(RefreshQuarantineCount));
   });
 
   it('does not prefetch the disputes queue without billing:read', async () => {
