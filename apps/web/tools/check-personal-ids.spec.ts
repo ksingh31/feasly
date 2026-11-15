@@ -6,6 +6,7 @@
  * scans tests and docs too, and that the committed denylist holds hashes
  * only.
  */
+import { execFileSync } from 'node:child_process';
 import { mkdtempSync, mkdirSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -92,6 +93,24 @@ describe('checkPersonalIds', () => {
     write('node_modules/pkg/index.js', `'${SEEDED_EMAIL}'\n`);
     writeFileSync(join(root, 'img.png'), Buffer.concat([Buffer.from([0]), Buffer.from(SEEDED_EMAIL)]));
     expect(checkPersonalIds(root, DENY)).toEqual([]);
+  });
+
+  it('in a git checkout, scans tracked + untracked files but skips gitignored ones', () => {
+    execFileSync('git', ['init', '-q', root]);
+    write('.gitignore', 'worktrees/\n.env*\n');
+    write('worktrees/old-branch/CLAUDE.md', `- Subscription \`${SEEDED_GUID}\`\n`);
+    write('.env', `AZURE_SUBSCRIPTION_ID=${SEEDED_GUID}\n`);
+    expect(checkPersonalIds(root, DENY)).toEqual([]);
+
+    // Untracked, not ignored → scanned (caught before it is committed).
+    write('docs/new.md', `Mail ${SEEDED_EMAIL}\n`);
+    expect(checkPersonalIds(root, DENY)).toEqual([
+      `docs/new.md:1 [personal id ${DENY[0].slice(0, HASH_PREFIX_LEN)}]`,
+    ]);
+
+    // Tracked → scanned.
+    execFileSync('git', ['-C', root, 'add', 'docs/new.md']);
+    expect(checkPersonalIds(root, DENY)).toHaveLength(1);
   });
 });
 

@@ -16,6 +16,11 @@
  * allowlisted per file in tools/personal-id-allowlist.txt, keyed by the
  * hash prefix so an allowlist entry covers exactly one identifier.
  *
+ * File set: in a git checkout, the files git would commit — tracked plus
+ * untracked-but-not-ignored (`git ls-files --cached --others
+ * --exclude-standard`), so gitignored local state (worktrees/, .env*) never
+ * blocks verify-local. Outside git (spec fixtures) it walks the directory.
+ *
  * Unlike the placeholder sweep, tests, fixtures and docs are scanned too —
  * a public repo leaks from a test file just as well.
  *
@@ -27,6 +32,7 @@
  *
  * Usage: node tools/check-personal-ids.mjs
  */
+import { execFileSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
 import { existsSync, readFileSync, readdirSync, statSync } from 'node:fs';
 import { dirname, join, relative, sep } from 'node:path';
@@ -94,6 +100,31 @@ function walk(dir, out = []) {
 }
 
 /**
+ * Files to scan under `root`: git's view when `root` is a checkout (tracked +
+ * untracked-not-ignored), else a directory walk. Returns absolute paths.
+ */
+export function listFiles(root = ROOT) {
+  if (existsSync(join(root, '.git'))) {
+    const out = execFileSync(
+      'git',
+      ['-C', root, 'ls-files', '-z', '--cached', '--others', '--exclude-standard'],
+      { encoding: 'utf8', maxBuffer: 64 * 1024 * 1024 },
+    );
+    const files = [];
+    for (const rel of out.split('\0')) {
+      if (!rel) continue;
+      if (rel.split('/').some((seg) => SKIP_DIRS.has(seg))) continue;
+      const abs = join(root, rel);
+      if (!existsSync(abs)) continue; // tracked but deleted in the working tree
+      const st = statSync(abs);
+      if (st.isFile() && st.size <= MAX_BYTES) files.push(abs);
+    }
+    return files;
+  }
+  return walk(root);
+}
+
+/**
  * Scan a repo root. Returns failure descriptions (never the identifier
  * itself — only its hash prefix).
  */
@@ -101,7 +132,7 @@ export function checkPersonalIds(root = ROOT, denylist = DENYLIST_SHA256) {
   const deny = new Set(denylist);
   const allowlist = loadAllowlist(root);
   const failures = [];
-  for (const abs of walk(root)) {
+  for (const abs of listFiles(root)) {
     const rel = relative(root, abs).split(sep).join('/');
     const buf = readFileSync(abs);
     if (buf.includes(0)) continue; // binary

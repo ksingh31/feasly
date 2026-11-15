@@ -8,8 +8,8 @@
 #
 # Unblock for all entries below: the owner names an ops inbox and provides the
 # admin bootstrap address out of band (Key Vault / app setting), then a
-# contract migration re-seeds without the literal (tracked as a follow-up to
-# #758). Applied migrations are immutable, so those entries stay until a
+# contract migration re-seeds without the literal (tracked in #772, follow-up
+# to #758). Applied migrations are immutable, so those entries stay until a
 # deliberate re-baseline.
 
 # Applied migrations — seed the protected super_admin. Immutable history.
