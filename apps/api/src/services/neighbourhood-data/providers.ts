@@ -15,7 +15,9 @@
  * - `free-public` (#774) — school directory merged from City Schools, the
  *   Alberta school authority list and OpenStreetMap (`school-directory.ts`).
  * - `calgary-open-data` — City of Calgary open data (Socrata): Schools (+
- *   authority list, no OSM call) and Community Services datasets.
+ *   authority list, no OSM call), and for amenities one dataset per configured
+ *   category (parks, playgrounds, pathways, rec centres, pools, libraries,
+ *   off-leash areas — #777) plus per-community public-tree cover.
  * - `straight-line` — straight-line distance from each established community
  *   (#690 rule, Community Points dataset) to a configured destination.
  *   A distance, never a travel time.
@@ -24,6 +26,7 @@
  * Records carry public open data only — no personal data.
  */
 import type {
+  AmenityCategoryConfig,
   AmenitiesImpl,
   CommuteImpl,
   NeighbourhoodDataConfig,
@@ -33,7 +36,14 @@ import type {
   SchoolRatingsImpl,
 } from '../../config';
 import type { SchoolType } from '@feasly/contracts';
-import { haversineMeters } from '../../lib/geo';
+import {
+  haversineMeters,
+  lineRepresentativePoint,
+  parcelInteriorPoint,
+  polygonAreaM2,
+} from '../../lib/geo';
+import { toSlug } from '../community-stats/socrata-aggregates';
+import { TREE_COVER_CATEGORY } from './categories';
 import { buildSchoolDirectory, type OsmElement } from './school-directory';
 
 /** Provider interface keys — also the admin path segment and state key. */
@@ -146,14 +156,27 @@ export interface SocrataClientDeps {
   readonly fetchImpl?: FetchLike;
 }
 
+/** Optional SoQL clauses (#777). */
+export interface SocrataQuery {
+  readonly select?: string;
+  readonly where?: string;
+  readonly group?: string;
+}
+
 /** Fetches every row of a dataset (one request, capped at `maxRows`). */
-export type SocrataRowsFetcher = (datasetId: string) => Promise<readonly Record<string, unknown>[]>;
+export type SocrataRowsFetcher = (
+  datasetId: string,
+  query?: SocrataQuery,
+) => Promise<readonly Record<string, unknown>[]>;
 
 export function createSocrataRowsFetcher(deps: SocrataClientDeps): SocrataRowsFetcher {
   const { socrataBaseUrl, httpTimeoutMs, maxRows } = deps;
   const fetchImpl: FetchLike = deps.fetchImpl ?? (fetch as unknown as FetchLike);
-  return async (datasetId) => {
-    const url = `${socrataBaseUrl}/resource/${encodeURIComponent(datasetId)}.json?$limit=${maxRows}`;
+  return async (datasetId, query = {}) => {
+    let url = `${socrataBaseUrl}/resource/${encodeURIComponent(datasetId)}.json?$limit=${maxRows}`;
+    if (query.select) url += `&$select=${encodeURIComponent(query.select)}`;
+    if (query.where) url += `&$where=${encodeURIComponent(query.where)}`;
+    if (query.group) url += `&$group=${encodeURIComponent(query.group)}`;
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), httpTimeoutMs);
     try {
@@ -285,37 +308,177 @@ export function createSchoolDirectoryProvider<TImpl extends 'free-public' | 'cal
   };
 }
 
-/** City of Calgary "Community Services" dataset → amenities. */
-export function createCalgaryAmenitiesProvider(
-  fetchRows: SocrataRowsFetcher,
-  datasetId: string,
-): AmenitiesProvider {
+/** First GeoJSON geometry value in a row (`point`, `multipolygon`, `the_geom`, ...). */
+function geometryOf(row: Record<string, unknown>): { type: string } | null {
+  for (const value of Object.values(row)) {
+    if (typeof value !== 'object' || value === null) continue;
+    const type = (value as { type?: unknown }).type;
+    if (typeof type === 'string' && Array.isArray((value as { coordinates?: unknown }).coordinates)) {
+      return value as { type: string };
+    }
+  }
+  return null;
+}
+
+/**
+ * One representative point for any row (#777): a Point / lat-lng fields as
+ * is, a polygon's interior point, a line's middle vertex.
+ */
+export function representativePoint(row: Record<string, unknown>): { lat: number; lng: number } | null {
+  const point = pointOf(row);
+  if (point) return point;
+  const geometry = geometryOf(row);
+  if (!geometry) return null;
+  const p =
+    geometry.type === 'Polygon' || geometry.type === 'MultiPolygon'
+      ? parcelInteriorPoint(geometry)
+      : geometry.type === 'LineString' || geometry.type === 'MultiLineString'
+        ? lineRepresentativePoint(geometry)
+        : null;
+  return p ? { lat: p.lat, lng: p.lon } : null;
+}
+
+/** One configured category's rows → amenity records (de-duplicated by id). */
+export function mapCategoryRows(
+  category: AmenityCategoryConfig,
+  rows: readonly Record<string, unknown>[],
+): AmenityRecord[] {
+  const seen = new Set<string>();
+  const out: AmenityRecord[] = [];
+  for (const row of rows) {
+    const point = representativePoint(row);
+    if (!point) continue;
+    const name = (category.nameField ? str(row[category.nameField]) : null) ?? category.label;
+    const sourceId = category.idField ? str(row[category.idField]) : null;
+    // No stable id field: name + rounded location identify a row.
+    const externalId = (
+      sourceId
+        ? `${category.key}|${sourceId}`
+        : `${category.key}|${name}|${point.lat.toFixed(5)},${point.lng.toFixed(5)}`
+    ).toLowerCase();
+    if (seen.has(externalId)) continue;
+    seen.add(externalId);
+    out.push({
+      externalId,
+      category: category.key,
+      name,
+      communityCode: str(row['comm_code']),
+      lat: point.lat,
+      lng: point.lng,
+      data: { address: str(row['address']) ?? str(row['parcel_location']) },
+    });
+  }
+  return out;
+}
+
+/** A configured category returned nothing — fail the refresh (keep old data). */
+export class EmptyAmenityCategoryError extends Error {
+  constructor(category: string) {
+    super(`amenity category ${category} returned no usable rows`);
+    this.name = 'EmptyAmenityCategoryError';
+  }
+}
+
+/** #690 rule: residential class + established community structure. */
+function isEstablished(
+  row: Record<string, unknown>,
+  communityClass: string,
+  structures: ReadonlySet<string>,
+): boolean {
+  return (
+    str(row['class'])?.toUpperCase() === communityClass.toUpperCase() &&
+    structures.has(str(row['comm_structure'])?.toUpperCase() ?? '')
+  );
+}
+
+export interface CalgaryAmenitiesDeps {
+  readonly fetchRows: SocrataRowsFetcher;
+  readonly categories: readonly AmenityCategoryConfig[];
+  readonly communityPointsDatasetId: string;
+  readonly communityBoundariesDatasetId: string;
+  readonly publicTreesDatasetId: string;
+  readonly communityClass: string;
+  readonly communityStructures: readonly string[];
+}
+
+/**
+ * Per established community: City public trees per hectare of community
+ * area, as one `tree-cover` record located at the community centre. It is a
+ * count of City-maintained trees, not a measured canopy.
+ */
+async function fetchTreeCover(deps: CalgaryAmenitiesDeps): Promise<AmenityRecord[]> {
+  const structures = new Set(deps.communityStructures.map((s) => s.toUpperCase()));
+  const [points, boundaries, treeCounts] = await Promise.all([
+    deps.fetchRows(deps.communityPointsDatasetId),
+    deps.fetchRows(deps.communityBoundariesDatasetId),
+    deps.fetchRows(deps.publicTreesDatasetId, {
+      select: 'comm_code, count(*) AS trees',
+      group: 'comm_code',
+    }),
+  ]);
+  const areaByCode = new Map<string, number>();
+  for (const row of boundaries) {
+    const code = str(row['comm_code'])?.toUpperCase();
+    const area = polygonAreaM2(geometryOf(row));
+    if (code && area > 0) areaByCode.set(code, area);
+  }
+  const treesByCode = new Map<string, number>();
+  for (const row of treeCounts) {
+    const code = str(row['comm_code'])?.toUpperCase();
+    const trees = num(row['trees']);
+    if (code && trees !== null) treesByCode.set(code, trees);
+  }
+  const out: AmenityRecord[] = [];
+  for (const row of points) {
+    const code = str(row['comm_code'])?.toUpperCase();
+    const name = str(row['name']);
+    if (!code || !name || !isEstablished(row, deps.communityClass, structures)) continue;
+    const point = pointOf(row);
+    const areaM2 = areaByCode.get(code);
+    if (!point || !areaM2) continue;
+    const publicTrees = treesByCode.get(code) ?? 0;
+    const areaHa = areaM2 / 10_000;
+    out.push({
+      externalId: `${TREE_COVER_CATEGORY}|${code}`.toLowerCase(),
+      category: TREE_COVER_CATEGORY,
+      name,
+      communityCode: code,
+      lat: point.lat,
+      lng: point.lng,
+      data: {
+        slug: toSlug(name),
+        publicTrees,
+        areaHa: Math.round(areaHa * 10) / 10,
+        treesPerHa: Math.round((publicTrees / areaHa) * 10) / 10,
+      },
+    });
+  }
+  return out;
+}
+
+/**
+ * City of Calgary open data → amenities (#777): one dataset (+ optional SoQL
+ * filter) per configured category, plus per-community public-tree cover.
+ * Any category coming back empty fails the whole refresh, so a broken
+ * dataset never prunes that category's existing rows.
+ */
+export function createCalgaryAmenitiesProvider(deps: CalgaryAmenitiesDeps): AmenitiesProvider {
   return {
     implementation: 'calgary-open-data',
     async fetchAll() {
-      const rows = await fetchRows(datasetId);
-      const seen = new Set<string>();
       const out: AmenityRecord[] = [];
-      for (const row of rows) {
-        const category = str(row['type']);
-        const name = str(row['name']);
-        if (!category || !name) continue;
-        const address = str(row['address']);
-        // The dataset has no stable id: type + name + address identify a row.
-        const externalId = `${category}|${name}|${address ?? ''}`.toLowerCase();
-        if (seen.has(externalId)) continue;
-        seen.add(externalId);
-        const point = pointOf(row);
-        out.push({
-          externalId,
-          category,
-          name,
-          communityCode: str(row['comm_code']),
-          lat: point?.lat ?? null,
-          lng: point?.lng ?? null,
-          data: { address },
-        });
+      for (const category of deps.categories) {
+        const rows = await deps.fetchRows(
+          category.datasetId,
+          category.where ? { where: category.where } : {},
+        );
+        const records = mapCategoryRows(category, rows);
+        if (records.length === 0) throw new EmptyAmenityCategoryError(category.key);
+        out.push(...records);
       }
+      const treeCover = await fetchTreeCover(deps);
+      if (treeCover.length === 0) throw new EmptyAmenityCategoryError(TREE_COVER_CATEGORY);
+      out.push(...treeCover);
       return out;
     },
   };
@@ -419,7 +582,15 @@ export function createNeighbourhoodProviders(
     reviews: noneProvider(),
     amenities:
       p.amenities === 'calgary-open-data'
-        ? createCalgaryAmenitiesProvider(fetchRows, config.amenitiesDatasetId)
+        ? createCalgaryAmenitiesProvider({
+            fetchRows,
+            categories: config.amenityCategories,
+            communityPointsDatasetId: config.communityPointsDatasetId,
+            communityBoundariesDatasetId: config.communityBoundariesDatasetId,
+            publicTreesDatasetId: config.publicTreesDatasetId,
+            communityClass: config.communityClass,
+            communityStructures: config.communityStructures,
+          })
         : noneProvider(),
     commute:
       p.commute === 'straight-line'
