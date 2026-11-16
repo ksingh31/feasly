@@ -17,12 +17,14 @@
  *   then the outcome. A WON chargeback leaves the invoice 'paid'. A LOST
  *   chargeback (owner decision #873, 2026-11-15): the builder still owes
  *   the commission, so the invoice moves `paid → failed` and is collected
- *   again through the normal dunning queue / retry / builder pay flow, and
+ *   again through the dunning queue (admin retry or manual mark-paid), and
  *   the builder is emailed (commission.reopenAfterLostChargeback). Never
  *   auto-voided — a write-off is an admin's manual void. When re-charging
  *   the full invoice would over-collect (a partial chargeback, or the
  *   invoice was already partly refunded) or the invoice is no longer
- *   'paid', the status is left alone and ops is alerted to handle it.
+ *   'paid', or it already used every allowed charge retry (retryCharge
+ *   would refuse it), the status is left alone and ops is alerted to
+ *   collect it by hand.
  * - An open chargeback pauses nothing but charge retries on that invoice
  *   (#873): no automatic embed / lead-flow pause. The builder shows the
  *   open-chargeback flag in the admin builders list, and an admin can
@@ -516,14 +518,16 @@ export function createChargebackService(
     // every delivery (idempotent per dispute) so a redelivery finishes a
     // move that failed partway, before the keyed timeline row below.
     let recollecting = false;
+    let retriesExhausted = false;
     if (finalOutcome === 'lost' && canRecollectInFull(invoice, closed.amountCents)) {
-      const { reopened } = await commission.reopenAfterLostChargeback({
+      const reopenResult = await commission.reopenAfterLostChargeback({
         invoiceId: invoice.id,
         disputeId: row.id,
         stripeDisputeId: row.stripeDisputeId,
         stripeEventId,
       });
-      if (reopened) changed = true;
+      if (reopenResult.reopened) changed = true;
+      retriesExhausted = reopenResult.retriesExhausted === true;
       const fresh = await db.query.commissionInvoices.findFirst({
         columns: { status: true },
         where: eq(commissionInvoices.id, invoice.id),
@@ -553,6 +557,19 @@ export function createChargebackService(
           `owes the commission: the invoice is now 'failed' and in the ` +
           `dunning queue, and the builder has been emailed. Retry the charge ` +
           `from the dunning queue, or void the invoice by hand to write it off.`,
+      );
+    } else if (finalOutcome === 'lost' && retriesExhausted) {
+      // #967 review: paid on its last allowed retry — retryCharge would
+      // refuse it, so the dunning queue cannot re-collect it.
+      await alertOps(
+        `Chargeback lost on ${invoice.invoiceNumber} — manual collection needed`,
+        `Stripe closed chargeback ${row.stripeDisputeId} on invoice ` +
+          `${invoice.invoiceNumber} as LOST (${amount}). The builder still ` +
+          `owes the commission, but the invoice has already used its ` +
+          `${invoice.retryCount} charge retries (the limit), so a retry from ` +
+          `the dunning queue would be refused. It was left 'paid' and the ` +
+          `builder was not emailed. Collect the commission manually, or void ` +
+          `the invoice by hand to write it off.`,
       );
     } else if (finalOutcome === 'lost') {
       await alertOps(
@@ -588,7 +605,10 @@ export function createChargebackService(
         ...(finalOutcome === 'lost'
           ? recollecting
             ? { recollect: true }
-            : { manualFollowUpRequired: true }
+            : {
+                manualFollowUpRequired: true,
+                ...(retriesExhausted ? { reason: 'charge_retries_exhausted' } : {}),
+              }
           : {}),
         stripeEventId,
       },
