@@ -5,7 +5,8 @@
  * Resolution order: admin session (Entra) first, then builder session
  * (builder magic-link). The result carries:
  * - the user's identity + staff role + memberships,
- * - effective permissions (staff ∪ memberships, via `ROLE_PERMISSIONS`),
+ * - effective permissions (staff role ∪ the ACTIVE org's membership role,
+ *   via `ROLE_PERMISSIONS` — never a union across all memberships, #855),
  * - the active builder tenant — ALWAYS from the session
  *   (`admin_sessions.active_builder_id`, set at sign-in / org switcher),
  *   never from a request param,
@@ -267,9 +268,12 @@ export function createAuthContextService(
           email: target.email,
           name: target.name,
           staffRole: target.staffRole,
+          // #855: builder-role permissions come from the role in the org
+          // the view is scoped to only — roles the target holds in other
+          // orgs never widen it.
           permissions: effectivePermissions(
             target.staffRole,
-            targetMemberships.map((m) => m.role),
+            targetBuilder ? [targetBuilder.role] : [],
           ).filter((p) => p !== 'view_as'),
           builderId: targetBuilder?.builderId ?? null,
           builderName: targetBuilderName,
@@ -282,6 +286,14 @@ export function createAuthContextService(
       return closedViewAs;
     }
 
+    // #855: builder-role permissions come from the ACTIVE org's membership
+    // role only (staff-role permissions always apply). A union across every
+    // membership would let an admin of org A manage org B's team and
+    // billing after switching to B, where they are only a member. No
+    // active org → no builder-role permissions.
+    const activeMembership = builderId
+      ? (userMemberships.find((m) => m.builderId === builderId) ?? null)
+      : null;
     return {
       userId: user.id,
       email: user.email,
@@ -289,7 +301,7 @@ export function createAuthContextService(
       staffRole: user.staffRole,
       permissions: effectivePermissions(
         user.staffRole,
-        userMemberships.map((m) => m.role),
+        activeMembership ? [activeMembership.role] : [],
       ),
       builderId,
       builderName,

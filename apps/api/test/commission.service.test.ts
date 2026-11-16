@@ -61,6 +61,12 @@ function fakeStripe(): StripeService & { calls: unknown[] } {
   const service: StripeService = {
     isConfigured: true,
     testMode: true,
+    // #716 card lifecycle — unused here.
+    updateCustomer: async () => undefined,
+    getDefaultPaymentMethodId: async () => null,
+    setDefaultPaymentMethod: async () => undefined,
+    detachPaymentMethod: async (id: string) => ({ id }),
+    clearCustomerId: async () => null,
     createCustomer: async (input) => {
       calls.push({ op: 'createCustomer', input });
       return { id: 'cus_test_123' };
@@ -87,6 +93,7 @@ function fakeStripe(): StripeService & { calls: unknown[] } {
       return { id: subscriptionId };
     },
     retrievePaymentIntent: async (id: string) => ({ id, status: 'processing' }),
+    getPaymentIntentConfirmation: async (id: string) => ({ id, status: 'requires_action', clientSecret: `${id}_secret_test` }),
     refundPaymentIntent: async (paymentIntentId, idempotencyKey) => {
       calls.push({ op: 'refundPaymentIntent', paymentIntentId, idempotencyKey });
       return { id: 're_test_1', status: 'succeeded' };
@@ -138,6 +145,10 @@ function fakeEmail(): EmailService & { sent: unknown[] } {
     },
     sendCommissionPaymentFailed: async (input: unknown) => {
       sent.push({ op: 'sendCommissionPaymentFailed', input });
+      return { sent: true, provider: 'log' as const };
+    },
+    sendCommissionPaymentActionRequired: async (input: unknown) => {
+      sent.push({ op: 'sendCommissionPaymentActionRequired', input });
       return { sent: true, provider: 'log' as const };
     },
   };
@@ -1325,6 +1336,88 @@ describe('builder billing emails (BILL-04)', () => {
     expect(input.reviewDueAt).toEqual(inReview.reviewDueAt);
   });
 
+  it('#725: emails every opted-in builder admin when recipients are configured', async () => {
+    const stripe = fakeStripe();
+    const email = fakeEmail();
+    const attribution = createAttributionService({
+      db: testDb.db,
+      billing: BILLING,
+      now: () => new Date(FIXED_NOW),
+      newId: nextId,
+    });
+    const audit = createBillingAuditService({ db: testDb.db, newId: nextId });
+    const seen: string[] = [];
+    const commission = createCommissionService({
+      db: testDb.db,
+      billing: BILLING,
+      attribution,
+      audit,
+      stripe,
+      email,
+      opsInbox: 'ops@example.com',
+      now: () => new Date(FIXED_NOW),
+      newId: nextId,
+      billingRecipients: async (tenantKey) => {
+        seen.push(tenantKey);
+        return ['admin1@example.com', 'admin2@example.com'];
+      },
+    });
+    const key = 'email-multi-admin-builder';
+    await seedBuilderWithEmail(key, 'contact@example.com');
+    const attributionId = await seedAttribution(testDb, attribution, key);
+    const draft = await commission.createDraftInvoice(attributionId);
+    email.sent.length = 0;
+    await commission.submitForReview(draft.id);
+
+    expect(seen).toContain(key);
+    const recipients = email.sent
+      .filter((s) => (s as { op: string }).op === 'sendCommissionInvoiceReady')
+      .map((s) => (s as { input: { to: string } }).input.to);
+    // The admins replace the single contact address.
+    expect(recipients).toEqual(['admin1@example.com', 'admin2@example.com']);
+  });
+
+  it('#725: falls back to the billing contact when no admin opted in (or lookup fails)', async () => {
+    for (const recipients of [
+      async () => [] as string[],
+      async (): Promise<string[]> => {
+        throw new Error('db down');
+      },
+    ]) {
+      const stripe = fakeStripe();
+      const email = fakeEmail();
+      const attribution = createAttributionService({
+        db: testDb.db,
+        billing: BILLING,
+        now: () => new Date(FIXED_NOW),
+        newId: nextId,
+      });
+      const audit = createBillingAuditService({ db: testDb.db, newId: nextId });
+      const commission = createCommissionService({
+        db: testDb.db,
+        billing: BILLING,
+        attribution,
+        audit,
+        stripe,
+        email,
+        opsInbox: 'ops@example.com',
+        now: () => new Date(FIXED_NOW),
+        newId: nextId,
+        billingRecipients: recipients,
+      });
+      const key = 'email-725-contact-fallback-builder';
+      await seedBuilderWithEmail(key, 'contact@example.com');
+      const attributionId = await seedAttribution(testDb, attribution, key);
+      const draft = await commission.createDraftInvoice(attributionId);
+      email.sent.length = 0;
+      await commission.submitForReview(draft.id);
+      const to = email.sent
+        .filter((s) => (s as { op: string }).op === 'sendCommissionInvoiceReady')
+        .map((s) => (s as { input: { to: string } }).input.to);
+      expect(to).toEqual(['contact@example.com']);
+    }
+  });
+
   it('emails a receipt when the charge succeeds', async () => {
     const { commission, attribution, email } = newServices(testDb);
     const key = 'email-paid-builder';
@@ -2373,5 +2466,262 @@ describe('GST on commission invoices (#714)', () => {
       `SELECT total_cents, tax_cents, tax_rate_percent FROM commission_invoices WHERE id = '${id}'`,
     );
     expect(after[0]).toMatchObject({ total_cents: 500_000, tax_cents: 0, tax_rate_percent: 0 });
+  });
+});
+
+// ── #712: charge outcomes settled at charge time + SCA recovery ──────────
+
+describe('commission service — charge outcomes (#712)', () => {
+  let testDb: TestDb;
+
+  beforeAll(async () => {
+    testDb = await createTestDb();
+  }, 60_000);
+  afterAll(async () => {
+    await testDb.close();
+  });
+
+  type ChargeFn = StripeService['createOffSessionPaymentIntent'];
+
+  /** An in-review invoice whose tenant has a billing contact email. */
+  async function seedInReview(tenantKey: string, charge?: ChargeFn) {
+    const fx = newServices(testDb);
+    if (charge) fx.stripe.createOffSessionPaymentIntent = charge;
+    await seedTenant(testDb, tenantKey);
+    await testDb.db
+      .update(tenants)
+      .set({ fallbackEmail: `${tenantKey}@example.com` })
+      .where(eq(tenants.tenantKey, tenantKey));
+    const attributionId = await seedAttribution(testDb, fx.attribution, tenantKey);
+    const draft = await fx.commission.createDraftInvoice(attributionId);
+    const inReview = await fx.commission.submitForReview(draft.id);
+    return { ...fx, inReview };
+  }
+
+  async function eventsFor(invoiceId: string) {
+    return testDb.db
+      .select()
+      .from(billingEvents)
+      .where(eq(billingEvents.entityId, invoiceId));
+  }
+
+  function sentOps(email: { sent: unknown[] }, op: string) {
+    return email.sent.filter((s) => (s as { op: string }).op === op);
+  }
+
+  const declined: ChargeFn = async (_input, key) => ({
+    id: `pi_declined_${key.length}_${++piCounter}`,
+    status: 'requires_payment_method',
+    errorCode: 'card_declined',
+    declineCode: 'insufficient_funds',
+    failureMessage: 'Your card has insufficient funds.',
+  });
+
+  it('a decline at finalize → failed with the PaymentIntent, one audit row, one email, one ops alert', async () => {
+    const { commission, email, inReview } = await seedInReview('outcome-decline', declined);
+    const result = await commission.finalizeInvoice(inReview.id);
+    expect(result.status).toBe('failed');
+    expect(result.stripePaymentIntentId).toMatch(/^pi_declined_/);
+    expect(result.retryCount).toBe(0);
+
+    const failedRows = (await eventsFor(inReview.id)).filter((e) => e.eventType === 'invoice.charge_failed');
+    expect(failedRows).toHaveLength(1);
+    expect(failedRows[0]!.payload).toMatchObject({
+      paymentIntentId: result.stripePaymentIntentId,
+      failureReason: 'Your card has insufficient funds.',
+      declineCode: 'insufficient_funds',
+      source: 'charge',
+    });
+    expect(sentOps(email, 'sendCommissionPaymentFailed')).toHaveLength(1);
+    expect(sentOps(email, 'sendOpsAlert')).toHaveLength(1);
+
+    // The payment_failed webhook that follows is a no-op.
+    const again = await commission.markFailedByPaymentIntent(result.stripePaymentIntentId!, 'Your card has insufficient funds.');
+    expect(again.status).toBe('failed');
+    expect((await eventsFor(inReview.id)).filter((e) => e.eventType === 'invoice.charge_failed')).toHaveLength(1);
+    expect(sentOps(email, 'sendCommissionPaymentFailed')).toHaveLength(1);
+    expect(sentOps(email, 'sendOpsAlert')).toHaveLength(1);
+  });
+
+  it.each([
+    ['simulated requires_action', { status: 'requires_action' }],
+    ['Stripe authentication_required', { status: 'requires_payment_method', errorCode: 'authentication_required' }],
+  ])('a 3DS demand (%s) → action_required, confirm email, not a dunning retry', async (label, report) => {
+    const tenantKey = `outcome-3ds-${label.split(' ')[0]}`;
+    const { commission, email, inReview } = await seedInReview(tenantKey, async () => ({
+      id: `pi_3ds_${++piCounter}`,
+      ...report,
+    }));
+    const result = await commission.finalizeInvoice(inReview.id);
+    expect(result.status).toBe('action_required');
+    expect(result.retryCount).toBe(0);
+    const types = (await eventsFor(inReview.id)).map((e) => e.eventType);
+    expect(types).toContain('invoice.action_required');
+    expect(types).not.toContain('invoice.charge_failed');
+    const confirmEmails = sentOps(email, 'sendCommissionPaymentActionRequired');
+    expect(confirmEmails).toHaveLength(1);
+    expect((confirmEmails[0] as { input: { invoiceId: string } }).input.invoiceId).toBe(inReview.id);
+    expect(sentOps(email, 'sendCommissionPaymentFailed')).toHaveLength(0);
+    expect(sentOps(email, 'sendOpsAlert')).toHaveLength(0);
+
+    // payment_intent.requires_action redelivery: unchanged, no second email.
+    const again = await commission.markActionRequiredByPaymentIntent(result.stripePaymentIntentId!);
+    expect(again.status).toBe('action_required');
+    expect(sentOps(email, 'sendCommissionPaymentActionRequired')).toHaveLength(1);
+
+    // The webhook settles the on-session confirmation: action_required → paid.
+    const paid = await commission.markPaidByPaymentIntent(result.stripePaymentIntentId!);
+    expect(paid.status).toBe('paid');
+    expect(sentOps(email, 'sendCommissionPaymentReceived')).toHaveLength(1);
+  });
+
+  it('a processing charge stays finalized for the webhook / reconciliation to settle', async () => {
+    const { commission, email, inReview } = await seedInReview('outcome-processing', async () => ({
+      id: `pi_proc_${++piCounter}`,
+      status: 'processing',
+    }));
+    const result = await commission.finalizeInvoice(inReview.id);
+    expect(result.status).toBe('finalized');
+    expect(sentOps(email, 'sendCommissionPaymentFailed')).toHaveLength(0);
+    expect(sentOps(email, 'sendCommissionPaymentActionRequired')).toHaveLength(0);
+    const attempted = (await eventsFor(inReview.id)).find((e) => e.eventType === 'invoice.charge_attempted');
+    expect(attempted!.payload).toMatchObject({ outcome: 'processing', paymentIntentStatus: 'processing' });
+  });
+
+  it('a transient provider error leaves the invoice in_review; the next attempt reuses the idempotency key', async () => {
+    const keys: string[] = [];
+    let fail = true;
+    const { commission, inReview } = await seedInReview('outcome-transient', async (_input, key) => {
+      keys.push(key);
+      if (fail) throw Object.assign(new Error('connection reset'), { type: 'StripeConnectionError' });
+      return { id: 'pi_after_transient', status: 'succeeded' };
+    });
+    await expect(commission.finalizeInvoice(inReview.id)).rejects.toThrow('connection reset');
+    const still = await commission.getById(inReview.id);
+    expect(still.status).toBe('in_review');
+    expect(still.stripePaymentIntentId).toBeNull();
+    expect((await eventsFor(inReview.id)).map((e) => e.eventType)).not.toContain('invoice.charge_failed');
+
+    fail = false;
+    const finalized = await commission.finalizeInvoice(inReview.id);
+    expect(finalized.status).toBe('finalized');
+    expect(keys).toEqual([
+      `feasly:commission_invoices:${inReview.id}:charge`,
+      `feasly:commission_invoices:${inReview.id}:charge`,
+    ]);
+  });
+
+  it('stores the invoice id in the PaymentIntent metadata', async () => {
+    const inputs: Array<{ metadata?: Readonly<Record<string, string>> }> = [];
+    const { commission, inReview } = await seedInReview('outcome-metadata', async (input) => {
+      inputs.push(input);
+      return { id: `pi_meta_${++piCounter}`, status: 'succeeded' };
+    });
+    await commission.finalizeInvoice(inReview.id);
+    expect(inputs[0]!.metadata).toEqual({ feasly_commission_invoice_id: inReview.id, feasly_charge_attempt: '0' });
+  });
+
+  it('webhook before the charge response: retryable 409, then settles exactly once', async () => {
+    let early: Promise<unknown> | undefined;
+    const fx = await seedInReview('outcome-race');
+    const piId = `pi_race_${++piCounter}`;
+    fx.stripe.createOffSessionPaymentIntent = async () => {
+      // The payment_failed webhook lands while the charge call is in flight.
+      early = fx.commission
+        .markFailedByPaymentIntent(piId, 'Your card was declined.', { invoiceIdHint: fx.inReview.id })
+        .catch((e: unknown) => e);
+      await early;
+      return { id: piId, status: 'requires_payment_method', errorCode: 'card_declined', failureMessage: 'Your card was declined.' };
+    };
+    const result = await fx.commission.finalizeInvoice(fx.inReview.id);
+    expect(await early).toMatchObject({ status: 409, code: ErrorCodes.CONFLICT });
+    expect(result.status).toBe('failed');
+    // The provider redelivers: now a no-op on the settled invoice.
+    const redelivered = await fx.commission.markFailedByPaymentIntent(piId, 'Your card was declined.', {
+      invoiceIdHint: fx.inReview.id,
+    });
+    expect(redelivered.status).toBe('failed');
+    expect((await eventsFor(fx.inReview.id)).filter((e) => e.eventType === 'invoice.charge_failed')).toHaveLength(1);
+    expect(sentOps(fx.email, 'sendCommissionPaymentFailed')).toHaveLength(1);
+    expect(sentOps(fx.email, 'sendOpsAlert')).toHaveLength(1);
+  });
+
+  it('a webhook for an unknown PaymentIntent with no in-flight invoice is still a 404 (orphan)', async () => {
+    const { commission, inReview } = await seedInReview('outcome-orphan');
+    await commission.finalizeInvoice(inReview.id); // finalized with its own PI
+    await expect(
+      commission.markPaidByPaymentIntent('pi_unknown', { invoiceIdHint: inReview.id }),
+    ).rejects.toMatchObject({ status: 404 });
+    await expect(commission.markPaidByPaymentIntent('pi_unknown')).rejects.toMatchObject({ status: 404 });
+  });
+
+  it('a retry in flight is retryable (409) but a late event for an older attempt is an orphan (404)', async () => {
+    const { commission, inReview } = await seedInReview('outcome-attempts', declined);
+    await commission.finalizeInvoice(inReview.id); // failed, retryCount 0
+    // Retry 1's PaymentIntent, before retryCharge has recorded it.
+    await expect(
+      commission.markFailedByPaymentIntent('pi_retry1_unrecorded', 'x', { invoiceIdHint: inReview.id, chargeAttemptHint: 1 }),
+    ).rejects.toMatchObject({ status: 409 });
+    // A stale event from an older attempt (attempt 0) on the failed invoice.
+    await expect(
+      commission.markFailedByPaymentIntent('pi_attempt0_stale', 'x', { invoiceIdHint: inReview.id, chargeAttemptHint: 0 }),
+    ).rejects.toMatchObject({ status: 404 });
+    // No attempt hint on a failed invoice: not provably in flight → orphan.
+    await expect(
+      commission.markFailedByPaymentIntent('pi_unknown_attempt', 'x', { invoiceIdHint: inReview.id }),
+    ).rejects.toMatchObject({ status: 404 });
+  });
+
+  it('a declined retry → failed again with retryCount bumped; the max-retry cap still applies', async () => {
+    const { commission, inReview } = await seedInReview('outcome-retry', declined);
+    await commission.finalizeInvoice(inReview.id);
+    const retried = await commission.retryCharge(inReview.id);
+    expect(retried.status).toBe('failed');
+    expect(retried.retryCount).toBe(1);
+    await commission.retryCharge(inReview.id);
+    const third = await commission.retryCharge(inReview.id);
+    expect(third.retryCount).toBe(3);
+    await expect(commission.retryCharge(inReview.id)).rejects.toMatchObject({ status: 422 });
+  });
+
+  it('createPaymentConfirmation returns the client secret only while action_required', async () => {
+    const fx = await seedInReview('outcome-confirm', async () => ({ id: `pi_conf_${++piCounter}`, status: 'requires_action' }));
+    await expect(fx.commission.createPaymentConfirmation(fx.inReview.id)).rejects.toMatchObject({ status: 409 });
+    const waiting = await fx.commission.finalizeInvoice(fx.inReview.id);
+    fx.stripe.getPaymentIntentConfirmation = async (id) => ({
+      id,
+      status: 'requires_payment_method',
+      clientSecret: `${id}_secret_live`,
+      paymentMethodId: 'pm_1',
+    });
+    await expect(fx.commission.createPaymentConfirmation(fx.inReview.id)).resolves.toEqual({
+      invoiceId: fx.inReview.id,
+      paymentIntentId: waiting.stripePaymentIntentId,
+      clientSecret: `${waiting.stripePaymentIntentId}_secret_live`,
+      paymentMethodId: 'pm_1',
+      provider: 'stripe',
+    });
+    expect((await eventsFor(fx.inReview.id)).map((e) => e.eventType)).toContain('invoice.payment_confirmation_started');
+    // Already succeeded at the provider: nothing to confirm.
+    fx.stripe.getPaymentIntentConfirmation = async (id) => ({ id, status: 'succeeded', clientSecret: 'x' });
+    await expect(fx.commission.createPaymentConfirmation(fx.inReview.id)).rejects.toMatchObject({ status: 409 });
+  });
+
+  it('the reviewer timer input never includes failed or action_required invoices', async () => {
+    const a = await seedInReview('outcome-timer-a', declined);
+    await a.commission.finalizeInvoice(a.inReview.id);
+    const b = await seedInReview('outcome-timer-b', async () => ({ id: `pi_t_${++piCounter}`, status: 'requires_action' }));
+    await b.commission.finalizeInvoice(b.inReview.id);
+    const due = await b.commission.findDueReviews(new Date('2030-01-01T00:00:00.000Z'));
+    const ids = due.map((d) => d.id);
+    expect(ids).not.toContain(a.inReview.id);
+    expect(ids).not.toContain(b.inReview.id);
+    await expect(b.commission.finalizeInvoice(b.inReview.id)).rejects.toMatchObject({ status: 409 });
+  });
+
+  it('the commission rate cannot change while a 3DS confirmation is pending', async () => {
+    const fx = await seedInReview('outcome-rate', async () => ({ id: `pi_r_${++piCounter}`, status: 'requires_action' }));
+    await fx.commission.finalizeInvoice(fx.inReview.id);
+    await expect(fx.commission.setCommissionRate(fx.inReview.id, 2, null)).rejects.toMatchObject({ status: 409 });
   });
 });

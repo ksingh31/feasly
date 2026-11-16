@@ -124,6 +124,19 @@ const ROUTES: SeoRouteConfig[] = [
     descriptionKey: 'unsubscribe',
     noindex: true,
   },
+  // Privacy self-service (#706): private pages — noindex.
+  {
+    pattern: 'privacy/my-data',
+    titleKey: 'privacyDataTitle',
+    descriptionKey: 'privacyData',
+    noindex: true,
+  },
+  {
+    pattern: 'privacy/confirm/:requestId',
+    titleKey: 'privacyConfirmTitle',
+    descriptionKey: 'privacyConfirm',
+    noindex: true,
+  },
   // Magic-link redemption (consumer/02): /r/:token from the estimate email.
   // Private token URL — noindex, never in search results.
   {

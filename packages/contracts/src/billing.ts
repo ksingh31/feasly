@@ -6,15 +6,55 @@
  * route's wire shape.
  */
 
-/** Commission invoice lifecycle — see TECH_PLAN §2.4. */
+/**
+ * Commission invoice lifecycle — see TECH_PLAN §2.4.
+ *
+ * `action_required` (#712): the off-session charge needs the builder to
+ * confirm it with their bank (3-D Secure / SCA). The invoice waits for the
+ * builder (POST /api/v1/billing/invoices/{id}/confirm-payment); it is not a
+ * failure and does not count as a dunning retry.
+ */
 export type CommissionInvoiceStatus =
   | 'draft'
   | 'in_review'
   | 'finalized'
+  | 'action_required'
   | 'paid'
   | 'failed'
   | 'disputed'
   | 'void';
+
+/**
+ * Normalised result of one off-session charge attempt (#712), whichever
+ * payment provider ran it:
+ * - `succeeded`: money moved (the webhook settles the invoice `paid`).
+ * - `processing`: still in flight — webhook / reconciliation settles it.
+ * - `requires_action`: the bank wants the cardholder to confirm (3DS).
+ * - `failed`: declined — the invoice moves to `failed` (dunning).
+ */
+export type ChargeOutcome =
+  | 'succeeded'
+  | 'processing'
+  | 'requires_action'
+  | 'failed';
+
+/**
+ * Response of POST /api/v1/billing/invoices/{id}/confirm-payment (#712).
+ * The builder portal confirms the PaymentIntent on-session with it:
+ * `stripe.confirmCardPayment(clientSecret, { payment_method })` for
+ * `provider: 'stripe'`, or POST /billing/simulated/authenticate with
+ * `paymentIntentId` for `provider: 'simulated'`. The webhook then settles
+ * the invoice — the portal never marks it paid itself.
+ */
+export interface ConfirmInvoicePaymentResponse {
+  readonly invoiceId: string;
+  readonly paymentIntentId: string;
+  /** PaymentIntent client secret — usable only with the publishable key. */
+  readonly clientSecret: string;
+  /** Saved card the charge used (`pm_…`); absent when unknown. */
+  readonly paymentMethodId?: string;
+  readonly provider: 'stripe' | 'simulated';
+}
 
 export interface CommissionInvoice {
   readonly id: string;
@@ -40,17 +80,17 @@ export interface CommissionInvoice {
    * (subtotal = total = commissionCents).
    */
   /** Pre-tax subtotal, integer cents (same value as `commissionCents`). */
-  readonly subtotalCents?: number;
+  readonly subtotalCents: number;
   /** Tax rate snapshotted at invoice creation, in PERCENT (5 = 5%). 0 = no tax. */
-  readonly taxRatePercent?: number;
+  readonly taxRatePercent: number;
   /** True when the commission was priced tax-inclusive. */
-  readonly taxInclusive?: boolean;
+  readonly taxInclusive: boolean;
   /** Tax amount, integer cents. */
-  readonly taxCents?: number;
+  readonly taxCents: number;
   /** subtotal + tax — the amount charged, integer cents. */
-  readonly totalCents?: number;
+  readonly totalCents: number;
   /** Tax label (e.g. "GST") when the invoice carries tax; null otherwise. */
-  readonly taxLabel?: string | null;
+  readonly taxLabel: string | null;
   readonly currency: string;
   /** Off-session PaymentIntent id — set at finalize. Null before. */
   readonly stripePaymentIntentId: string | null;
@@ -267,6 +307,13 @@ export interface CardOnFileStatus {
   readonly last4?: string;
   readonly expMonth?: number;
   readonly expYear?: number;
+  /**
+   * #716: the card's expiry month ends within the configured warning
+   * window (BILLING_CARD_EXPIRY_WARNING_DAYS) — show "expires soon".
+   */
+  readonly expiresSoon?: boolean;
+  /** #716: the card's expiry month has ended — it can no longer be charged. */
+  readonly expired?: boolean;
 }
 
 /** Result of POST /api/v1/billing/setup-intent (billing/02, BILL-02). */
@@ -393,6 +440,10 @@ export interface ManualInvoiceResponse {
   readonly taxCents?: number;
   /** commission + tax (#714), integer cents. */
   readonly totalCents?: number;
+  /** Tax rate snapshotted on the invoice (#764), in PERCENT. 0 = no tax. */
+  readonly taxRatePercent?: number;
+  /** Tax label (e.g. "GST") when the invoice carries tax (#764); null otherwise. */
+  readonly taxLabel?: string | null;
   readonly currency: string;
   /** ISO 8601 — end of the builder's review/dispute window. */
   readonly reviewDueAt: string | null;
@@ -464,4 +515,20 @@ export interface BuilderBillingOverviewResponse {
    * 'flat', where the card lives on the Stripe subscription instead.
    */
   readonly card: CardOnFileStatus | null;
+  /**
+   * Sales tax applied to NEW commission invoices (#764), for the portal's
+   * record-contract preview. Absent when tax is off, under 'flat', or the
+   * configured rate is 0. Display-only: invoices carry their own snapshot.
+   */
+  readonly tax?: BillingTaxPreview;
+}
+
+/** Builder-facing view of the configured sales tax (#764). No supplier details. */
+export interface BillingTaxPreview {
+  /** Tax rate in PERCENT (5 = 5% GST). Always > 0. */
+  readonly ratePercent: number;
+  /** Label shown next to the tax amount, e.g. "GST". */
+  readonly label: string;
+  /** true = the commission already includes tax; false = tax is added on top. */
+  readonly inclusive: boolean;
 }

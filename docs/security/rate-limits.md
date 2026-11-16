@@ -164,6 +164,7 @@ tracked separately.
 | GET | `/api/v1/communities/{slug}/stats` | none | 100/min per IP | live |
 | GET | `/api/v1/city-data/freshness` | none | 100/min per IP | live |
 | GET | `/api/v1/zoning/districts` | none | 100/min per IP | live |
+| GET | `/api/v1/partners` | none | 100/min per IP | live |
 | GET | `/api/v1/embed/config` | none | 120/min per tenant key | live |
 | POST | `/api/v1/embed/session` | none | 30/min per tenant key | planned |
 | POST | `/api/v1/embed/relay/resend` | none | 60s per code · 30/min per IP | live |
@@ -198,6 +199,8 @@ tracked separately.
 | DELETE | `/api/v1/builder/users/{id}` | builder-session | 60/min per session | live |
 | GET | `/api/v1/builder/leads` | builder-session | 100/min per session | live |
 | GET | `/api/v1/builder/leads/needs-you` | builder-session | 100/min per session | live |
+| GET | `/api/v1/builder/notifications/preferences` | builder-session | 100/min per session | live |
+| PUT | `/api/v1/builder/notifications/preferences` | builder-session | 100/min per session | live |
 | PATCH | `/api/v1/builder/leads/{id}` | builder-session | 100/min per session | live |
 | POST | `/api/v1/builder/leads/{id}/mark-won` | builder-session | 100/min per session | live |
 | GET | `/api/v1/builder/leads/{leadId}/comments` | builder-session | 100/min per session | live |
@@ -224,6 +227,9 @@ tracked separately.
 | POST | `/api/v1/admin/builders` | admin | 60/min per session | live |
 | GET | `/api/v1/admin/builders/{id}` | admin | 300/min per session | live |
 | PATCH | `/api/v1/admin/builders/{id}` | admin | 60/min per session | live |
+| GET | `/api/v1/admin/partners` | admin | 300/min per session | live |
+| POST | `/api/v1/admin/partners` | admin | 60/min per session | live |
+| PATCH | `/api/v1/admin/partners/{id}` | admin | 60/min per session | live |
 | GET | `/api/v1/admin/estimates/{id}` | admin | 300/min per session | planned |
 | POST | `/api/v1/admin/estimates/{id}/narrative` | admin | 60/min per session | live |
 | GET | `/api/v1/admin/funnels` | admin | 300/min per session | live |
@@ -248,11 +254,13 @@ tracked separately.
 | POST | `/api/v1/billing/simulated/confirm-setup` | builder-session | 100/min per session | live |
 | POST | `/api/v1/billing/simulated/authenticate` | builder-session | 100/min per session | live |
 | GET | `/api/v1/billing/card` | builder-session | 100/min per session | live |
+| DELETE | `/api/v1/billing/card` | builder-session | 100/min per session | live |
 | GET | `/api/v1/billing/commission-rate` | builder-session | 100/min per session | live |
 | GET | `/api/v1/builder/billing/overview` | builder-session | 100/min per session | live |
 | GET | `/api/v1/billing/payment-method` | builder-session | 100/min per session | live |
 | PUT | `/api/v1/billing/payment-method` | builder-session | 100/min per session | live |
 | PUT | `/api/v1/billing/invoices/{id}/payment-method` | builder-session | 100/min per session | live |
+| POST | `/api/v1/billing/invoices/{id}/confirm-payment` | builder-session | 100/min per session | live |
 | GET | `/api/v1/billing/invoices/{id}` | builder-session | 100/min per session | live |
 | GET | `/api/v1/billing/invoices/{id}/pdf` | builder-session | 100/min per session | live |
 | GET | `/api/v1/billing/invoices` | builder-session | 100/min per session | live |

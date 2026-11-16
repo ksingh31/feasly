@@ -29,6 +29,7 @@ const CONFIG: PropertyDataConfig = {
   httpTimeoutMs: 5_000,
   searchRowLimit: 50,
   suggestionLimit: 8,
+  redevelopmentMinAgeYears: 25,
   dbCacheTtlMs: 604_800_000,
   dbCacheTimeoutMs: 50,
   httpCacheMaxAgeSeconds: 3_600,
@@ -196,6 +197,58 @@ describe('property service — shared City-data cache (#756)', () => {
       'memory',
       'memory',
     ]);
+  });
+
+  it('#755: a durable hit cached before the steer shipped gets a steer derived on read', async () => {
+    const store = memoryStore();
+    const yearBuilt = new Date().getFullYear() - 60;
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async () => ({ ok: true, json: async () => [{ ...ROW, year_of_construction: String(yearBuilt) }] })),
+    );
+    await createPropertyService(CONFIG, { cache: store }).getProperty(KEY);
+    // Simulate a pre-#755 payload: same record, no `steer`.
+    const storeKey = `4bsw-nn7w:${V}:${KEY}`;
+    const cached = store.entries.get(storeKey) as { record: Record<string, unknown>; point: unknown };
+    const { steer: _dropped, ...legacyRecord } = cached.record;
+    await store.put('4bsw-nn7w', `${V}:${KEY}`, { ...cached, record: legacyRecord }, new Date(Date.now() + 60_000));
+
+    const fetchMock = vi.fn();
+    vi.stubGlobal('fetch', fetchMock);
+    const record = await createPropertyService(CONFIG, { cache: store }).getProperty(KEY);
+    expect(fetchMock).not.toHaveBeenCalled();
+    expect(record.steer).toEqual({
+      redevelopmentCandidate: true,
+      reason: 'age_at_or_over_threshold',
+      recommendedProjectType: 'new_build',
+      homeAgeYears: 60,
+      thresholdYears: 25,
+    });
+  });
+
+  it('#755: a cached record follows a changed redevelopment threshold immediately', async () => {
+    const store = memoryStore();
+    const yearBuilt = new Date().getFullYear() - 30;
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async () => ({ ok: true, json: async () => [{ ...ROW, year_of_construction: String(yearBuilt) }] })),
+    );
+    const first = await createPropertyService(CONFIG, { cache: store }).getProperty(KEY);
+    expect(first.steer?.recommendedProjectType).toBe('new_build');
+
+    const fetchMock = vi.fn();
+    vi.stubGlobal('fetch', fetchMock);
+    const raised = createPropertyService({ ...CONFIG, redevelopmentMinAgeYears: 40 }, { cache: store });
+    const fromStore = await raised.getProperty(KEY);
+    expect(fetchMock).not.toHaveBeenCalled();
+    expect(fromStore.steer).toMatchObject({
+      redevelopmentCandidate: false,
+      recommendedProjectType: 'renovation',
+      thresholdYears: 40,
+    });
+    // In-memory tier on the same instance also uses the current threshold.
+    const fromMemory = await raised.getProperty(KEY);
+    expect(fromMemory.steer?.thresholdYears).toBe(40);
   });
 
   it('ignores a malformed durable payload and refetches', async () => {

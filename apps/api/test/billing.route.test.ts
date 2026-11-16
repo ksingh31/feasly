@@ -24,6 +24,7 @@ import type { CommissionCardService } from '../src/services/billing/commission-c
 import type { InvoicePdfService } from '../src/services/billing/invoice-pdf.service';
 import type { BuilderGuard } from '../src/middleware/builder-guard';
 import type { AdminGuard } from '../src/middleware/admin-guard';
+import type { ConfirmInvoicePaymentResponse } from '@feasly/contracts';
 
 const BUILDER_SESSION = {
   email: 'builder@example.com',
@@ -35,6 +36,7 @@ function makeDeps(opts?: {
   readonly admin?: boolean;
   readonly billingModel?: 'commission' | 'flat';
   readonly stripeConfigured?: boolean;
+  readonly removeBlocked?: boolean;
   readonly card?: { hasCard: boolean; brand?: string; last4?: string };
 }): {
   route: ReturnType<typeof createBillingRoute>;
@@ -100,6 +102,20 @@ function makeDeps(opts?: {
         paymentMethod: method,
       }),
     ),
+    confirmInvoicePayment: vi.fn(
+      async (invoiceId: string, tenantKey: string): Promise<ConfirmInvoicePaymentResponse> => {
+        if (tenantKey !== 'elite-craft') {
+          throw Object.assign(new Error('forbidden'), { status: 403 });
+        }
+        return {
+          invoiceId,
+          paymentIntentId: 'pi_1',
+          clientSecret: 'pi_1_secret_x',
+          paymentMethodId: 'pm_1',
+          provider: 'simulated',
+        };
+      },
+    ),
   } as unknown as BillingService;
 
   const model = opts?.billingModel ?? 'commission';
@@ -138,6 +154,15 @@ function makeDeps(opts?: {
         });
       }
       return card;
+    }),
+    removeCard: vi.fn(async () => {
+      if (opts?.removeBlocked) {
+        throw Object.assign(new Error('unpaid card invoice'), {
+          status: 409,
+          code: 'CONFLICT',
+        });
+      }
+      return { hasCard: false };
     }),
   } as unknown as CommissionCardService;
 
@@ -312,6 +337,44 @@ describe('POST /api/v1/billing/invoices/{id}/dispute', () => {
   });
 });
 
+describe('POST /api/v1/billing/invoices/{id}/confirm-payment (#712)', () => {
+  const id = '00000000-0000-4000-8000-000000000004';
+
+  it('returns the confirmation contract for the session tenant', async () => {
+    const { route, billing } = makeDeps();
+    const result: ConfirmInvoicePaymentResponse = await route.confirmInvoicePayment({}, id);
+    expect(billing.confirmInvoicePayment).toHaveBeenCalledWith(id, 'elite-craft');
+    // Contract conformance: exactly the ConfirmInvoicePaymentResponse fields.
+    expect(Object.keys(result).sort()).toEqual(
+      ['clientSecret', 'invoiceId', 'paymentIntentId', 'paymentMethodId', 'provider'],
+    );
+    expect(result).toEqual({
+      invoiceId: id,
+      paymentIntentId: 'pi_1',
+      clientSecret: 'pi_1_secret_x',
+      paymentMethodId: 'pm_1',
+      provider: 'simulated',
+    });
+  });
+
+  it('requires builder auth (401 without a session)', async () => {
+    const { route, billing } = makeDeps({ builderSession: null, admin: true });
+    await expect(route.confirmInvoicePayment({}, id)).rejects.toMatchObject({ status: 401 });
+    expect(billing.confirmInvoicePayment).not.toHaveBeenCalled();
+  });
+
+  it('403s for another tenant\u2019s invoice', async () => {
+    const { route } = makeDeps({ builderSession: { email: 'x@example.com', tenantKey: 'other-builder' } });
+    await expect(route.confirmInvoicePayment({}, id)).rejects.toMatchObject({ status: 403 });
+  });
+
+  it('rejects a non-uuid id with 400', async () => {
+    const { route, billing } = makeDeps();
+    await expect(route.confirmInvoicePayment({}, 'nope')).rejects.toMatchObject({ status: 400 });
+    expect(billing.confirmInvoicePayment).not.toHaveBeenCalled();
+  });
+});
+
 describe('POST /api/v1/billing/invoices/{id}/resolve', () => {
   const id = '00000000-0000-4000-8000-000000000004';
 
@@ -403,6 +466,28 @@ describe('GET /api/v1/billing/card (BILL-02)', () => {
     await expect(route.getCard({})).rejects.toMatchObject({
       status: 409,
       code: 'BILLING_MODEL_MISMATCH',
+    });
+  });
+});
+
+describe('DELETE /api/v1/billing/card (#716)', () => {
+  it('removes the card for the session tenant', async () => {
+    const { route, commissionCard } = makeDeps();
+    await expect(route.removeCard({})).resolves.toEqual({ hasCard: false });
+    expect(commissionCard.removeCard).toHaveBeenCalledWith('elite-craft');
+  });
+
+  it('requires builder auth (401 without a session)', async () => {
+    const { route, commissionCard } = makeDeps({ builderSession: null });
+    await expect(route.removeCard({})).rejects.toMatchObject({ status: 401 });
+    expect(commissionCard.removeCard).not.toHaveBeenCalled();
+  });
+
+  it('passes the 409 through when an unpaid card invoice blocks removal', async () => {
+    const { route } = makeDeps({ removeBlocked: true });
+    await expect(route.removeCard({})).rejects.toMatchObject({
+      status: 409,
+      code: 'CONFLICT',
     });
   });
 });

@@ -76,6 +76,12 @@ function fakeStripe(
   return {
     isConfigured: true,
     testMode: true,
+    // #716 card lifecycle — unused here.
+    updateCustomer: async () => undefined,
+    getDefaultPaymentMethodId: async () => null,
+    setDefaultPaymentMethod: async () => undefined,
+    detachPaymentMethod: async (id: string) => ({ id }),
+    clearCustomerId: async () => null,
     createCustomer: async () => ({ id: 'cus_test' }),
     createSetupIntent: async () => ({ id: 'seti_test', clientSecret: 's' }),
     listPaymentMethods: async () => [],
@@ -88,6 +94,7 @@ function fakeStripe(
     createSubscription: async () => ({ id: 'sub_test', status: 'active' }),
     cancelSubscription: async (id) => ({ id }),
     retrievePaymentIntent: retrieve,
+    getPaymentIntentConfirmation: async (id: string) => ({ id, status: 'requires_action', clientSecret: `${id}_secret_test` }),
     refundPaymentIntent: async (paymentIntentId) => ({ id: 're_test', status: 'succeeded' }),
     verifyWebhook: () => {
       throw new Error('not used');
@@ -429,6 +436,27 @@ describe('invoice reviewer timer', () => {
         source: 'reconciliation',
         failureReason: 'Your card was declined.',
       });
+    });
+
+    it('moves a stuck invoice to action_required when Stripe reports authentication_required (#712)', async () => {
+      // Real Stripe leaves an off-session 3DS demand in
+      // requires_payment_method with code authentication_required.
+      const stripe = fakeStripe(undefined, async (id) => ({
+        id,
+        status: 'requires_payment_method',
+        lastPaymentErrorMessage: 'This payment requires authentication.',
+        lastPaymentErrorCode: 'authentication_required',
+      }));
+      const { reviewer, commission, attribution } = newFixtures(testDb, stripe);
+      const invoiceId = await seedInvoice(testDb, attribution, commission, 30_000_000);
+      await reviewer.runReviewCycle(FIRST_CYCLE);
+
+      const second = await reviewer.runReviewCycle(SECOND_CYCLE);
+
+      expect(second.reconciledFailed).toBe(0);
+      expect(second.stillPending).toBe(1);
+      expect((await commission.getById(invoiceId)).status).toBe('action_required');
+      expect(await settlementRows(testDb, invoiceId)).toHaveLength(0);
     });
 
     it('leaves an in-flight PaymentIntent pending', async () => {

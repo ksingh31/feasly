@@ -1,4 +1,5 @@
 import { provideHttpClient } from '@angular/common/http';
+import { Component } from '@angular/core';
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { provideRouter, Router } from '@angular/router';
 import { describe, expect, it, vi } from 'vitest';
@@ -12,8 +13,27 @@ import { SiteNavComponent } from './site-nav.component';
  * FAQ) — inline on desktop, hamburger on mobile — same programmatic
  * navigation pattern as the brand.
  */
+@Component({ standalone: true, template: '' })
+class BlankPageComponent {}
+
 describe('SiteNavComponent', () => {
   let fixture: ComponentFixture<SiteNavComponent>;
+
+  it('closes the open mobile menu when any navigation completes (#783 nav search)', async () => {
+    TestBed.resetTestingModule();
+    TestBed.configureTestingModule({
+      imports: [SiteNavComponent],
+      providers: [provideHttpClient(), provideRouter([{ path: '**', component: BlankPageComponent }])],
+    });
+    fixture = TestBed.createComponent(SiteNavComponent);
+    fixture.detectChanges();
+    const nav = fixture.componentInstance as unknown as { menuOpen: () => boolean };
+    fixture.componentInstance.toggleMenu();
+    expect(nav.menuOpen()).toBe(true);
+    // A nav-search pick navigates without going through go()/goHome().
+    await TestBed.inject(Router).navigateByUrl('/communities/sunalta');
+    expect(nav.menuOpen()).toBe(false);
+  });
 
   function setup(): void {
     TestBed.resetTestingModule();
@@ -209,6 +229,45 @@ describe('SiteNavComponent', () => {
       } finally {
         navigateSpy.mockRestore();
       }
+    });
+  });
+
+  describe('#783 site search', () => {
+    function setupWithSearch(search: boolean): void {
+      TestBed.resetTestingModule();
+      TestBed.configureTestingModule({
+        imports: [SiteNavComponent],
+        providers: [provideHttpClient(), provideRouter([])],
+      });
+      fixture = TestBed.createComponent(SiteNavComponent);
+      fixture.componentRef.setInput('search', search);
+      fixture.detectChanges();
+    }
+
+    it('has no search unless the page opts in (the landing hero has its own)', () => {
+      setupWithSearch(false);
+      expect(fixture.nativeElement.querySelector('app-address-autocomplete')).toBeNull();
+    });
+
+    it('renders the address-or-community search in the bar when on', () => {
+      setupWithSearch(true);
+      const box = fixture.nativeElement.querySelector('.nav-search app-address-autocomplete');
+      expect(box).not.toBeNull();
+      expect(box.querySelector('input[role="combobox"]')).not.toBeNull();
+      expect(box.querySelector('label')?.textContent?.trim()).toBe('Search an address or community');
+    });
+
+    it('puts the search at the top of the phone menu', () => {
+      setupWithSearch(true);
+      fixture.nativeElement.querySelector('.nav-menu-btn').click();
+      fixture.detectChanges();
+      const menu = fixture.nativeElement.querySelector('#site-nav-menu');
+      expect(menu.firstElementChild?.classList.contains('nav-menu-search')).toBe(true);
+      // Two instances (bar + menu) never share ids.
+      const ids = Array.from(fixture.nativeElement.querySelectorAll('input[role="combobox"]')).map(
+        (i) => (i as HTMLInputElement).id,
+      );
+      expect(new Set(ids).size).toBe(ids.length);
     });
   });
 });

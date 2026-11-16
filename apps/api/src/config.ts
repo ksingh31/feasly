@@ -38,6 +38,16 @@ function csvToList(raw: string): string[] {
     .filter((part) => part.length > 0);
 }
 
+/** True when the runtime's Intl knows `zone` (rejects typos like "America/Edmonon"). */
+function isIanaTimeZone(zone: string): boolean {
+  try {
+    new Intl.DateTimeFormat('en-CA', { timeZone: zone });
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 const EnvSchema = z.object({
   NODE_ENV: z.enum(['development', 'test', 'staging', 'production']).default('development'),
 
@@ -145,6 +155,26 @@ const EnvSchema = z.object({
     .default('false')
     .transform((value) => value === 'true'),
   FOLLOW_UP_EMAIL_DELAY_HOURS: z.coerce.number().int().positive().default(72),
+
+  // #725: builder notifications — one new-lead email per opted-in member
+  // (send-once outbox, retried by the builder-notifications timer) and the
+  // opt-in daily "Needs you" digest. ENABLED is the kill switch (default on:
+  // owner decision 2026-11-15, new-lead email on for every member). The
+  // digest goes out on the first timer tick at/after DIGEST_LOCAL_HOUR in
+  // DIGEST_TIMEZONE (once per local day, deduped).
+  BUILDER_NOTIFICATIONS_ENABLED: z
+    .enum(['true', 'false'])
+    .default('true')
+    .transform((value) => value === 'true'),
+  BUILDER_NOTIFICATION_MAX_ATTEMPTS: z.coerce.number().int().min(1).max(20).default(5),
+  BUILDER_NOTIFICATION_RETRY_WINDOW_HOURS: z.coerce.number().int().positive().default(24),
+  BUILDER_NOTIFICATION_CLAIM_LEASE_MINUTES: z.coerce.number().int().positive().default(10),
+  BUILDER_DIGEST_LOCAL_HOUR: z.coerce.number().int().min(0).max(23).default(7),
+  BUILDER_DIGEST_TIMEZONE: z
+    .string()
+    .min(1)
+    .refine(isIanaTimeZone, 'must be an IANA time zone, e.g. America/Edmonton')
+    .default('America/Edmonton'),
 
   // neighbourhood/05: monthly community-stats refresh timer. Communities
   // with fewer fresh assessment records than this are skipped (logged, never
@@ -352,6 +382,10 @@ const EnvSchema = z.object({
   PROPERTY_HTTP_TIMEOUT_MS: z.coerce.number().int().positive().default(15_000),
   PROPERTY_SEARCH_ROW_LIMIT: z.coerce.number().int().positive().default(50),
   PROPERTY_SUGGESTION_LIMIT: z.coerce.number().int().positive().default(8),
+  // #755: market rule — homes this many years old (or older, by the City's
+  // year of construction) are redevelopment candidates; younger homes are
+  // steered to renovation. Per market, so other cities can differ.
+  PROPERTY_REDEVELOPMENT_MIN_AGE_YEARS: z.coerce.number().int().positive().default(25),
   // --- Shared City-data cache (#756) ---
   // Durable (Postgres) cache of City records, shared by every instance and
   // every route. Per-dataset TTLs follow the City's refresh cadence: the
@@ -382,6 +416,12 @@ const EnvSchema = z.object({
   ZONING_CITY: z.string().trim().toLowerCase().min(1).default('calgary'),
   // Cache-Control max-age for the catalogue (static per deploy; 1h default).
   ZONING_CACHE_MAX_AGE_S: z.coerce.number().int().nonnegative().default(3_600),
+  // --- Builder partner disclosure (#888) ---
+  // In-memory TTL for the public active-partner list (admin writes on the
+  // same instance invalidate it at once; other instances within this TTL).
+  PARTNERS_CACHE_TTL_MS: z.coerce.number().int().nonnegative().default(300_000),
+  // Cache-Control max-age on GET /api/v1/partners (5 min default).
+  PARTNERS_CACHE_MAX_AGE_S: z.coerce.number().int().nonnegative().default(300),
   // --- City-data freshness (landing trust strip) ---
   // Shares the SOCRATA_* source with propertyData; its own TTL because the
   // metadata changes at most monthly (24h default, successful fetches only).
@@ -405,6 +445,22 @@ const EnvSchema = z.object({
   // reconciled against Stripe by the daily reviewer and flagged on
   // /admin/webhooks. 24h default (open owner question on #711 — tunable).
   BILLING_SETTLEMENT_THRESHOLD_HOURS: z.coerce.number().int().positive().default(24),
+  // --- Card lifecycle (#716) ---
+  // Text on the builder's bank statement for a commission charge. Sent as
+  // Stripe's statement_descriptor_suffix (card PaymentIntents reject a full
+  // statement_descriptor). Stripe rules: at most 22 characters, at least one
+  // letter, none of < > \ ' " *. Unset → the Stripe account default.
+  BILLING_STATEMENT_DESCRIPTOR: z
+    .string()
+    .trim()
+    .min(1)
+    .max(22)
+    .regex(/^[^<>\\'"*]+$/, 'must not contain < > \\ \' " *')
+    .regex(/[A-Za-z]/, 'must contain at least one letter')
+    .optional(),
+  // Days before a saved card's expiry month ends that the portal shows
+  // "expires soon" on the card on file.
+  BILLING_CARD_EXPIRY_WARNING_DAYS: z.coerce.number().int().min(1).max(365).default(30),
   // --- Sales tax on commission invoices (#714) ---
   // Owner decision 2026-11-15: Feasly bills through the owner's existing
   // company; GST at 5%, shown as its own line, priced "commission plus GST"
@@ -829,6 +885,11 @@ export interface PropertyDataConfig {
   readonly searchRowLimit: number;
   /** Max autocomplete suggestions returned. */
   readonly suggestionLimit: number;
+  /**
+   * #755: home age (years) at/over which a property is a redevelopment
+   * candidate; younger homes are steered to renovation. Market config.
+   */
+  readonly redevelopmentMinAgeYears: number;
   /** Durable (Postgres) cache TTL for assessment-roll records (#756). */
   readonly dbCacheTtlMs: number;
   /** Max wait on a durable-cache read/write before falling through (#756). */
@@ -868,6 +929,17 @@ export interface ZoningConfig {
   /** City key of the served catalogue, e.g. 'calgary'. */
   readonly city: string;
   /** Cache-Control max-age (seconds) on the public catalogue response. */
+  readonly cacheMaxAgeSeconds: number;
+}
+
+/**
+ * Builder partner disclosure config (#888). The partner list itself is
+ * data (`builder_partners`); config only sets the cache lifetimes.
+ */
+export interface PartnersConfig {
+  /** In-memory TTL (ms) for the public active-partner list; 0 = no cache. */
+  readonly cacheTtlMs: number;
+  /** Cache-Control max-age (seconds) on the public partner response. */
   readonly cacheMaxAgeSeconds: number;
 }
 
@@ -948,6 +1020,16 @@ export interface BillingConfig {
    * no tax: every invoice figure and document matches the pre-tax output.
    */
   readonly tax?: BillingTaxConfig;
+  /**
+   * #716: bank-statement text for commission charges (Stripe
+   * `statement_descriptor_suffix`). Undefined = Stripe account default.
+   */
+  readonly statementDescriptor?: string;
+  /**
+   * #716: a saved card whose expiry month ends within this many days is
+   * flagged `expiresSoon` on GET /billing/card. Default 30.
+   */
+  readonly cardExpiryWarningDays?: number;
   /** Flat-plan fields — dormant until model='flat'. */
   readonly flatPlanName: string;
   /** Flat monthly price in integer minor units (cents). */
@@ -995,6 +1077,22 @@ export interface BillingTaxConfig {
 }
 
 /** #703: post-report follow-up email (hourly timer, flag default off). */
+/** #725: builder new-lead email + daily "Needs you" digest. */
+export interface BuilderNotificationsConfig {
+  /** Kill switch — false = no enqueue, no sends (default true). */
+  readonly enabled: boolean;
+  /** Delivery attempts per notification (initial + timer retries). */
+  readonly maxAttempts: number;
+  /** Pending rows older than this are no longer retried. */
+  readonly retryWindowHours: number;
+  /** A claimed row is not re-claimed for this long (no double send). */
+  readonly claimLeaseMinutes: number;
+  /** Local hour (0–23) the daily digest becomes due. */
+  readonly digestLocalHour: number;
+  /** IANA zone for the digest hour and the digest's day key. */
+  readonly digestTimeZone: string;
+}
+
 export interface FollowUpEmailConfig {
   readonly enabled: boolean;
   /** Hours after the report is first opened before the follow-up is due. */
@@ -1179,6 +1277,7 @@ export interface ApiConfig {
   readonly propertyData: PropertyDataConfig;
   readonly landUse: LandUseConfig;
   readonly zoning: ZoningConfig;
+  readonly partners: PartnersConfig;
   readonly cityDataFreshness: CityDataFreshnessConfig;
   readonly billing: BillingConfig;
   /** #753: which payment provider billing talks to. */
@@ -1186,6 +1285,7 @@ export interface ApiConfig {
   readonly sandboxPurge: SandboxPurgeConfig;
   readonly apiKeyAuth: ApiKeyAuthConfig;
   readonly followUpEmail: FollowUpEmailConfig;
+  readonly builderNotifications: BuilderNotificationsConfig;
   readonly sheets: SheetsConfig;
   readonly narrative: NarrativeConfig;
   readonly communityStatsRefresh: CommunityStatsRefreshConfig;
@@ -1512,6 +1612,14 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): ApiConfig {
       enabled: e.FOLLOW_UP_EMAIL_ENABLED,
       delayHours: e.FOLLOW_UP_EMAIL_DELAY_HOURS,
     },
+    builderNotifications: {
+      enabled: e.BUILDER_NOTIFICATIONS_ENABLED,
+      maxAttempts: e.BUILDER_NOTIFICATION_MAX_ATTEMPTS,
+      retryWindowHours: e.BUILDER_NOTIFICATION_RETRY_WINDOW_HOURS,
+      claimLeaseMinutes: e.BUILDER_NOTIFICATION_CLAIM_LEASE_MINUTES,
+      digestLocalHour: e.BUILDER_DIGEST_LOCAL_HOUR,
+      digestTimeZone: e.BUILDER_DIGEST_TIMEZONE,
+    },
     communityStatsRefresh: {
       minAssessmentCount: e.COMMUNITY_STATS_MIN_ASSESSMENTS,
       alertAfterConsecutiveFailures: e.COMMUNITY_STATS_ALERT_AFTER_FAILURES,
@@ -1632,6 +1740,7 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): ApiConfig {
       httpTimeoutMs: e.PROPERTY_HTTP_TIMEOUT_MS,
       searchRowLimit: e.PROPERTY_SEARCH_ROW_LIMIT,
       suggestionLimit: e.PROPERTY_SUGGESTION_LIMIT,
+      redevelopmentMinAgeYears: e.PROPERTY_REDEVELOPMENT_MIN_AGE_YEARS,
       dbCacheTtlMs: e.PROPERTY_DB_CACHE_TTL_MS,
       dbCacheTimeoutMs: e.PROPERTY_DB_CACHE_TIMEOUT_MS,
       httpCacheMaxAgeSeconds: e.PROPERTY_HTTP_CACHE_MAX_AGE_S,
@@ -1648,6 +1757,10 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): ApiConfig {
       city: e.ZONING_CITY,
       cacheMaxAgeSeconds: e.ZONING_CACHE_MAX_AGE_S,
     },
+    partners: {
+      cacheTtlMs: e.PARTNERS_CACHE_TTL_MS,
+      cacheMaxAgeSeconds: e.PARTNERS_CACHE_MAX_AGE_S,
+    },
     cityDataFreshness: {
       socrataBaseUrl: e.SOCRATA_BASE_URL,
       datasetId: e.SOCRATA_DATASET_ID,
@@ -1662,6 +1775,10 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): ApiConfig {
       maxChargeRetries: e.BILLING_MAX_CHARGE_RETRIES,
       settlementThresholdHours: e.BILLING_SETTLEMENT_THRESHOLD_HOURS,
       tax: buildTaxConfig(e),
+      ...(e.BILLING_STATEMENT_DESCRIPTOR
+        ? { statementDescriptor: e.BILLING_STATEMENT_DESCRIPTOR }
+        : {}),
+      cardExpiryWarningDays: e.BILLING_CARD_EXPIRY_WARNING_DAYS,
       flatPlanName: e.BILLING_FLAT_PLAN_NAME,
       flatMonthlyCents: e.BILLING_FLAT_MONTHLY_CENTS,
       flatCurrency: e.BILLING_FLAT_CURRENCY,

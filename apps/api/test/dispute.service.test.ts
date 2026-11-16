@@ -89,6 +89,12 @@ function fakeStripe(): StripeService & { calls: unknown[] } {
   const service: StripeService = {
     isConfigured: true,
     testMode: true,
+    // #716 card lifecycle — unused here.
+    updateCustomer: async () => undefined,
+    getDefaultPaymentMethodId: async () => null,
+    setDefaultPaymentMethod: async () => undefined,
+    detachPaymentMethod: async (id: string) => ({ id }),
+    clearCustomerId: async () => null,
     createCustomer: async () => ({ id: 'cus_test_123' }),
     createSetupIntent: async () => ({
       id: 'seti_test_123',
@@ -102,6 +108,7 @@ function fakeStripe(): StripeService & { calls: unknown[] } {
     createSubscription: async () => ({ id: 'sub_test_123', status: 'active' }),
     cancelSubscription: async (subscriptionId) => ({ id: subscriptionId }),
     retrievePaymentIntent: async (id: string) => ({ id, status: 'processing' }),
+    getPaymentIntentConfirmation: async (id: string) => ({ id, status: 'requires_action', clientSecret: `${id}_secret_test` }),
     refundPaymentIntent: async (paymentIntentId, idempotencyKey) => {
       calls.push({ op: 'refundPaymentIntent', paymentIntentId, idempotencyKey });
       return { id: 're_test_1', status: 'succeeded' };

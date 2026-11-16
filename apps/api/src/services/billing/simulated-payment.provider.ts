@@ -30,6 +30,7 @@ import {
   normalizeStripeEvent,
   type CardSummary,
   type NormalizedStripeEvent,
+  type OffSessionChargeResult,
   type PaymentProvider,
 } from './payment-provider';
 import type { SimulatedObject, SimulatedPaymentStore } from './simulated-payment.store';
@@ -256,9 +257,33 @@ export function createSimulatedPaymentProvider(
     timers.add(cancel);
   }
 
-  async function newestCard(customerId: string): Promise<SimulatedObject | null> {
+  function defaultPaymentMethodOf(customer: SimulatedObject): string | null {
+    const settings = customer.data['invoice_settings'] as
+      | Record<string, unknown>
+      | null
+      | undefined;
+    return str(settings?.['default_payment_method']) ?? null;
+  }
+
+  /**
+   * #716: the card a charge uses — the customer's default payment method,
+   * else the newest saved card (Stripe's fallback the SDK client mirrors).
+   */
+  async function chargeCard(customerId: string): Promise<SimulatedObject | null> {
     const cards = await store.listByCustomer(customerId, 'payment_method');
-    return cards[0] ?? null;
+    const customer = await store.get(customerId);
+    const defaultId = customer ? defaultPaymentMethodOf(customer) : null;
+    return cards.find((c) => c.id === defaultId) ?? cards[0] ?? null;
+  }
+
+  function customerMetadata(input: {
+    tenantKey: string;
+    builderId?: string;
+  }): Record<string, string> {
+    return {
+      feasly_tenant_key: input.tenantKey,
+      ...(input.builderId ? { feasly_builder_id: input.builderId } : {}),
+    };
   }
 
   async function attachCard(
@@ -311,6 +336,21 @@ export function createSimulatedPaymentProvider(
     };
   }
 
+  /** A stored PaymentIntent as an off-session charge result (#712). */
+  function chargeResult(data: Record<string, unknown>): OffSessionChargeResult {
+    const err = data['last_payment_error'] as Record<string, unknown> | null | undefined;
+    const errorCode = err ? str(err['code']) : undefined;
+    const declineCode = err ? str(err['decline_code']) : undefined;
+    const failureMessage = err ? str(err['message']) : undefined;
+    return {
+      id: str(data['id']) ?? '',
+      status: str(data['status']) ?? 'unknown',
+      ...(errorCode ? { errorCode } : {}),
+      ...(declineCode ? { declineCode } : {}),
+      ...(failureMessage ? { failureMessage } : {}),
+    };
+  }
+
   /** Settle a PaymentIntent as succeeded (charge object + event). */
   function succeedPayment(pi: Record<string, unknown>): Record<string, unknown> {
     return {
@@ -354,10 +394,49 @@ export function createSimulatedPaymentProvider(
         object: 'customer',
         created: unix(),
         email: input.email ?? null,
+        name: input.name ?? null,
+        invoice_settings: { default_payment_method: null },
         livemode: false,
-        metadata: { feasly_tenant_key: input.tenantKey },
+        metadata: customerMetadata(input),
       });
       return { id };
+    },
+
+    async updateCustomer(customerId, input) {
+      const customer = await requireObject(customerId, 'customer');
+      const data = {
+        ...customer.data,
+        ...(input.email ? { email: input.email } : {}),
+        ...(input.name ? { name: input.name } : {}),
+        metadata: customerMetadata(input),
+      };
+      await store.update(customerId, { data });
+      await emit('customer.updated', data);
+    },
+
+    async getDefaultPaymentMethodId(customerId) {
+      const customer = await store.get(customerId);
+      if (!customer || customer.objectType !== 'customer') return null;
+      return defaultPaymentMethodOf(customer);
+    },
+
+    async setDefaultPaymentMethod(customerId, paymentMethodId) {
+      const customer = await requireObject(customerId, 'customer');
+      const pm = await requireObject(paymentMethodId, 'payment_method');
+      if (pm.customerId !== customerId) {
+        // Stripe: "The customer does not have a payment method with the ID …"
+        throw new HttpError(
+          400,
+          ErrorCodes.VALIDATION_FAILED,
+          `The customer does not have a payment method with the ID ${paymentMethodId}`,
+        );
+      }
+      const data = {
+        ...customer.data,
+        invoice_settings: { default_payment_method: paymentMethodId },
+      };
+      await store.update(customerId, { data });
+      await emit('customer.updated', data);
     },
 
     async createSetupIntent(customerId) {
@@ -396,6 +475,18 @@ export function createSimulatedPaymentProvider(
       const pm = await requireObject(paymentMethodId, 'payment_method');
       const data = { ...pm.data, customer: null };
       await store.update(paymentMethodId, { data, customerId: null });
+      // Stripe clears the customer's default when that card is detached.
+      if (pm.customerId) {
+        const customer = await store.get(pm.customerId);
+        if (customer && defaultPaymentMethodOf(customer) === paymentMethodId) {
+          await store.update(pm.customerId, {
+            data: {
+              ...customer.data,
+              invoice_settings: { default_payment_method: null },
+            },
+          });
+        }
+      }
       await emit('payment_method.detached', {
         ...data,
         // Stripe's detached event no longer carries the customer; keep the
@@ -410,10 +501,10 @@ export function createSimulatedPaymentProvider(
       const id = keyedId('pi', idempotencyKey);
       const existing = await store.get(id);
       if (existing) {
-        return { id, status: str(existing.data['status']) ?? 'unknown' };
+        return chargeResult(existing.data);
       }
       await requireObject(input.customerId, 'customer');
-      const pm = await newestCard(input.customerId);
+      const pm = await chargeCard(input.customerId);
       if (!pm) {
         throw new HttpError(
           422,
@@ -432,6 +523,8 @@ export function createSimulatedPaymentProvider(
         customer: input.customerId,
         payment_method: pm.id,
         description: input.description,
+        metadata: { ...(input.metadata ?? {}) },
+        statement_descriptor_suffix: input.statementDescriptorSuffix ?? null,
         off_session: true,
         confirmation_method: 'automatic',
         livemode: false,
@@ -459,11 +552,24 @@ export function createSimulatedPaymentProvider(
       if (!inserted) {
         // Lost an idempotency race — replay the winner's result.
         const winner = await requireObject(id, 'payment_intent');
-        return { id, status: str(winner.data['status']) ?? 'unknown' };
+        return chargeResult(winner.data);
       }
       await emit(eventType, data);
       deliverLater();
-      return { id, status: str(data['status']) ?? 'unknown' };
+      return chargeResult(data);
+    },
+
+    async getPaymentIntentConfirmation(paymentIntentId) {
+      const pi = await requireObject(paymentIntentId, 'payment_intent');
+      const paymentMethodId = str(pi.data['payment_method']);
+      return {
+        id: paymentIntentId,
+        status: str(pi.data['status']) ?? 'unknown',
+        // Stripe's shape (`pi_…_secret_…`); the simulated confirm step
+        // (POST /billing/simulated/authenticate) takes the intent id.
+        clientSecret: `${paymentIntentId}_secret_sim`,
+        ...(paymentMethodId ? { paymentMethodId } : {}),
+      };
     },
 
     async refundPaymentIntent(paymentIntentId, idempotencyKey, amountCents) {
@@ -522,16 +628,18 @@ export function createSimulatedPaymentProvider(
       const pi = await requireObject(paymentIntentId, 'payment_intent');
       const err = pi.data['last_payment_error'] as Record<string, unknown> | null;
       const message = err ? str(err['message']) : undefined;
+      const code = err ? str(err['code']) : undefined;
       return {
         id: pi.id,
         status: str(pi.data['status']) ?? 'unknown',
         ...(message ? { lastPaymentErrorMessage: message } : {}),
+        ...(code ? { lastPaymentErrorCode: code } : {}),
       };
     },
 
     async createSubscription(input) {
       await requireObject(input.customerId, 'customer');
-      const pm = await newestCard(input.customerId);
+      const pm = await chargeCard(input.customerId);
       const behavior = pm ? cardBehavior(pm) : 'card_declined';
       const id = randomId('sub');
       const paid = behavior === 'succeeds';

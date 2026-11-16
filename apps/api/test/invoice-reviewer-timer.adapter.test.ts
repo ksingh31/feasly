@@ -85,6 +85,12 @@ function fakeStripe(failOnAmount?: number): StripeService {
   return {
     isConfigured: true,
     testMode: true,
+    // #716 card lifecycle — unused here.
+    updateCustomer: async () => undefined,
+    getDefaultPaymentMethodId: async () => null,
+    setDefaultPaymentMethod: async () => undefined,
+    detachPaymentMethod: async (id: string) => ({ id }),
+    clearCustomerId: async () => null,
     createCustomer: async () => ({ id: 'cus_test' }),
     createSetupIntent: async () => ({ id: 'seti_test', clientSecret: 's' }),
     listPaymentMethods: async () => [],
@@ -97,6 +103,7 @@ function fakeStripe(failOnAmount?: number): StripeService {
     createSubscription: async () => ({ id: 'sub_test', status: 'active' }),
     cancelSubscription: async (id) => ({ id }),
     retrievePaymentIntent: async (id: string) => ({ id, status: 'processing' }),
+    getPaymentIntentConfirmation: async (id: string) => ({ id, status: 'requires_action', clientSecret: `${id}_secret_test` }),
     refundPaymentIntent: async (paymentIntentId) => ({
       id: 're_test',
       status: 'succeeded',

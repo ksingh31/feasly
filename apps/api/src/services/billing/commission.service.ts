@@ -17,9 +17,18 @@
  * flat-plan.service.ts and config selects the active one.
  *
  * Status lifecycle: draft → in_review → finalized → paid
- *                                │          └→ failed (dunning)
+ *                                │          ├→ failed (dunning)
+ *                                │          └→ action_required → paid | failed
  *                                └→ disputed → in_review | void
  * Terminal: paid, failed, void.
+ *
+ * #712 charge outcomes: the off-session charge call reports what happened
+ * (`classifyChargeOutcome`) and the engine settles it in the same step — a
+ * decline moves the invoice to `failed` (audit + builder email + ops alert),
+ * a 3DS demand moves it to `action_required` (builder "confirm this
+ * payment" email; not a dunning retry). Each side effect fires exactly once:
+ * the move is a conditional UPDATE, and the webhook that follows (or that
+ * raced ahead) finds the invoice already settled and no-ops.
  *
  * Only services and composition.ts may import from src/db/ — enforced by
  * test/boundaries.test.ts.
@@ -37,6 +46,7 @@ import {
   wholeDaysBetween,
 } from '../../lib/commission-math';
 import { isReportingOnTime } from '../../lib/billing-deadlines';
+import { classifyChargeOutcome } from '../../lib/charge-outcome';
 import { computeInvoiceTax } from '../../lib/tax-math';
 import {
   readDefaultPaymentMethod,
@@ -47,16 +57,22 @@ import type {
   AttributionRecord,
 } from './attribution.service';
 import type { BillingAuditService } from './billing-audit.service';
-import type { StripeService } from './stripe.service';
+import type { OffSessionChargeResult, StripeService } from './stripe.service';
+import {
+  CHARGE_ATTEMPT_METADATA_KEY,
+  INVOICE_METADATA_KEY,
+} from './payment-provider';
 import type { CommissionEmailTax, EmailService } from '../email/email.service';
 import { ensureOpsAlertDelivered } from '../ops-alerts.service';
 import type { ManualPaymentMethod } from '@feasly/contracts';
 import type { BuilderPaymentMethod } from '@feasly/contracts';
+import type { ChargeOutcome, ConfirmInvoicePaymentResponse } from '@feasly/contracts';
 
 export type CommissionInvoiceStatus =
   | 'draft'
   | 'in_review'
   | 'finalized'
+  | 'action_required'
   | 'paid'
   | 'failed'
   | 'disputed'
@@ -178,10 +194,25 @@ export interface ManualPaymentInput {
  * or the daily reconciliation pass reading the PaymentIntent from Stripe.
  * Recorded as `source` in the settlement audit row.
  */
-export type SettlementSource = 'webhook' | 'reconciliation';
+export type SettlementSource = 'webhook' | 'reconciliation' | 'charge';
 
 export interface SettlementOptions {
   readonly source?: SettlementSource;
+  /**
+   * #712: the invoice id the PaymentIntent's metadata names. Distinguishes
+   * a webhook that beat the charge call's response (retryable 409) from a
+   * true orphan (404).
+   */
+  readonly invoiceIdHint?: string;
+  /**
+   * #712: which charge attempt created the PaymentIntent (metadata):
+   * 0 = first charge, n = retry n. Only the attempt currently in flight
+   * counts as "still being recorded" — a late event for an older attempt
+   * is an orphan, not a retry loop.
+   */
+  readonly chargeAttemptHint?: number;
+  /** #712: issuer decline code, recorded on the charge_failed audit row. */
+  readonly declineCode?: string;
 }
 
 export interface CommissionService {
@@ -271,6 +302,27 @@ export interface CommissionService {
     failureReason?: string,
     options?: SettlementOptions,
   ): Promise<CommissionInvoiceRecord>;
+  /**
+   * #712 webhook: payment_intent.requires_action — the bank wants the
+   * builder to confirm the charge. `finalized → action_required` + the
+   * "confirm this payment" email, exactly once. No-op when the invoice is
+   * already action_required, settled, or disputed — returns the record
+   * unchanged and writes no audit row (requires_action moves no money, so
+   * it is not a charge attempt against a frozen invoice).
+   */
+  markActionRequiredByPaymentIntent(
+    paymentIntentId: string,
+    options?: SettlementOptions,
+  ): Promise<CommissionInvoiceRecord>;
+  /**
+   * #712 SCA recovery: what the builder portal needs to confirm an
+   * `action_required` invoice's PaymentIntent on-session (client secret,
+   * card, provider). Read-only — the webhook settles the invoice. 409 when
+   * the invoice is not awaiting confirmation.
+   */
+  createPaymentConfirmation(
+    invoiceId: string,
+  ): Promise<ConfirmInvoicePaymentResponse>;
   /** In-review invoices whose review window has passed (timer input). */
   findDueReviews(now: Date): Promise<CommissionInvoiceRecord[]>;
   /**
@@ -378,6 +430,12 @@ export interface CommissionServiceDeps {
   readonly reviewWindowDays?: number;
   /** Warning sink for accepted-but-unconfirmed ops alerts. Defaults to console.warn. */
   readonly logWarning?: (message: string) => void;
+  /**
+   * #725: builder admins who get billing emails (opted in, active). When it
+   * returns addresses, every one of them is emailed; when it returns none
+   * (or fails) the single resolved billing contact is used, as before.
+   */
+  readonly billingRecipients?: (tenantKey: string) => Promise<readonly string[]>;
 }
 
 const TERMINAL_STATUSES: ReadonlySet<CommissionInvoiceStatus> = new Set([
@@ -409,7 +467,11 @@ const ALLOWED_TRANSITIONS: Record<
   // before the 7-day window closed. Moving to 'paid' cancels the scheduled
   // auto-charge (findDueReviews only touches 'in_review').
   in_review: new Set(['finalized', 'disputed', 'paid']),
-  finalized: new Set(['paid', 'failed']),
+  // #712: finalized → action_required when the bank demands 3DS.
+  finalized: new Set(['paid', 'failed', 'action_required']),
+  // #712: the builder confirms on-session and the webhook settles the
+  // PaymentIntent — succeeded → paid, authentication failed → failed.
+  action_required: new Set(['paid', 'failed']),
   paid: new Set([]),
   // BILL-03: a failed invoice may be re-charged by an admin (retryCharge),
   // moving to `finalized` with a fresh PaymentIntent. `finalized` (not
@@ -789,9 +851,38 @@ export function createCommissionService(
    */
   async function notifyBuilder(
     invoice: CommissionInvoiceRecord,
-    kind: 'invoice_ready' | 'payment_received' | 'payment_failed',
+    kind:
+      | 'invoice_ready'
+      | 'payment_received'
+      | 'payment_failed'
+      | 'payment_action_required',
   ): Promise<void> {
-    const to = await resolveBuilderEmail(invoice.tenantKey);
+    let recipients: readonly string[] = [];
+    if (deps.billingRecipients) {
+      try {
+        recipients = await deps.billingRecipients(invoice.tenantKey);
+      } catch {
+        // Fall back to the resolved billing contact below.
+        recipients = [];
+      }
+    }
+    if (recipients.length === 0) {
+      const contact = await resolveBuilderEmail(invoice.tenantKey);
+      recipients = contact === null ? [] : [contact];
+    }
+    for (const to of recipients) {
+      await notifyBuilderRecipient(invoice, kind, to);
+    }
+    if (recipients.length === 0) {
+      await notifyBuilderRecipient(invoice, kind, null);
+    }
+  }
+
+  async function notifyBuilderRecipient(
+    invoice: CommissionInvoiceRecord,
+    kind: 'invoice_ready' | 'payment_received' | 'payment_failed' | 'payment_action_required',
+    to: string | null,
+  ): Promise<void> {
     // Short public reference: first 8 of the uuid (stable, non-sensitive).
     const invoiceRef = invoice.id.slice(0, 8);
     if (to === null) {
@@ -827,6 +918,15 @@ export function createCommissionService(
         paidAt: invoice.paidAt,
         ...emailTax(invoice),
       });
+    } else if (kind === 'payment_action_required') {
+      delivery = await email.sendCommissionPaymentActionRequired({
+        to,
+        invoiceId: invoice.id,
+        invoiceRef,
+        commissionCents: invoice.commissionCents,
+        currency: invoice.currency,
+        ...emailTax(invoice),
+      });
     } else {
       delivery = await email.sendCommissionPaymentFailed({
         to,
@@ -849,6 +949,194 @@ export function createCommissionService(
         ...(delivery.sent ? {} : { failureReason: delivery.failureReason }),
       },
     });
+  }
+
+  /**
+   * #712: look up the invoice a PaymentIntent belongs to.
+   *
+   * 404 when no invoice owns it (a true orphan — the webhook audits it).
+   * But when the event names its invoice (`metadata`) and that invoice's
+   * charge is still in flight — `in_review` with no PaymentIntent yet
+   * (first charge), or `failed` while retry `retryCount + 1` runs — the
+   * webhook simply beat the charge call's own response. That is a
+   * retryable 409: the webhook answers non-2xx, the provider redelivers,
+   * and by then the charge step has recorded the PaymentIntent.
+   */
+  async function requireInvoiceByPaymentIntent(
+    paymentIntentId: string,
+    invoiceIdHint?: string,
+    chargeAttemptHint?: number,
+  ): Promise<typeof commissionInvoices.$inferSelect> {
+    const row = await db.query.commissionInvoices.findFirst({
+      where: eq(commissionInvoices.stripePaymentIntentId, paymentIntentId),
+    });
+    if (row !== undefined) return row;
+    if (invoiceIdHint !== undefined) {
+      const hinted = await db.query.commissionInvoices.findFirst({
+        where: eq(commissionInvoices.id, invoiceIdHint),
+      });
+      const firstChargeInFlight =
+        hinted !== undefined &&
+        hinted.status === 'in_review' &&
+        hinted.stripePaymentIntentId === null &&
+        (chargeAttemptHint === undefined || chargeAttemptHint === 0);
+      const retryInFlight =
+        hinted !== undefined &&
+        hinted.status === 'failed' &&
+        chargeAttemptHint !== undefined &&
+        chargeAttemptHint === hinted.retryCount + 1;
+      if (hinted !== undefined && (firstChargeInFlight || retryInFlight)) {
+        throw new HttpError(
+          409,
+          ErrorCodes.CONFLICT,
+          `Payment intent "${paymentIntentId}" for invoice "${hinted.id}" is still being recorded — retry the event`,
+        );
+      }
+    }
+    throw new HttpError(
+      404,
+      ErrorCodes.NOT_FOUND,
+      `No invoice found for payment intent "${paymentIntentId}"`,
+    );
+  }
+
+  /** True for the 409 transition() throws when a concurrent move won. */
+  function isConcurrentChange(error: unknown): boolean {
+    return (
+      error instanceof HttpError &&
+      error.status === 409 &&
+      error.message.includes('changed concurrently')
+    );
+  }
+
+  /** Current record for an invoice (after losing a settlement race). */
+  async function currentRecord(id: string): Promise<CommissionInvoiceRecord> {
+    const row = await requireInvoice(id);
+    return toRecord(row, await leadNameFor(db, row.leadId), billing.commissionRate, taxLabel);
+  }
+
+  /**
+   * Charge failed (decline, or 3DS authentication failed): `from → failed`,
+   * one `invoice.charge_failed` audit row with the reason, the builder's
+   * "card declined" email and one ops alert. If a concurrent settlement
+   * (webhook vs. the charge step) already moved the invoice, the loser
+   * returns the current record and sends nothing — exactly-once.
+   */
+  async function settleFailed(
+    row: typeof commissionInvoices.$inferSelect,
+    paymentIntentId: string,
+    details: {
+      readonly failureReason?: string;
+      readonly declineCode?: string;
+      readonly source: SettlementSource;
+    },
+  ): Promise<CommissionInvoiceRecord> {
+    let invoice: CommissionInvoiceRecord;
+    try {
+      invoice = await transition(
+        row.id,
+        row.status as CommissionInvoiceStatus,
+        'failed',
+        {},
+        'invoice.charge_failed',
+        // BILL-03: the dunning queue shows the last failure reason.
+        {
+          paymentIntentId,
+          source: details.source,
+          ...(details.failureReason !== undefined && details.failureReason.length > 0
+            ? { failureReason: details.failureReason }
+            : {}),
+          ...(details.declineCode !== undefined && details.declineCode.length > 0
+            ? { declineCode: details.declineCode }
+            : {}),
+        },
+      );
+    } catch (error) {
+      if (isConcurrentChange(error)) return currentRecord(row.id);
+      throw error;
+    }
+    // BILL-04: "card declined — update it" email on failed charge.
+    await notifyBuilder(invoice, 'payment_failed');
+    await alertOps(
+      'Billing charge failed — dunning started',
+      `Off-session charge for invoice ${invoice.id} ` +
+        `($${(invoice.totalCents / 100).toFixed(2)} ${invoice.currency}, ` +
+        `tenant ${invoice.tenantKey}) failed` +
+        (details.declineCode ? ` (${details.declineCode})` : '') +
+        `. Payment intent ${paymentIntentId}. ` +
+        `Update the card on file and re-attempt.`,
+    );
+    return invoice;
+  }
+
+  /**
+   * #712: the bank demands 3DS — `finalized → action_required`, one
+   * `invoice.action_required` audit row and the builder's "confirm this
+   * payment" email. Not a failure: no ops alert, no dunning retry. Same
+   * exactly-once race handling as settleFailed.
+   */
+  async function settleActionRequired(
+    row: typeof commissionInvoices.$inferSelect,
+    paymentIntentId: string,
+    source: SettlementSource,
+  ): Promise<CommissionInvoiceRecord> {
+    let invoice: CommissionInvoiceRecord;
+    try {
+      invoice = await transition(
+        row.id,
+        row.status as CommissionInvoiceStatus,
+        'action_required',
+        {},
+        'invoice.action_required',
+        { paymentIntentId, source },
+      );
+    } catch (error) {
+      if (isConcurrentChange(error)) return currentRecord(row.id);
+      throw error;
+    }
+    await notifyBuilder(invoice, 'payment_action_required');
+    return invoice;
+  }
+
+  /**
+   * #712: settle what the charge call itself reported, right after the
+   * invoice entered 'finalized' with the PaymentIntent recorded.
+   * `succeeded` / `processing` stay 'finalized' — the webhook (or #711
+   * reconciliation) settles them, sending the receipt once.
+   */
+  async function settleChargeOutcome(
+    invoice: CommissionInvoiceRecord,
+    intent: OffSessionChargeResult,
+    outcome: ChargeOutcome,
+  ): Promise<CommissionInvoiceRecord> {
+    if (outcome !== 'failed' && outcome !== 'requires_action') return invoice;
+    const row = await requireInvoice(invoice.id);
+    // A webhook that raced ahead may already have settled it.
+    if (row.status !== 'finalized' || row.stripePaymentIntentId !== intent.id) {
+      return toRecord(row, await leadNameFor(db, row.leadId), billing.commissionRate, taxLabel);
+    }
+    if (outcome === 'requires_action') {
+      return settleActionRequired(row, intent.id, 'charge');
+    }
+    return settleFailed(row, intent.id, {
+      failureReason: intent.failureMessage,
+      declineCode: intent.declineCode,
+      source: 'charge',
+    });
+  }
+
+  /** Audit fields describing a charge attempt's outcome (#712). */
+  function chargeAuditFields(
+    intent: OffSessionChargeResult,
+    outcome: ChargeOutcome,
+  ): Record<string, unknown> {
+    return {
+      paymentIntentId: intent.id,
+      paymentIntentStatus: intent.status,
+      outcome,
+      ...(intent.errorCode ? { errorCode: intent.errorCode } : {}),
+      ...(intent.declineCode ? { declineCode: intent.declineCode } : {}),
+    };
   }
 
   /**
@@ -1100,18 +1388,26 @@ export function createCommissionService(
           description:
             `Feasly commission ${formatRatePercent(effectiveRatePercent(row, billing.commissionRate))} — invoice ${invoiceId} ` +
             `(contract excl. land, attribution ${row.attributionId})`,
+          metadata: {
+            [INVOICE_METADATA_KEY]: invoiceId,
+            [CHARGE_ATTEMPT_METADATA_KEY]: '0',
+          },
         },
-        // Idempotency key: timer retries never double-charge.
+        // Idempotency key: timer retries never double-charge. A transient
+        // error (network, 5xx, rate limit) throws above and leaves the
+        // invoice 'in_review'; the next cycle replays the same key.
         `feasly:commission_invoices:${invoiceId}:charge`,
       );
-      return transition(
+      const outcome = classifyChargeOutcome(intent);
+      const invoice = await transition(
         invoiceId,
         'in_review',
         'finalized',
         { stripePaymentIntentId: intent.id, finalizedAt: now() },
         'invoice.charge_attempted',
-        { paymentIntentId: intent.id, paymentIntentStatus: intent.status },
+        chargeAuditFields(intent, outcome),
       );
+      return settleChargeOutcome(invoice, intent, outcome);
     },
 
     async retryCharge(invoiceId: string): Promise<CommissionInvoiceRecord> {
@@ -1162,11 +1458,16 @@ export function createCommissionService(
             `Feasly commission ${formatRatePercent(effectiveRatePercent(row, billing.commissionRate))} — invoice ${invoiceId} ` +
             `(retry ${retryNumber}, contract excl. land, ` +
             `attribution ${row.attributionId})`,
+          metadata: {
+            [INVOICE_METADATA_KEY]: invoiceId,
+            [CHARGE_ATTEMPT_METADATA_KEY]: String(retryNumber),
+          },
         },
         // Idempotency key: distinct per retry attempt.
         `feasly:commission_invoices:${invoiceId}:retry:${retryNumber}`,
       );
-      return transition(
+      const outcome = classifyChargeOutcome(intent);
+      const invoice = await transition(
         invoiceId,
         'failed',
         'finalized',
@@ -1175,12 +1476,9 @@ export function createCommissionService(
           retryCount: retryNumber,
         },
         'invoice.charge_retried',
-        {
-          retryNumber,
-          paymentIntentId: intent.id,
-          paymentIntentStatus: intent.status,
-        },
+        { retryNumber, ...chargeAuditFields(intent, outcome) },
       );
+      return settleChargeOutcome(invoice, intent, outcome);
     },
 
     async disputeInvoice(
@@ -1268,16 +1566,11 @@ export function createCommissionService(
       options?: SettlementOptions,
     ): Promise<CommissionInvoiceRecord> {
       requireCommissionModel();
-      const row = await db.query.commissionInvoices.findFirst({
-        where: eq(commissionInvoices.stripePaymentIntentId, paymentIntentId),
-      });
-      if (row === undefined) {
-        throw new HttpError(
-          404,
-          ErrorCodes.NOT_FOUND,
-          `No invoice found for payment intent "${paymentIntentId}"`,
-        );
-      }
+      const row = await requireInvoiceByPaymentIntent(
+        paymentIntentId,
+        options?.invoiceIdHint,
+        options?.chargeAttemptHint,
+      );
       const frozen = await frozenDispute(row, paymentIntentId, 'paid');
       if (frozen !== null) return frozen;
       if (TERMINAL_STATUSES.has(row.status as CommissionInvoiceStatus)) {
@@ -1414,7 +1707,7 @@ export function createCommissionService(
           `Invoice "${invoiceId}" is '${status}' — a settled or failed invoice is never repriced`,
         );
       }
-      if (status === 'finalized') {
+      if (status === 'finalized' || status === 'action_required') {
         throw new HttpError(
           409,
           ErrorCodes.CONFLICT,
@@ -1497,46 +1790,97 @@ export function createCommissionService(
       options?: SettlementOptions,
     ): Promise<CommissionInvoiceRecord> {
       requireCommissionModel();
-      const row = await db.query.commissionInvoices.findFirst({
-        where: eq(commissionInvoices.stripePaymentIntentId, paymentIntentId),
-      });
-      if (row === undefined) {
-        throw new HttpError(
-          404,
-          ErrorCodes.NOT_FOUND,
-          `No invoice found for payment intent "${paymentIntentId}"`,
-        );
-      }
+      const row = await requireInvoiceByPaymentIntent(
+        paymentIntentId,
+        options?.invoiceIdHint,
+        options?.chargeAttemptHint,
+      );
       const frozenFailed = await frozenDispute(row, paymentIntentId, 'failed');
       if (frozenFailed !== null) return frozenFailed;
       if (TERMINAL_STATUSES.has(row.status as CommissionInvoiceStatus)) {
         return toRecord(row, await leadNameFor(db, row.leadId), billing.commissionRate, taxLabel);
       }
-      const invoice = await transition(
-        row.id,
-        row.status as CommissionInvoiceStatus,
-        'failed',
-        {},
-        'invoice.charge_failed',
-        // BILL-03: the dunning queue shows the last failure reason.
-        {
-          paymentIntentId,
-          source: options?.source ?? 'webhook',
-          ...(failureReason !== undefined && failureReason.length > 0
-            ? { failureReason }
-            : {}),
-        },
+      return settleFailed(row, paymentIntentId, {
+        failureReason,
+        declineCode: options?.declineCode,
+        source: options?.source ?? 'webhook',
+      });
+    },
+
+    async markActionRequiredByPaymentIntent(
+      paymentIntentId: string,
+      options?: SettlementOptions,
+    ): Promise<CommissionInvoiceRecord> {
+      requireCommissionModel();
+      const row = await requireInvoiceByPaymentIntent(
+        paymentIntentId,
+        options?.invoiceIdHint,
+        options?.chargeAttemptHint,
       );
-      // BILL-04: "card declined — update it" email on failed charge.
-      await notifyBuilder(invoice, 'payment_failed');
-      await alertOps(
-        'Billing charge failed — dunning started',
-        `Off-session charge for invoice ${invoice.id} ` +
-          `($${(invoice.totalCents / 100).toFixed(2)} ${invoice.currency}, ` +
-          `tenant ${invoice.tenantKey}) failed. Payment intent ${paymentIntentId}. ` +
-          `Update the card on file and re-attempt.`,
+      // Only a charge in progress can start waiting on the builder. Already
+      // action_required (redelivery / the charge step got there first),
+      // settled, or disputed → unchanged, nothing sent.
+      if (row.status !== 'finalized') {
+        return toRecord(row, await leadNameFor(db, row.leadId), billing.commissionRate, taxLabel);
+      }
+      return settleActionRequired(
+        row,
+        paymentIntentId,
+        options?.source ?? 'webhook',
       );
-      return invoice;
+    },
+
+    async createPaymentConfirmation(
+      invoiceId: string,
+    ): Promise<ConfirmInvoicePaymentResponse> {
+      requireCommissionModel();
+      const row = await requireInvoice(invoiceId);
+      const paymentIntentId = row.stripePaymentIntentId;
+      if (row.status !== 'action_required' || paymentIntentId === null) {
+        throw new HttpError(
+          409,
+          ErrorCodes.CONFLICT,
+          `Invoice "${invoiceId}" is '${row.status}' — only an invoice waiting for bank confirmation can be confirmed`,
+        );
+      }
+      const confirmation =
+        await stripe.getPaymentIntentConfirmation(paymentIntentId);
+      // succeeded / processing / canceled: nothing left to confirm — the
+      // webhook is settling (or has settled) it.
+      if (
+        confirmation.status !== 'requires_action' &&
+        confirmation.status !== 'requires_confirmation' &&
+        confirmation.status !== 'requires_payment_method'
+      ) {
+        throw new HttpError(
+          409,
+          ErrorCodes.CONFLICT,
+          `Payment for invoice "${invoiceId}" is '${confirmation.status}' — there is nothing to confirm`,
+        );
+      }
+      if (confirmation.clientSecret.length === 0) {
+        throw new HttpError(
+          503,
+          ErrorCodes.DEPENDENCY_UNAVAILABLE,
+          `Payment provider returned no client secret for invoice "${invoiceId}"`,
+        );
+      }
+      await audit.append({
+        tenantKey: row.tenantKey,
+        eventType: 'invoice.payment_confirmation_started',
+        entityType: 'commission_invoice',
+        entityId: row.id,
+        payload: { paymentIntentId },
+      });
+      return {
+        invoiceId: row.id,
+        paymentIntentId,
+        clientSecret: confirmation.clientSecret,
+        ...(confirmation.paymentMethodId
+          ? { paymentMethodId: confirmation.paymentMethodId }
+          : {}),
+        provider: stripe.provider ?? 'stripe',
+      };
     },
 
     async findDueReviews(reviewNow: Date): Promise<CommissionInvoiceRecord[]> {

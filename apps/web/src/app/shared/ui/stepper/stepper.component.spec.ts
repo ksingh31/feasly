@@ -40,6 +40,7 @@ describe('invoiceStepperModel', () => {
     ['in_review', 'review', 'warning', undefined],
     ['disputed', 'review', 'paused', 'Disputed'],
     ['finalized', 'charged', 'info', undefined],
+    ['action_required', 'charged', 'warning', 'Needs your confirmation'],
     ['failed', 'charged', 'danger', 'Charge failed'],
     ['paid', 'paid', 'success', undefined],
     ['void', 'issued', 'neutral', 'Void'],

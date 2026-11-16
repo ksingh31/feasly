@@ -1,0 +1,181 @@
+/* Privacy self-service (issue 706) — same cream/charcoal language as the unsubscribe center. */
+
+/* NOTE: the sticky-footer flex shell lives in global styles.scss. */
+
+.privacy-data {
+  background: var(--cream);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 96px 24px;
+}
+
+.card {
+  width: 100%;
+  max-width: 600px;
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  padding: 40px 36px;
+}
+
+.privacy-data h1 {
+  font-family: var(--font-headline);
+  font-size: var(--type-hero);
+  color: var(--text);
+  margin: 0 0 12px;
+}
+
+.privacy-data h2 {
+  font-size: 1.25rem;
+  color: var(--text);
+  margin: 0 0 8px;
+}
+
+.privacy-data h3 {
+  font-size: 1rem;
+  color: var(--text);
+  margin: 16px 0 8px;
+}
+
+.body {
+  font-size: var(--type-section-body);
+  color: var(--muted);
+  margin: 0 0 16px;
+}
+
+.status {
+  font-size: var(--type-section-body);
+  color: var(--muted);
+  margin: 12px 0 0;
+}
+
+.panel {
+  border-top: 1px solid var(--border);
+  padding: 24px 0 8px;
+}
+
+.notice {
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 16px 18px;
+  margin: 0 0 16px;
+  color: var(--text);
+}
+
+.notice p {
+  margin: 0;
+  color: var(--muted);
+}
+
+.consequences {
+  margin: 0 0 16px;
+  padding-left: 20px;
+  color: var(--text);
+}
+
+.consequences li {
+  margin-bottom: 8px;
+}
+
+.actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  align-items: center;
+  margin-top: 16px;
+}
+
+.email-form {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.email-form label {
+  font-weight: 600;
+  color: var(--text);
+}
+
+.email-form input {
+  min-height: 44px;
+  padding: 0 14px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  font-size: 1rem;
+  color: var(--text);
+}
+
+.email-form input:focus-visible {
+  outline: 2px solid var(--accent-deep);
+  outline-offset: 2px;
+}
+
+.email-form .cta {
+  align-self: flex-start;
+  margin-top: 8px;
+}
+
+.field-error {
+  color: var(--danger);
+  margin: 0;
+  font-size: 0.95rem;
+}
+
+.draft {
+  margin: 24px 0 0;
+  font-size: 0.85rem;
+  color: var(--muted);
+}
+
+.cta {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 44px;
+  padding: 0 28px;
+  border-radius: 999px;
+  border: none;
+  background: var(--cta-bg);
+  color: var(--cta-fg);
+  font-weight: 600;
+  font-size: 1rem;
+  text-decoration: none;
+  cursor: pointer;
+}
+
+.cta:disabled {
+  opacity: 0.6;
+  cursor: wait;
+}
+
+.cta.outline {
+  background: transparent;
+  color: var(--text);
+  border: 2px solid var(--text);
+}
+
+.cta.danger {
+  background: var(--danger);
+  color: var(--cta-fg);
+}
+
+.text-button {
+  background: none;
+  border: none;
+  color: var(--muted);
+  font-size: 1rem;
+  text-decoration: underline;
+  cursor: pointer;
+  min-height: 44px;
+}
+
+@media (max-width: 480px) {
+  .privacy-data {
+    padding: 48px 16px;
+  }
+
+  .card {
+    padding: 28px 20px;
+  }
+}

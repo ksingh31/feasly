@@ -83,6 +83,10 @@ const targets = [
     out: 'zoning-districts/index.js',
   },
   {
+    entry: 'src/functions/partners.ts',
+    out: 'partners/index.js',
+  },
+  {
     entry: 'src/functions/unsubscribe-get.ts',
     out: 'unsubscribe-get/index.js',
   },
@@ -97,6 +101,11 @@ const targets = [
   {
     entry: 'src/functions/follow-up-timer.ts',
     out: 'follow-up-timer/index.js',
+  },
+  // #725 — builder new-lead email retries + daily "Needs you" digest.
+  {
+    entry: 'src/functions/builder-notifications-timer.ts',
+    out: 'builder-notifications-timer/index.js',
   },
   {
     entry: 'src/functions/sandbox-purge-timer.ts',
@@ -245,6 +254,14 @@ const targets = [
     out: 'admin-builders-detail/index.js',
   },
   {
+    entry: 'src/functions/admin-partners.ts',
+    out: 'admin-partners/index.js',
+  },
+  {
+    entry: 'src/functions/admin-partners-detail.ts',
+    out: 'admin-partners-detail/index.js',
+  },
+  {
     entry: 'src/functions/admin-leads-assign-builder.ts',
     out: 'admin-leads-assign-builder/index.js',
   },
@@ -384,6 +401,11 @@ const targets = [
     entry: 'src/functions/billing-commission-rate.ts',
     out: 'billing-commission-rate/index.js',
   },
+  // #725 — builder member email preferences (GET + PUT).
+  {
+    entry: 'src/functions/builder-notifications-preferences.ts',
+    out: 'builder-notifications-preferences/index.js',
+  },
   // #531 — builder portal Money page header (one-call billing overview).
   {
     entry: 'src/functions/builder-billing-overview.ts',
@@ -398,6 +420,11 @@ const targets = [
   {
     entry: 'src/functions/billing-invoice-payment-method.ts',
     out: 'billing-invoice-payment-method/index.js',
+  },
+  // #712 — SCA recovery: client secret to confirm a 3DS charge (POST).
+  {
+    entry: 'src/functions/billing-invoice-confirm-payment.ts',
+    out: 'billing-invoice-confirm-payment/index.js',
   },
   // Dispute console (billing/01 follow-on, was OPS-009).
   {

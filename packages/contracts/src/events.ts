@@ -18,7 +18,13 @@ export type AnalyticsEventName =
   | 'report_resume'
   | 'report_link_request'
   | 'report_link_copy'
-  | 'report_link_share';
+  | 'report_link_share'
+  // #755: which project path the scope step offered first (by home age),
+  // and whether a younger home's user overrode it to a new build.
+  | 'steer_new_build_offered'
+  | 'steer_renovation_offered'
+  | 'steer_none_offered'
+  | 'steer_override_new_build';
 
 export interface AnalyticsEvent {
   readonly event: AnalyticsEventName;

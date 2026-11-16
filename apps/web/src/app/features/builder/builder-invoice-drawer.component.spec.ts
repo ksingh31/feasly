@@ -159,6 +159,51 @@ describe('BuilderInvoiceDrawerComponent (#533)', () => {
     expect(q(el, 'invoice-formula')?.textContent?.trim()).toBe('$685,000 × 2% = $13,700');
   });
 
+  describe('GST breakdown (#764)', () => {
+    const taxed = (patch: Partial<BuilderCommissionInvoice> = {}) =>
+      invoice({
+        subtotalCents: 685_000,
+        taxRatePercent: 5,
+        taxInclusive: false,
+        taxCents: 34_250,
+        totalCents: 719_250,
+        taxLabel: 'GST',
+        ...patch,
+      });
+
+    it('shows subtotal, the "GST (5%)" line and the total, and heads the drawer with the total', async () => {
+      const { el } = await setup({ invoice: taxed() });
+      expect(el.querySelector('.ui-drawer__title')?.textContent?.trim()).toBe('$7,192.50');
+      expect(q(el, 'invoice-subtotal')?.textContent).toContain(T.breakdownSubtotal);
+      expect(q(el, 'invoice-subtotal')?.textContent).toContain('$6,850');
+      expect(q(el, 'invoice-tax')?.textContent).toContain('GST (5%)');
+      expect(q(el, 'invoice-tax')?.textContent).toContain('$342.50');
+      expect(q(el, 'invoice-total')?.textContent).toContain(T.breakdownTotal);
+      expect(q(el, 'invoice-total')?.textContent).toContain('$7,192.50');
+    });
+
+    it('charges the total on a paid taxed invoice receipt', async () => {
+      const { el } = await setup({ invoice: taxed({ status: 'paid', paidAt: iso(-1) }) });
+      expect(q(el, 'invoice-receipt')?.textContent).toContain('$7,192.50');
+    });
+
+    it('AC2: an untaxed invoice (taxCents 0) renders no tax lines — exactly as before', async () => {
+      const { el } = await setup({
+        invoice: taxed({ taxCents: 0, totalCents: 685_000, taxRatePercent: 0, taxLabel: null }),
+      });
+      expect(el.querySelector('.ui-drawer__title')?.textContent?.trim()).toBe('$6,850');
+      expect(q(el, 'invoice-subtotal')).toBeNull();
+      expect(q(el, 'invoice-tax')).toBeNull();
+      expect(q(el, 'invoice-total')).toBeNull();
+      expect(q(el, 'invoice-breakdown')?.textContent).toContain(T.breakdownCommission);
+    });
+
+    it('AC2: hides the tax lines when the tax fields are absent', async () => {
+      const { el } = await setup();
+      expect(q(el, 'invoice-tax')).toBeNull();
+    });
+  });
+
   it('omits the formula (no invented rate) when the server sends no rate', async () => {
     const { el } = await setup({ invoice: invoice({ effectiveRatePercent: undefined, commissionRatePercent: null }) });
     expect(q(el, 'invoice-breakdown')?.textContent).toContain('× —');

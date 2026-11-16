@@ -18,6 +18,11 @@ exports[`route registry > exhaustive role x route permission matrix (auth/04 acc
     "builder_member",
     "none",
   ],
+  "DELETE /api/v1/billing/card": [
+    "super_admin",
+    "admin",
+    "builder_admin",
+  ],
   "DELETE /api/v1/builder/users/{id}": [
     "super_admin",
     "admin",
@@ -114,6 +119,11 @@ exports[`route registry > exhaustive role x route permission matrix (auth/04 acc
   "GET /api/v1/admin/ops/sheets-status": [
     "super_admin",
     "admin",
+  ],
+  "GET /api/v1/admin/partners": [
+    "super_admin",
+    "admin",
+    "viewer",
   ],
   "GET /api/v1/admin/search": [
     "super_admin",
@@ -218,6 +228,12 @@ exports[`route registry > exhaustive role x route permission matrix (auth/04 acc
     "builder_admin",
     "builder_member",
   ],
+  "GET /api/v1/builder/notifications/preferences": [
+    "super_admin",
+    "admin",
+    "builder_admin",
+    "builder_member",
+  ],
   "GET /api/v1/builder/users": [
     "super_admin",
     "admin",
@@ -256,6 +272,14 @@ exports[`route registry > exhaustive role x route permission matrix (auth/04 acc
     "none",
   ],
   "GET /api/v1/openapi.json": [
+    "super_admin",
+    "admin",
+    "viewer",
+    "builder_admin",
+    "builder_member",
+    "none",
+  ],
+  "GET /api/v1/partners": [
     "super_admin",
     "admin",
     "viewer",
@@ -332,6 +356,10 @@ exports[`route registry > exhaustive role x route permission matrix (auth/04 acc
     "admin",
   ],
   "PATCH /api/v1/admin/leads/{id}/status": [
+    "super_admin",
+    "admin",
+  ],
+  "PATCH /api/v1/admin/partners/{id}": [
     "super_admin",
     "admin",
   ],
@@ -466,6 +494,10 @@ exports[`route registry > exhaustive role x route permission matrix (auth/04 acc
     "super_admin",
     "admin",
   ],
+  "POST /api/v1/admin/partners": [
+    "super_admin",
+    "admin",
+  ],
   "POST /api/v1/admin/users/invite": [
     "super_admin",
     "admin",
@@ -477,6 +509,11 @@ exports[`route registry > exhaustive role x route permission matrix (auth/04 acc
     "builder_admin",
   ],
   "POST /api/v1/admin/view-as": [
+    "super_admin",
+    "admin",
+    "builder_admin",
+  ],
+  "POST /api/v1/billing/invoices/{id}/confirm-payment": [
     "super_admin",
     "admin",
     "builder_admin",
@@ -726,6 +763,12 @@ exports[`route registry > exhaustive role x route permission matrix (auth/04 acc
     "super_admin",
     "admin",
     "builder_admin",
+  ],
+  "PUT /api/v1/builder/notifications/preferences": [
+    "super_admin",
+    "admin",
+    "builder_admin",
+    "builder_member",
   ],
 }
 `;

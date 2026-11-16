@@ -60,6 +60,22 @@ export interface BuilderService {
 export interface BuilderServiceDeps {
   readonly db: AppDb;
   readonly audit: AdminAuditStore;
+  /**
+   * #725: called after an admin assigns a lead to a (different) builder —
+   * composition wires the builder-notifications service. Must not throw.
+   */
+  readonly onLeadAssigned?: (args: {
+    readonly leadId: string;
+    readonly builderId: string;
+  }) => Promise<void>;
+  /**
+   * #716: called after an update that changed the business name or email,
+   * so the builder's Stripe customer stays in sync. Best-effort: a failure
+   * is logged and never fails the admin's update.
+   */
+  readonly onBillingProfileChanged?: (builder: Builder) => Promise<void>;
+  /** Warning sink for the best-effort hook. Defaults to console.warn. */
+  readonly logWarning?: (message: string) => void;
 }
 
 type BuilderRow = typeof builders.$inferSelect;
@@ -357,7 +373,22 @@ export function createBuilderService(deps: BuilderServiceDeps): BuilderService {
             `from=${fromDefaultMethod} to=${input.defaultPaymentMethod}`,
         });
       }
-      return toContract(row);
+      const builder = toContract(row);
+      if (
+        deps.onBillingProfileChanged &&
+        (row.businessName !== current.businessName ||
+          row.email !== current.email)
+      ) {
+        try {
+          await deps.onBillingProfileChanged(builder);
+        } catch (error) {
+          (deps.logWarning ?? ((m: string) => console.warn(m)))(
+            `builder-service: Stripe customer sync failed for builderId=${row.id} ` +
+              `(${error instanceof Error ? error.message : 'unknown error'})`,
+          );
+        }
+      }
+      return builder;
     },
 
     async assignLead(
@@ -378,6 +409,12 @@ export function createBuilderService(deps: BuilderServiceDeps): BuilderService {
         .update(leads)
         .set({ builderId })
         .where(eq(leads.id, leadId));
+      // #725: a lead newly assigned to a builder notifies that builder's
+      // team once (the outbox dedupes per lead + builder + member). The
+      // hook never throws.
+      if (builderId !== null && lead.builderId !== builderId && deps.onLeadAssigned) {
+        await deps.onLeadAssigned({ leadId, builderId });
+      }
       await audit.log({
         actorEmail: adminEmail,
         action:

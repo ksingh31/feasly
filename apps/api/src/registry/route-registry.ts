@@ -338,6 +338,18 @@ export const ROUTE_REGISTRY: readonly ApiRouteEntry[] = [
   },
   {
     method: 'GET',
+    path: '/api/v1/partners',
+    auth: 'none',
+    permissions: [] as const,
+    rateLimit: '100/min per IP',
+    status: 'live',
+    summary:
+      'Builder partner disclosure (#888): active builder companies that ' +
+      'receive leads from Feasly\'s own site, in display order (name, logo, ' +
+      'website, description; no contact details). Cached; Cache-Control public.',
+  },
+  {
+    method: 'GET',
     path: '/api/v1/embed/config',
     auth: 'none',
     permissions: [] as const,
@@ -736,6 +748,32 @@ export const ROUTE_REGISTRY: readonly ApiRouteEntry[] = [
       'status counts for the segmented filter.',
   },
   {
+    method: 'GET',
+    path: '/api/v1/builder/notifications/preferences',
+    auth: 'builder-session',
+    permissions: ['builder:leads:read'] as const,
+    rateLimit: '100/min per session',
+    status: 'live',
+    summary:
+      'Signed-in builder member reads their email notification preferences ' +
+      '(#725): new-lead email (default on), daily "Needs you" digest ' +
+      '(default off), billing email (default on, admins only), their org ' +
+      'role, and whether they may turn billing emails off.',
+  },
+  {
+    method: 'PUT',
+    path: '/api/v1/builder/notifications/preferences',
+    auth: 'builder-session',
+    permissions: ['builder:leads:read'] as const,
+    rateLimit: '100/min per session',
+    status: 'live',
+    summary:
+      'Signed-in builder member updates their email notification ' +
+      'preferences (#725, partial body). 409 LAST_ADMIN when the org\'s ' +
+      'last admin receiving billing emails turns them off; 403 while ' +
+      'viewing as a teammate.',
+  },
+  {
     method: 'PATCH',
     path: '/api/v1/builder/leads/{id}',
     auth: 'builder-session',
@@ -1017,6 +1055,37 @@ export const ROUTE_REGISTRY: readonly ApiRouteEntry[] = [
     summary:
       'Update a builder. tenant_key is immutable; 404 when unknown; ' +
       'audit-logged with ids only, no contact PII.',
+  },
+  {
+    method: 'GET',
+    path: '/api/v1/admin/partners',
+    auth: 'admin',
+    permissions: ['builders:read'] as const,
+    rateLimit: '300/min per session',
+    status: 'live',
+    summary: 'List every builder partner (#888), active and inactive, in display order.',
+  },
+  {
+    method: 'POST',
+    path: '/api/v1/admin/partners',
+    auth: 'admin',
+    permissions: ['builders:manage'] as const,
+    rateLimit: '60/min per session',
+    status: 'live',
+    summary:
+      'Add a builder partner (#888): name, https logo/website, description, ' +
+      'optional builder link, display order, active. Audit-logged (ids only).',
+  },
+  {
+    method: 'PATCH',
+    path: '/api/v1/admin/partners/{id}',
+    auth: 'admin',
+    permissions: ['builders:manage'] as const,
+    rateLimit: '60/min per session',
+    status: 'live',
+    summary:
+      'Edit, deactivate (active=false) or reorder (displayOrder) a builder ' +
+      'partner (#888). 404 when unknown; audit-logged (ids + field names).',
   },
   {
     method: 'GET',
@@ -1313,7 +1382,22 @@ export const ROUTE_REGISTRY: readonly ApiRouteEntry[] = [
     status: 'live',
     summary:
       'Builder reads their card-on-file status (brand/last4/expiry only — ' +
-      'the PAN never leaves Stripe). Commission model.',
+      'the PAN never leaves Stripe) plus expiresSoon/expired flags (#716). ' +
+      'One card per builder: the newest saved card is the default the ' +
+      'charge uses. Commission model.',
+  },
+  {
+    method: 'DELETE',
+    path: '/api/v1/billing/card',
+    auth: 'builder-session',
+    permissions: ['builder:billing'] as const,
+    rateLimit: '100/min per session',
+    status: 'live',
+    summary:
+      'Builder admin removes the card on file (#716); 403 for builder ' +
+      'members. 409 while an unpaid invoice is set to be charged to the ' +
+      'card (switch it to a manual method or save a new card first). ' +
+      'Idempotent: no card → hasCard false. Commission model.',
   },
   {
     method: 'GET',
@@ -1379,6 +1463,21 @@ export const ROUTE_REGISTRY: readonly ApiRouteEntry[] = [
       '409 otherwise; 403 for another tenant\'s invoice. Choosing a ' +
       'manual method pauses the Stripe auto-charge: the invoice-reviewer ' +
       'timer skips non-card invoices until staff marks them paid.',
+  },
+  {
+    method: 'POST',
+    path: '/api/v1/billing/invoices/{id}/confirm-payment',
+    auth: 'builder-session',
+    permissions: ['builder:billing'] as const,
+    rateLimit: '100/min per session',
+    status: 'live',
+    summary:
+      'SCA recovery (#712): the bank demanded 3-D Secure on the ' +
+      'off-session charge, so the invoice is action_required. Returns the ' +
+      'PaymentIntent client secret, the card it used and the provider so ' +
+      'the builder confirms the payment on-session; the webhook settles ' +
+      'the invoice. 409 unless action_required; 403 for another tenant\'s ' +
+      'invoice.',
   },
   {
     method: 'GET',

@@ -201,6 +201,88 @@ describe('simulated payment provider — customers and cards', () => {
   });
 });
 
+describe('simulated payment provider — default card and customer details (#716)', () => {
+  it('charges the default card, not the newest, once a default is set', async () => {
+    const h = harness();
+    const customerId = await customerWithCard(h, CARD.ok);
+    const [okCard] = await h.provider.listPaymentMethods(customerId);
+    h.clock.now = new Date(h.clock.now.getTime() + 60_000);
+    const si = await h.provider.createSetupIntent(customerId);
+    await h.provider.confirmSetupIntent(si.id, CARD.declined);
+    // Without a default, the newest (declining) card would be charged.
+    await h.provider.setDefaultPaymentMethod(customerId, okCard!.id!);
+    expect(await h.provider.getDefaultPaymentMethodId(customerId)).toBe(okCard!.id);
+    const pi = await charge(h, customerId);
+    expect(pi.status).toBe('succeeded');
+  });
+
+  it('records the statement descriptor suffix on the PaymentIntent', async () => {
+    const h = harness();
+    const customerId = await customerWithCard(h, CARD.ok);
+    h.delivered.length = 0;
+    await h.provider.createOffSessionPaymentIntent(
+      {
+        amountCents: 100,
+        currency: 'CAD',
+        customerId,
+        description: 'test',
+        statementDescriptorSuffix: 'FEASLY COMMISSION',
+      },
+      'descriptor-1',
+    );
+    await h.runTimers();
+    expect(h.delivered.map((e) => e.type)).toContain('payment_intent.succeeded');
+  });
+
+  it('rejects a default card that belongs to another customer', async () => {
+    const h = harness();
+    const a = await customerWithCard(h, CARD.ok, 'a');
+    const b = await customerWithCard(h, CARD.ok, 'b');
+    const [bCard] = await h.provider.listPaymentMethods(b);
+    await expect(h.provider.setDefaultPaymentMethod(a, bCard!.id!)).rejects.toMatchObject({
+      status: 400,
+    });
+  });
+
+  it('detaching the default card clears the default', async () => {
+    const h = harness();
+    const customerId = await customerWithCard(h, CARD.ok);
+    const [card] = await h.provider.listPaymentMethods(customerId);
+    await h.provider.setDefaultPaymentMethod(customerId, card!.id!);
+    await h.provider.detachPaymentMethod(card!.id!);
+    expect(await h.provider.getDefaultPaymentMethodId(customerId)).toBeNull();
+    await h.runTimers();
+    expect(h.delivered.at(-1)).toMatchObject({
+      type: 'payment_method.detached',
+      customerId,
+      paymentMethodId: card!.id,
+    });
+  });
+
+  it('setup_intent.succeeded carries the saved card id', async () => {
+    const h = harness();
+    const customerId = await customerWithCard(h, CARD.ok);
+    const [card] = await h.provider.listPaymentMethods(customerId);
+    expect(h.delivered.find((e) => e.type === 'setup_intent.succeeded')).toMatchObject({
+      customerId,
+      paymentMethodId: card!.id,
+    });
+  });
+
+  it('stores and updates the business name and builder id', async () => {
+    const h = harness();
+    const { id } = await h.provider.createCustomer(
+      { tenantKey: 't', name: 'Elite Craft Builders', builderId: 'b-1' },
+      'k',
+    );
+    await h.provider.updateCustomer(id, { tenantKey: 't', name: 'Elite Craft Ltd', builderId: 'b-1' });
+    await h.provider.deliverPendingEvents();
+    expect(h.delivered.at(-1)).toMatchObject({ type: 'customer.updated', customerId: id });
+    expect(await h.provider.getDefaultPaymentMethodId(id)).toBeNull();
+    expect(await h.provider.getDefaultPaymentMethodId('cus_unknown')).toBeNull();
+  });
+});
+
 describe('simulated payment provider — off-session charges', () => {
   it('4242 succeeds; the webhook is delivered only after the delay', async () => {
     const h = harness();
@@ -258,6 +340,7 @@ describe('simulated payment provider — off-session charges', () => {
       id: pi.id,
       status: 'requires_payment_method',
       lastPaymentErrorMessage: message,
+      lastPaymentErrorCode: 'card_declined',
     });
   });
 

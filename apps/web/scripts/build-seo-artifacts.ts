@@ -74,7 +74,7 @@ const SWA_CONFIG_FILE = 'staticwebapp.config.json';
 const EXCLUDED_PATTERNS = [/\/r\//, /\/estimate\//, /\/preview/, /\/check-email/, /\/analyzing/, /\/embed\//, /\/admin\//, /\/api\//];
 
 /** robots.txt disallow list (SEO-02 AC4). */
-const ROBOTS_DISALLOW = ['/r/', '/estimate/', '/preview', '/check-email', '/analyzing', '/embed/', '/admin/', '/api/'];
+const ROBOTS_DISALLOW = ['/r/', '/estimate/', '/preview', '/check-email', '/analyzing', '/embed/', '/admin/', '/api/', '/privacy/my-data', '/privacy/confirm/'];
 
 export interface SeoArtifactsConfig {
   readonly siteUrl: string;

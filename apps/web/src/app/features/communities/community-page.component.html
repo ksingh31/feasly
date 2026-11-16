@@ -1,7 +1,7 @@
 @if (profileView && profileCopy) {
   <ng-template #profileHost />
 } @else if (community) {
-  <app-site-nav />
+  <app-site-nav [search]="true" />
   <main class="community" id="main-content" tabindex="-1">
     @if (!calibrated) {
       <p class="banner" role="note">{{ copy.illustrativeBanner }}</p>

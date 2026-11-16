@@ -25,6 +25,7 @@ import {
   integer,
   jsonb,
   pgTable,
+  primaryKey,
   real,
   text,
   timestamp,
@@ -1703,6 +1704,80 @@ export const simulatedPaymentObjects = pgTable(
 );
 
 /**
+ * Builder notification preferences (#725).
+ *
+ * One row per (user, builder org), written the first time a member saves
+ * their preferences. No row = the defaults (owner decision 2026-11-15):
+ * new-lead email on, daily "Needs you" digest off, billing email on. Email
+ * is the only channel. Both FKs cascade.
+ */
+export const builderNotificationPreferences = pgTable(
+  'builder_notification_preferences',
+  {
+    userId: uuid('user_id')
+      .notNull()
+      .references(() => users.id, { onDelete: 'cascade' }),
+    builderId: uuid('builder_id')
+      .notNull()
+      .references(() => builders.id, { onDelete: 'cascade' }),
+    newLeadEmail: boolean('new_lead_email').notNull().default(true),
+    needsYouDigest: boolean('needs_you_digest').notNull().default(false),
+    billingEmail: boolean('billing_email').notNull().default(true),
+    updatedAt: timestamp('updated_at', { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (t) => [
+    primaryKey({ columns: [t.userId, t.builderId] }),
+    index('builder_notification_preferences_builder_idx').on(t.builderId),
+  ],
+);
+
+/**
+ * Builder notification outbox (#725) — send-once ledger for builder emails.
+ *
+ * `dedupe_key` (unique) is `new_lead:<lead>:<builder>:<user>` or
+ * `needs_you_digest:<yyyy-mm-dd>:<builder>:<user>`, so a resubmitted lead,
+ * a repeated assignment or a second timer tick never emails twice.
+ * `status`: pending → sent | skipped | failed. Pending rows are retried by
+ * the builder-notifications timer until `attempts` hits the configured max.
+ * No PII — ids and a failure code only.
+ */
+export const builderNotifications = pgTable(
+  'builder_notifications',
+  {
+    id: uuid('id').primaryKey(),
+    dedupeKey: text('dedupe_key').notNull(),
+    /** 'new_lead' | 'needs_you_digest'. */
+    kind: text('kind').notNull(),
+    builderId: uuid('builder_id')
+      .notNull()
+      .references(() => builders.id, { onDelete: 'cascade' }),
+    userId: uuid('user_id')
+      .notNull()
+      .references(() => users.id, { onDelete: 'cascade' }),
+    /** Set for new_lead rows; null for digests. */
+    leadId: uuid('lead_id').references(() => leads.id, { onDelete: 'cascade' }),
+    /** 'pending' | 'sent' | 'skipped' | 'failed'. */
+    status: text('status').notNull().default('pending'),
+    attempts: integer('attempts').notNull().default(0),
+    /** Sanitized failure code ('invalid-recipient' | 'delivery-failed' | …). */
+    lastErrorCode: text('last_error_code'),
+    /** Claim lease: a delivery attempt started at this time. */
+    lastAttemptAt: timestamp('last_attempt_at', { withTimezone: true }),
+    processedAt: timestamp('processed_at', { withTimezone: true }),
+    createdAt: timestamp('created_at', { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (t) => [
+    uniqueIndex('builder_notifications_dedupe_key_idx').on(t.dedupeKey),
+    index('builder_notifications_status_created_idx').on(t.status, t.createdAt),
+    index('builder_notifications_lead_idx').on(t.leadId),
+  ],
+);
+
+/**
  * Shared City-data cache (#756).
  *
  * One row per (City dataset, lookup key): the assessment-roll record for an
@@ -1722,6 +1797,41 @@ export const cityDataCache = pgTable(
     expiresAt: timestamp('expires_at', { withTimezone: true }).notNull(),
   },
   (t) => [index('city_data_cache_expires_at_idx').on(t.expiresAt)],
+);
+
+/**
+ * Builder partners (#888, partner disclosure from #847).
+ *
+ * The builder companies that receive leads from Feasly's own site. The
+ * public disclosure (`GET /api/v1/partners`) lists active rows in
+ * `display_order` (ties by name), so adding a partner later is an admin
+ * action, not a code or copy change. Company names only — no individuals,
+ * no contact details. `builder_id` optionally links the `builders` row that
+ * receives the leads (routing itself is unchanged by this table).
+ */
+export const builderPartners = pgTable(
+  'builder_partners',
+  {
+    /** App-generated UUID (node:crypto). */
+    id: uuid('id').primaryKey(),
+    builderId: uuid('builder_id').references(() => builders.id, {
+      onDelete: 'set null',
+    }),
+    name: text('name').notNull(),
+    logoUrl: text('logo_url'),
+    websiteUrl: text('website_url'),
+    /** Short description / community focus. */
+    description: text('description'),
+    displayOrder: integer('display_order').notNull().default(0),
+    active: boolean('active').notNull().default(true),
+    createdAt: timestamp('created_at', { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+    updatedAt: timestamp('updated_at', { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (t) => [index('builder_partners_active_order_idx').on(t.active, t.displayOrder)],
 );
 
 /**
