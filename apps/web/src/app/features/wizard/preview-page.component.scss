@@ -189,3 +189,61 @@
   align-items: center;
   justify-content: center;
 }
+
+/* #835: the total range, in the clear before the gate. */
+.total-range {
+  margin: 0;
+  font-size: clamp(28px, 8vw, 40px);
+  font-weight: 700;
+  letter-spacing: 0.01em;
+  overflow-wrap: anywhere;
+  color: var(--text);
+}
+
+.total-note {
+  font-size: 13px;
+  color: var(--muted);
+  margin: 8px 0 0;
+}
+
+/* #835: free address overview (district, steer) and typical timeline. */
+.overview,
+.timeline-card {
+  margin-top: 24px;
+  padding: 20px;
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  background: var(--card);
+}
+
+.overview-heading {
+  font-family: var(--font-ui);
+  font-size: 20px;
+  font-weight: 700;
+  color: var(--text);
+  margin: 0 0 12px;
+}
+
+.overview-facts {
+  display: grid;
+  gap: 12px;
+  margin: 0;
+}
+
+.overview-facts dt {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--muted);
+}
+
+.overview-facts dd {
+  margin: 2px 0 0;
+  color: var(--text);
+  overflow-wrap: anywhere;
+}
+
+.overview-note {
+  font-size: 13px;
+  color: var(--muted);
+  margin: 12px 0 0;
+}

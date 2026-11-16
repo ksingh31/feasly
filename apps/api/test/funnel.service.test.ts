@@ -1,7 +1,7 @@
 /**
  * Funnel service tests (admin/07, #814).
  *
- * Covers: step mapping from (event, route) grouped counts onto the six #814
+ * Covers: step mapping from (event, route) grouped counts onto the seven #814 (+#835 submit)
  * steps (landing → address → preview → gate → convert → report), the legacy
  * preview `step_view` still counting, conversion math (4-decimal rounding),
  * null conversion for the first step and when the previous step is 0,
@@ -49,12 +49,13 @@ function serviceWith(
 const ALL = { kind: 'all' } as const;
 
 describe('funnel service', () => {
-  it('maps event counts onto the six funnel steps in order', async () => {
+  it('maps event counts onto the seven funnel steps in order', async () => {
     const { service } = serviceWith([
       { event: 'landing_view', route: '/', count: 200 },
       { event: 'address_selected', route: '/', count: 120 },
       { event: 'preview_view', route: '/estimate/preview', count: 60 },
       { event: 'gate_view', route: '/estimate/gate', count: 40 },
+      { event: 'gate_submit', route: '/estimate/gate', count: 37 },
       { event: 'gate_convert', route: '/estimate/gate', count: 35 },
       { event: 'report_open', route: '/estimate/report', count: 30 },
     ]);
@@ -64,10 +65,11 @@ describe('funnel service', () => {
       'address',
       'preview',
       'gate',
+      'submit',
       'convert',
       'report',
     ]);
-    expect(report.steps.map((s) => s.count)).toEqual([200, 120, 60, 40, 35, 30]);
+    expect(report.steps.map((s) => s.count)).toEqual([200, 120, 60, 40, 37, 35, 30]);
   });
 
   it('counts top-of-funnel events on any route', async () => {
@@ -114,7 +116,7 @@ describe('funnel service', () => {
   it('returns zero counts for empty data (empty state, never an error)', async () => {
     const { service } = serviceWith([]);
     const report = await service.getFunnel({ tenant: ALL });
-    expect(report.steps).toHaveLength(6);
+    expect(report.steps).toHaveLength(7);
     expect(report.steps.every((s) => s.count === 0)).toBe(true);
     expect(report.steps.every((s) => s.conversionFromPrevious === null)).toBe(
       true,
@@ -134,7 +136,7 @@ describe('funnel service', () => {
       { event: 'address_search', route: '/', count: 99 },
     ]);
     const report = await service.getFunnel({ tenant: ALL });
-    expect(report.steps.map((s) => s.count)).toEqual([10, 0, 0, 0, 0, 0]);
+    expect(report.steps.map((s) => s.count)).toEqual([10, 0, 0, 0, 0, 0, 0]);
   });
 
   it('passes the date range, tenant and utm filters to the store', async () => {
@@ -192,7 +194,7 @@ describe('funnel service', () => {
 
     // Totals span every group.
     expect(report.steps[0]!.count).toBe(200);
-    expect(report.steps[4]!.count).toBe(10);
+    expect(report.steps[5]!.count).toBe(10);
 
     expect(
       report.bySource.map((g) => [g.utmSource, g.utmCampaign]),
@@ -202,11 +204,11 @@ describe('funnel service', () => {
       ['google', 'fall'],
     ]);
     const spring = report.bySource[0]!;
-    expect(spring.steps.map((s) => s.count)).toEqual([100, 0, 0, 0, 10, 0]);
+    expect(spring.steps.map((s) => s.count)).toEqual([100, 0, 0, 0, 0, 10, 0]);
     expect(spring.steps).toHaveLength(FUNNEL_STEPS.length);
     const untagged = report.bySource[1]!;
     expect(untagged.steps[0]!.count).toBe(60);
-    expect(untagged.steps[5]!.count).toBe(5);
+    expect(untagged.steps[6]!.count).toBe(5);
     expect(report.bySourceTruncated).toBe(false);
   });
 

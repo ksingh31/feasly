@@ -383,6 +383,7 @@ export const AnalyticsEventNameSchema = z
   .enum([
     'step_view',
     'gate_view',
+    'gate_submit',
     'gate_convert',
     'report_open',
     'tier_toggle',

@@ -6,6 +6,7 @@ import { Store } from '@ngxs/store';
 import { ConfigService } from '../../core/config/config.service';
 import { SeoService } from '../../core/seo/seo.service';
 import {
+  BuildTimelineComponent,
   EstimateScopeComponent,
   PropertyCardComponent,
   SiteFooterComponent,
@@ -45,6 +46,7 @@ import { WizardState } from './wizard.state';
   selector: 'app-preview-page',
   standalone: true,
   imports: [
+    BuildTimelineComponent,
     EstimateScopeComponent,
     NgTemplateOutlet,
     PropertyCardComponent,
@@ -72,6 +74,8 @@ export class PreviewPageComponent implements OnInit {
   protected readonly reportCopy = this.config.get('copy').report;
   /** Tier and reno-type display names live with the wizard copy — reused, never duplicated. */
   protected readonly wizardCopy = this.config.get('copy').wizard;
+  /** #835: district "what it allows" lines live with the zoning guide — reused, never duplicated. */
+  private readonly zoningZones = this.config.get('copy').marketing.zoningGuide.zones;
 
   protected readonly property = this.store.selectSignal(WizardState.property);
   protected readonly inputs = this.store.selectSignal(WizardState.inputs);
@@ -120,6 +124,44 @@ export class PreviewPageComponent implements OnInit {
       parts.push(this.formatSqft(inputs.sqft), this.tierName(inputs.tier));
     }
     return parts.map((part) => ` · ${part}`).join('');
+  });
+
+  /**
+   * #835 address overview: the parcel's current land-use district (the
+   * City district check when present, else the assessment-roll zoning).
+   */
+  protected readonly district = computed(() => {
+    const p = this.property();
+    return p ? p.landUse?.district || p.zoning : '';
+  });
+
+  /**
+   * #835: what the district typically allows — a lookup into the zoning
+   * guide's table (codes like "R-1 / R-1s / R-1N" cover several districts).
+   * Null when the guide has no row for it; the row then hides.
+   */
+  protected readonly districtAllows = computed(() => {
+    const district = this.district();
+    if (!district) return null;
+    const zone = this.zoningZones.find((z) =>
+      z.code.split('/').map((code) => code.trim()).includes(district),
+    );
+    return zone?.allows ?? null;
+  });
+
+  /**
+   * #835: the server-computed redevelop/renovate steer (#755) as one line,
+   * same config templates as the scope step. Null = no steer to show.
+   */
+  protected readonly steerLine = computed(() => {
+    const p = this.property();
+    const recommended = p?.steer?.recommendedProjectType;
+    if (!recommended || p.yearBuilt == null) return null;
+    const template =
+      recommended === 'renovation'
+        ? this.wizardCopy.steerRenovationReason
+        : this.wizardCopy.steerNewBuildReason;
+    return template.replace('{year}', String(p.yearBuilt));
   });
 
   /** Edit / back target: the scope step the inputs came from. */

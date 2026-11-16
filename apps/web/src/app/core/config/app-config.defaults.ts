@@ -528,6 +528,12 @@ export const DEFAULT_APP_CONFIG: AppConfig = {
       recapEditLabel: 'Edit',
       recapEditAriaLabel: 'Edit your home details',
       recapSqftUnit: 'sq ft',
+      totalShownNote: 'City-assessed lot value plus the estimated build cost, from our cost model.',
+      overviewHeading: 'About this address',
+      overviewDistrictLabel: 'Land-use district',
+      overviewAllowedLabel: 'What’s typically allowed',
+      overviewSteerLabel: 'Redevelop or renovate',
+      overviewConfirmNote: 'Designations change — confirm the current one with the City before you plan.',
       validationHeading: 'We can’t price this property yet',
       validationGenericBody:
         'One of the details for this property falls outside the range our cost data covers, so we can’t generate an estimate for it yet. Try a different address.',
@@ -720,6 +726,13 @@ export const DEFAULT_APP_CONFIG: AppConfig = {
     gate: {
       heading: 'Where should we send your estimate?',
       sub: 'One quick step and your personalized cost report is on its way. No spam — we may reach out about your estimate, and you can opt out anytime.',
+      unlocksHeading: 'Your free report adds',
+      unlocksItems: [
+        'The itemized cost breakdown, line by line',
+        'A side-by-side comparison of finish levels',
+        'A PDF to download, plus an emailed copy with a link back to your report',
+        'A builder-ready summary you can share with a builder',
+      ],
       trustLine: 'Built from your City of Calgary property record — no guesswork.',
       nameLabel: 'Full name',
       namePlaceholder: 'Jane Doe',
