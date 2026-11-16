@@ -426,7 +426,8 @@
   "site": {
     "name": "Feasly",
     "url": "",
-    "socialImage": "/assets/og/og-default.png"
+    "socialImage": "/assets/og/og-default.png",
+    "statusPageUrl": ""
   },
   "timings": {
     "debounceMs": 250,
