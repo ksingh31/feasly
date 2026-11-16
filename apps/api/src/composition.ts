@@ -667,6 +667,7 @@ import {
   type CityDataCacheStore,
 } from './services/city-data-cache.store';
 import { MAGIC_LINK_SEND_BUDGET_WINDOW_MS } from './services/magic-link.service';
+import { resolveBuildTimeline } from './lib/build-timeline';
 import {
   createRequestPipeline,
   type LogEntry,
@@ -1248,6 +1249,7 @@ export function createComposition(
   // Built before the lead service: consumer/02 wires the magic-link email
   // into lead capture and the dedupe reissue path.
   const emailProvider: EmailProvider = createEmailProvider(config);
+  const reportEmailTimeline = resolveBuildTimeline(config.zoning.city);
   const emailService: EmailService = createEmailService({
     provider: emailProvider,
     fromAddress: config.email.fromAddress,
@@ -1257,6 +1259,8 @@ export function createComposition(
     opsInbox: config.email.opsInbox,
     // In-code retry budget (Karan 2026-09-27: at least 2 retries, no queue).
     maxAttempts: config.email.sendMaxAttempts,
+    // #823: the report email's typical build timeline, for the served city.
+    ...(reportEmailTimeline ? { buildTimeline: reportEmailTimeline } : {}),
   });
   // email/03 — one-click unsubscribe center. The HMAC secret arrives via
   // config (Key Vault in staging/production); the service fails closed
@@ -1316,6 +1320,7 @@ export function createComposition(
   const magicLinkService: MagicLinkService = createMagicLinkService({
     magicLinks: magicLinkStore,
     leads: leadStore,
+    estimates: estimateStore,
     email: emailService,
     unsubscribe: unsubscribeService,
     appBaseUrl: config.email.appBaseUrl,

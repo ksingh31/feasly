@@ -11,6 +11,7 @@ import { SeoService } from '../../core/seo/seo.service';
 import { LoadPartners, PartnersState } from '../../core/partners';
 import {
   BrandMarkComponent,
+  BuildTimelineComponent,
   SiteFooterComponent,
   SiteNavComponent,
   BuilderMatchingExplainerComponent,
@@ -114,6 +115,7 @@ const SHARE_LINK_SOURCE = 'share';
     RouterLink,
     BrandMarkComponent,
     BuilderMatchingExplainerComponent,
+    BuildTimelineComponent,
     OptionSelectorComponent,
     PartnerDisclosureComponent,
     PrivacyDataLinkComponent,
@@ -135,6 +137,8 @@ export class ReportPageComponent implements OnInit {
 
   /** Report copy (config-owned). */
   protected readonly copy = this.config.get('copy').report;
+  /** Typical build timeline section title (#823); the body is the shared component. */
+  protected readonly timelineCopy = this.config.get('copy').buildTimeline;
   /** Print-only brand header (#509): the site name beside the brand mark. */
   protected readonly siteName = this.config.get('site').name;
   /**
