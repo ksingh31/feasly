@@ -742,6 +742,11 @@ Event → `stripe_events` insert (idempotency) → handler:
 | `customer.subscription.updated` | Sync `status` (active/past_due/canceled) to tenant record |
 | `customer.subscription.deleted` | Tenant → `embed_degraded=true`, reason `subscription_canceled` |
 | `payment_method.detached` | If no remaining methods → tenant billing-blocked (no new invoices; dashboard banner) |
+| `charge.dispute.created` | Bank chargeback (#719): `billing_disputes` row (`source='chargeback'`, SLA = evidence deadline), `commission_invoices.chargeback_status='open'` (retries refused), one ops alert naming the deadline |
+| `charge.dispute.updated` | Sync Stripe status / evidence deadline onto the chargeback row |
+| `charge.dispute.funds_withdrawn` / `funds_reinstated` | Audit row on the chargeback |
+| `charge.dispute.closed` | Chargeback closed with outcome `won` / `lost` / `warning_closed`; invoice `chargeback_status` = outcome, `status` unchanged (lost → ops alert, manual re-collect/write-off decision) |
+| `charge.refunded` | `commission_invoices.refunded_cents` = Stripe's cumulative `amount_refunded` + `invoice.refunded` timeline row (covers Stripe-dashboard refunds) |
 
 ### 5.3 Draft → review → auto-charge (commission)
 
@@ -1361,6 +1366,7 @@ absorbed by Flex Consumption scale-out, not by raising limits silently.
 | PUT | `/api/v1/admin/billing/invoices/{id}/payment-method` | admin | billing:manage | 300/min per session | live | Admin changes the planned payment method on one commission invoice (card | cheque | e_transfer | bank_draft). Unpaid invoices only (draft, in_review, failed — 409 otherwise). Choosing a manual method pauses the Stripe auto-charge until staff marks the invoice paid. Same service path as the builder endpoint; audited with the admin identity. |
 | POST | `/api/v1/admin/billing/invoices` | admin | billing:manage | 300/min per session | live | Admin manually creates a commission invoice for a builder's converted lead. Mirrors the builder-reported contract shape (leadId, contractValueCents excl. land, ISO contractSignedAt with offset) plus tenantKey. Same charge path: 12-month attribution → draft invoice → auto-submitted into the 7-day review window. Idempotent: re-reporting returns the existing invoice. |
 | POST | `/api/v1/admin/community-stats/refresh` | admin | ops:manage | 10/min per session | live | Manually trigger the community-stats refresh (neighbourhood/05). Audit-logged. |
+| POST | `/api/v1/admin/neighbourhood-data/{provider}/refresh` | admin | ops:manage | 10/min per session | live | Run one neighbourhood data provider refresh now (#773): school-directory, school-designation, school-ratings, reviews, amenities or commute. Keeps the previous data on failure. Audit-logged. |
 | GET | `/api/v1/admin/community-narratives` | admin | ops:manage | 300/min per session | live | Monthly community narratives (#759): each community's latest period, status, and generated date. |
 | POST | `/api/v1/admin/community-narratives/regenerate` | admin | ops:manage | 10/min per session | live | Regenerate the community narrative now — one community or all (#759). Admin-only, audit-logged. |
 | GET | `/api/v1/admin/usage` | admin | usage:read | 300/min per session | planned | Per-key usage metering (api-mcp/07). |

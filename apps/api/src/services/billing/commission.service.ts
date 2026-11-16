@@ -67,6 +67,7 @@ import { ensureOpsAlertDelivered } from '../ops-alerts.service';
 import type { ManualPaymentMethod } from '@feasly/contracts';
 import type { BuilderPaymentMethod } from '@feasly/contracts';
 import type { ChargeOutcome, ConfirmInvoicePaymentResponse } from '@feasly/contracts';
+import type { ChargebackStatus } from '@feasly/contracts';
 
 export type CommissionInvoiceStatus =
   | 'draft'
@@ -154,6 +155,13 @@ export interface CommissionInvoiceRecord {
    * per invoice while the invoice is unpaid.
    */
   readonly paymentMethod: BuilderPaymentMethod;
+  /**
+   * Bank chargeback state (#719): null = none; 'open' while Stripe's
+   * dispute is live (retryCharge refuses); then won | lost | warning_closed.
+   */
+  readonly chargebackStatus: ChargebackStatus | null;
+  /** Cumulative amount refunded on the charge, integer cents (#719). */
+  readonly refundedCents: number;
   readonly createdAt: Date;
   readonly updatedAt: Date;
 }
@@ -594,6 +602,8 @@ function toRecord(
     paymentReference: row.paymentReference,
     invoiceNumber: row.invoiceNumber,
     paymentMethod: row.paymentMethod as BuilderPaymentMethod,
+    chargebackStatus: row.chargebackStatus as ChargebackStatus | null,
+    refundedCents: row.refundedCents,
     createdAt: row.createdAt,
     updatedAt: row.updatedAt,
   };
@@ -1418,6 +1428,14 @@ export function createCommissionService(
           409,
           ErrorCodes.CONFLICT,
           `Invoice "${invoiceId}" is disputed — disputed invoices can never be retried`,
+        );
+      }
+      if (row.chargebackStatus === 'open') {
+        // #719: no further charge attempts while a bank chargeback is live.
+        throw new HttpError(
+          409,
+          ErrorCodes.CONFLICT,
+          `Invoice "${invoiceId}" has an open chargeback — charges are paused until Stripe closes it`,
         );
       }
       if (row.status !== 'failed') {

@@ -20,7 +20,7 @@
  * Auth denials are uniform (unknown / expired / revoked tokens look
  * identical) — asserted by the 401 tests below.
  */
-import { describe, expect, it, beforeEach } from 'vitest';
+import { describe, expect, it, beforeEach, vi } from 'vitest';
 import {
   createPrivacyService,
   hashEmail,
@@ -48,6 +48,10 @@ import type {
   CallbackRequestStore,
 } from '../src/services/callback-request.store';
 import { HttpError } from '../src/middleware/errors';
+import type {
+  EmailDelivery,
+  ErasureConfirmationEmailInput,
+} from '../src/services/email/email.service';
 
 const NOW = new Date('2026-09-24T12:00:00Z');
 const LATER = new Date('2026-09-24T13:00:00Z');
@@ -115,6 +119,14 @@ interface World {
   blockers: { kind: string; reason: string }[];
   waitlist: WaitlistSignupRecord[];
   callbacks: CallbackRequestRecord[];
+  /** #806: confirmation emails handed to the email service. */
+  erasureEmails: ErasureConfirmationEmailInput[];
+  /** #806: raw tokens minted by the fake magic-link store, by link id. */
+  issuedTokens: Map<string, string>;
+  /** #806: next delivery results (default: sent). */
+  deliveries: EmailDelivery[];
+  /** #806: when set, the fake magic-link store's issue() throws. */
+  issueFails: boolean;
 }
 
 function callback(id: string, leadId: string): CallbackRequestRecord {
@@ -152,7 +164,16 @@ function link(
   };
 }
 
-function setup(blockers: { kind: string; reason: string }[] = []): {
+interface SetupOptions {
+  /** #806: in-memory clock for cooldown/budget — advanced by tests. */
+  clock?: () => Date;
+  maxSendsPerHour?: number;
+}
+
+function setup(
+  blockers: { kind: string; reason: string }[] = [],
+  opts: SetupOptions = {},
+): {
   service: PrivacyService;
   world: World;
 } {
@@ -169,6 +190,10 @@ function setup(blockers: { kind: string; reason: string }[] = []): {
       signup('w3', BOB, 'vancouver'),
     ],
     callbacks: [callback('cb1', ALICE_LEAD), callback('cb2', BOB_LEAD)],
+    erasureEmails: [],
+    issuedTokens: new Map(),
+    deliveries: [],
+    issueFails: false,
   };
   const tokenToLinkId = new Map([
     [ALICE_TOKEN, 'l1'],
@@ -178,8 +203,18 @@ function setup(blockers: { kind: string; reason: string }[] = []): {
   ]);
 
   const magicLinks: MagicLinkStore = {
-    issue: async () => {
-      throw new Error('not used in these tests');
+    issue: async (args) => {
+      if (world.issueFails) throw new Error('db down');
+      const id = `issued-${world.issuedTokens.size + 1}`;
+      const token = `erase-confirm-raw-token-${world.issuedTokens.size + 1}`;
+      const now = (args.clock ?? (() => NOW))();
+      const expiresAt = new Date(now.getTime() + args.ttlSeconds * 1000);
+      world.links.push(
+        link(id, args.leadId, { purpose: args.purpose ?? 'lead', expiresAt, createdAt: now }),
+      );
+      world.issuedTokens.set(id, token);
+      tokenToLinkId.set(token, id);
+      return { id, token, expiresAt };
     },
     markUsed: async () => true,
     findByToken: async (token: string) => {
@@ -329,7 +364,17 @@ function setup(blockers: { kind: string; reason: string }[] = []): {
     waitlist,
     callbacks,
     blockers: checker,
-    clock: () => NOW,
+    email: {
+      sendErasureConfirmation: async (input) => {
+        world.erasureEmails.push(input);
+        return world.deliveries.shift() ?? { sent: true, provider: 'log' };
+      },
+    },
+    appBaseUrl: 'https://feasly.test',
+    confirmLinkTtlSeconds: 86_400,
+    resendCooldownMs: 60_000,
+    maxSendsPerHour: opts.maxSendsPerHour ?? 5,
+    clock: opts.clock ?? (() => NOW),
   });
   return { service, world };
 }
@@ -439,7 +484,8 @@ describe('erasure request (step 1)', () => {
     expect(out.consequences.length).toBeGreaterThan(0);
     // Nothing deleted: leads, links and estimates all intact.
     expect(world.leads).toHaveLength(2);
-    expect(world.links.filter((l) => !l.revokedAt)).toHaveLength(2);
+    // #806: the only new link is the freshly minted confirm link.
+    expect(world.links.filter((l) => !l.revokedAt)).toHaveLength(3);
     expect(world.estimates).toHaveLength(2);
   });
 
@@ -516,7 +562,8 @@ describe('erasure confirm (step 2)', () => {
     const requestId = await aliceRequest();
     const out = await service.confirmErasure(ALICE_TOKEN, requestId);
     expect(out.status).toBe('completed');
-    expect(out.revokedMagicLinks).toBe(1);
+    // Her original link + the #806 confirm link minted by step 1.
+    expect(out.revokedMagicLinks).toBe(2);
     expect(out.deletedLeads).toBe(1);
 
     // Alice's lead rows are gone; Bob's are untouched.
@@ -538,7 +585,7 @@ describe('erasure confirm (step 2)', () => {
     // Audit trail.
     const confirms = world.audits.filter((a) => a.action === 'erase.confirm');
     expect(confirms).toHaveLength(1);
-    expect(confirms[0]!.detail).toBe('revoked:1,deleted:1,waitlist:2,callbacks:1');
+    expect(confirms[0]!.detail).toBe('revoked:2,deleted:1,waitlist:2,callbacks:1');
     expect(world.requests[0]!.status).toBe('completed');
   });
 
@@ -611,6 +658,159 @@ describe('#805: partner-share tokens never authenticate privacy endpoints', () =
     const out = await service.exportMyData(ALICE_TOKEN);
     expect(out.email).toBe(ALICE);
     expect(out.leads.map((l) => l.id)).toEqual([ALICE_LEAD]);
+  });
+});
+
+describe('#806: erase-confirmation email', () => {
+  const REQ_RE = /^https:\/\/feasly\.test\/privacy\/confirm\/([0-9a-f-]{36})#token=(.+)$/;
+
+  it('a new request sends exactly one email whose link opens /privacy/confirm/:requestId with the token in the fragment (AC1)', async () => {
+    const { service, world } = setup();
+    const out = await service.requestErasure(ALICE_TOKEN);
+    expect(out.confirmationEmailSent).toBe(true);
+    expect(world.erasureEmails).toHaveLength(1);
+    const mail = world.erasureEmails[0]!;
+    expect(mail.to).toBe(ALICE);
+    expect(mail.name).toBe('Alice');
+    expect(mail.expiresInHours).toBe(24);
+    const m = REQ_RE.exec(mail.confirmUrl);
+    expect(m).not.toBeNull();
+    expect(m![1]).toBe(out.requestId);
+    // The fragment token is a FRESH owner link (not the bearer that asked).
+    const token = decodeURIComponent(m![2]!);
+    expect(token).not.toBe(ALICE_TOKEN);
+    expect([...world.issuedTokens.values()]).toEqual([token]);
+    const issued = world.links.find((l) => l.id === 'issued-1')!;
+    expect(issued.leadId).toBe(ALICE_LEAD);
+    expect(issued.purpose).toBe('lead');
+    expect(issued.expiresAt.getTime() - NOW.getTime()).toBe(86_400_000);
+  });
+
+  it('confirming with the emailed token erases the data (AC2)', async () => {
+    const { service, world } = setup();
+    const out = await service.requestErasure(ALICE_TOKEN);
+    const token = decodeURIComponent(REQ_RE.exec(world.erasureEmails[0]!.confirmUrl)![2]!);
+    const done = await service.confirmErasure(token, out.requestId);
+    expect(done.status).toBe('completed');
+    expect(done.deletedLeads).toBe(1);
+    expect(world.leads.map((l) => l.id)).toEqual([BOB_LEAD]);
+    // The emailed link dies with the erasure (revoked like every other link).
+    const reuse = await service.exportMyData(token).catch((e: unknown) => e);
+    expect((reuse as HttpError).status).toBe(401);
+  });
+
+  it('no token or email appears in audit rows or logs (AC3)', async () => {
+    const logs: string[] = [];
+    const spies = (['log', 'info', 'warn', 'error', 'debug'] as const).map((k) =>
+      vi.spyOn(console, k).mockImplementation((...a: unknown[]) => {
+        logs.push(a.map(String).join(' '));
+      }),
+    );
+    try {
+      const { service, world } = setup();
+      world.deliveries.push({
+        sent: false,
+        provider: 'log',
+        failureReason: 'boom',
+        emailError: 'delivery-failed',
+      });
+      await service.requestErasure(ALICE_TOKEN); // send fails -> warn logged
+      await service.requestErasure(ALICE_TOKEN); // resend succeeds
+      const tokens = [...world.issuedTokens.values()];
+      expect(tokens.length).toBeGreaterThan(0);
+      const haystack = [
+        ...logs,
+        ...world.audits.map((a) => `${a.action} ${a.detail ?? ''}`),
+      ].join('\n');
+      for (const secret of [...tokens, ALICE, ALICE_TOKEN]) {
+        expect(haystack).not.toContain(secret);
+      }
+      expect(world.audits.map((a) => a.detail)).toEqual([
+        'confirmation-email:not-sent',
+        'duplicate-suppressed,confirmation-email:sent',
+      ]);
+    } finally {
+      for (const s of spies) s.mockRestore();
+    }
+  });
+
+  it('a duplicate request re-sends at most once per cooldown', async () => {
+    let now = NOW;
+    const { service, world } = setup([], { clock: () => now });
+    const first = await service.requestErasure(ALICE_TOKEN);
+    expect(first.confirmationEmailSent).toBe(true);
+    // Inside the 60 s cooldown: same request back, no second email.
+    now = new Date(NOW.getTime() + 30_000);
+    const dup = await service.requestErasure(ALICE_TOKEN);
+    expect(dup.requestId).toBe(first.requestId);
+    expect(dup.confirmationEmailSent).toBe(false);
+    expect(world.erasureEmails).toHaveLength(1);
+    // After the cooldown: exactly one re-send, then the cooldown restarts.
+    now = new Date(NOW.getTime() + 61_000);
+    expect((await service.requestErasure(ALICE_TOKEN)).confirmationEmailSent).toBe(true);
+    expect((await service.requestErasure(ALICE_TOKEN)).confirmationEmailSent).toBe(false);
+    expect(world.erasureEmails).toHaveLength(2);
+    expect(world.requests).toHaveLength(1);
+    // Every email points at the one pending request.
+    for (const mail of world.erasureEmails) {
+      expect(REQ_RE.exec(mail.confirmUrl)![1]).toBe(first.requestId);
+    }
+  });
+
+  it('the hourly send budget caps re-sends even past the cooldown', async () => {
+    let now = NOW;
+    const { service, world } = setup([], { clock: () => now, maxSendsPerHour: 2 });
+    await service.requestErasure(ALICE_TOKEN);
+    now = new Date(NOW.getTime() + 61_000);
+    await service.requestErasure(ALICE_TOKEN);
+    now = new Date(NOW.getTime() + 122_000);
+    const third = await service.requestErasure(ALICE_TOKEN);
+    expect(third.confirmationEmailSent).toBe(false);
+    expect(world.erasureEmails).toHaveLength(2);
+  });
+
+  it('a failed send records the request, answers not-sent, and leaves the cooldown open for a retry', async () => {
+    const { service, world } = setup();
+    world.deliveries.push({
+      sent: false,
+      provider: 'log',
+      failureReason: 'boom',
+      emailError: 'delivery-failed',
+    });
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    try {
+      const out = await service.requestErasure(ALICE_TOKEN);
+      expect(out.confirmationEmailSent).toBe(false);
+      expect(world.requests).toHaveLength(1);
+      const retry = await service.requestErasure(ALICE_TOKEN);
+      expect(retry.confirmationEmailSent).toBe(true);
+      expect(world.erasureEmails).toHaveLength(2);
+    } finally {
+      warn.mockRestore();
+    }
+  });
+
+  it('a link-issue failure answers not-sent without sending (request still recorded)', async () => {
+    const { service, world } = setup();
+    world.issueFails = true;
+    const err = vi.spyOn(console, 'error').mockImplementation(() => {});
+    try {
+      const out = await service.requestErasure(ALICE_TOKEN);
+      expect(out.confirmationEmailSent).toBe(false);
+      expect(world.erasureEmails).toHaveLength(0);
+      expect(world.requests).toHaveLength(1);
+      expect(err.mock.calls.flat().join(' ')).not.toContain(ALICE);
+    } finally {
+      err.mockRestore();
+    }
+  });
+
+  it('unauthenticated and partner-token requests send nothing', async () => {
+    const { service, world } = setup();
+    await service.requestErasure(undefined).catch(() => undefined);
+    await service.requestErasure(PARTNER_TOKEN).catch(() => undefined);
+    expect(world.erasureEmails).toHaveLength(0);
+    expect(world.issuedTokens.size).toBe(0);
   });
 });
 

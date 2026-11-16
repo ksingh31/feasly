@@ -111,6 +111,13 @@ export interface ErasureRequestResponse {
   /** Draft copy until the lawyer approves. */
   readonly consequences: readonly string[];
   readonly createdAt: string;
+  /**
+   * #806: whether a confirmation email (link to
+   * `/privacy/confirm/{requestId}#token=…`) was sent by THIS call. False on a
+   * duplicate request inside the resend cooldown, when the hourly send budget
+   * is spent, or when delivery failed — the request itself is still recorded.
+   */
+  readonly confirmationEmailSent: boolean;
 }
 
 /** POST /api/v1/privacy/erase-requests/{id}/confirm — executes erasure. */

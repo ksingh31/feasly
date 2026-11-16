@@ -14,6 +14,7 @@ import {
   ConfirmErasure,
   DownloadMyData,
   RequestErasure,
+  ResendErasureEmail,
   ResetPrivacy,
   SendPrivacyLink,
 } from './privacy.actions';
@@ -31,6 +32,12 @@ export type ConfirmStatus =
   | 'blocked'
   | 'invalid'
   | PrivacyFailure;
+/**
+ * #806: did the API email the confirmation link for the pending request?
+ * `not-sent` covers a duplicate inside the resend cooldown, a spent send
+ * budget, or a failed delivery — the API doesn't say which.
+ */
+export type EraseEmailStatus = 'unknown' | 'sent' | 'not-sent' | 'resending';
 export type LinkStatus = 'idle' | 'working' | 'sent' | 'rate-limited' | 'error';
 
 /**
@@ -44,6 +51,7 @@ export interface PrivacyStateModel {
   eraseRequestId: string | null;
   /** Draft consequences statements from the API (shown before confirming). */
   consequences: readonly string[];
+  eraseEmail: EraseEmailStatus;
   confirm: ConfirmStatus;
   link: LinkStatus;
 }
@@ -53,6 +61,7 @@ const defaults: PrivacyStateModel = {
   erase: 'idle',
   eraseRequestId: null,
   consequences: [],
+  eraseEmail: 'unknown',
   confirm: 'idle',
   link: 'idle',
 };
@@ -116,6 +125,11 @@ export class PrivacyState {
   }
 
   @Selector()
+  static eraseEmail(state: PrivacyStateModel): EraseEmailStatus {
+    return state.eraseEmail;
+  }
+
+  @Selector()
   static confirm(state: PrivacyStateModel): ConfirmStatus {
     return state.confirm;
   }
@@ -155,6 +169,7 @@ export class PrivacyState {
           erase: 'pending',
           eraseRequestId: res.requestId,
           consequences: res.consequences,
+          eraseEmail: res.confirmationEmailSent ? 'sent' : 'not-sent',
         }),
       ),
       map(() => undefined),
@@ -165,9 +180,34 @@ export class PrivacyState {
     );
   }
 
+  @Action(ResendErasureEmail)
+  resendErasureEmail(ctx: StateContext<PrivacyStateModel>, action: ResendErasureEmail): Observable<void> {
+    // Stays on the pending panel; only the email status changes.
+    ctx.patchState({ eraseEmail: 'resending' });
+    return this.api.requestErasure(action.reportToken).pipe(
+      tap((res) =>
+        ctx.patchState({
+          eraseRequestId: res.requestId,
+          consequences: res.consequences,
+          eraseEmail: res.confirmationEmailSent ? 'sent' : 'not-sent',
+        }),
+      ),
+      map(() => undefined),
+      catchError((err: unknown) => {
+        const failure = toPrivacyFailure(err);
+        ctx.patchState(
+          failure === 'expired'
+            ? { erase: 'expired', eraseEmail: 'unknown' }
+            : { erase: failure, eraseEmail: 'not-sent' },
+        );
+        return of(undefined);
+      }),
+    );
+  }
+
   @Action(CancelErasure)
   cancelErasure(ctx: StateContext<PrivacyStateModel>): void {
-    ctx.patchState({ erase: 'idle', eraseRequestId: null, consequences: [] });
+    ctx.patchState({ erase: 'idle', eraseRequestId: null, consequences: [], eraseEmail: 'unknown' });
   }
 
   @Action(ConfirmErasure)
@@ -175,7 +215,13 @@ export class PrivacyState {
     ctx.patchState({ confirm: 'working' });
     return this.api.confirmErasure(action.reportToken, action.requestId).pipe(
       tap(() => {
-        ctx.patchState({ confirm: 'done', erase: 'idle', eraseRequestId: null, consequences: [] });
+        ctx.patchState({
+          confirm: 'done',
+          erase: 'idle',
+          eraseRequestId: null,
+          consequences: [],
+          eraseEmail: 'unknown',
+        });
         // Erased server-side: drop every local copy (wizard, lead, report + its token).
         ctx.dispatch([new ClearReport(), new ClearLead(), new ResetWizard(), new ClearComparison()]);
       }),

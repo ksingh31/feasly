@@ -224,6 +224,7 @@ These need owner input and are not implemented yet:
 | PUT | `/api/v1/admin/billing/invoices/{id}/payment-method` | admin | 300/min per session | live |
 | POST | `/api/v1/admin/billing/invoices` | admin | 300/min per session | live |
 | POST | `/api/v1/admin/community-stats/refresh` | admin | 10/min per session | live |
+| POST | `/api/v1/admin/neighbourhood-data/{provider}/refresh` | admin | 10/min per session | live |
 | GET | `/api/v1/admin/community-narratives` | admin | 300/min per session | live |
 | POST | `/api/v1/admin/community-narratives/regenerate` | admin | 10/min per session | live |
 | GET | `/api/v1/admin/usage` | admin | 300/min per session | planned |
