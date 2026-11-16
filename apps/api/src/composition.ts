@@ -598,6 +598,12 @@ import {
 } from './middleware/shared-rate-limit';
 import { createDrizzleRateLimitStore } from './services/rate-limit.store';
 import {
+  createBotChallengeGate,
+  type BotChallengeGate,
+  type ChallengeVerifier,
+} from './middleware/bot-challenge';
+import { createTurnstileVerifier } from './services/turnstile.service';
+import {
   createDrizzleCityDataCacheStore,
   type CityDataCacheStore,
 } from './services/city-data-cache.store';
@@ -858,6 +864,8 @@ export interface CompositionOptions {
   readonly estimateStore?: EstimateStore;
   /** #729: shared rate-limit counters (default: Postgres via Drizzle). */
   readonly rateLimitStore?: SharedCounterStore;
+  /** #788: Turnstile verifier seam (default: siteverify over HTTPS). */
+  readonly challengeVerifier?: ChallengeVerifier;
   /** #756: shared City-data cache (tests inject an in-memory fake). */
   readonly cityDataCacheStore?: CityDataCacheStore;
   readonly leadStore?: LeadStore;
@@ -1015,9 +1023,32 @@ export function createComposition(
         maxTrackedKeys: config.rateLimit.maxTrackedKeys,
       }),
     });
+  // #788 (owner decision on #750): invisible bot challenge, required only
+  // from an IP that tripped the lead or estimate per-IP limiter, for
+  // BOT_CHALLENGE_WINDOW_MS after the trip. Dormant (undefined) until the
+  // Turnstile site key AND secret are configured — then the pipelines
+  // behave exactly as before #788.
+  const botChallenge: BotChallengeGate | undefined = config.botChallenge.enabled
+    ? createBotChallengeGate({
+        siteKey: config.botChallenge.siteKey,
+        trips: createSharedCooldown({
+          store: rateLimitStore,
+          scope: 'bot-challenge:ip',
+          cooldownMs: config.botChallenge.windowMs,
+        }),
+        verifier:
+          options.challengeVerifier ??
+          createTurnstileVerifier({
+            secretKey: config.botChallenge.secretKey,
+            verifyUrl: config.botChallenge.verifyUrl,
+            timeoutMs: config.botChallenge.verifyTimeoutMs,
+          }),
+      })
+    : undefined;
   const leadRateLimiter: AnyRateLimiter = sharedLimiter('lead:ip', config.lead.rateLimit);
   const leadPipeline: RequestPipeline = createRequestPipeline({
     rateLimiter: leadRateLimiter,
+    challenge: botChallenge,
     csrf,
     logger: options.logger,
   });
@@ -1046,6 +1077,7 @@ export function createComposition(
         label: 'tenant',
       },
     ],
+    challenge: botChallenge,
     csrf,
     logger: options.logger,
   });
@@ -1181,6 +1213,7 @@ export function createComposition(
     appBaseUrl: config.email.appBaseUrl,
     dedupWindowDays: config.lead.dedupWindowDays,
     magicLinkTtlSeconds: config.auth.magicLinkTtlSeconds,
+    minSubmitMs: config.lead.minSubmitMs,
     builderConfigs: builderConfigService,
     builders: builderService,
   });

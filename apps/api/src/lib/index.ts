@@ -8,3 +8,4 @@ export * from './contrast';
 export * from './geo';
 export * from './legal-copy';
 export * from './http-cache';
+export * from './bot-timing';

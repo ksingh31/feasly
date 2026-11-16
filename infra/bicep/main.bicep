@@ -77,6 +77,9 @@ param functionMaximumInstanceCount int = 10
 @description('Log Analytics daily ingestion cap in GB, as a string because Bicep has no float literal (#733, owner decision 2026-11-15: 0.1).')
 param logAnalyticsDailyQuotaGb string = '0.1'
 
+@description('#788: public Cloudflare Turnstile site key (free tier, managed/invisible). Empty = the bot challenge stays dormant. Set it only after the secret feasly-<env>-turnstile-secret-key exists in Key Vault.')
+param turnstileSiteKey string = ''
+
 @description('Principal type of the deployer identity (CI uses the OIDC managed identity)')
 // --- Naming ---
 // Globally-unique resource types (SWA, Function App, Postgres, Key Vault, Storage)
@@ -106,6 +109,11 @@ var unsubscribeTokenSecretUri = 'https://${keyVaultName}${az.environment().suffi
 // secret would overwrite his value). The URI below only references it; the
 // secret must exist in the vault before the app first resolves the
 // Key Vault reference at startup.
+// #788: Turnstile secret key. Karan provisions it in Key Vault himself (NOT
+// deployed by Bicep). Referenced only once `turnstileSiteKey` is set, so an
+// absent secret can never leave an unresolved reference in app settings.
+var turnstileSecretName = 'feasly-${environment}-turnstile-secret-key'
+var turnstileSecretKeySecretUri = 'https://${keyVaultName}${az.environment().suffixes.keyvaultDns}/secrets/${turnstileSecretName}'
 var narrativeSecretName = 'feasly-${environment}-narrative-api-key'
 var narrativeApiKeySecretUri = 'https://${keyVaultName}${az.environment().suffixes.keyvaultDns}/secrets/${narrativeSecretName}'
 
@@ -296,6 +304,9 @@ module functionApp 'modules/function-app.bicep' = {
     // and billing stays dormant (BILLING_NOT_CONFIGURED).
     stripeSecretKeySecretUri: environment == 'dev' ? stripeSecretKeySecretUri : ''
     stripeWebhookSecretUri: environment == 'dev' ? stripeWebhookSecretSecretUri : ''
+    // #788: invisible bot challenge — dormant until the site key is set.
+    turnstileSiteKey: turnstileSiteKey
+    turnstileSecretKeySecretUri: empty(turnstileSiteKey) ? '' : turnstileSecretKeySecretUri
     // #753: no Stripe account yet, so dev runs the simulated (Stripe-shaped,
     // no real money) payment provider. Explicit and dev-only: elsewhere the
     // setting is omitted and the app defaults to `stripe` (fail closed).
