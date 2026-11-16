@@ -80,7 +80,7 @@ export async function dispatchAuditFinance(
   const pipeline = opts.csv ? app.financeExportPipeline : app.requestPipeline;
 
   const result = await pipeline.run(
-    { headers, clientIp: clientIpFromHeaders(req.headers) },
+    { headers, clientIp: clientIpFromHeaders(req.headers), method: req.method },
     async () => {
       await middleware.enforceRoutePermissions(
         app.permissionGuard,
