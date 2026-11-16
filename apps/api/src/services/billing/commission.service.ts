@@ -880,7 +880,7 @@ export function createCommissionService(
 
   async function notifyBuilderRecipient(
     invoice: CommissionInvoiceRecord,
-    kind: 'invoice_ready' | 'payment_received' | 'payment_failed',
+    kind: 'invoice_ready' | 'payment_received' | 'payment_failed' | 'payment_action_required',
     to: string | null,
   ): Promise<void> {
     // Short public reference: first 8 of the uuid (stable, non-sensitive).
