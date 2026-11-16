@@ -384,6 +384,9 @@ export const DEFAULT_APP_CONFIG: AppConfig = {
         'You will describe your renovation — type, area, and finishes — on the next step.',
       renoComingSoonBadge: 'Coming soon',
       renoNewBuildCta: 'Start a new-build estimate instead',
+      steerRenovationReason: 'This home was built in {year}, so renovation is usually the better fit.',
+      steerNewBuildReason: 'This home was built in {year}, so a new build is usually worth a look.',
+      steerOverrideCta: 'Estimate a new build anyway',
       renoScopePendingTitle: 'Renovation scope',
       renoScopePendingBody:
         'Renovation scope inputs arrive in the next build. Your project type is saved — come back soon.',

@@ -15,10 +15,23 @@ export class SelectProperty {
   constructor(public readonly property: PropertyRecord) {}
 }
 
-/** NGXS action: user chose a project type on the scope step. */
+/**
+ * NGXS action: user chose a project type on the scope step. `null` clears
+ * the choice (#755: an unknown-year home shows both types equally).
+ */
 export class ChooseProjectType {
   static readonly type = '[Wizard] Choose project type';
-  constructor(public readonly projectType: ProjectType) {}
+  constructor(public readonly projectType: ProjectType | null) {}
+}
+
+/**
+ * NGXS action (#755): the scope step applied the API's home-age steer for
+ * this property (once per property, so a later explicit pick survives
+ * refresh/back).
+ */
+export class MarkSteerApplied {
+  static readonly type = '[Wizard] Mark steer applied';
+  constructor(public readonly addressKey: string) {}
 }
 
 /** NGXS action: details-step inputs changed. */

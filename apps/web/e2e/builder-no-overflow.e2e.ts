@@ -18,7 +18,7 @@ import { expect, test } from '@playwright/test';
 import type { Page } from '@playwright/test';
 import { mkdirSync } from 'node:fs';
 import { join } from 'node:path';
-import { mockBuilderApi } from './builder-api-fixtures';
+import { INVOICES, mockBuilderApi } from './builder-api-fixtures';
 import { BUILDER_E2E_ROUTES } from './builder-routes';
 import type { BuilderE2eRoute } from './builder-routes';
 
@@ -115,6 +115,18 @@ test.describe('builder portal: no horizontal overflow (#536)', () => {
       await settle(page, '[role="dialog"]');
       // Viewport capture: the drawer is fixed, a full-page shot misleads.
       await assertNoOverflowAndA11y(page, `builder-lead-drawer-${viewport.label}`, false);
+      expect(api.unhandled, 'API calls with no fixture').toEqual([]);
+    });
+
+    // #764: a GST-taxed invoice — subtotal, "GST (5%)" and total rows.
+    test(`/builder/invoices taxed invoice drawer open @ ${viewport.label}`, async ({ page }) => {
+      await page.setViewportSize({ width: viewport.width, height: viewport.height });
+      await seedConsent(page);
+      const api = await mockBuilderApi(page, { signedIn: true });
+      await page.goto(`/builder/invoices?open=${INVOICES[0]!.id}`);
+      await settle(page, '[data-testid="invoice-total"]');
+      await expect(page.locator('[data-testid="invoice-tax"]')).toContainText('GST (5%)');
+      await assertNoOverflowAndA11y(page, `builder-invoice-drawer-gst-${viewport.label}`, false);
       expect(api.unhandled, 'API calls with no fixture').toEqual([]);
     });
   }

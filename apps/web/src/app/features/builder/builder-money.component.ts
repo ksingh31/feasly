@@ -207,10 +207,14 @@ export function buildKpis(
   const next = o.nextCharge;
   const nextDate = next ? formatEdmontonMediumDate(next.chargeAt) : '';
   const commission = o.planType === 'commission';
+  // #764: outstanding and next-charge amounts include tax (server-summed);
+  // say so when tax is on. Untaxed builders see the labels unchanged.
+  const inclTax = (label: string): string =>
+    o.tax ? copy.moneyKpiInclTax.replace('{label}', label).replace('{tax}', o.tax.label) : label;
   return [
     {
       key: 'outstanding',
-      label: copy.moneyKpiOutstanding,
+      label: inclTax(copy.moneyKpiOutstanding),
       value: formatCentsToWholeCad(o.outstandingCents),
       sub:
         o.outstandingCount === 1
@@ -219,7 +223,7 @@ export function buildKpis(
     },
     {
       key: 'next',
-      label: copy.moneyKpiNextCharge,
+      label: inclTax(copy.moneyKpiNextCharge),
       value: next ? formatCentsToWholeCad(next.amountCents) : copy.moneyKpiNextChargeNone,
       sub: !next
         ? copy.moneyKpiNextChargeNoneSub
