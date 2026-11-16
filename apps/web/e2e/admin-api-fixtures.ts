@@ -439,6 +439,7 @@ const FUNNEL_COUNTS: ReadonlyArray<readonly [string, string, number]> = [
   ['address', 'Address selected', 4820],
   ['preview', 'Preview', 3110],
   ['gate', 'Gate view', 2400],
+  ['submit', 'Gate submit', 1080],
   ['convert', 'Gate convert', 912],
   ['report', 'Report open', 760],
 ];

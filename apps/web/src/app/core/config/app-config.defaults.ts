@@ -1938,7 +1938,7 @@ export const DEFAULT_APP_CONFIG: AppConfig = {
       },
       funnels: {
         title: 'Funnel dashboard',
-        subtitle: 'Landing → address → preview → gate → convert → report. Numbers only — no personal data on this page.',
+        subtitle: 'Landing → address → preview → gate → submit → convert → report. Numbers only — no personal data on this page.',
         fromLabel: 'From',
         toLabel: 'To',
         tenantLabel: 'Traffic',
