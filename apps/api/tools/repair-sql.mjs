@@ -12,8 +12,27 @@
  * this repair script didn't cover it. `test/schema-repair-coverage.test.ts`
  * asserts EVERY pgTable in the Drizzle schema appears here — add new tables
  * to this file when you add them to the schema.
+ *
+ * MERGE-CONFLICT-FREE APPENDS (#900): new repair blocks go in their own file
+ * under `tools/repair-sql.d/` (`<issue>-<slug>.sql`), not at the end of the
+ * core string below — two branches appending here was a constant source of
+ * conflicts. Fragments run after the core in file-name order, but each must
+ * be ORDER-INDEPENDENT: idempotent, and depending only on the migrations and
+ * the core, never on another fragment (test/repair-sql-fragments.test.ts
+ * applies them in reverse order to prove it). The core is idempotent block by
+ * block too, so if a conflict does happen in it, keep both sides.
  */
-export const REPAIR_SQL = `
+import { readFileSync, readdirSync } from 'node:fs';
+
+const FRAGMENT_DIR = new URL('./repair-sql.d/', import.meta.url);
+
+/** Order-independent repair blocks, one file each (sorted by name). */
+export const REPAIR_FRAGMENTS = readdirSync(FRAGMENT_DIR)
+  .filter((name) => name.endsWith('.sql'))
+  .sort()
+  .map((name) => ({ name, sql: readFileSync(new URL(name, FRAGMENT_DIR), 'utf8') }));
+
+export const REPAIR_CORE_SQL = `
 CREATE TABLE IF NOT EXISTS "leads" (
 
 	"id" uuid PRIMARY KEY NOT NULL,
@@ -1132,19 +1151,10 @@ SET "tenant_key" = b."tenant_key"
 FROM "builders" b
 WHERE "leads"."builder_id" = b."id"
   AND ("leads"."tenant_key" IS NULL OR "leads"."tenant_key" <> b."tenant_key");
-
--- #888: builder partner seed guard. Mirrors migration 0055 exactly (same
--- fixed UUID): Elite Craft Builders is the current partner. A no-op when
--- the row already exists — an admin's later edits (deactivate, reorder,
--- rename) are never overwritten.
-INSERT INTO "builder_partners"
-  ("id", "builder_id", "name", "website_url", "display_order", "active")
-SELECT
-  '3fc7bb9f-e00b-4028-9255-e01730fd17c9',
-  (SELECT b."id" FROM "builders" b WHERE b."tenant_key" = 'elite-craft-builders'),
-  'Elite Craft Builders',
-  'https://elitecraftbuilders.com',
-  0,
-  true
-ON CONFLICT ("id") DO NOTHING;
 `;
+
+/** Core + every fragment: what tools/migrate.mjs runs after drizzle-kit. */
+export const REPAIR_SQL = [
+  REPAIR_CORE_SQL,
+  ...REPAIR_FRAGMENTS.map((f) => `-- tools/repair-sql.d/${f.name}\n${f.sql}`),
+].join('\n');
