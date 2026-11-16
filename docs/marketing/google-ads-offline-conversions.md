@@ -27,6 +27,14 @@ The values come from the visitor's first load, are sent with the gate submit
 mirrored to the Sheets export. Values that fail the length check (100 chars)
 or the PII check (`@`, `$`, query-string characters) are stored as NULL.
 
+**One-time ops step when #814 deploys:** the Sheets sync only writes data rows
+(row 2 down); it never writes the header row. On the live lead Sheet, add the
+six labels `utm_source`, `utm_medium`, `utm_campaign`, `utm_term`,
+`utm_content`, `click_id_type` to cells **U1:Z1** by hand (the order of
+`SHEET_HEADERS` in `apps/api/src/services/sheets/google-sheets-client.ts`).
+Until then the values land under blank headers, and anything that reads these
+columns by name — including this upload — won't find them.
+
 ## Upload format
 
 Google Ads offers two ways to import offline conversions. Download the current
