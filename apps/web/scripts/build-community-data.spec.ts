@@ -10,6 +10,7 @@ import { mkdtempSync, readFileSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { beforeEach, describe, expect, it } from 'vitest';
+import { PLACEHOLDER_COST_DATA } from '@feasly/cost-engine';
 import {
   ageInDays,
   cachedSelectionHash,
@@ -139,6 +140,19 @@ describe('community-selection.json', () => {
     expect(loadConfig([], a).selectionHash).not.toBe(loadConfig([], b).selectionHash);
     expect(loadConfig([], a).selectionHash).toBe(loadConfig([], a).selectionHash);
     expect(loadConfig(['--force'], a).force).toBe(true);
+  });
+
+  it('loadConfig labels the data with the bundled engine version, never a literal', () => {
+    const a = join(workdir, 'a.json');
+    writeFileSync(a, JSON.stringify({ defaultCity: 'calgary', cities: { calgary: BASE_SELECTION } }));
+    const saved = process.env['COST_DATA_VERSION'];
+    delete process.env['COST_DATA_VERSION'];
+    try {
+      expect(loadConfig([], a).costDataVersion).toBe(PLACEHOLDER_COST_DATA.version);
+      expect(loadConfig([], a).costDataVersion).not.toMatch(/unclibrated/);
+    } finally {
+      if (saved !== undefined) process.env['COST_DATA_VERSION'] = saved;
+    }
   });
 });
 
@@ -326,13 +340,13 @@ const ROW: CommunityAggregate = {
   sector: 'CENTRE',
   residential: { count: 3100, avgAssessedValue: 980001, avgLotSqft: 8000 },
 };
-const WRITE_CFG = { costDataVersion: 'v0.1.0-unclibrated', selectionHash: 'abcdef0123456789' };
+const WRITE_CFG = { costDataVersion: 'v0.4.1-uncalibrated', selectionHash: 'abcdef0123456789' };
 
 describe('writeAggregates', () => {
   it('writes schema-valid JSON with the cost_data_version and selection hash', () => {
     const out = join(workdir, 'community-aggregates.json');
     const file = writeAggregates([ROW], WRITE_CFG, out);
-    expect(file.costDataVersion).toBe('v0.1.0-unclibrated');
+    expect(file.costDataVersion).toBe('v0.4.1-uncalibrated');
     expect(file.communities).toHaveLength(1);
     const parsed = communityAggregatesFileSchema.safeParse(JSON.parse(readFileSync(out, 'utf8')));
     expect(parsed.success).toBe(true);
@@ -362,7 +376,7 @@ describe('scanDenyList', () => {
       scanDenyList(
         JSON.stringify({
           generatedAt: '2026-09-24T00:00:00.000Z',
-          costDataVersion: 'v0.1.0-unclibrated',
+          costDataVersion: 'v0.4.1-uncalibrated',
           selectionHash: 'abcdef0123456789',
           communities: [ROW],
         }),
@@ -378,7 +392,7 @@ describe('ageInDays', () => {
   function writeAged(daysAgo: number): string {
     const out = join(workdir, 'community-aggregates.json');
     const generatedAt = new Date(Date.now() - daysAgo * 86_400_000).toISOString();
-    writeFileSync(out, JSON.stringify({ generatedAt, costDataVersion: 'v0.1.0-unclibrated', communities: [ROW] }));
+    writeFileSync(out, JSON.stringify({ generatedAt, costDataVersion: 'v0.4.1-uncalibrated', communities: [ROW] }));
     return out;
   }
 
