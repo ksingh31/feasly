@@ -60,8 +60,19 @@ import { createTestDb, type TestDb } from './pglite-db';
 const fakeApp: {
   invoiceReviewerService: unknown;
   cardExpiryReminderService: unknown;
+  commissionService: unknown;
 } = {
   invoiceReviewerService: null,
+  // #892: the timer also sweeps stale pending refunds; a no-op by default.
+  commissionService: {
+    sweepStalePendingRefunds: async () => ({
+      checked: 0,
+      adopted: 0,
+      failed: 0,
+      unresolved: 0,
+      errors: [],
+    }),
+  },
   // #880: the timer also runs the card reminder; a no-op unless a test
   // installs the real one.
   cardExpiryReminderService: {
@@ -76,6 +87,7 @@ const fakeApp: {
   },
 };
 const NOOP_REMINDERS = fakeApp.cardExpiryReminderService;
+const NOOP_SWEEP = fakeApp.commissionService;
 
 vi.mock('../src/index', () => ({
   createComposition: () => fakeApp,
@@ -134,6 +146,7 @@ function fakeStripe(failOnAmount?: number): StripeService {
     cancelSubscription: async (id) => ({ id }),
     retrievePaymentIntent: async (id: string) => ({ id, status: 'processing' }),
     getPaymentIntentConfirmation: async (id: string) => ({ id, status: 'requires_action', clientSecret: `${id}_secret_test` }),
+    findRefundByMetadata: async () => null,
     refundPaymentIntent: async (paymentIntentId) => ({
       id: 're_test',
       status: 'succeeded',
@@ -552,5 +565,66 @@ describe('invoice-reviewer-timer adapter — card-expiry reminder (#880)', () =>
     expect(lines().join('\n')).toContain('CARD REMINDER FAILED');
     // The review cycle still ran and logged first.
     expect(lines()[0]).toContain('cycle complete');
+  });
+});
+
+describe('invoice-reviewer timer — stale pending refund sweep (#892)', () => {
+  const okReview = () => ({
+    runReviewCycle: vi.fn().mockResolvedValue({
+      finalized: 0,
+      failed: 0,
+      skipped: 0,
+      reconciledPaid: 0,
+      reconciledFailed: 0,
+      stillPending: 0,
+      retried: 0,
+      overdueReminded: 0,
+      errors: [],
+    }),
+  });
+
+  it('runs the sweep with the run time and logs aggregates only', async () => {
+    fakeApp.invoiceReviewerService = okReview();
+    const sweep = vi.fn().mockResolvedValue({
+      checked: 3,
+      adopted: 1,
+      failed: 1,
+      unresolved: 1,
+      errors: [{ refundId: 'r-1', message: 'lookup failed' }],
+    });
+    fakeApp.commissionService = { sweepStalePendingRefunds: sweep };
+    const { context, lines } = makeContext();
+    await invoiceReviewerTimerHandler(context);
+    expect(sweep).toHaveBeenCalledWith(expect.any(Date));
+    const log = lines().join('\n');
+    expect(log).toContain(
+      'pending refund sweep complete (checked=3 adopted=1 failed=1 unresolved=1 errors=1)',
+    );
+    expect(log).toContain('refund sweep row failed: lookup failed');
+    fakeApp.commissionService = NOOP_SWEEP;
+  });
+
+  it('logs REFUND SWEEP FAILED and rethrows; the other passes still run', async () => {
+    const review = okReview();
+    fakeApp.invoiceReviewerService = review;
+    const reminders = vi.fn().mockResolvedValue({
+      checked: 0,
+      reminded: 0,
+      emailsSent: 0,
+      alreadyReminded: 0,
+      skipped: 0,
+      errors: [],
+    });
+    fakeApp.cardExpiryReminderService = { runReminderCycle: reminders };
+    fakeApp.commissionService = {
+      sweepStalePendingRefunds: vi.fn().mockRejectedValue(new Error('relation "billing_refunds" does not exist')),
+    };
+    const { context, lines } = makeContext();
+    await expect(invoiceReviewerTimerHandler(context)).rejects.toThrow('billing_refunds');
+    expect(lines().join('\n')).toContain('REFUND SWEEP FAILED');
+    expect(review.runReviewCycle).toHaveBeenCalledTimes(1);
+    expect(reminders).toHaveBeenCalledTimes(1);
+    fakeApp.cardExpiryReminderService = NOOP_REMINDERS;
+    fakeApp.commissionService = NOOP_SWEEP;
   });
 });

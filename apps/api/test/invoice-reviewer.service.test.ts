@@ -96,6 +96,7 @@ function fakeStripe(
     cancelSubscription: async (id) => ({ id }),
     retrievePaymentIntent: retrieve,
     getPaymentIntentConfirmation: async (id: string) => ({ id, status: 'requires_action', clientSecret: `${id}_secret_test` }),
+    findRefundByMetadata: async () => null,
     refundPaymentIntent: async (paymentIntentId) => ({ id: 're_test', status: 'succeeded' }),
     verifyWebhook: () => {
       throw new Error('not used');

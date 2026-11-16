@@ -816,6 +816,11 @@ const EnvSchema = z.object({
   // reconciled against Stripe by the daily reviewer and flagged on
   // /admin/webhooks. 24h default (open owner question on #711 — tunable).
   BILLING_SETTLEMENT_THRESHOLD_HOURS: z.coerce.number().int().positive().default(24),
+  // #892: a card refund still 'pending' this long after it was claimed is
+  // swept by the daily reviewer: looked up on Stripe by its refund-row
+  // metadata (adopted when found) and alerted to ops when unresolved.
+  // Stripe forgets idempotency keys after ~24h, so 24h is the default.
+  BILLING_PENDING_REFUND_ALERT_HOURS: z.coerce.number().int().positive().default(24),
   // #718 dunning: default per-invoice grace period in days (admin can edit
   // it per invoice). Card invoices: days between a failed charge and the
   // next automatic retry. Manual-method invoices: days after the review
@@ -1462,6 +1467,11 @@ export interface BillingConfig {
    * webhooks page flags it (#711). Default 24.
    */
   readonly settlementThresholdHours?: number;
+  /**
+   * #892: hours a card refund may stay 'pending' before the daily sweep
+   * looks it up on the provider and alerts ops if unresolved. Default 24.
+   */
+  readonly pendingRefundAlertHours?: number;
   /**
    * #718: default per-invoice dunning grace period in days (7). Card
    * invoices retry this long after a failed charge; manual-method invoices
@@ -2521,6 +2531,7 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): ApiConfig {
       reportingSlaDays: e.BILLING_REPORTING_SLA_DAYS,
       maxChargeRetries: e.BILLING_MAX_CHARGE_RETRIES,
       settlementThresholdHours: e.BILLING_SETTLEMENT_THRESHOLD_HOURS,
+      pendingRefundAlertHours: e.BILLING_PENDING_REFUND_ALERT_HOURS,
       dunningGraceDays: e.BILLING_DUNNING_GRACE_DAYS,
       tax: buildTaxConfig(e),
       ...(e.BILLING_STATEMENT_DESCRIPTOR
