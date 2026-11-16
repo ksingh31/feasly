@@ -627,6 +627,33 @@ describe('Stripe chargebacks + dashboard refunds (#719)', () => {
     expect(failedEmails).toEqual([]);
   });
 
+  it('#873: a lost chargeback on an invoice paid on its last allowed retry goes to manual collection', async () => {
+    const { invoiceId, piId } = await paidInvoice();
+    // Paid on the final retry (default BILLING_MAX_CHARGE_RETRIES = 3):
+    // retryCharge would refuse it, so it must not be re-opened for dunning.
+    await testDb.db
+      .update(commissionInvoices)
+      .set({ retryCount: 3 })
+      .where(eq(commissionInvoices.id, invoiceId));
+    await deliver(disputeEvent('charge.dispute.created', piId));
+    await deliver(disputeEvent('charge.dispute.closed', piId, { status: 'lost' }));
+
+    const invoice = await commission.getById(invoiceId);
+    expect(invoice).toMatchObject({ status: 'paid', chargebackStatus: 'lost' });
+    expect(failedEmails).toEqual([]);
+    const rows = await invoiceAuditRows(invoiceId);
+    expect(rows.filter((r) => r.eventType === 'invoice.charge_failed')).toEqual([]);
+    const closedRow = rows.find((r) => r.eventType === 'invoice.chargeback_closed');
+    expect(closedRow?.payload).toMatchObject({
+      status: 'paid',
+      manualFollowUpRequired: true,
+      reason: 'charge_retries_exhausted',
+    });
+    const lostAlert = alerts.find((a) => a.title.includes('manual collection needed'));
+    expect(lostAlert?.summary).toContain('would be refused');
+    expect(lostAlert?.summary).not.toContain('Retry the charge from the dunning queue');
+  });
+
   it('#873: reopenAfterLostChargeback finishes a partly applied move once, then no-ops', async () => {
     const { invoiceId, piId } = await paidInvoice();
     await deliver(disputeEvent('charge.dispute.created', piId));

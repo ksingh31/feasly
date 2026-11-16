@@ -33,7 +33,7 @@
  * Only services and composition.ts may import from src/db/ — enforced by
  * test/boundaries.test.ts.
  */
-import { and, desc, eq, ilike, inArray, isNotNull, lte, ne, notExists, sql } from 'drizzle-orm';
+import { and, desc, eq, ilike, inArray, isNotNull, lt, lte, ne, notExists, sql } from 'drizzle-orm';
 import { randomUUID } from 'node:crypto';
 import type { BillingConfig } from '../../config';
 import type { AppDb } from '../../db/client';
@@ -313,8 +313,8 @@ export interface CommissionService {
   /**
    * #873 (owner decision 2026-11-15): Stripe closed a bank chargeback as
    * LOST, so the money went back to the builder but the commission is still
-   * owed. `paid → failed` (the dunning queue + admin retry / builder pay
-   * flow collect it again), one `invoice.charge_failed` audit row with
+   * owed. `paid → failed` (the dunning queue's admin retry or a manual
+   * mark-paid collect it again), one `invoice.charge_failed` audit row with
    * `source: 'chargeback_lost'`, and the builder's "payment reversed"
    * email. Only this path may move a paid invoice to failed.
    *
@@ -322,10 +322,16 @@ export interface CommissionService {
    * invoice already failed with no audit row for this dispute finishes the
    * audit + email; one that finds the audit row does nothing. Any other
    * status (void, disputed, …) is left alone → `reopened: false`.
+   *
+   * A paid invoice that already used every allowed charge retry
+   * (`BILLING_MAX_CHARGE_RETRIES`) is NOT re-opened: `retryCharge` would
+   * refuse it, and resetting `retryCount` would replay the old
+   * `…:retry:N` idempotency key. It stays paid → `{ reopened: false,
+   * retriesExhausted: true }` and the caller sends it to manual follow-up.
    */
   reopenAfterLostChargeback(
     input: LostChargebackReopenInput,
-  ): Promise<{ readonly reopened: boolean }>;
+  ): Promise<LostChargebackReopenResult>;
   /**
    * #712 webhook: payment_intent.requires_action — the bank wants the
    * builder to confirm the charge. `finalized → action_required` + the
@@ -435,6 +441,13 @@ export interface CommissionService {
       status?: string[];
     },
   ): Promise<CommissionInvoiceRecord[]>;
+}
+
+/** #873: the outcome of reopenAfterLostChargeback. */
+export interface LostChargebackReopenResult {
+  readonly reopened: boolean;
+  /** True when the invoice was left paid because no charge retry is left. */
+  readonly retriesExhausted?: boolean;
 }
 
 /** #873: what reopenAfterLostChargeback needs to key and audit the move. */
@@ -1835,10 +1848,13 @@ export function createCommissionService(
       return record;
     },
 
-    async reopenAfterLostChargeback(input): Promise<{ readonly reopened: boolean }> {
+    async reopenAfterLostChargeback(input): Promise<LostChargebackReopenResult> {
       // Not model-gated: a chargeback can close on an invoice issued before
       // a model switch, and the webhook must still settle it.
       const at = now();
+      // Same cap retryCharge enforces: an invoice with no retry left could
+      // never be re-collected from the dunning queue (#967 review).
+      const maxRetries = deps.billing.maxChargeRetries ?? 3;
       // One reopen per dispute, ever: if this dispute already wrote its
       // reopen audit row, a redelivery must not move the invoice again —
       // even when it has since been collected and is `paid` (#967 review).
@@ -1860,6 +1876,7 @@ export function createCommissionService(
           and(
             eq(commissionInvoices.id, input.invoiceId),
             eq(commissionInvoices.status, 'paid'),
+            lt(commissionInvoices.retryCount, maxRetries),
             notExists(alreadyReopened()),
           ),
         )
@@ -1872,6 +1889,16 @@ export function createCommissionService(
         const current = await db.query.commissionInvoices.findFirst({
           where: eq(commissionInvoices.id, input.invoiceId),
         });
+        if (
+          current !== undefined &&
+          current.status === 'paid' &&
+          current.retryCount >= maxRetries
+        ) {
+          const [already] = await alreadyReopened().limit(1);
+          // Re-collected after an earlier reopen: nothing to flag.
+          if (already !== undefined) return { reopened: false };
+          return { reopened: false, retriesExhausted: true };
+        }
         if (
           current === undefined ||
           current.status !== 'failed' ||
