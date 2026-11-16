@@ -484,6 +484,10 @@ exports[`route registry > exhaustive role x route permission matrix (auth/04 acc
     "super_admin",
     "admin",
   ],
+  "POST /api/v1/admin/neighbourhood-data/{provider}/refresh": [
+    "super_admin",
+    "admin",
+  ],
   "POST /api/v1/admin/ops/sheets-sync-now": [
     "super_admin",
     "admin",

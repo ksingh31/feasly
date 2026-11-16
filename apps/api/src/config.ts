@@ -154,6 +154,41 @@ const EnvSchema = z.object({
   COMMUNITY_STATS_ALERT_AFTER_FAILURES: z.coerce.number().int().positive().default(2),
   COMMUNITY_STATS_PRUNE_MIN_ROWS: z.coerce.number().int().positive().default(100),
 
+  // #773: neighbourhood data (Community Match epic). Each outside source is
+  // a provider interface; these pick the implementation (free now, paid
+  // later — config-only switch). 'none' writes nothing and calls nothing.
+  NEIGHBOURHOOD_SCHOOL_DIRECTORY_PROVIDER: z.enum(['calgary-open-data', 'none']).default('calgary-open-data'),
+  NEIGHBOURHOOD_SCHOOL_DESIGNATION_PROVIDER: z.enum(['none']).default('none'),
+  NEIGHBOURHOOD_SCHOOL_RATINGS_PROVIDER: z.enum(['none']).default('none'),
+  NEIGHBOURHOOD_REVIEWS_PROVIDER: z.enum(['none']).default('none'),
+  NEIGHBOURHOOD_AMENITIES_PROVIDER: z.enum(['calgary-open-data', 'none']).default('calgary-open-data'),
+  NEIGHBOURHOOD_COMMUTE_PROVIDER: z.enum(['straight-line', 'none']).default('straight-line'),
+  // City of Calgary open-data datasets behind the free implementations:
+  // Schools, Community Services, Community Points.
+  NEIGHBOURHOOD_SCHOOLS_DATASET_ID: z.string().min(1).default('fd9t-tdn2'),
+  NEIGHBOURHOOD_AMENITIES_DATASET_ID: z.string().min(1).default('x34e-bcjz'),
+  NEIGHBOURHOOD_COMMUNITY_POINTS_DATASET_ID: z.string().min(1).default('j9ps-fyst'),
+  // Established infill communities only (#690 rule): residential
+  // communities whose City "community structure" is one of these.
+  NEIGHBOURHOOD_COMMUNITY_CLASS: z.string().min(1).default('Residential'),
+  NEIGHBOURHOOD_COMMUNITY_STRUCTURES: z.string().min(1).default('INNER CITY,1950s,1960s/1970s'),
+  // Straight-line commute reference point (downtown core, City Hall).
+  NEIGHBOURHOOD_COMMUTE_DESTINATION_NAME: z.string().min(1).default('Downtown'),
+  NEIGHBOURHOOD_COMMUTE_DESTINATION_LAT: z.coerce.number().min(-90).max(90).default(51.0453),
+  NEIGHBOURHOOD_COMMUTE_DESTINATION_LNG: z.coerce.number().min(-180).max(180).default(-114.0581),
+  NEIGHBOURHOOD_HTTP_TIMEOUT_MS: z.coerce.number().int().positive().default(15_000),
+  // Upper bound on rows fetched per dataset in one refresh.
+  NEIGHBOURHOOD_MAX_ROWS: z.coerce.number().int().positive().default(50_000),
+  // Monthly schedule: a provider is due once its last success predates
+  // 00:00 UTC on this day of the current month. The timer ticks daily so a
+  // failed or interrupted run resumes the next day.
+  NEIGHBOURHOOD_REFRESH_DAY_OF_MONTH: z.coerce.number().int().min(1).max(28).default(1),
+  // One ops alert once a provider has been failing this many days.
+  NEIGHBOURHOOD_ALERT_AFTER_FAILURE_DAYS: z.coerce.number().int().positive().default(3),
+  // Per-address metrics: search radius, and how long a computed row is reused.
+  NEIGHBOURHOOD_LOT_RADIUS_M: z.coerce.number().int().positive().default(1_000),
+  NEIGHBOURHOOD_LOT_METRICS_TTL_MS: z.coerce.number().int().positive().default(2_592_000_000),
+
   // JWT session lifetime is provisional — Karan has not confirmed magic-link-only V1
   // or the session lifetime. Revisit when the login ADR lands (BE-4).
   JWT_TTL_SECONDS: z.coerce.number().int().positive().default(3_600),
@@ -1068,6 +1103,51 @@ export interface CommunityStatsRefreshConfig {
   readonly pruneMinRows: number;
 }
 
+/** #773: neighbourhood provider implementation names (config-selected). */
+export type SchoolDirectoryImpl = 'calgary-open-data' | 'none';
+export type SchoolDesignationImpl = 'none';
+export type SchoolRatingsImpl = 'none';
+export type ReviewsImpl = 'none';
+export type AmenitiesImpl = 'calgary-open-data' | 'none';
+export type CommuteImpl = 'straight-line' | 'none';
+
+/**
+ * Neighbourhood data (#773). Outside sources sit behind provider interfaces
+ * chosen here; a monthly refresh writes them to our tables and request
+ * paths only ever read those tables.
+ */
+export interface NeighbourhoodDataConfig {
+  readonly providers: {
+    readonly schoolDirectory: SchoolDirectoryImpl;
+    readonly schoolDesignation: SchoolDesignationImpl;
+    readonly schoolRatings: SchoolRatingsImpl;
+    readonly reviews: ReviewsImpl;
+    readonly amenities: AmenitiesImpl;
+    readonly commute: CommuteImpl;
+  };
+  /** City open-data endpoint (shared with property data). */
+  readonly socrataBaseUrl: string;
+  readonly schoolsDatasetId: string;
+  readonly amenitiesDatasetId: string;
+  readonly communityPointsDatasetId: string;
+  /** #690: residential class + established community structures. */
+  readonly communityClass: string;
+  readonly communityStructures: readonly string[];
+  readonly commuteDestination: {
+    readonly name: string;
+    readonly lat: number;
+    readonly lng: number;
+  };
+  readonly httpTimeoutMs: number;
+  readonly maxRows: number;
+  /** Day of the month (UTC) each provider becomes due. */
+  readonly refreshDayOfMonth: number;
+  /** Days of continuous failure before the one ops alert. */
+  readonly alertAfterFailureDays: number;
+  readonly lotRadiusM: number;
+  readonly lotMetricsTtlMs: number;
+}
+
 /**
  * Postgres backup freshness check (admin/06 `backup_missed`). The daily
  * timer queries ARM with the Function App's managed identity; a stale or
@@ -1217,6 +1297,7 @@ export interface ApiConfig {
   readonly sheets: SheetsConfig;
   readonly narrative: NarrativeConfig;
   readonly communityStatsRefresh: CommunityStatsRefreshConfig;
+  readonly neighbourhoodData: NeighbourhoodDataConfig;
   readonly backupCheck: BackupCheckConfig;
   readonly embed: EmbedConfig;
   readonly waitlist: WaitlistConfig;
@@ -1544,6 +1625,33 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): ApiConfig {
       minAssessmentCount: e.COMMUNITY_STATS_MIN_ASSESSMENTS,
       alertAfterConsecutiveFailures: e.COMMUNITY_STATS_ALERT_AFTER_FAILURES,
       pruneMinRows: e.COMMUNITY_STATS_PRUNE_MIN_ROWS,
+    },
+    neighbourhoodData: {
+      providers: {
+        schoolDirectory: e.NEIGHBOURHOOD_SCHOOL_DIRECTORY_PROVIDER,
+        schoolDesignation: e.NEIGHBOURHOOD_SCHOOL_DESIGNATION_PROVIDER,
+        schoolRatings: e.NEIGHBOURHOOD_SCHOOL_RATINGS_PROVIDER,
+        reviews: e.NEIGHBOURHOOD_REVIEWS_PROVIDER,
+        amenities: e.NEIGHBOURHOOD_AMENITIES_PROVIDER,
+        commute: e.NEIGHBOURHOOD_COMMUTE_PROVIDER,
+      },
+      socrataBaseUrl: e.SOCRATA_BASE_URL,
+      schoolsDatasetId: e.NEIGHBOURHOOD_SCHOOLS_DATASET_ID,
+      amenitiesDatasetId: e.NEIGHBOURHOOD_AMENITIES_DATASET_ID,
+      communityPointsDatasetId: e.NEIGHBOURHOOD_COMMUNITY_POINTS_DATASET_ID,
+      communityClass: e.NEIGHBOURHOOD_COMMUNITY_CLASS,
+      communityStructures: csvToList(e.NEIGHBOURHOOD_COMMUNITY_STRUCTURES),
+      commuteDestination: {
+        name: e.NEIGHBOURHOOD_COMMUTE_DESTINATION_NAME,
+        lat: e.NEIGHBOURHOOD_COMMUTE_DESTINATION_LAT,
+        lng: e.NEIGHBOURHOOD_COMMUTE_DESTINATION_LNG,
+      },
+      httpTimeoutMs: e.NEIGHBOURHOOD_HTTP_TIMEOUT_MS,
+      maxRows: e.NEIGHBOURHOOD_MAX_ROWS,
+      refreshDayOfMonth: e.NEIGHBOURHOOD_REFRESH_DAY_OF_MONTH,
+      alertAfterFailureDays: e.NEIGHBOURHOOD_ALERT_AFTER_FAILURE_DAYS,
+      lotRadiusM: e.NEIGHBOURHOOD_LOT_RADIUS_M,
+      lotMetricsTtlMs: e.NEIGHBOURHOOD_LOT_METRICS_TTL_MS,
     },
     backupCheck: {
       enabled: e.BACKUP_CHECK_ENABLED,
