@@ -235,6 +235,7 @@ These need owner input and are not implemented yet:
 | POST | `/api/v1/billing/simulated/confirm-setup` | builder-session | 100/min per session | live |
 | POST | `/api/v1/billing/simulated/authenticate` | builder-session | 100/min per session | live |
 | GET | `/api/v1/billing/card` | builder-session | 100/min per session | live |
+| DELETE | `/api/v1/billing/card` | builder-session | 100/min per session | live |
 | GET | `/api/v1/billing/commission-rate` | builder-session | 100/min per session | live |
 | GET | `/api/v1/builder/billing/overview` | builder-session | 100/min per session | live |
 | GET | `/api/v1/billing/payment-method` | builder-session | 100/min per session | live |

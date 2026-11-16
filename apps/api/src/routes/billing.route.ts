@@ -10,6 +10,9 @@
  *   save a card on file (commission model). Builder-gated; tenant-scoped.
  * - `GET /api/v1/billing/card` — builder reads their card-on-file status
  *   (brand/last4/expiry only, never the PAN). Builder-gated; tenant-scoped.
+ * - `DELETE /api/v1/billing/card` — builder admin removes the card on file
+ *   (#716). 409 while an unpaid invoice is set to be charged to it.
+ *   Builder-gated (`builder:billing` — 403 for members); tenant-scoped.
  * - `GET /api/v1/billing/invoices/{id}` — read a commission invoice.
  *   Builders see only their own tenant's invoices; admins see all.
  * - `GET /api/v1/billing/invoices/{id}/pdf` — the same invoice as a PDF
@@ -88,6 +91,10 @@ export interface BillingRoute {
   ): Promise<SetupIntentResponse>;
   /** GET /api/v1/billing/card */
   getCard(
+    headers: Record<string, string | string[] | undefined>,
+  ): Promise<CommissionCardStatus>;
+  /** DELETE /api/v1/billing/card (#716) */
+  removeCard(
     headers: Record<string, string | string[] | undefined>,
   ): Promise<CommissionCardStatus>;
   /** GET /api/v1/billing/invoices/{id} */
@@ -275,6 +282,13 @@ export function createBillingRoute(deps: BillingRouteDeps): BillingRoute {
     ): Promise<CommissionCardStatus> {
       const session = await requireBuilderSession(builderGuard, headers);
       return commissionCard.getCard(session.tenantKey);
+    },
+
+    async removeCard(
+      headers: Record<string, string | string[] | undefined>,
+    ): Promise<CommissionCardStatus> {
+      const session = await requireBuilderSession(builderGuard, headers);
+      return commissionCard.removeCard(session.tenantKey);
     },
 
     async getCommissionRate(
