@@ -2,7 +2,12 @@ import { describe, expect, it } from 'vitest';
 import type { BillingEvent, DisputeDetailResponse } from '@feasly/contracts';
 import {
   acceptConfirmOptions,
+  chargebackSummaryItems,
+  disputeAmountCents,
+  disputeReasonLabel,
   disputeEvidenceItems,
+  isChargeback,
+  stripeDisputeUrl,
   disputeTechnicalIds,
   disputeSlaChip,
   disputeTimeline,
@@ -182,5 +187,107 @@ describe('confirm copy', () => {
     const options = rejectConfirmOptions(DETAIL);
     expect(options.body).toContain('fresh 7-day window');
     expect(options.verb).toBe('Reject dispute');
+  });
+});
+
+describe('chargeback helpers (#872)', () => {
+  const CB: DisputeDetailResponse = {
+    ...DETAIL,
+    reason: 'fraudulent',
+    source: 'chargeback',
+    stripeDisputeId: 'dp_123',
+    stripeReason: 'fraudulent',
+    stripeStatus: 'needs_response',
+    amountCents: 990000,
+    evidenceDueAt: '2026-10-06T23:59:59.000Z',
+    evidenceDaysRemaining: 3,
+    outcome: null,
+    livemode: true,
+  };
+
+  it('treats an absent source as a builder dispute', () => {
+    expect(isChargeback(DETAIL)).toBe(false);
+    expect(isChargeback({ source: 'builder' })).toBe(false);
+    expect(isChargeback(CB)).toBe(true);
+  });
+
+  it('counts a chargeback down to the evidence deadline (calendar days)', () => {
+    expect(disputeSlaChip(CB)).toEqual({ key: 'on_track', label: 'Evidence due in 3 days' });
+    expect(disputeSlaChip({ ...CB, evidenceDaysRemaining: 1 }).label).toBe('Evidence due in 1 day');
+    expect(disputeSlaChip({ ...CB, evidenceDaysRemaining: 0 })).toEqual({ key: 'due_today', label: 'Evidence due today' });
+    expect(disputeSlaChip({ ...CB, evidenceDaysRemaining: -2, breached: true })).toEqual({
+      key: 'overdue',
+      label: 'Evidence overdue 2d',
+    });
+  });
+
+  it('falls back to the business-day countdown when the evidence countdown is missing', () => {
+    expect(disputeSlaChip({ ...CB, evidenceDaysRemaining: null }).label).toBe('4 days left');
+  });
+
+  it('builder disputes keep the business-day countdown', () => {
+    expect(disputeSlaChip({ ...DETAIL, evidenceDaysRemaining: 9 }).label).toBe('4 days left');
+  });
+
+  it('amount + reason use the chargeback fields only for chargebacks', () => {
+    expect(disputeAmountCents(CB)).toBe(990000);
+    expect(disputeAmountCents(DETAIL)).toBe(980000);
+    expect(disputeAmountCents({ ...CB, amountCents: null })).toBe(980000);
+    expect(disputeReasonLabel(CB)).toBe('Fraudulent');
+    expect(disputeReasonLabel(DETAIL)).toBe('Contract value reported twice');
+  });
+
+  it('builds the live / test Stripe dashboard URL from the configured base', () => {
+    expect(stripeDisputeUrl(CB, 'https://dashboard.stripe.com')).toBe('https://dashboard.stripe.com/disputes/dp_123');
+    expect(stripeDisputeUrl({ ...CB, livemode: false }, 'https://dashboard.stripe.com/')).toBe(
+      'https://dashboard.stripe.com/test/disputes/dp_123',
+    );
+  });
+
+  it('returns no URL for builder disputes, a missing id, unknown mode or no base', () => {
+    expect(stripeDisputeUrl(DETAIL, 'https://dashboard.stripe.com')).toBeNull();
+    expect(stripeDisputeUrl({ ...CB, stripeDisputeId: null }, 'https://dashboard.stripe.com')).toBeNull();
+    expect(stripeDisputeUrl({ ...CB, livemode: null }, 'https://dashboard.stripe.com')).toBeNull();
+    expect(stripeDisputeUrl(CB, '  ')).toBeNull();
+  });
+
+  it('encodes the dispute id into the path', () => {
+    expect(stripeDisputeUrl({ ...CB, stripeDisputeId: 'dp/../x' }, 'https://d.example')).toBe(
+      'https://d.example/disputes/dp%2F..%2Fx',
+    );
+  });
+
+  it('summarises a chargeback with formatted server fields', () => {
+    const items = chargebackSummaryItems({ ...CB, outcome: 'lost', livemode: false });
+    const byLabel = Object.fromEntries(items.map((i) => [i.label, i.value]));
+    expect(byLabel['Disputed amount']).toBe('$9,900');
+    expect(byLabel['Commission']).toBe('$9,800');
+    expect(byLabel['Stripe reason']).toBe('Fraudulent');
+    expect(byLabel['Stripe status']).toBe('Needs response');
+    expect(byLabel['Outcome']).toBe('Lost');
+    expect(byLabel['Mode']).toBe('Stripe test mode');
+  });
+
+  it('titles the refund + chargeback audit rows and hides the Stripe dispute id', () => {
+    const event = (eventType: string, payload: Record<string, unknown>): BillingEvent => ({
+      id: eventType,
+      tenantKey: 'elite-craft',
+      eventType,
+      entityType: 'commission_invoice',
+      entityId: 'inv-1',
+      payload,
+      createdAt: '2026-10-01T12:00:00.000Z',
+    });
+    const timeline = disputeTimeline([
+      event('invoice.refunded', { refundedCents: 2500 }),
+      event('invoice.chargeback_opened', { stripeDisputeId: 'dp_123', amountCents: 990000, stripeReason: 'fraudulent' }),
+      event('invoice.chargeback_closed', { outcome: 'won' }),
+    ]);
+    expect(timeline.map((t) => t.title)).toEqual(['Refunded', 'Chargeback opened', 'Chargeback closed']);
+    expect(timeline[0].payload).toBe('Refunded $25');
+    expect(timeline[1].tone).toBe('danger');
+    expect(timeline[1].payload).toContain('Amount $9,900');
+    expect(timeline[1].payload).toContain('Stripe reason Fraudulent');
+    expect(timeline[1].payload).not.toContain('dp_123');
   });
 });

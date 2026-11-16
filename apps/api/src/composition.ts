@@ -310,6 +310,10 @@ import {
   type AdminBuildersRoute,
 } from './routes/admin-builders.route';
 import {
+  createBuilderLifecycleService,
+  type BuilderLifecycleService,
+} from './services/builder-lifecycle.service';
+import {
   createAdminPartnersRoute,
   type AdminPartnersRoute,
 } from './routes/admin-partners.route';
@@ -1382,6 +1386,8 @@ export function createComposition(
   // card service is built later (it needs the payment provider), so the
   // hook binds late.
   let syncStripeCustomer: ((builder: Builder) => Promise<void>) | null = null;
+  // #860: late-bound to commissionCardService.removeCard (built further down).
+  let detachBuilderCard: ((tenantKey: string) => Promise<void>) | null = null;
   const builderService: BuilderService = createBuilderService({
     db: db.db,
     audit: adminAuditStore,
@@ -1398,6 +1404,12 @@ export function createComposition(
       await builderSettingsService.resolveSatisfiedOriginRequests(args);
     },
   });
+  // #860: the policy lookup the API-key and invoice-reviewer enforcement
+  // points use (status by tenant key; null = no builder row).
+  const builderStatusByTenantKey = async (
+    tenantKey: string,
+  ): Promise<string | null> =>
+    (await builderService.getByTenantKey(tenantKey))?.status ?? null;
   const leadService: LeadService = createLeadService({
     store: leadStore,
     estimateStore,
@@ -1868,9 +1880,21 @@ export function createComposition(
   });
   // Builders table admin (embed/02 admin-UI migration): CRUD + the route is
   // admin-gated inside, like every other admin route.
+  // #860: builder lifecycle (suspend / reactivate / offboard) + export.
+  // The card detach is late-bound to the commission-card service (#716).
+  const builderLifecycleService: BuilderLifecycleService =
+    createBuilderLifecycleService({
+      db: db.db,
+      audit: adminAuditStore,
+      detachCard: async (tenantKey) => {
+        if (!detachBuilderCard) throw new Error('card service not wired');
+        await detachBuilderCard(tenantKey);
+      },
+    });
   const adminBuildersRoute: AdminBuildersRoute = createAdminBuildersRoute({
     builders: builderService,
     adminGuard,
+    lifecycle: builderLifecycleService,
   });
   // #888: builder partner disclosure. Public active list (cached) + admin
   // add/deactivate/reorder, audit-logged.
@@ -1912,6 +1936,8 @@ export function createComposition(
       options.apiKeyAuditStore ?? createDrizzleApiKeyAuditStore({ db: db.db }),
     authCacheTtlSeconds: config.apiKeyAuth.authCacheTtlSeconds,
     acceptedModes: config.apiKeyAuth.acceptedModes,
+    // #860: keys bound to a suspended/offboarded builder return 403.
+    builderStatus: builderStatusByTenantKey,
   });
   const apiKeyRoute: ApiKeyRoute = createApiKeyRoute({
     apiKeys: apiKeyService,
@@ -2394,6 +2420,9 @@ export function createComposition(
     });
   syncStripeCustomer = (builder) =>
     commissionCardService.syncCustomerDetails(builder);
+  detachBuilderCard = async (tenantKey) => {
+    await commissionCardService.removeCard(tenantKey);
+  };
   // #661 — builder invoice PDF/receipt download.
   const invoicePdfService: InvoicePdfService = createInvoicePdfService({
     billing: billingService,
@@ -2543,6 +2572,8 @@ export function createComposition(
       commission: commissionService,
       audit: billingAuditService,
       stripe: stripeService,
+      // #860: hold auto-charges for builders whose status pauses them.
+      builderStatus: builderStatusByTenantKey,
     });
   const stripeWebhooksRoute: StripeWebhooksRoute = createStripeWebhooksRoute({
     billingWebhooks: billingWebhookService,

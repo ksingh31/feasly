@@ -11,6 +11,7 @@
  * Fakes in-memory: no DB, no network. Tests run under vitest.
  */
 import { describe, expect, it, vi } from 'vitest';
+import { BUILDER_STATUSES, BUILDER_STATUS_POLICY, type BuilderStatus } from '@feasly/contracts';
 import {
   createBuilderLeadsService,
   type BuilderLeadsServiceDeps,
@@ -65,7 +66,7 @@ function makeLead(overrides?: {
 function makeBuilderRow(overrides?: {
   readonly id?: string;
   readonly tenantKey?: string;
-  readonly status?: 'active' | 'inactive';
+  readonly status?: string;
 }) {
   const now = new Date();
   return {
@@ -79,7 +80,7 @@ function makeBuilderRow(overrides?: {
     accentColor: '#C9A227',
     allowedOrigins: [],
     plan: null,
-    status: overrides?.status ?? ('active' as const),
+    status: (overrides?.status ?? 'active') as BuilderStatus,
     settings: {},
     createdAt: now,
     updatedAt: now,
@@ -217,7 +218,7 @@ function makeDeps() {
 
   const service = createBuilderLeadsService({ leadStore, audit, builders });
 
-  return { service, leadStore, builders, audit, statusHistory, leads };
+  return { service, leadStore, builders, audit, statusHistory, leads, buildersByTenantKey };
 }
 
 describe('builder-leads service: reassigned leads (#721)', () => {
@@ -268,9 +269,44 @@ describe('builder-leads service (embed/09)', () => {
     await expect(service.listLeads('nope')).rejects.toMatchObject({ status: 404 });
   });
 
-  it('listLeads on an inactive builder throws 404', async () => {
+  it('listLeads on a legacy inactive builder reads as suspended: read-only (#860)', async () => {
     const { service } = makeDeps();
-    await expect(service.listLeads('inactive')).rejects.toMatchObject({ status: 404 });
+    await expect(service.listLeads('inactive')).resolves.toMatchObject({ leads: [] });
+  });
+
+  // #860: one test per status for this enforcement point (portalRead for
+  // the list, portalWrite for status changes and mark-won).
+  describe.each(BUILDER_STATUSES)('policy enforcement — builder %s', (status) => {
+    const canRead = BUILDER_STATUS_POLICY[status].portalRead;
+    const canWrite = BUILDER_STATUS_POLICY[status].portalWrite;
+
+    function depsWithStatus() {
+      const deps = makeDeps();
+      deps.buildersByTenantKey.set(
+        'elite-craft',
+        makeBuilderRow({ id: ELITE_BUILDER_ID, tenantKey: 'elite-craft', status }),
+      );
+      return deps;
+    }
+
+    it(`listLeads ${canRead ? 'is allowed' : 'is refused with 403 BUILDER_PAUSED'}`, async () => {
+      const { service } = depsWithStatus();
+      const p = service.listLeads('elite-craft');
+      if (canRead) await expect(p).resolves.toMatchObject({ leads: expect.any(Array) });
+      else await expect(p).rejects.toMatchObject({ status: 403, code: 'BUILDER_PAUSED' });
+    });
+
+    it(`updateStatus ${canWrite ? 'is allowed' : 'is refused with 403 BUILDER_PAUSED'}`, async () => {
+      const { service, leads } = depsWithStatus();
+      const p = service.updateStatus('lead-1', { status: 'contacted' }, 'elite-craft', 'b@example.com');
+      if (canWrite) {
+        await expect(p).resolves.toMatchObject({ ok: true });
+        expect(leads.get('lead-1')?.status).toBe('contacted');
+      } else {
+        await expect(p).rejects.toMatchObject({ status: 403, code: 'BUILDER_PAUSED' });
+        expect(leads.get('lead-1')?.status).toBe('new');
+      }
+    });
   });
 
   it('listLeads summary counts by status', async () => {
@@ -1476,10 +1512,10 @@ describe('builder-leads "Needs you" feed (issue #526)', () => {
     });
   });
 
-  it('throws 404 for an unknown or inactive builder', async () => {
+  it('throws 404 for an unknown builder; a suspended one still reads (#860)', async () => {
     const { service } = makeNeedsYouService({ leads: [] });
     await expect(service.getNeedsYou('nope')).rejects.toMatchObject({ status: 404 });
-    await expect(service.getNeedsYou('inactive')).rejects.toMatchObject({ status: 404 });
+    await expect(service.getNeedsYou('inactive')).resolves.toMatchObject({ uncontacted: [] });
   });
 
   it('fails with 500 instead of inventing a threshold when unconfigured', async () => {

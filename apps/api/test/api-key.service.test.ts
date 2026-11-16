@@ -30,6 +30,7 @@ import type {
   ApiKeyStore,
 } from '../src/services/api-key.service';
 import { HttpError } from '../src/middleware/errors';
+import { BUILDER_STATUSES, BUILDER_STATUS_POLICY } from '@feasly/contracts';
 
 interface World {
   records: Map<string, ApiKeyRecord & { keyHash: string }>;
@@ -526,4 +527,33 @@ describe('api-key live/sandbox isolation (#765 AC8)', () => {
     ).toBe('live');
     expect(() => loadConfig({ ...base, API_KEY_ACCEPTED_MODES: 'prod' })).toThrow();
   });
+});
+
+// #860: API-key enforcement point — one test per status of the builder the
+// key is bound to (tenant_id). Read fresh on every call: no cache window.
+describe.each(BUILDER_STATUSES)('api-key builder status policy — %s builder', (status) => {
+  it('authenticates only when the policy allows API keys', async () => {
+    const world = makeWorld();
+    const service = makeService(world, {
+      builderStatus: async (tenantKey: string) => (tenantKey === 'elite' ? status : null),
+    });
+    const { plaintext } = await service.issue({ name: 'Elite prod', tenant_id: 'elite' });
+    const p = service.authenticate(plaintext);
+    if (BUILDER_STATUS_POLICY[status].apiKeys) {
+      await expect(p).resolves.toMatchObject({ tenantId: 'elite' });
+    } else {
+      await expect(p).rejects.toMatchObject({ status: 403, code: 'BUILDER_PAUSED' });
+      expect(world.audits.at(-1)).toMatchObject({
+        action: 'auth_failed',
+        detail: `builder-status:${status}`,
+      });
+    }
+  });
+});
+
+it('a key with no builder binding is unaffected by builder status (#860)', async () => {
+  const world = makeWorld();
+  const service = makeService(world, { builderStatus: async () => 'offboarded' });
+  const { plaintext } = await service.issue({ name: 'Unbound' });
+  await expect(service.authenticate(plaintext)).resolves.toMatchObject({ tenantId: null });
 });

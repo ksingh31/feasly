@@ -127,6 +127,16 @@ export const ErrorCodes = {
    * to edit or delete it; link it during the Azure tenant setup instead.
    */
   PROTECTED_ACCOUNT: 'PROTECTED_ACCOUNT',
+  /**
+   * #860 — the builder's lifecycle status (suspended / offboarding /
+   * offboarded) refuses this action. 403; the portal shows "account paused".
+   */
+  BUILDER_PAUSED: 'BUILDER_PAUSED',
+  /**
+   * #860 — "complete offboarding" refused while invoices are unpaid or
+   * disputes are open. 409; the detail lists the blockers.
+   */
+  OFFBOARDING_BLOCKED: 'OFFBOARDING_BLOCKED',
 } as const;
 
 /**

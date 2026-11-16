@@ -389,12 +389,22 @@ export const routes: Routes = [
       // Dispute console (billing/01 follow-on, was OPS-009): open disputes
       // oldest-first with reason, immutable evidence snapshot, 5-business-day
       // SLA countdown, and accept/reject resolution.
+      // #872: the chargeback drawer reads BillingHealthState's provider
+      // (the "View in Stripe" link hides for the simulated provider) —
+      // lazy-registered here like /billing.
       {
         path: 'disputes',
         loadComponent: () =>
           import('./features/admin/admin-disputes.component').then(
             (m) => m.AdminDisputesComponent,
           ),
+        canActivate: [
+          lazyProvider(
+            async () =>
+              (await import('./features/admin/billing-health.state'))
+                .billingHealthStateProvider,
+          ),
+        ],
       },
       {
         path: 'calibration',
@@ -679,6 +689,23 @@ export const routes: Routes = [
             (m) => m.BuilderTeamComponent,
           ),
         canActivate: [builderTeamGuard],
+      },
+      {
+        // Builder Settings (#871): Profile & branding, Embed, Help. Any org
+        // member may open it (members see read-only fields; the API
+        // enforces owner-only writes). State lazy-provided here.
+        path: 'settings',
+        loadComponent: () =>
+          import('./features/builder/builder-settings.component').then(
+            (m) => m.BuilderSettingsComponent,
+          ),
+        canActivate: [
+          lazyProvider(
+            async () =>
+              (await import('./features/builder/builder-settings.state'))
+                .builderSettingsStateProvider,
+          ),
+        ],
       },
       {
         // Retired page (#529): contracts are recorded from the lead drawer's

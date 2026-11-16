@@ -42,7 +42,7 @@ const BUILDER_B: Builder = {
   businessName: 'North Homes Ltd',
   displayName: 'North Homes',
   plan: null,
-  status: 'inactive',
+  status: 'suspended',
 };
 
 /**

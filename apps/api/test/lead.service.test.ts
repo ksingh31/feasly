@@ -27,6 +27,7 @@ import type {
 import type { EmailDelivery } from '../src/services/email/email.service';
 import { ErrorCodes, HttpError } from '../src/middleware/errors';
 import { API_LEAD_CONSENT_VERSION } from '../src/lib/legal-copy';
+import { BUILDER_STATUSES, BUILDER_STATUS_POLICY } from '@feasly/contracts';
 
 const ESTIMATE_ID = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa';
 const NOW = new Date('2026-09-24T12:00:00Z');
@@ -1472,7 +1473,8 @@ describe('#793 sandbox (feasly_test_ key) writes', () => {
 describe('#725 builder new-lead notification hook', () => {
   const BUILDER_ID = '99999999-9999-4999-8999-999999999999';
   const builders = {
-    getByTenantKey: async (key: string) => (key === 'elite-craft' ? { id: BUILDER_ID } : null),
+    getByTenantKey: async (key: string) =>
+      key === 'elite-craft' ? { id: BUILDER_ID, tenantKey: key, status: 'active' } : null,
   } as unknown as NonNullable<Parameters<typeof createLeadService>[0]['builders']>;
 
   function notifier() {
@@ -1521,5 +1523,40 @@ describe('#725 builder new-lead notification hook', () => {
     store.recent = existingLeadFixture({ tenantKey: 'elite-craft', builderId: BUILDER_ID });
     await service.submitLead({ ...VALID_BODY, tenantKey: 'elite-craft' });
     expect(builderNotifier.calls).toHaveLength(0);
+  });
+});
+
+// #860: lead routing enforcement point — one test per builder status.
+describe('#860 lead routing by builder status', () => {
+  const BUILDER_ID = '99999999-9999-4999-8999-999999999999';
+
+  it.each(BUILDER_STATUSES)('a %s builder\'s embed lead', async (status) => {
+    const store = fakeLeadStore();
+    const notified: string[] = [];
+    const service = createLeadService({
+      ...DEPS,
+      store,
+      builders: {
+        getByTenantKey: async (key: string) =>
+          key === 'elite-craft' ? { id: BUILDER_ID, tenantKey: key, status } : null,
+      } as unknown as NonNullable<Parameters<typeof createLeadService>[0]['builders']>,
+      builderNotifier: {
+        notifyNewLead: async (args: { leadId: string; builderId: string }) => {
+          notified.push(args.builderId);
+        },
+      },
+    });
+    const result = await service.submitLead({ ...VALID_BODY, tenantKey: 'elite-craft' });
+    expect(result.leadId).toBeDefined();
+    const inserted = store.inserted[0]!;
+    if (BUILDER_STATUS_POLICY[status].newLeads) {
+      expect(inserted).toMatchObject({ builderId: BUILDER_ID, tenantKey: 'elite-craft' });
+      expect(notified).toEqual([BUILDER_ID]);
+    } else {
+      // Held: captured unassigned, lands in the admin queue, no notice.
+      expect(inserted.builderId ?? null).toBeNull();
+      expect(inserted.tenantKey ?? null).toBeNull();
+      expect(notified).toEqual([]);
+    }
   });
 });

@@ -495,6 +495,107 @@ export interface BuilderCopy {
   cardModalClose: string;
   /** #791: test-mode (simulated payment provider) card picker + 3DS step. */
   simulated: BuilderSimulatedPaymentsCopy;
+  /** #871: builder Settings page (Profile & branding, Embed, Help). */
+  settings: BuilderSettingsCopy;
+}
+
+/** One link on the builder Settings Help tab. */
+export interface BuilderHelpLink {
+  label: string;
+  /** App route (starts with '/') or absolute https URL. */
+  href: string;
+}
+
+/**
+ * #871: builder Settings copy. Support email + response time come from the
+ * API (`BuilderSupportContact`), never from here.
+ */
+export interface BuilderSettingsCopy {
+  navLabel: string;
+  heading: string;
+  description: string;
+  tabsLabel: string;
+  tabProfile: string;
+  tabEmbed: string;
+  tabHelp: string;
+  /** Profile tab. */
+  profileLoading: string;
+  profileLoadError: string;
+  profileReadOnlyNote: string;
+  profileViewAsNote: string;
+  businessNameLabel: string;
+  businessNameHint: string;
+  displayNameLabel: string;
+  displayNameHint: string;
+  contactEmailLabel: string;
+  contactPhoneLabel: string;
+  logoUrlLabel: string;
+  logoUrlHint: string;
+  accentColorLabel: string;
+  accentColorHint: string;
+  accentPickerLabel: string;
+  previewHeading: string;
+  previewLogoNone: string;
+  previewLogoBroken: string;
+  previewButton: string;
+  previewAccentNone: string;
+  saveLabel: string;
+  resetLabel: string;
+  savedToast: string;
+  saveError: string;
+  errorRequired: string;
+  errorEmail: string;
+  errorHttps: string;
+  errorHex: string;
+  /** {max} = character limit. */
+  errorTooLong: string;
+  /** Embed tab. */
+  embedLoading: string;
+  embedLoadError: string;
+  snippetHeading: string;
+  snippetIntro: string;
+  copyLabel: string;
+  copiedToast: string;
+  copyFailedToast: string;
+  originsHeading: string;
+  /** {days} = live window in days. */
+  originsIntro: string;
+  originsEmpty: string;
+  originColOrigin: string;
+  originColStatus: string;
+  originColLastSeen: string;
+  originLive: string;
+  originStale: string;
+  originNever: string;
+  requestChangeLabel: string;
+  requestChangeOwnerOnly: string;
+  openRequestsHeading: string;
+  openRequestAdd: string;
+  openRequestRemove: string;
+  /** {date} = request date. */
+  openRequestFiled: string;
+  /** Request-a-change dialog. */
+  requestHeading: string;
+  requestIntro: string;
+  requestAddLabel: string;
+  requestAddHint: string;
+  requestRemoveLegend: string;
+  requestNoteLabel: string;
+  requestNoteHint: string;
+  requestSubmit: string;
+  requestCancel: string;
+  requestEmptyError: string;
+  requestError: string;
+  requestCreatedToast: string;
+  requestDuplicateToast: string;
+  /** Help tab. */
+  helpHeading: string;
+  helpIntro: string;
+  helpEmailLabel: string;
+  /** {time} = response time from the API. */
+  helpResponseTime: string;
+  helpLinksHeading: string;
+  helpLinks: BuilderHelpLink[];
 }
 
 /**
@@ -629,6 +730,12 @@ export interface BuilderInvoiceDrawerCopy {
   changeMethodAria: string;
   timelineHeading: string;
   timelineEmpty: string;
+  /** #872: refunds + bank-dispute section heading. */
+  recoveryHeading: string;
+  /** #872: cumulative refunded amount row label. */
+  refundedLabel: string;
+  /** #872: bank chargeback state row label. */
+  chargebackLabel: string;
   actionsHeading: string;
   questionInvoice: string;
   /** #661: invoice PDF/receipt download button. */
@@ -942,6 +1049,12 @@ export interface AppConfig {
      */
     chargeDelayDays: number;
     /**
+     * Stripe dashboard origin for the admin "View in Stripe" chargeback
+     * link (#872). Live disputes open `<base>/disputes/<dp_…>`; test-mode
+     * disputes open `<base>/test/disputes/<dp_…>`.
+     */
+    stripeDashboardBaseUrl: string;
+    /**
      * #867: after the builder confirms a payment with their bank, the
      * invoice drawer re-fetches the invoice every `confirmPollIntervalMs`
      * (at most `confirmPollAttempts` times) until the webhook settles it.
@@ -1071,6 +1184,16 @@ export interface AppConfig {
     callbackDateWindowDays: number;
     /** #836: callback notes cap (characters); the API enforces the same. */
     callbackNotesMaxLength: number;
+    /**
+     * #871: builder Settings field caps — mirror the API's profile /
+     * origin-request validation (builder-settings.service.ts); the API
+     * re-validates.
+     */
+    builderDisplayNameMaxLength: number;
+    builderContactEmailMaxLength: number;
+    builderLogoUrlMaxLength: number;
+    builderOriginRequestMaxOrigins: number;
+    builderOriginRequestNoteMaxLength: number;
   };
   /**
    * What a new-build estimate includes and leaves out (#824, owner decision

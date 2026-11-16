@@ -284,6 +284,21 @@ describe('BuilderInvoiceDrawerComponent (#533)', () => {
     expect(q(el, 'invoice-method-note')?.textContent).toContain(COPY.invoicesPaymentMethodLocked);
   });
 
+  it('#872: shows refunds and the bank-dispute state when present', async () => {
+    const { el } = await setup({
+      invoice: invoice({ status: 'paid', paidAt: iso(-2), refundedCents: 4_900, chargebackStatus: 'won' }),
+    });
+    const section = q(el, 'invoice-recovery');
+    expect(section?.textContent).toContain(COPY.invoiceDrawer.recoveryHeading);
+    expect(q(el, 'invoice-refunded')?.textContent).toContain('$49');
+    expect(q(el, 'invoice-chargeback')?.textContent).toContain('Chargeback won');
+  });
+
+  it('#872: hides the refunds section when nothing was refunded or disputed with the bank', async () => {
+    const { el } = await setup({ invoice: invoice({ refundedCents: 0, chargebackStatus: null }) });
+    expect(q(el, 'invoice-recovery')).toBeNull();
+  });
+
   it('locks the method for a disputed invoice', async () => {
     const { el } = await setup({ invoice: invoice({ status: 'disputed' }) });
     expect(q(el, 'invoice-change-method')).toBeNull();

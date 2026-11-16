@@ -68,6 +68,7 @@ import {
 } from './magic-link.service';
 import type { MagicLinkStore } from './magic-link.store';
 import type { UnsubscribeService } from './unsubscribe.service';
+import { builderStatusAllows } from '../lib/builder-status-policy';
 
 /**
  * Contract-shaped validation. `timeline` is REQUIRED (Karan 2026-09-27: it
@@ -555,8 +556,18 @@ export function createLeadService(deps: LeadServiceDeps): LeadService {
       let tenantKey: string | undefined;
       let source = caller?.surface === 'mcp' ? 'mcp' : 'api';
       if (input.tenantKey !== undefined) {
-        tenantKey = await resolveTenantKey(input.tenantKey);
         source = 'embed';
+        // #860 policy (owner decision 2026-11-15): a builder whose status
+        // refuses new leads (suspended / offboarding / offboarded — e.g. an
+        // embed still cached on their site) never receives the lead. It is
+        // captured unassigned (no tenant, no builder) so it lands in the
+        // admin unassigned queue for reassignment (#721).
+        const held = deps.builders
+          ? await deps.builders.getByTenantKey(input.tenantKey)
+          : null;
+        if (held === null || builderStatusAllows(held.status, 'newLeads')) {
+          tenantKey = await resolveTenantKey(input.tenantKey);
+        }
       }
 
       // Embed dual-write (builders table): resolve the builder row for the

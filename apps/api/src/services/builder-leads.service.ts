@@ -60,6 +60,7 @@ import type { LeadRecord, LeadStatusChangeStore, LeadStore } from './lead.store'
 import type { MembershipStore, UserStore } from './user.service';
 import type { CallbackRequestStore } from './callback-request.store';
 import { toLeadCallbackSummary } from './callback.service';
+import { requireBuilderCapability } from '../lib/builder-status-policy';
 
 export const BuilderLeadStatusSchema = z.enum([
   'new',
@@ -347,13 +348,19 @@ export function createBuilderLeadsService(
   /**
    * Resolve the session's tenant key to the builder row. Every portal
    * call goes through here so a builder always acts as exactly one
-   * builder. Unknown tenant key → 404 (no builder to scope to).
+   * builder. Unknown tenant key → 404 (no builder to scope to). #860:
+   * a status that refuses `capability` → 403 BUILDER_PAUSED (reads stay
+   * open while suspended; writes need `portalWrite`).
    */
-  async function requireBuilder(tenantKey: string) {
+  async function requireBuilder(
+    tenantKey: string,
+    capability: 'portalRead' | 'portalWrite' = 'portalRead',
+  ) {
     const builder = await builders.getByTenantKey(tenantKey);
-    if (builder === null || builder.status !== 'active') {
+    if (builder === null) {
       throw new HttpError(404, ErrorCodes.NOT_FOUND, 'Builder not found.', false);
     }
+    requireBuilderCapability(builder.status, capability);
     return builder;
   }
 
@@ -508,7 +515,7 @@ export function createBuilderLeadsService(
       );
     }
 
-    const builder = await requireBuilder(tenantKey);
+    const builder = await requireBuilder(tenantKey, 'portalWrite');
 
     // auth/04 (iron rule): tenant scoping happens in SQL from session
     // state. The read AND the write are both scoped by
@@ -867,7 +874,7 @@ export function createBuilderLeadsService(
       tenantKey: string,
       actorEmail: string,
     ): Promise<BuilderLeadMarkWonResponse> {
-      const builder = await requireBuilder(tenantKey);
+      const builder = await requireBuilder(tenantKey, 'portalWrite');
       const record = await requireOwnLead(id, builder.id, tenantKey, actorEmail);
       requireNonSandbox(record);
 
