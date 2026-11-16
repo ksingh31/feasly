@@ -38,6 +38,7 @@ function makeDeps(): AdminLeadsRouteDeps {
     getByTenantKey: vi.fn(),
     createBuilder: vi.fn(),
     updateBuilder: vi.fn(),
+    updateProfile: vi.fn(),
     assignLead: vi.fn().mockResolvedValue({ ok: true as const }),
   };
   return {

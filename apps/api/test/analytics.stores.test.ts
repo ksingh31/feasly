@@ -38,7 +38,8 @@ describe('analytics store (PGlite)', () => {
     expect(record.createdAt).toBeInstanceOf(Date);
 
     // The raw row proves the closed shape: the only columns are the
-    // contract fields (incl. the #814 campaign-source fields) + the sandbox
+    // contract fields (incl. the #814 campaign-source fields and the #870
+    // embed origin — a bare https origin, never a page URL) + the sandbox
     // flag — email/name/address cannot be stored.
     const rows = await testDb.rows<Record<string, unknown>>(
       `select * from analytics_events where id = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa'`,
@@ -49,6 +50,7 @@ describe('analytics store (PGlite)', () => {
       'click_id_type',
       'consent_ts',
       'created_at',
+      'embed_origin',
       'event',
       'id',
       'route',

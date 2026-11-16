@@ -312,6 +312,26 @@ const EnvSchema = z.object({
     .refine(isIanaTimeZone, 'must be an IANA time zone, e.g. America/Edmonton')
     .default('America/Edmonton'),
 
+  // #870: builder portal Settings. Support is email only (owner decision
+  // 2026-11-15, #724): BUILDER_SUPPORT_EMAIL is unset until Karan names a
+  // support address — until then builders are pointed at the team inbox
+  // (OPS_INBOX_EMAIL), which is deliverable. RESPONSE_TIME is the promised
+  // reply copy. The embed install check calls an origin "live" when the
+  // widget loaded there within EMBED_LIVE_WINDOW_DAYS. The snippet's loader
+  // URL is APP_BASE_URL + EMBED_LOADER_PATH (docs/embed-install.md).
+  BUILDER_SUPPORT_EMAIL: z.string().trim().email().optional(),
+  BUILDER_SUPPORT_RESPONSE_TIME: z
+    .string()
+    .trim()
+    .min(1)
+    .max(100)
+    .default('within 1 business day'),
+  BUILDER_EMBED_LIVE_WINDOW_DAYS: z.coerce.number().int().min(1).max(90).default(7),
+  BUILDER_EMBED_LOADER_PATH: z
+    .string()
+    .regex(/^\/[A-Za-z0-9._~/-]*$/, 'must be an absolute path, e.g. /embed/v1/loader.js')
+    .default('/embed/v1/loader.js'),
+
   // neighbourhood/05: monthly community-stats refresh timer. Communities
   // with fewer fresh assessment records than this are skipped (logged, never
   // zero-filled). ALERT_AFTER_FAILURES consecutive timer failures fire the
@@ -1433,6 +1453,18 @@ export interface BillingTaxConfig {
 
 /** #703: post-report follow-up email (hourly timer, flag default off). */
 /** #725: builder new-lead email + daily "Needs you" digest. */
+/** #870: builder portal Settings (support contact + embed install check). */
+export interface BuilderSettingsConfig {
+  /** Support address shown to builders (BUILDER_SUPPORT_EMAIL, else the team inbox). */
+  readonly supportEmail: string;
+  /** Promised response time copy, e.g. "within 1 business day". */
+  readonly supportResponseTime: string;
+  /** An origin is "live" when the widget loaded there within this many days. */
+  readonly embedLiveWindowDays: number;
+  /** Absolute URL of the embed loader script for the install snippet. */
+  readonly embedLoaderUrl: string;
+}
+
 export interface BuilderNotificationsConfig {
   /** Kill switch — false = no enqueue, no sends (default true). */
   readonly enabled: boolean;
@@ -1766,6 +1798,7 @@ export interface ApiConfig {
   readonly reminders: RemindersConfig;
   readonly shareLink: ShareLinkConfig;
   readonly builderNotifications: BuilderNotificationsConfig;
+  readonly builderSettings: BuilderSettingsConfig;
   readonly sheets: SheetsConfig;
   readonly narrative: NarrativeConfig;
   readonly communityNarratives: CommunityNarrativesConfig;
@@ -2131,6 +2164,12 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): ApiConfig {
       claimLeaseMinutes: e.BUILDER_NOTIFICATION_CLAIM_LEASE_MINUTES,
       digestLocalHour: e.BUILDER_DIGEST_LOCAL_HOUR,
       digestTimeZone: e.BUILDER_DIGEST_TIMEZONE,
+    },
+    builderSettings: {
+      supportEmail: e.BUILDER_SUPPORT_EMAIL ?? e.OPS_INBOX_EMAIL,
+      supportResponseTime: e.BUILDER_SUPPORT_RESPONSE_TIME,
+      embedLiveWindowDays: e.BUILDER_EMBED_LIVE_WINDOW_DAYS,
+      embedLoaderUrl: `${e.APP_BASE_URL.replace(/\/+$/, '')}${e.BUILDER_EMBED_LOADER_PATH}`,
     },
     communityStatsRefresh: {
       minAssessmentCount: e.COMMUNITY_STATS_MIN_ASSESSMENTS,

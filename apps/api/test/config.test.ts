@@ -264,6 +264,12 @@ describe('loadConfig', () => {
         digestLocalHour: 7,
         digestTimeZone: 'America/Edmonton',
       },
+      builderSettings: {
+        supportEmail: SEED_ADMIN_EMAIL,
+        supportResponseTime: 'within 1 business day',
+        embedLiveWindowDays: 7,
+        embedLoaderUrl: 'https://feasly.example/embed/v1/loader.js',
+      },
       communityStatsRefresh: {
         minAssessmentCount: 10,
         alertAfterConsecutiveFailures: 2,
@@ -551,6 +557,33 @@ describe('loadConfig', () => {
     expect(() =>
       loadConfig({ ...VALID_ENV, BUILDER_DIGEST_TIMEZONE: 'America/Edmonon' }),
     ).toThrow(/BUILDER_DIGEST_TIMEZONE/);
+  });
+
+  it('reads the builder settings keys (#870)', () => {
+    const cfg = loadConfig({
+      ...VALID_ENV,
+      BUILDER_SUPPORT_EMAIL: 'help@builder-support.example',
+      BUILDER_SUPPORT_RESPONSE_TIME: 'within 2 business days',
+      BUILDER_EMBED_LIVE_WINDOW_DAYS: '14',
+      APP_BASE_URL: 'https://app.example.com/',
+    }).builderSettings;
+    expect(cfg).toEqual({
+      supportEmail: 'help@builder-support.example',
+      supportResponseTime: 'within 2 business days',
+      embedLiveWindowDays: 14,
+      embedLoaderUrl: 'https://app.example.com/embed/v1/loader.js',
+    });
+    // Unset support address falls back to the (deliverable) team inbox.
+    expect(
+      loadConfig({ ...VALID_ENV, OPS_INBOX_EMAIL: 'team@ops.example' })
+        .builderSettings.supportEmail,
+    ).toBe('team@ops.example');
+    expect(() =>
+      loadConfig({ ...VALID_ENV, BUILDER_SUPPORT_EMAIL: 'not-an-email' }),
+    ).toThrow(/BUILDER_SUPPORT_EMAIL/);
+    expect(() =>
+      loadConfig({ ...VALID_ENV, BUILDER_EMBED_LIVE_WINDOW_DAYS: '0' }),
+    ).toThrow(/BUILDER_EMBED_LIVE_WINDOW_DAYS/);
   });
 
   it('reads BILLING_STATEMENT_DESCRIPTOR (#716) and enforces Stripe descriptor rules', () => {

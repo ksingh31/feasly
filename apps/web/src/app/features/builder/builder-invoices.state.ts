@@ -18,6 +18,7 @@ import {
   DownloadInvoicePdf,
   LoadActionableInvoices,
   LoadInvoices,
+  RefreshSelectedInvoice,
   SelectInvoice,
   SetInvoiceNumberFilter,
   UpdateInvoicePaymentMethod,
@@ -291,6 +292,19 @@ export class BuilderInvoicesState implements NgxsOnInit {
         ctx.patchState({ detailStatus: 'error' });
         return of(null);
       }),
+    );
+  }
+
+  /** #867: refetch the open invoice without clearing it; a failed fetch keeps what is shown. */
+  @Action(RefreshSelectedInvoice)
+  refreshSelected(ctx: StateContext<BuilderInvoicesStateModel>, action: RefreshSelectedInvoice) {
+    return this.api.getInvoice(action.id).pipe(
+      tap((invoice) => {
+        if (ctx.getState().selected?.id === action.id) {
+          ctx.patchState({ selected: invoice, detailStatus: 'ready' });
+        }
+      }),
+      catchError(() => of(null)),
     );
   }
 

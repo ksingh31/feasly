@@ -833,6 +833,58 @@ export const ROUTE_REGISTRY: readonly ApiRouteEntry[] = [
       'viewing as a teammate.',
   },
   {
+    method: 'GET',
+    path: '/api/v1/builder/profile',
+    auth: 'builder-session',
+    permissions: ['builder:leads:read'] as const,
+    rateLimit: '100/min per session',
+    status: 'live',
+    summary:
+      'Builder org profile & branding (#870): display name, contact ' +
+      'email/phone, logo URL, accent colour, the support contact (email, ' +
+      'promised response time) and canEdit (org owners only). Never rate, ' +
+      'plan or status.',
+  },
+  {
+    method: 'PUT',
+    path: '/api/v1/builder/profile',
+    auth: 'builder-session',
+    permissions: ['builder:settings:manage'] as const,
+    rateLimit: '100/min per session',
+    status: 'live',
+    summary:
+      'Org owner updates profile & branding (#870, partial body): display ' +
+      'name, contact email/phone, https logo URL, #rrggbb accent colour. ' +
+      'Audit-logged under the acting user; 403 for members and while ' +
+      'viewing as a teammate.',
+  },
+  {
+    method: 'GET',
+    path: '/api/v1/builder/embed',
+    auth: 'builder-session',
+    permissions: ['builder:leads:read'] as const,
+    rateLimit: '100/min per session',
+    status: 'live',
+    summary:
+      'Embed install data (#870): tenant key, loader URL + snippet, ' +
+      'allowed origins (read-only) with each origin\'s last embed_loaded ' +
+      'and whether it loaded within the live window (default 7 days), plus ' +
+      'open origin-change requests.',
+  },
+  {
+    method: 'POST',
+    path: '/api/v1/builder/embed/origin-requests',
+    auth: 'builder-session',
+    permissions: ['builder:settings:manage'] as const,
+    rateLimit: '100/min per session',
+    status: 'live',
+    summary:
+      'Org owner asks Feasly staff to add/remove allowed embed origins ' +
+      '(#870; staff-controlled for the pilot). Creates exactly one admin ' +
+      'task (an identical open request returns created: false) and emails ' +
+      'the team inbox. Audit-logged.',
+  },
+  {
     method: 'PATCH',
     path: '/api/v1/builder/leads/{id}',
     auth: 'builder-session',

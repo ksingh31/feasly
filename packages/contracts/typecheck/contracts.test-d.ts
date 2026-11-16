@@ -169,9 +169,14 @@ assertType<4>(eventKeys.length);
 
 // #814: the event payload's keys are exactly these — no email/address/
 // figure field exists (a new key fails this assertion both ways).
+// #870 adds `embed_origin` (a bare host origin, never a page URL).
 type EventKey = keyof AnalyticsEvent;
-assertType<EventKey>('' as 'event' | 'route' | 'ts' | 'consent_ts' | 'tenant_key' | 'source');
-assertType<'event' | 'route' | 'ts' | 'consent_ts' | 'tenant_key' | 'source'>('' as EventKey);
+assertType<EventKey>(
+  '' as 'event' | 'route' | 'ts' | 'consent_ts' | 'tenant_key' | 'source' | 'embed_origin',
+);
+assertType<'event' | 'route' | 'ts' | 'consent_ts' | 'tenant_key' | 'source' | 'embed_origin'>(
+  '' as EventKey,
+);
 
 // #814: the campaign source is a closed object of optional strings plus
 // the click-id *type* (never the click id value).

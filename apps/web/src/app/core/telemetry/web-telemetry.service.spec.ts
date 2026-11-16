@@ -21,7 +21,7 @@ describe('WebTelemetryService', () => {
   let telemetryCfg: AppConfig['telemetry'];
   let apiCfg: AppConfig['api'];
 
-  function setup(platform = 'browser'): WebTelemetryService {
+  function setup(platform = 'browser', realAutomationCheck = false): WebTelemetryService {
     TestBed.resetTestingModule();
     TestBed.configureTestingModule({
       providers: [
@@ -40,6 +40,7 @@ describe('WebTelemetryService', () => {
     });
     const service = TestBed.inject(WebTelemetryService);
     service.random = () => 0.1;
+    if (!realAutomationCheck) service.isAutomated = () => false;
     const loader: WebVitalsLoader = () =>
       Promise.resolve({
         onLCP: (cb: Callback) => (callbacks['LCP'] = cb),
@@ -168,6 +169,30 @@ describe('WebTelemetryService', () => {
     expect(beacon).toHaveBeenCalledTimes(1);
   });
 
+  it('stays off in automated browsers (navigator.webdriver) so Lighthouse never loads web-vitals (#957)', () => {
+    const service = setup();
+    const loader = vi.fn(service.loader);
+    service.loader = loader;
+    service.isAutomated = () => true;
+    service.start();
+    expect(service.isActive).toBe(false);
+    expect(loader).not.toHaveBeenCalled();
+  });
+
+  it('detects automation from navigator.webdriver by default', () => {
+    const service = setup('browser', true);
+    const original = Object.getOwnPropertyDescriptor(navigator, 'webdriver');
+    try {
+      Object.defineProperty(navigator, 'webdriver', { value: true, configurable: true });
+      expect(service.isAutomated()).toBe(true);
+      Object.defineProperty(navigator, 'webdriver', { value: false, configurable: true });
+      expect(service.isAutomated()).toBe(false);
+    } finally {
+      if (original) Object.defineProperty(navigator, 'webdriver', original);
+      else delete (navigator as { webdriver?: boolean }).webdriver;
+    }
+  });
+
   it('stays off when not sampled in, disabled, in mock-API mode, or on the server', () => {
     const notSampled = setup();
     notSampled.random = () => 0.9;
@@ -192,19 +217,5 @@ describe('WebTelemetryService', () => {
     server.recordError(new Error('ignored'));
     server.flush();
     expect(beacon).not.toHaveBeenCalled();
-  });
-
-  it('stays off in automated browsers (Lighthouse, Playwright) so web-vitals never loads (#957)', () => {
-    Object.defineProperty(navigator, 'webdriver', { value: true, configurable: true });
-    try {
-      const service = setup();
-      const loader = vi.fn(service.loader);
-      service.loader = loader;
-      service.start();
-      expect(service.isActive).toBe(false);
-      expect(loader).not.toHaveBeenCalled();
-    } finally {
-      Object.defineProperty(navigator, 'webdriver', { value: false, configurable: true });
-    }
   });
 });

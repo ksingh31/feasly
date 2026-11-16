@@ -33,6 +33,8 @@ export interface NewAnalyticsEvent {
   readonly tenantKey: string | null;
   /** #814: validated campaign attribution (all-null = none). */
   readonly source: CampaignSourceColumns;
+  /** #870: canonical host origin on embed_loaded; null otherwise. */
+  readonly embedOrigin?: string | null;
 }
 
 export interface AnalyticsStore {
@@ -64,6 +66,7 @@ export function createDrizzleAnalyticsStore(deps: {
           utmTerm: event.source.utmTerm,
           utmContent: event.source.utmContent,
           clickIdType: event.source.clickIdType,
+          embedOrigin: event.embedOrigin ?? null,
         })
         .returning();
       return {

@@ -240,3 +240,44 @@ describe('analytics service', () => {
     });
   });
 });
+
+describe('analytics service — embed_origin (#870)', () => {
+  const embedBody = (extra: Record<string, unknown> = {}) => ({
+    event: 'embed_loaded',
+    route: '/embed/builder-a',
+    ts: '2026-09-25T12:00:00.000Z',
+    consent_ts: '2026-09-25T11:59:00.000Z',
+    tenant_key: 'builder-a',
+    ...extra,
+  });
+
+  it('stores the canonical origin on embed_loaded with a tenant key', async () => {
+    const store = fakeStore();
+    const service = createAnalyticsService({ store, clock: () => NOW });
+    await service.ingestEvent(embedBody({ embed_origin: 'https://WWW.Builder-A.example/' }));
+    expect(store.inserted[0]?.embedOrigin).toBe('https://www.builder-a.example');
+  });
+
+  it('stores null when omitted (old clients keep working)', async () => {
+    const store = fakeStore();
+    const service = createAnalyticsService({ store, clock: () => NOW });
+    await service.ingestEvent(embedBody());
+    expect(store.inserted[0]?.embedOrigin).toBeNull();
+  });
+
+  it.each([
+    ['a page URL', embedBody({ embed_origin: 'https://www.builder-a.example/contact?email=x' })],
+    ['plain http', embedBody({ embed_origin: 'http://www.builder-a.example' })],
+    ['another event', { ...embedBody({ embed_origin: 'https://www.builder-a.example' }), event: 'step_view' }],
+    ['no tenant key', (() => { const b: Record<string, unknown> = embedBody({ embed_origin: 'https://www.builder-a.example' }); delete b['tenant_key']; return b; })()],
+  ])('rejects %s with a 400 at embed_origin', async (_label, body) => {
+    const store = fakeStore();
+    const service = createAnalyticsService({ store, clock: () => NOW });
+    const error = await service.ingestEvent(body).catch((e) => e);
+    expect(error).toBeInstanceOf(HttpError);
+    expect((error as HttpError).status).toBe(400);
+    expect((error as HttpError).message).toContain('embed_origin');
+    expect((error as HttpError).message).not.toContain('email=x');
+    expect(store.inserted).toHaveLength(0);
+  });
+});

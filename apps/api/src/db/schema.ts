@@ -667,11 +667,20 @@ export const analyticsEvents = pgTable(
     utmTerm: text('utm_term'),
     utmContent: text('utm_content'),
     clickIdType: text('click_id_type'),
+    /**
+     * #870: host page origin on `embed_loaded` (e.g.
+     * `https://www.builder.com`). NULL for every other event. Backs the
+     * builder portal's per-origin install check.
+     */
+    embedOrigin: text('embed_origin'),
     createdAt: timestamp('created_at', { withTimezone: true })
       .notNull()
       .defaultNow(),
   },
   (t) => [
+    index('analytics_events_embed_origin_idx')
+      .on(t.tenantKey, t.embedOrigin, t.createdAt)
+      .where(sql`${t.event} = 'embed_loaded'`),
     index('analytics_events_source_created_idx').on(
       t.utmSource,
       t.utmCampaign,
@@ -2201,5 +2210,55 @@ export const jobs = pgTable(
     uniqueIndex('jobs_dedupe_key_idx').on(t.dedupeKey),
     index('jobs_status_run_at_idx').on(t.status, t.runAt),
     index('jobs_lead_id_idx').on(t.leadId),
+  ],
+);
+
+/**
+ * Builder change requests (#870) — admin tasks a builder files from the
+ * portal's Settings. Today one kind: `embed_origins` (allowed embed origins
+ * stay staff-controlled for the pilot, owner decision 2026-11-15, #724).
+ *
+ * `payload` = `{ add: string[], remove: string[] }` for `embed_origins`.
+ * `dedupe_key` is derived from the normalized payload; the partial unique
+ * index makes a repeated identical open request create no second task.
+ * Status: 'open' → 'done' | 'dismissed' (resolved by Feasly staff).
+ */
+export const builderChangeRequests = pgTable(
+  'builder_change_requests',
+  {
+    /** App-generated UUID (node:crypto). */
+    id: uuid('id').primaryKey(),
+    builderId: uuid('builder_id')
+      .notNull()
+      .references(() => builders.id, { onDelete: 'cascade' }),
+    /** 'embed_origins'. */
+    kind: text('kind').notNull(),
+    /** 'open' | 'done' | 'dismissed'. */
+    status: text('status').notNull().default('open'),
+    payload: jsonb('payload')
+      .$type<Record<string, unknown>>()
+      .notNull()
+      .default({}),
+    note: text('note'),
+    dedupeKey: text('dedupe_key').notNull(),
+    requestedByUserId: uuid('requested_by_user_id').references(() => users.id, {
+      onDelete: 'set null',
+    }),
+    /** The acting builder user's email (audit trail; never logged). */
+    requestedByEmail: text('requested_by_email').notNull(),
+    resolvedAt: timestamp('resolved_at', { withTimezone: true }),
+    resolvedByEmail: text('resolved_by_email'),
+    createdAt: timestamp('created_at', { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+    updatedAt: timestamp('updated_at', { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (t) => [
+    uniqueIndex('builder_change_requests_open_dedupe_idx')
+      .on(t.builderId, t.dedupeKey)
+      .where(sql`${t.status} = 'open'`),
+    index('builder_change_requests_status_created_idx').on(t.status, t.createdAt),
   ],
 );

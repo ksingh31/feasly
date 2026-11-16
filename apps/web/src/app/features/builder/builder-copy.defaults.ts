@@ -485,6 +485,11 @@ export const DEFAULT_BUILDER_COPY: BuilderCopy = {
     modalSave: 'Save change',
     modalSaving: 'Saving…',
     modalCancel: 'Cancel',
+    confirmPaymentCta: 'Confirm payment with your bank',
+    confirmPaymentBusy: 'Confirming…',
+    confirmPaymentPending: 'Confirming… The invoice updates as soon as your bank’s answer arrives.',
+    confirmPaymentStalled: 'We’re still waiting for your bank’s answer. Check again in a moment.',
+    confirmPaymentCheckAgain: 'Check again',
   },
   leadDrawer: {
     arrivedMeta: 'Arrived {date}',
