@@ -26,6 +26,7 @@ import type {
 } from '@feasly/contracts';
 import { ErrorCodes, HttpError } from '../middleware/errors';
 import type { AdminAuditStore } from './admin-audit.store';
+import type { LeadAssignmentService } from './lead-assignment.service';
 import type {
   AdminLeadsStore,
   AdminLeadFilters,
@@ -153,6 +154,8 @@ export interface AdminLeadsServiceDeps {
   readonly audit: AdminAuditStore;
   /** Max rows for CSV export (from config — prevents runaway exports). */
   readonly maxExportRows: number;
+  /** #721: builder reassignment history for the lead detail. */
+  readonly reassignments?: Pick<LeadAssignmentService, 'listForLead'>;
 }
 
 function toListItem(row: AdminLeadRow): AdminLeadListItem {
@@ -288,7 +291,7 @@ async function requireQuarantined(
 export function createAdminLeadsService(
   deps: AdminLeadsServiceDeps,
 ): AdminLeadsService {
-  const { store, leadStore, estimateStore, audit, maxExportRows } = deps;
+  const { store, leadStore, estimateStore, audit, maxExportRows, reassignments } = deps;
 
   async function auditRead(
     adminEmail: string,
@@ -361,6 +364,8 @@ export function createAdminLeadsService(
         await store.getMagicLinkStatus(id);
       const notes = await leadStore.getNotes(id);
       const statusHistory = await leadStore.getStatusHistory(id);
+      const reassignmentHistory =
+        reassignments === undefined ? [] : await reassignments.listForLead(id);
 
       // Sheets sync timestamp — from the lead's metadata (null when never synced).
       // TODO: wire to the actual Sheets sync worker's tracking table when it lands.
@@ -394,6 +399,12 @@ export function createAdminLeadsService(
           newStatus: h.newStatus as AdminLeadStatus,
           changedBy: h.changedBy,
           changedAt: h.changedAt.toISOString(),
+        })),
+        reassignments: reassignmentHistory.map((r) => ({
+          fromBuilderId: r.fromBuilderId,
+          toBuilderId: r.toBuilderId,
+          changedBy: r.actorEmail,
+          changedAt: r.reassignedAt.toISOString(),
         })),
       };
     },

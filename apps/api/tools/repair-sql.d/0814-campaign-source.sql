@@ -1,4 +1,4 @@
--- #814: campaign attribution columns (mirrors migration 0060_campaign_source).
+-- #814: campaign attribution columns (mirrors migration 0061_campaign_source).
 ALTER TABLE "leads" ADD COLUMN IF NOT EXISTS "source_utm_source" text;
 ALTER TABLE "leads" ADD COLUMN IF NOT EXISTS "source_utm_medium" text;
 ALTER TABLE "leads" ADD COLUMN IF NOT EXISTS "source_utm_campaign" text;

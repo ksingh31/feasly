@@ -12,7 +12,7 @@
  * the db directly).
  */
 import { createHash } from 'node:crypto';
-import { and, eq, getTableColumns, gt, gte, lte, sql } from 'drizzle-orm';
+import { and, eq, getTableColumns, gt, gte, lte, ne, or, sql } from 'drizzle-orm';
 import {
   amenities,
   communityLivingMetrics,
@@ -31,6 +31,7 @@ import type {
   SchoolRatingRecord,
   SchoolRecord,
 } from './providers';
+import { TREE_COVER_CATEGORY } from './categories';
 
 /** Provider → the record shape it writes. */
 export interface NeighbourhoodRecordMap {
@@ -81,6 +82,19 @@ export interface StoredAmenity {
   readonly lng: number;
 }
 
+/**
+ * #777: an established community's anchor — its `tree-cover` amenity row
+ * (centre point + public-tree cover data).
+ */
+export interface StoredCommunityAnchor {
+  readonly communityCode: string;
+  readonly name: string;
+  readonly lat: number;
+  readonly lng: number;
+  readonly data: unknown;
+  readonly refreshedAt: Date;
+}
+
 export interface StoredCommunityMetric {
   readonly metric: string;
   readonly source: string;
@@ -107,7 +121,10 @@ export interface NeighbourhoodDataStore {
   listStates(): Promise<readonly NeighbourhoodRefreshState[]>;
   saveState(state: NeighbourhoodRefreshState): Promise<void>;
   schoolsIn(box: BoundingBox): Promise<readonly StoredSchool[]>;
+  /** Point amenities in the box (never the per-community tree-cover rows). */
   amenitiesIn(box: BoundingBox): Promise<readonly StoredAmenity[]>;
+  /** #777: anchor by City community code (upper) or slug (lower); null when unknown. */
+  communityAnchor(codeOrSlug: string): Promise<StoredCommunityAnchor | null>;
   communityMetrics(communityCode: string): Promise<readonly StoredCommunityMetric[]>;
   getLotMetrics(addressKey: string, now: Date): Promise<unknown>;
   putLotMetrics(addressKey: string, data: unknown, computedAt: Date, expiresAt: Date): Promise<void>;
@@ -301,8 +318,53 @@ export function createDrizzleNeighbourhoodDataStore(
         .select({ id: t.id, category: t.category, name: t.name, lat: t.lat, lng: t.lng })
         .from(t)
         .where(
-          and(gte(t.lat, box.minLat), lte(t.lat, box.maxLat), gte(t.lng, box.minLng), lte(t.lng, box.maxLng)),
+          and(
+            gte(t.lat, box.minLat),
+            lte(t.lat, box.maxLat),
+            gte(t.lng, box.minLng),
+            lte(t.lng, box.maxLng),
+            ne(t.category, TREE_COVER_CATEGORY),
+          ),
         );
+    },
+
+    async communityAnchor(codeOrSlug): Promise<StoredCommunityAnchor | null> {
+      const t = amenities;
+      const key = codeOrSlug.trim();
+      const rows: Array<{
+        communityCode: string | null;
+        name: string;
+        lat: number | null;
+        lng: number | null;
+        data: unknown;
+        refreshedAt: Date;
+      }> = await db
+        .select({
+          communityCode: t.communityCode,
+          name: t.name,
+          lat: t.lat,
+          lng: t.lng,
+          data: t.data,
+          refreshedAt: t.refreshedAt,
+        })
+        .from(t)
+        .where(
+          and(
+            eq(t.category, TREE_COVER_CATEGORY),
+            or(eq(t.communityCode, key.toUpperCase()), sql`${t.data}->>'slug' = ${key.toLowerCase()}`),
+          ),
+        )
+        .limit(1);
+      const row = rows[0];
+      if (!row || !row.communityCode || row.lat === null || row.lng === null) return null;
+      return {
+        communityCode: row.communityCode,
+        name: row.name,
+        lat: row.lat,
+        lng: row.lng,
+        data: row.data,
+        refreshedAt: row.refreshedAt,
+      };
     },
 
     async communityMetrics(communityCode): Promise<readonly StoredCommunityMetric[]> {

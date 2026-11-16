@@ -215,6 +215,10 @@ import {
   type BuilderService,
 } from './services/builder.service';
 import {
+  createLeadAssignmentService,
+  type LeadAssignmentService,
+} from './services/lead-assignment.service';
+import {
   createDrizzleAdminSessionStore,
 } from './services/admin-auth.store';
 import { withSessionPolicy } from './services/session-policy';
@@ -402,6 +406,10 @@ import {
   createCommunityStatsRefreshRoute,
   type CommunityStatsRefreshRoute,
 } from './routes/community-stats-refresh.route';
+import {
+  createCommunityLivingRoute,
+  type CommunityLivingRoute,
+} from './routes/community-living.route';
 import {
   createAdminNeighbourhoodDataRoute,
   type AdminNeighbourhoodDataRoute,
@@ -830,6 +838,8 @@ export interface AppComposition {
   /** #773: request-path neighbourhood reads (tables only, no providers). */
   readonly neighbourhoodReadService: NeighbourhoodReadService;
   readonly adminNeighbourhoodDataRoute: AdminNeighbourhoodDataRoute;
+  /** #777: public community living-nearby metrics. */
+  readonly communityLivingRoute: CommunityLivingRoute;
   /** Append-only admin audit log (neighbourhood/05; reused by later admin stories). */
   readonly adminAuditStore: AdminAuditStore;
   readonly builderConfigService: BuilderConfigService;
@@ -1253,6 +1263,12 @@ export function createComposition(
   // sessions, and the embed config lookup. Created before the lead
   // service so embed lead capture can dual-write builder_id in the same
   // insert (the lead is visible in the builder portal immediately).
+  // #721: lead reassignment rules (attribution close/open, invoice block).
+  // (adminAuditStore is defined above, before the auth middleware.)
+  const leadAssignmentService: LeadAssignmentService = createLeadAssignmentService({
+    db: db.db,
+    audit: adminAuditStore,
+  });
   // #716: the Stripe customer re-syncs on a builder profile change. The
   // card service is built later (it needs the payment provider), so the
   // hook binds late.
@@ -1260,6 +1276,7 @@ export function createComposition(
   const builderService: BuilderService = createBuilderService({
     db: db.db,
     audit: adminAuditStore,
+    leadAssignment: leadAssignmentService,
     // #725: late-bound — the notifications service is built further down
     // (it needs the builder-leads "Needs you" feed). Never throws.
     onLeadAssigned: (args) => builderNotificationsService.notifyNewLead(args),
@@ -1704,6 +1721,7 @@ export function createComposition(
     estimateStore,
     audit: adminAuditStore,
     maxExportRows: 10000,
+    reassignments: leadAssignmentService,
   });
   const adminLeadsRoute: AdminLeadsRoute = createAdminLeadsRoute({
     adminLeads: adminLeadsService,
@@ -1893,6 +1911,9 @@ export function createComposition(
   // NEIGHBOURHOOD_ALERT_AFTER_FAILURE_DAYS of failures; telemetry is one JSON
   // trace per provider run: `traces | where message startswith
   // '{"event":"neighbourhood_data.'`.
+  // Shared City-data cache (#756) — also reused by neighbourhood reads (#777).
+  const cityDataCacheStore: CityDataCacheStore =
+    options.cityDataCacheStore ?? createDrizzleCityDataCacheStore({ db: db.db });
   const neighbourhoodDataStore: NeighbourhoodDataStore =
     options.neighbourhoodDataStore ?? createDrizzleNeighbourhoodDataStore({ db: db.db });
   const neighbourhoodRefreshService: NeighbourhoodRefreshService =
@@ -1915,6 +1936,15 @@ export function createComposition(
     store: neighbourhoodDataStore,
     lotRadiusM: config.neighbourhoodData.lotRadiusM,
     lotMetricsTtlMs: config.neighbourhoodData.lotMetricsTtlMs,
+    amenityCategories: config.neighbourhoodData.amenityCategories,
+    amenitySearchRadiusM: config.neighbourhoodData.amenitySearchRadiusM,
+    amenityCountRadiiM: config.neighbourhoodData.amenityCountRadiiM,
+    treeCoverThresholds: config.neighbourhoodData.treeCoverThresholds,
+    communityCache: cityDataCacheStore,
+    communityMetricsTtlMs: config.neighbourhoodData.communityMetricsTtlMs,
+  });
+  const communityLivingRoute: CommunityLivingRoute = createCommunityLivingRoute({
+    neighbourhood: neighbourhoodReadService,
   });
   const adminNeighbourhoodDataRoute: AdminNeighbourhoodDataRoute =
     createAdminNeighbourhoodDataRoute({
@@ -1959,8 +1989,6 @@ export function createComposition(
   // Telemetry: one JSON trace per resolution / City call, queryable in App
   // Insights as `traces | where message startswith '{"event":"property_data.'`
   // (docs/ops/property-data-cache.md).
-  const cityDataCacheStore: CityDataCacheStore =
-    options.cityDataCacheStore ?? createDrizzleCityDataCacheStore({ db: db.db });
   const propertyService: PropertyService = createPropertyService(config.propertyData, {
     cache: cityDataCacheStore,
     onEvent: (event) =>
@@ -2260,6 +2288,7 @@ export function createComposition(
     email: emailService,
     fallbackAdminInbox: config.email.opsAlertEmail,
     statusChanges: leadStatusChangeStore,
+    reassignments: leadAssignmentService,
     needsYou: {
       staleAfterDays: config.lead.needsYouStaleDays,
       scanLimit: config.lead.needsYouScanLimit,
@@ -2514,6 +2543,7 @@ export function createComposition(
     neighbourhoodRefreshService,
     neighbourhoodReadService,
     adminNeighbourhoodDataRoute,
+    communityLivingRoute,
     adminAuditStore,
     builderConfigService,
     embedConfigRoute,

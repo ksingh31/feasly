@@ -718,6 +718,8 @@ export const attributionEvents = pgTable(
      * expired: window lapsed with no reported contract.
      * excluded_prior_relationship: builder proved a pre-existing
      *   relationship (proof burden on the builder — Karan 2026-09-24).
+     * reassigned: an admin moved the lead away from this builder (#721);
+     *   nothing is billable to them (owner decision 2026-11-15).
      */
     status: text('status').notNull().default('introduced'),
     createdAt: timestamp('created_at', { withTimezone: true })
@@ -741,6 +743,40 @@ export const attributionEvents = pgTable(
     uniqueIndex('attribution_events_open_intro_unique')
       .on(t.leadId, t.tenantKey)
       .where(sql`${t.status} = 'introduced'`),
+  ],
+);
+
+/**
+ * Lead reassignments (#721). One row each time an admin moves a lead away
+ * from a builder (to another builder or to unassigned). Insert-only.
+ *
+ * The builder portal reads `from_builder_id` to show the old builder the
+ * lead marked "Reassigned by Feasly" (no reason, no contact details). The
+ * actor email is staff, never homeowner PII. ON DELETE SET NULL on both
+ * builder FKs keeps the history when a builder is deleted.
+ */
+export const leadReassignments = pgTable(
+  'lead_reassignments',
+  {
+    /** App-generated UUID (node:crypto). */
+    id: uuid('id').primaryKey(),
+    leadId: uuid('lead_id')
+      .notNull()
+      .references(() => leads.id),
+    fromBuilderId: uuid('from_builder_id').references(() => builders.id, {
+      onDelete: 'set null',
+    }),
+    toBuilderId: uuid('to_builder_id').references(() => builders.id, {
+      onDelete: 'set null',
+    }),
+    actorEmail: text('actor_email').notNull(),
+    reassignedAt: timestamp('reassigned_at', { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (t) => [
+    index('lead_reassignments_from_builder_idx').on(t.fromBuilderId, t.reassignedAt),
+    index('lead_reassignments_lead_idx').on(t.leadId),
   ],
 );
 

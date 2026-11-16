@@ -31,6 +31,86 @@ export type NodeEnv = 'development' | 'test' | 'staging' | 'production';
 export const SEED_ADMIN_EMAIL = 'karanbirsingh667@gmail.com';
 
 /** Split a comma-separated env value into a trimmed, non-empty list. */
+/** #777: validated shape of NEIGHBOURHOOD_AMENITY_CATEGORIES. */
+const amenityCategoriesSchema = z
+  .array(
+    z.object({
+      key: z.string().regex(/^[a-z0-9]+(?:-[a-z0-9]+)*$/, 'category key must be kebab-case'),
+      label: z.string().min(1),
+      datasetId: z.string().regex(/^[a-z0-9]{4}-[a-z0-9]{4}$/, 'datasetId must look like abcd-1234'),
+      where: z.string().min(1).optional(),
+      idField: z.string().min(1).optional(),
+      nameField: z.string().min(1).optional(),
+    }),
+  )
+  .min(1)
+  .refine((list) => new Set(list.map((c) => c.key)).size === list.length, 'category keys must be unique')
+  .refine((list) => list.every((c) => c.key !== 'tree-cover'), "'tree-cover' is reserved");
+
+/**
+ * #777: free City of Calgary open-data amenity categories (data.calgary.ca).
+ * Overridable as JSON via NEIGHBOURHOOD_AMENITY_CATEGORIES.
+ */
+const DEFAULT_AMENITY_CATEGORIES = [
+  {
+    key: 'parks',
+    label: 'Parks',
+    datasetId: 'kami-qbfh', // Parks Sites
+    where:
+      "life_cycle_status='ACTIVE' AND planning_category in('REGIONAL PARK','DISTRICT PARK'," +
+      "'COMMUNITY PARK','NEIGHBOURHOOD PARK','ATHLETIC PARK','LINEAR PARK')",
+    idField: 'asset_cd',
+    nameField: 'site_name',
+  },
+  {
+    key: 'playgrounds',
+    label: 'Playgrounds',
+    // asset_cd is the park site: one playground per site.
+    datasetId: 'bdu9-amk8', // Playground Equipment (multi-play complexes)
+    where: "life_cycle_status='ACTIVE' AND type_description='MULTI PLAY COMPLEX'",
+    idField: 'asset_cd',
+  },
+  {
+    key: 'pathways',
+    label: 'Pathways',
+    // One point per segment; asset_cd is shared by many segments, so the id
+    // is derived from location instead.
+    datasetId: 'qndb-27qm', // Parks Pathways
+    where: "life_cycle_status='ACTIVE'",
+  },
+  {
+    key: 'rec-centres',
+    label: 'Recreation centres',
+    datasetId: 'hxfu-6d96', // Recreation Facilities
+    where:
+      "facility_type in('Leisure Centre','Leisure Centre - Municipal','Aquatic & Fitness Centre'," +
+      "'Fieldhouse','Arena')",
+    nameField: 'complex_name',
+  },
+  {
+    key: 'pools',
+    label: 'Pools',
+    datasetId: 'hxfu-6d96', // Recreation Facilities
+    where: "indr_pool='Y' OR outdr_pool='Y'",
+    nameField: 'complex_name',
+  },
+  {
+    key: 'libraries',
+    label: 'Libraries',
+    datasetId: 'x34e-bcjz', // Community Services
+    where: "type='Library'",
+    nameField: 'name',
+  },
+  {
+    key: 'off-leash',
+    label: 'Off-leash areas',
+    datasetId: 'enr4-crti', // Parks Off Leash Areas
+    where: "status='OPEN'",
+    idField: 'off_leash_area_id',
+    nameField: 'description',
+  },
+] as const;
+
 function csvToList(raw: string): string[] {
   return raw
     .split(',')
@@ -220,7 +300,50 @@ const EnvSchema = z.object({
   // City of Calgary open-data datasets behind the free implementations:
   // Schools, Community Services, Community Points.
   NEIGHBOURHOOD_SCHOOLS_DATASET_ID: z.string().min(1).default('fd9t-tdn2'),
-  NEIGHBOURHOOD_AMENITIES_DATASET_ID: z.string().min(1).default('x34e-bcjz'),
+  // #777: amenity categories (key, label, City dataset, SoQL filter) as a
+  // JSON array — adding/removing a category is config-only. See
+  // DEFAULT_AMENITY_CATEGORIES for the shape and the free defaults.
+  NEIGHBOURHOOD_AMENITY_CATEGORIES: z
+    .string()
+    .min(2)
+    .default(JSON.stringify(DEFAULT_AMENITY_CATEGORIES))
+    .transform((raw, ctx) => {
+      let parsed: unknown;
+      try {
+        parsed = JSON.parse(raw);
+      } catch {
+        ctx.addIssue({ code: 'custom', message: 'must be a JSON array' });
+        return z.NEVER;
+      }
+      const result = amenityCategoriesSchema.safeParse(parsed);
+      if (!result.success) {
+        ctx.addIssue({ code: 'custom', message: result.error.issues[0]?.message ?? 'invalid' });
+        return z.NEVER;
+      }
+      return result.data;
+    }),
+  // #777: per-community public-tree cover: City "Public Trees" (counted per
+  // community) over the community's area from "Community District
+  // Boundaries". Level thresholds are public trees per hectare
+  // ("low,high": below low = low, at/above high = high, else moderate).
+  NEIGHBOURHOOD_PUBLIC_TREES_DATASET_ID: z.string().min(1).default('tfs4-3wwa'),
+  NEIGHBOURHOOD_COMMUNITY_BOUNDARIES_DATASET_ID: z.string().min(1).default('surr-xmvs'),
+  NEIGHBOURHOOD_TREE_COVER_THRESHOLDS: z
+    .string()
+    .default('11,16')
+    .transform((raw) => csvToList(raw).map(Number))
+    .pipe(z.array(z.number().positive()).length(2))
+    .refine(([low, high]) => low! < high!, 'low threshold must be below high'),
+  // #777: community amenity metrics — nearest within the search radius and
+  // counts within each radius (metres, from the community centre).
+  NEIGHBOURHOOD_AMENITY_SEARCH_RADIUS_M: z.coerce.number().int().positive().default(3_000),
+  NEIGHBOURHOOD_AMENITY_COUNT_RADII_M: z
+    .string()
+    .default('500,1000')
+    .transform((raw) => csvToList(raw).map(Number))
+    .pipe(z.array(z.number().int().positive()).min(1)),
+  // How long computed community metrics are reused from the shared cache.
+  NEIGHBOURHOOD_COMMUNITY_METRICS_TTL_MS: z.coerce.number().int().positive().default(86_400_000),
   NEIGHBOURHOOD_COMMUNITY_POINTS_DATASET_ID: z.string().min(1).default('j9ps-fyst'),
   // Established infill communities only (#690 rule): residential
   // communities whose City "community structure" is one of these.
@@ -1270,6 +1393,25 @@ export type AmenitiesImpl = 'calgary-open-data' | 'none';
 export type CommuteImpl = 'straight-line' | 'none';
 
 /**
+ * #777: one amenity category the free `calgary-open-data` AmenitiesProvider
+ * loads from a City open-data dataset (point, polygon or line geometry —
+ * polygons/lines become one representative point).
+ */
+export interface AmenityCategoryConfig {
+  /** Stable kebab key, e.g. 'parks' — the stored `category`. */
+  readonly key: string;
+  /** Display label, e.g. 'Parks'. */
+  readonly label: string;
+  readonly datasetId: string;
+  /** Optional SoQL `$where` filter. */
+  readonly where?: string;
+  /** Source field holding a stable id (else derived from name + location). */
+  readonly idField?: string;
+  /** Source field holding the name (else the label). */
+  readonly nameField?: string;
+}
+
+/**
  * Neighbourhood data (#773). Outside sources sit behind provider interfaces
  * chosen here; a monthly refresh writes them to our tables and request
  * paths only ever read those tables.
@@ -1286,7 +1428,16 @@ export interface NeighbourhoodDataConfig {
   /** City open-data endpoint (shared with property data). */
   readonly socrataBaseUrl: string;
   readonly schoolsDatasetId: string;
-  readonly amenitiesDatasetId: string;
+  /** #777: amenity categories the free AmenitiesProvider loads. */
+  readonly amenityCategories: readonly AmenityCategoryConfig[];
+  /** #777: public-tree cover per community. */
+  readonly publicTreesDatasetId: string;
+  readonly communityBoundariesDatasetId: string;
+  /** Public trees per hectare: [low, high]. */
+  readonly treeCoverThresholds: readonly [number, number];
+  readonly amenitySearchRadiusM: number;
+  readonly amenityCountRadiiM: readonly number[];
+  readonly communityMetricsTtlMs: number;
   readonly communityPointsDatasetId: string;
   /** #690: residential class + established community structures. */
   readonly communityClass: string;
@@ -1818,7 +1969,13 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): ApiConfig {
       },
       socrataBaseUrl: e.SOCRATA_BASE_URL,
       schoolsDatasetId: e.NEIGHBOURHOOD_SCHOOLS_DATASET_ID,
-      amenitiesDatasetId: e.NEIGHBOURHOOD_AMENITIES_DATASET_ID,
+      amenityCategories: e.NEIGHBOURHOOD_AMENITY_CATEGORIES,
+      publicTreesDatasetId: e.NEIGHBOURHOOD_PUBLIC_TREES_DATASET_ID,
+      communityBoundariesDatasetId: e.NEIGHBOURHOOD_COMMUNITY_BOUNDARIES_DATASET_ID,
+      treeCoverThresholds: [e.NEIGHBOURHOOD_TREE_COVER_THRESHOLDS[0]!, e.NEIGHBOURHOOD_TREE_COVER_THRESHOLDS[1]!],
+      amenitySearchRadiusM: e.NEIGHBOURHOOD_AMENITY_SEARCH_RADIUS_M,
+      amenityCountRadiiM: [...e.NEIGHBOURHOOD_AMENITY_COUNT_RADII_M].sort((a, b) => a - b),
+      communityMetricsTtlMs: e.NEIGHBOURHOOD_COMMUNITY_METRICS_TTL_MS,
       communityPointsDatasetId: e.NEIGHBOURHOOD_COMMUNITY_POINTS_DATASET_ID,
       communityClass: e.NEIGHBOURHOOD_COMMUNITY_CLASS,
       communityStructures: csvToList(e.NEIGHBOURHOOD_COMMUNITY_STRUCTURES),

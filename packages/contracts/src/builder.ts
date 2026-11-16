@@ -184,6 +184,11 @@ export interface BuilderLeadListResponse {
     /** Issue #530: won leads with no recorded contract (needsRecording). */
     readonly needsRecording: number;
   };
+  /**
+   * #721: leads Feasly moved away from this builder, newest first. The API
+   * always sends it; optional only so older portal builds keep compiling.
+   */
+  readonly reassigned?: readonly BuilderReassignedLead[];
 }
 
 /** Per-status lead counts for the portal's segmented pipeline filter. */
@@ -352,6 +357,39 @@ export interface BuilderUpdateBody {
 export interface LeadAssignBuilderBody {
   /** Builder id to assign, or null to unassign. */
   readonly builderId: string | null;
+}
+
+/**
+ * `POST /api/v1/admin/leads/{id}/assign-builder` response (#721).
+ *
+ * Moving a lead away from a builder closes that builder's open attribution
+ * (nothing stays billable to them — owner decision 2026-11-15) and, when the
+ * lead moves to another builder, opens a fresh introduction for the new
+ * builder dated now. A lead with any non-void commission invoice is refused
+ * with 409 `LEAD_HAS_INVOICE`; the message names the invoice, and the admin
+ * must void or refund it first.
+ */
+export interface LeadAssignBuilderResponse {
+  readonly ok: true;
+  /** False when the lead was already assigned to the requested builder. */
+  readonly changed: boolean;
+  /** Builder the lead was assigned to before the call (null = unassigned). */
+  readonly fromBuilderId: string | null;
+  /** Builder the lead is assigned to now (null = unassigned). */
+  readonly toBuilderId: string | null;
+}
+
+/**
+ * A lead Feasly moved away from this builder (#721). The portal shows it
+ * marked "Reassigned by Feasly", with no reason given. Only the name is
+ * included: the builder no longer has access to the lead's contact details,
+ * detail view or comments (those return 404).
+ */
+export interface BuilderReassignedLead {
+  readonly id: string;
+  readonly name: string;
+  /** ISO-8601: when the lead was moved away from this builder. */
+  readonly reassignedAt: string;
 }
 
 /**

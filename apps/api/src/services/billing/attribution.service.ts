@@ -12,8 +12,11 @@
  *   introduced → expired (window lapsed, no contract)
  *   introduced → excluded_prior_relationship (builder proved a pre-existing
  *     relationship — proof burden on the builder, Karan 2026-09-24)
- * Terminal states (attributed / expired / excluded_prior_relationship) have
- * no outgoing transitions.
+ *   introduced → reassigned (#721: an admin moved the lead to another
+ *     builder or unassigned it — nothing stays billable to this builder,
+ *     owner decision 2026-11-15; written by lead-assignment.service)
+ * Terminal states (attributed / expired / excluded_prior_relationship /
+ * reassigned) have no outgoing transitions.
  *
  * Only services and composition.ts may import from src/db/ — enforced by
  * test/boundaries.test.ts.
@@ -35,7 +38,8 @@ export type AttributionStatus =
   | 'introduced'
   | 'attributed'
   | 'expired'
-  | 'excluded_prior_relationship';
+  | 'excluded_prior_relationship'
+  | 'reassigned';
 
 export interface AttributionRecord {
   readonly id: string;
@@ -116,6 +120,7 @@ const TERMINAL_STATUSES: ReadonlySet<AttributionStatus> = new Set([
   'attributed',
   'expired',
   'excluded_prior_relationship',
+  'reassigned',
 ]);
 
 /**
