@@ -51,6 +51,7 @@ function setup(opts: { builder?: Builder; emailThrows?: boolean } = {}) {
   const b = opts.builder ?? builder();
   const records: OriginChangeRequestRecord[] = [];
   const keys = new Map<string, OriginChangeRequestRecord>();
+  const closures: Array<{ id: string; createdAt: Date }> = [];
   const store: BuilderSettingsStore = {
     createOriginRequest: vi.fn(async (input) => {
       const existing = keys.get(input.dedupeKey);
@@ -71,6 +72,11 @@ function setup(opts: { builder?: Builder; emailThrows?: boolean } = {}) {
     listOpenOriginRequests: vi.fn(async () => records),
     markOriginRequestsDone: vi.fn(async (ids) => ids.length),
     lastEmbedLoads: vi.fn(async () => []),
+    createClosureRequest: vi.fn(async () => {
+      const created = closures.length === 0;
+      if (created) closures.push({ id: `c-${closures.length + 1}`, createdAt: NOW });
+      return { record: closures[0]!, created };
+    }),
   };
   const builders = {
     getBuilder: vi.fn(async () => b),
@@ -293,5 +299,43 @@ describe('builder settings service — origin requests', () => {
     });
     expect(n).toBe(1);
     expect(store.markOriginRequestsDone).toHaveBeenCalledWith(['r-1'], 'staff@feasly.example', NOW);
+  });
+});
+
+describe('builder settings service — account closure request (#860)', () => {
+  it('files one admin task, audits and emails the team inbox once', async () => {
+    const { service, store, audit, email } = setup();
+    const first = await service.requestAccountClosure(OWNER, { reason: 'Retiring' });
+    const second = await service.requestAccountClosure(OWNER, {});
+    expect(first).toEqual({ requestId: 'c-1', created: true, requestedAt: NOW.toISOString() });
+    expect(second.created).toBe(false);
+    expect(store.createClosureRequest).toHaveBeenCalledWith(
+      expect.objectContaining({ note: 'Retiring', requestedByEmail: OWNER.email }),
+    );
+    expect(audit.log).toHaveBeenCalledTimes(1);
+    expect(audit.log).toHaveBeenCalledWith(
+      expect.objectContaining({ action: 'builder_account_closure_requested' }),
+    );
+    expect(email.sendOpsAlert).toHaveBeenCalledTimes(1);
+    expect(email.sendOpsAlert).toHaveBeenCalledWith(
+      expect.objectContaining({ to: 'team@ops.example' }),
+    );
+  });
+
+  it('still records the request when the notice fails', async () => {
+    const { service, warnings } = setup({ emailThrows: true });
+    const out = await service.requestAccountClosure(OWNER, {});
+    expect(out.created).toBe(true);
+    expect(warnings.join(' ')).toMatch(/closure notice failed/);
+  });
+
+  it('403s members and 400s an over-long or unknown body', async () => {
+    const { service, store } = setup();
+    expect((await httpError(service.requestAccountClosure(MEMBER, {}))).status).toBe(403);
+    expect(
+      (await httpError(service.requestAccountClosure(OWNER, { reason: 'x'.repeat(1001) }))).status,
+    ).toBe(400);
+    expect((await httpError(service.requestAccountClosure(OWNER, { other: 1 }))).status).toBe(400);
+    expect(store.createClosureRequest).not.toHaveBeenCalled();
   });
 });

@@ -47,6 +47,9 @@ export const DEFAULT_APP_CONFIG: AppConfig = {
     stripePublishableKey: '',
     questionInvoiceHref: '',
     chargeDelayDays: 7,
+    // #872: admin chargeback drawers link here ("View in Stripe"); test-mode
+    // disputes get the `/test` path.
+    stripeDashboardBaseUrl: 'https://dashboard.stripe.com',
     // #867: re-fetch an invoice every 3s, up to 10 times, while the webhook
     // settles a bank confirmation.
     confirmPollIntervalMs: 3000,

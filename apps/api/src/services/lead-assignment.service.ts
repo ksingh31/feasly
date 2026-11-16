@@ -44,6 +44,7 @@ import {
 } from '../db/schema';
 import { ErrorCodes, HttpError } from '../middleware/errors';
 import type { AdminAuditStore } from './admin-audit.store';
+import { builderStatusAllows, normalizeBuilderStatus } from '../lib/builder-status-policy';
 
 export interface LeadReassignmentEntry {
   readonly fromBuilderId: string | null;
@@ -141,6 +142,18 @@ export function createLeadAssignmentService(
 
       if (fromBuilderId === builderId) {
         return { ok: true, changed: false, fromBuilderId, toBuilderId: builderId };
+      }
+
+      // #860 policy: a builder whose status refuses new leads (suspended,
+      // offboarding, offboarded) can't be assigned one — the lead stays in
+      // the unassigned queue for another builder.
+      if (target !== null && !builderStatusAllows(target.status, 'newLeads')) {
+        throw new HttpError(
+          409,
+          ErrorCodes.BUILDER_PAUSED,
+          `This builder is ${normalizeBuilderStatus(target.status) ?? 'unavailable'} and can't take new leads.`,
+          false,
+        );
       }
 
       if (fromBuilderId === null) {

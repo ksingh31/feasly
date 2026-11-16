@@ -45,7 +45,7 @@ const BUILDER_B: Builder = {
   displayName: 'Bow River',
   email: null,
   plan: null,
-  status: 'inactive',
+  status: 'suspended',
   commissionRatePercent: 1.25,
   settings: { defaultPaymentMethod: 'e_transfer' },
 };
@@ -125,7 +125,7 @@ describe('AdminBuildersComponent (#541)', () => {
     expect(text(a)).toContain('hello@elite.example');
 
     expect(b.querySelector('.builders-page__slug')?.textContent).toBe('bow-river-custom');
-    expect(text(b)).toContain('Inactive');
+    expect(text(b)).toContain('Suspended');
     expect(text(b)).toContain('Undecided');
     expect(text(b)).toContain('1.25%');
     expect(text(b)).toContain('E-transfer');

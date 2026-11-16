@@ -1,7 +1,7 @@
 <div class="disputes-page">
   <ui-page-header
     heading="Disputes"
-    description="Open billing disputes, oldest first. Each has 5 business days to resolve (Mountain Time). A breach alerts ops and never auto-resolves."
+    description="Open billing disputes and bank chargebacks, oldest first. Builder disputes have 5 business days to resolve (Mountain Time); chargebacks count down to Stripe’s evidence deadline. A breach alerts ops and never auto-resolves."
   >
     <button
       uiPageHeaderActions
@@ -46,6 +46,14 @@
         [copiedLabel]="entityCopy.idCopied"
         (opened)="openInvoice($event)"
       />
+    </ng-template>
+    <ng-template uiCell="builder" let-d>
+      <span class="disputes-page__builder">
+        <span>{{ d.tenantKey }}</span>
+        @if (chargeback(d)) {
+          <ui-status-chip domain="disputeSource" status="chargeback" data-testid="chargeback-chip" />
+        }
+      </span>
     </ng-template>
     <ng-template uiCell="sla" let-d>
       <ui-status-chip domain="disputeSla" [status]="sla(d).key" [label]="sla(d).label" data-testid="sla-chip" />

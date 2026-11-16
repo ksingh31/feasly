@@ -35,6 +35,7 @@ import type {
   EmailDelivery,
 } from '../src/services/email/email.service';
 import { HttpError } from '../src/middleware/errors';
+import { BUILDER_STATUSES, BUILDER_STATUS_POLICY } from '@feasly/contracts';
 
 const MIN = 60_000;
 const HOUR = 60 * MIN;
@@ -115,9 +116,10 @@ function world(opts?: {
   maxAttempts?: number;
   storeFails?: boolean;
   sendThrows?: boolean;
+  eliteStatus?: string;
 }) {
   let now = NOW;
-  const builders = [ELITE, OTHER];
+  const builders = [{ ...ELITE, status: opts?.eliteStatus ?? ELITE.status }, OTHER];
   const members: FakeMember[] = opts?.members ?? [
     { userId: 'u-admin', email: 'admin@elite.example', builderId: ELITE.id, role: 'builder_admin', active: true },
     { userId: 'u-member', email: 'member@elite.example', builderId: ELITE.id, role: 'builder_member', active: true },
@@ -660,5 +662,18 @@ describe('preferences (AC4)', () => {
       .updatePreferences(session('admin@elite.example', 'u-member'), { newLeadEmail: false })
       .catch((e: unknown) => e);
     expect((write as HttpError).status).toBe(403);
+  });
+});
+
+// #860: new-lead notification enforcement point — one test per status.
+describe.each(BUILDER_STATUSES)('new-lead email policy — %s builder', (status) => {
+  it('sends only when the policy allows new leads', async () => {
+    const w = world({ eliteStatus: status });
+    await w.service.notifyNewLead({ leadId: 'lead-1', builderId: ELITE.id });
+    if (BUILDER_STATUS_POLICY[status].newLeads) {
+      expect(w.newLeadSends.length).toBeGreaterThan(0);
+    } else {
+      expect(w.newLeadSends).toEqual([]);
+    }
   });
 });

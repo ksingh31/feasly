@@ -27,6 +27,7 @@ import type { CommissionService } from './commission.service';
 import type { BillingAuditService } from './billing-audit.service';
 import type { StripeService } from './stripe.service';
 import { AUTHENTICATION_REQUIRED_CODE } from '../../lib/charge-outcome';
+import { builderStatusAllows } from '../../lib/builder-status-policy';
 
 /** Default hours before a 'finalized' invoice is reconciled (#711). */
 const DEFAULT_SETTLEMENT_THRESHOLD_HOURS = 24;
@@ -65,12 +66,25 @@ export interface InvoiceReviewerServiceDeps {
   readonly audit: BillingAuditService;
   /** Read-only PaymentIntent lookup for reconciliation (#711). */
   readonly stripe: Pick<StripeService, 'retrievePaymentIntent'>;
+  /**
+   * #860: the builder's lifecycle status by tenant key (null = unknown
+   * tenant). When the policy refuses `autoCharge` (suspended, offboarded)
+   * the invoice is held — not charged, counted as skipped. Absent = no hold.
+   */
+  readonly builderStatus?: (tenantKey: string) => Promise<string | null>;
 }
 
 export function createInvoiceReviewerService(
   deps: InvoiceReviewerServiceDeps,
 ): InvoiceReviewerService {
   const { billing, commission, audit, stripe } = deps;
+
+  /** #860: true when the builder's status pauses auto-charging. */
+  async function chargeHeld(tenantKey: string): Promise<boolean> {
+    if (!deps.builderStatus) return false;
+    const status = await deps.builderStatus(tenantKey);
+    return status !== null && !builderStatusAllows(status, 'autoCharge');
+  }
 
   interface ReconcileResult {
     reconciledPaid: number;
@@ -157,7 +171,8 @@ export function createInvoiceReviewerService(
       const due = await commission.findDueReviews(reviewNow);
       // billing/12: manual-method invoices are skipped by findDueReviews
       // (no auto-charge, no card retry) — count them for observability.
-      const skipped = await commission.countSkippedManualReviews(reviewNow);
+      const skippedManual = await commission.countSkippedManualReviews(reviewNow);
+      let heldByStatus = 0;
       let finalized = 0;
       let failed = 0;
       const errors: Array<{ invoiceId: string; message: string }> = [];
@@ -165,6 +180,10 @@ export function createInvoiceReviewerService(
 
       for (const invoice of due) {
         try {
+          if (await chargeHeld(invoice.tenantKey)) {
+            heldByStatus += 1;
+            continue;
+          }
           await commission.finalizeInvoice(invoice.id);
           justFinalized.add(invoice.id);
           finalized += 1;
@@ -178,6 +197,7 @@ export function createInvoiceReviewerService(
         }
       }
 
+      const skipped = skippedManual + heldByStatus;
       const reconciled = await reconcile(reviewNow, justFinalized);
       failed += reconciled.failed;
       errors.push(...reconciled.errors);
@@ -193,6 +213,7 @@ export function createInvoiceReviewerService(
           skipped,
           failed,
           due: due.length,
+          heldByStatus,
           reconciledPaid,
           reconciledFailed,
           stillPending,

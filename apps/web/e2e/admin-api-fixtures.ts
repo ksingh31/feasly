@@ -228,7 +228,7 @@ export const ADMIN_BUILDERS: BuilderListResponse = {
   builders: [
     builder('b-1', ELITE, 'Elite Craft Builders'),
     builder('b-2', NORTHERN, 'Northern Lights Custom Homes & Renovations Ltd.', { commissionRatePercent: 1.5 }),
-    builder('b-3', 'bow-river-custom', 'Bow River Custom', { status: 'inactive', plan: null }),
+    builder('b-3', 'bow-river-custom', 'Bow River Custom', { status: 'suspended', plan: null }),
   ],
 };
 
@@ -343,7 +343,35 @@ const DISPUTE_ITEM: DisputeListItem = {
   breached: false,
 };
 
-export const DISPUTES: DisputeListResponse = { disputes: [DISPUTE_ITEM] };
+/** #872: a Stripe bank chargeback on a paid invoice (resolved in Stripe). */
+const PAID = INVOICES.find((i) => i.status === 'paid')!;
+
+const CHARGEBACK_ITEM: DisputeListItem = {
+  id: 'chargeback-1',
+  invoiceId: PAID.id,
+  tenantKey: PAID.tenantKey,
+  reason: 'fraudulent',
+  status: 'open',
+  openedAt: daysAgo(1),
+  slaDueAt: daysAhead(6),
+  slaBreachedAt: null,
+  commissionCents: PAID.commissionCents,
+  currency: 'CAD',
+  contractValueCents: PAID.contractValueCents,
+  businessDaysRemaining: 4,
+  breached: false,
+  source: 'chargeback',
+  stripeDisputeId: 'dp_1QxE2eChargebackFixture000001',
+  stripeReason: 'product_not_received',
+  stripeStatus: 'needs_response',
+  amountCents: PAID.commissionCents,
+  evidenceDueAt: daysAhead(6),
+  evidenceDaysRemaining: 6,
+  outcome: null,
+  livemode: false,
+};
+
+export const DISPUTES: DisputeListResponse = { disputes: [DISPUTE_ITEM, CHARGEBACK_ITEM] };
 
 export const DISPUTE_DETAIL: DisputeDetailResponse = {
   ...DISPUTE_ITEM,
@@ -384,6 +412,45 @@ export const DISPUTE_DETAIL: DisputeDetailResponse = {
       entityId: DISPUTED.id,
       payload: { reason: DISPUTE_ITEM.reason },
       createdAt: daysAgo(2),
+    },
+  ],
+};
+
+export const CHARGEBACK_DETAIL: DisputeDetailResponse = {
+  ...CHARGEBACK_ITEM,
+  evidenceSnapshot: {
+    invoiceId: PAID.id,
+    tenantKey: PAID.tenantKey,
+    attributionId: PAID.attributionId,
+    leadId: PAID.leadId,
+    contractValueCents: PAID.contractValueCents,
+    commissionCents: PAID.commissionCents,
+    currency: 'CAD',
+    stripePaymentIntentId: 'pi_3QxE2eChargebackFixture00001',
+    status: 'paid',
+    reviewDueAt: daysAgo(3),
+    disputeReason: 'fraudulent',
+    invoiceCreatedAt: daysAgo(12),
+    disputedAt: daysAgo(1),
+    effectiveRatePercent: 1,
+  },
+  resolvedAt: null,
+  resolvedBy: null,
+  resolutionNote: null,
+  auditTrail: [
+    {
+      id: 'cb-ev-1',
+      tenantKey: PAID.tenantKey,
+      eventType: 'invoice.chargeback_opened',
+      entityType: 'invoice',
+      entityId: PAID.id,
+      payload: {
+        stripeDisputeId: CHARGEBACK_ITEM.stripeDisputeId,
+        amountCents: PAID.commissionCents,
+        stripeReason: 'product_not_received',
+        evidenceDueAt: CHARGEBACK_ITEM.evidenceDueAt,
+      },
+      createdAt: daysAgo(1),
     },
   ],
 };
@@ -618,7 +685,8 @@ export async function mockAdminApi(page: Page, opts: { signedIn: boolean }): Pro
       }
       const disputeMatch = /^\/api\/v1\/admin\/disputes\/([^/]+)$/.exec(path);
       if (disputeMatch) {
-        return disputeMatch[1] === DISPUTE_DETAIL.id ? json(route, DISPUTE_DETAIL) : notFound(route);
+        const detail = [DISPUTE_DETAIL, CHARGEBACK_DETAIL].find((d) => d.id === disputeMatch[1]);
+        return detail ? json(route, detail) : notFound(route);
       }
       const estimateMatch = /^\/api\/v1\/admin\/estimates\/([^/]+)$/.exec(path);
       if (estimateMatch) {
