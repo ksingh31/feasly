@@ -33,7 +33,7 @@
  * Only services and composition.ts may import from src/db/ — enforced by
  * test/boundaries.test.ts.
  */
-import { and, desc, eq, ilike, inArray, isNotNull, lte, ne, sql } from 'drizzle-orm';
+import { and, desc, eq, ilike, inArray, isNotNull, lte, ne, notExists, sql } from 'drizzle-orm';
 import { randomUUID } from 'node:crypto';
 import type { BillingConfig } from '../../config';
 import type { AppDb } from '../../db/client';
@@ -1839,6 +1839,20 @@ export function createCommissionService(
       // Not model-gated: a chargeback can close on an invoice issued before
       // a model switch, and the webhook must still settle it.
       const at = now();
+      // One reopen per dispute, ever: if this dispute already wrote its
+      // reopen audit row, a redelivery must not move the invoice again —
+      // even when it has since been collected and is `paid` (#967 review).
+      const alreadyReopened = () => db
+        .select({ id: billingEvents.id })
+        .from(billingEvents)
+        .where(
+          and(
+            eq(billingEvents.eventType, 'invoice.charge_failed'),
+            eq(billingEvents.entityType, 'commission_invoice'),
+            eq(billingEvents.entityId, input.invoiceId),
+            sql`${billingEvents.payload}->>'disputeId' = ${input.disputeId}`,
+          ),
+        );
       const [moved] = await db
         .update(commissionInvoices)
         .set({ status: 'failed', paidAt: null, updatedAt: at })
@@ -1846,6 +1860,7 @@ export function createCommissionService(
           and(
             eq(commissionInvoices.id, input.invoiceId),
             eq(commissionInvoices.status, 'paid'),
+            notExists(alreadyReopened()),
           ),
         )
         .returning();
@@ -1864,15 +1879,7 @@ export function createCommissionService(
         ) {
           return { reopened: false };
         }
-        const already = await db.query.billingEvents.findFirst({
-          columns: { id: true },
-          where: and(
-            eq(billingEvents.eventType, 'invoice.charge_failed'),
-            eq(billingEvents.entityType, 'commission_invoice'),
-            eq(billingEvents.entityId, input.invoiceId),
-            sql`${billingEvents.payload}->>'disputeId' = ${input.disputeId}`,
-          ),
-        });
+        const [already] = await alreadyReopened().limit(1);
         if (already !== undefined) return { reopened: false };
         row = current;
       }
