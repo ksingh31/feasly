@@ -8,7 +8,7 @@ import {
 } from '@angular/core';
 import { provideRouter } from '@angular/router';
 import { provideStore, type NgxsModuleOptions } from '@ngxs/store';
-import { withNgxsStoragePlugin } from '@ngxs/storage-plugin';
+import { SESSION_STORAGE_ENGINE, withNgxsStoragePlugin } from '@ngxs/storage-plugin';
 import { provideApi } from './core/api/api.service';
 import { providePropertyData } from './core/api/property-data.service';
 import { GlobalErrorHandler, connectivityInterceptor } from './core/errors';
@@ -22,6 +22,7 @@ import type { ReportStateModel } from './features/report/report.state';
 import { LeadState } from './features/wizard/lead.state';
 import { WizardState } from './features/wizard/wizard.state';
 import { ConsentState } from './features/consent/consent.state';
+import { CampaignSourceState } from './features/consent/campaign-source.state';
 import { AdminAuthState } from './features/admin/admin-auth.state';
 import { BuilderState, EMPTY_SUMMARY } from './features/builder/builder.state';
 import { BuilderBillingState } from './features/builder/builder-billing.state';
@@ -120,6 +121,9 @@ export const appConfig: ApplicationConfig = {
         LeadState,
         EmbedState,
         ConsentState,
+        // #815: session-scoped campaign attribution (utm / click-id type /
+        // referrer host) — persisted to sessionStorage below.
+        CampaignSourceState,
         ComparisonState,
         // Admin data states are memory-only (never persisted) and NOT in
         // the root store — they lazy-load at the `/admin` route via
@@ -154,6 +158,8 @@ export const appConfig: ApplicationConfig = {
           LeadState,
           EmbedState,
           ConsentState,
+          // #815: first-touch attribution lives for the tab session only.
+          { key: CampaignSourceState, engine: SESSION_STORAGE_ENGINE },
           ComparisonState,
           AdminAuthState,
           BuilderState,

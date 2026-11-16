@@ -112,7 +112,7 @@ describe('GatePageComponent', () => {
         provideStore([WizardState, LeadState, EmbedState, ReportState, PartnersState]),
         // The gate fires a consent-gated analytics event on success; the
         // gate spec owns gate behavior, not analytics internals.
-        { provide: AnalyticsService, useValue: { track: vi.fn() } },
+        { provide: AnalyticsService, useValue: { track: vi.fn(), leadSource: vi.fn(() => undefined) } },
         ...(extraProviders as never[]),
       ],
     });
@@ -247,6 +247,36 @@ describe('GatePageComponent', () => {
       // The gate conversion is reported to analytics (consent-gated inside
       // the real service; mocked here).
       expect(TestBed.inject(AnalyticsService).track).toHaveBeenCalledWith('gate_convert');
+    });
+
+    it('sends the consented campaign source with the lead (#815)', async () => {
+      const mockApi = TestBed.inject(MockApiService);
+      const submitSpy = vi.spyOn(mockApi, 'submitLead');
+      const analytics = TestBed.inject(AnalyticsService);
+      vi.mocked(analytics.leadSource).mockReturnValue({ utm_source: 'google', utm_campaign: 'test' });
+      setInput('#gate-name', 'Jane Doe');
+      setInput('#gate-email', 'jane@example.com');
+      setInput('#gate-phone', '');
+      setSelect('3-6mo');
+      (fixture.nativeElement.querySelector('.consent input') as HTMLInputElement).click();
+      fixture.detectChanges();
+      submit();
+      await pollUrl('/estimate/analyzing');
+      expect(submitSpy.mock.calls[0][0].source).toEqual({ utm_source: 'google', utm_campaign: 'test' });
+    });
+
+    it('omits source from the lead when there is none or no consent (#815)', async () => {
+      const mockApi = TestBed.inject(MockApiService);
+      const submitSpy = vi.spyOn(mockApi, 'submitLead');
+      setInput('#gate-name', 'Jane Doe');
+      setInput('#gate-email', 'jane@example.com');
+      setInput('#gate-phone', '');
+      setSelect('3-6mo');
+      (fixture.nativeElement.querySelector('.consent input') as HTMLInputElement).click();
+      fixture.detectChanges();
+      submit();
+      await pollUrl('/estimate/analyzing');
+      expect(submitSpy.mock.calls[0][0]).not.toHaveProperty('source');
     });
 
     it('blocks submit when the timeline is unchosen — timeline is required (Karan 2026-09-27)', async () => {

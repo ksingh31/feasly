@@ -435,12 +435,14 @@ describe('MockApiService', () => {
   });
 
   describe('getFunnel (admin/07)', () => {
-    it('returns all four steps with counts and a null first-step conversion', async () => {
+    it('returns the six #814 steps with counts and a null first-step conversion', async () => {
       const report = await firstValueFrom(service.getFunnel({ tenant: 'all' }));
       expect(report.steps.map((s) => s.step)).toEqual([
-        'scope',
+        'landing',
+        'address',
         'preview',
         'gate',
+        'convert',
         'report',
       ]);
       expect(report.steps[0].conversionFromPrevious).toBeNull();
@@ -467,6 +469,19 @@ describe('MockApiService', () => {
       const report = await firstValueFrom(service.getFunnel({ tenant: 'no-such-builder' }));
       expect(report.steps.every((s) => s.count === 0)).toBe(true);
       expect(report.steps.every((s) => s.conversionFromPrevious === null)).toBe(true);
+    });
+
+    it('groups by source + campaign and honours the utm filters (#815)', async () => {
+      const all = await firstValueFrom(service.getFunnel({ tenant: 'all' }));
+      expect(all.bySource?.length).toBeGreaterThan(1);
+      const google = await firstValueFrom(
+        service.getFunnel({ tenant: 'all', utmSource: 'google', utmCampaign: 'spring-infill' }),
+      );
+      expect(google.utmSource).toBe('google');
+      expect(google.utmCampaign).toBe('spring-infill');
+      expect(google.bySource?.map((g) => g.utmSource)).toEqual(['google']);
+      expect(google.steps[0].count).toBeLessThan(all.steps[0].count);
+      expect(google.steps[0].count).toBe(google.bySource![0].steps[0].count);
     });
 
     it('carries no PII keys', async () => {

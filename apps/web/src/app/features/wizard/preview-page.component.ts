@@ -1,5 +1,5 @@
 import { NgTemplateOutlet } from '@angular/common';
-import { Component, computed, inject, OnInit } from '@angular/core';
+import { Component, computed, effect, inject, OnInit, untracked } from '@angular/core';
 import { RouterLink } from '@angular/router';
 import type { CostRange } from '@feasly/contracts';
 import { Store } from '@ngxs/store';
@@ -14,6 +14,7 @@ import {
   WizardStepsComponent,
 } from '../../shared/components';
 import { formatCompactCad, formatCompactRange } from '../../shared/utils/money';
+import { AnalyticsService } from '../consent/analytics.service';
 import { EmbedState } from '../embed/embed.state';
 import { LoadPreview } from '../report/report.actions';
 import { ReportState } from '../report/report.state';
@@ -61,6 +62,19 @@ export class PreviewPageComponent implements OnInit {
   private readonly store = inject(Store);
   private readonly seo = inject(SeoService);
   private readonly config = inject(ConfigService);
+  private readonly analytics = inject(AnalyticsService);
+
+  constructor() {
+    // #815: report each failed preview load once — `loadFailed` only flips
+    // on a status transition, so a re-render never re-fires. A validation
+    // rejection means the engine can't price the property; anything else
+    // is an estimate error. Consent-gated inside AnalyticsService.
+    effect(() => {
+      if (!this.loadFailed()) return;
+      const validation = this.isValidationError();
+      untracked(() => this.analytics.track(validation ? 'property_unsupported' : 'estimate_error'));
+    });
+  }
 
   /** Preview-step copy (config-owned). */
   protected readonly copy = this.config.get('copy').preview;

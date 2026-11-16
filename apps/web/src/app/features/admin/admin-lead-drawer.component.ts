@@ -187,6 +187,25 @@ export class AdminLeadDrawerComponent {
     ];
   });
 
+  /**
+   * #815: campaign attribution captured with the lead submit (leads.source_*).
+   * Only the set fields are listed; empty = render the no-attribution note.
+   */
+  protected readonly attributionItems = computed<readonly KeyValueItem[]>(() => {
+    const source = this.lead()?.attribution;
+    if (!source) return [];
+    const l = this.copy.labels;
+    const rows: KeyValueItem[] = [
+      { label: l.utmSource, value: source.utm_source ?? null },
+      { label: l.utmMedium, value: source.utm_medium ?? null },
+      { label: l.utmCampaign, value: source.utm_campaign ?? null },
+      { label: l.utmTerm, value: source.utm_term ?? null },
+      { label: l.utmContent, value: source.utm_content ?? null },
+      { label: l.clickIdType, value: source.click_id_type ?? null },
+    ];
+    return rows.filter((row) => row.value !== null);
+  });
+
   protected readonly propertyItems = computed<readonly KeyValueItem[]>(() => {
     const estimate = this.lead()?.estimate;
     if (!estimate) return [];

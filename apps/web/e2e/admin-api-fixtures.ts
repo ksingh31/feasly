@@ -155,6 +155,9 @@ function leadDetail(item: AdminLeadListItem): AdminLeadDetail {
       createdAt: item.createdAt,
     },
     magicLinkStatus: 'used',
+    // #815: lead-1 arrived from the paid test campaign; the rest are direct.
+    attribution:
+      item.id === 'lead-1' ? { utm_source: 'google', utm_campaign: 'test', click_id_type: 'gclid' } : null,
     sheetsSyncedAt: daysAgo(1),
     snapshotCount: 2,
     builderId: item.tenantKey ? 'b-1' : null,
@@ -431,16 +434,41 @@ export const SHEETS_STATUS: SheetsSyncStatusResponse = {
   ],
 };
 
+const FUNNEL_COUNTS: ReadonlyArray<readonly [string, string, number]> = [
+  ['landing', 'Landing view', 9640],
+  ['address', 'Address selected', 4820],
+  ['preview', 'Preview', 3110],
+  ['gate', 'Gate view', 2400],
+  ['convert', 'Gate convert', 912],
+  ['report', 'Report open', 760],
+];
+
+/** #814 funnel steps scaled by `share` (conversions recomputed). */
+function funnelSteps(share: number): FunnelReport['steps'] {
+  const counts = FUNNEL_COUNTS.map(([, , count]) => Math.round(count * share));
+  return FUNNEL_COUNTS.map(([step, label], i) => ({
+    step,
+    label,
+    count: counts[i]!,
+    conversionFromPrevious: i === 0 || counts[i - 1] === 0 ? null : +(counts[i]! / counts[i - 1]!).toFixed(3),
+  }));
+}
+
 export const FUNNEL: FunnelReport = {
   from: null,
   to: null,
   tenant: 'all',
-  steps: [
-    { step: 'address_entered', label: 'Address entered', count: 4820, conversionFromPrevious: null },
-    { step: 'preview_viewed', label: 'Preview viewed', count: 3110, conversionFromPrevious: 0.645 },
-    { step: 'gate_submitted', label: 'Email submitted', count: 912, conversionFromPrevious: 0.293 },
-    { step: 'report_viewed', label: 'Report viewed', count: 760, conversionFromPrevious: 0.833 },
+  utmSource: null,
+  utmCampaign: null,
+  steps: funnelSteps(1),
+  // #815: per-(source, campaign) breakdown, including a long campaign name
+  // so the phone layout is exercised.
+  bySource: [
+    { utmSource: null, utmCampaign: null, steps: funnelSteps(0.5) },
+    { utmSource: 'google', utmCampaign: 'calgary-infill-build-cost-spring-2027', steps: funnelSteps(0.35) },
+    { utmSource: 'www.reddit.com', utmCampaign: null, steps: funnelSteps(0.15) },
   ],
+  bySourceTruncated: false,
 };
 
 export const ESTIMATE_ID = 'est-1';

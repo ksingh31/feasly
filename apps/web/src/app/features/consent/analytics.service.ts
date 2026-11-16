@@ -1,10 +1,11 @@
 import { inject, Injectable } from '@angular/core';
 import { Router } from '@angular/router';
 import { Store } from '@ngxs/store';
-import type { AnalyticsEvent, AnalyticsEventName } from '@feasly/contracts';
+import type { AnalyticsEvent, AnalyticsEventName, AnalyticsSource } from '@feasly/contracts';
 import { firstValueFrom } from 'rxjs';
 import { API_SERVICE } from '../../core/api/api.service';
-import { ConsentState } from './consent.state';
+import { selectCampaignSource } from './campaign-source.state';
+import { ConsentStateName, type ConsentStateModel } from './consent.state';
 
 /**
  * First-party analytics emission (story consumer/01).
@@ -27,17 +28,42 @@ export class AnalyticsService {
   private readonly router = inject(Router);
 
   track(event: AnalyticsEventName, route?: string): void {
-    const status = this.store.selectSnapshot(ConsentState.status);
-    const consentTs = this.store.selectSnapshot(ConsentState.consentTs);
+    const { status, consentTs } = this.consent();
     if (status !== 'granted' || consentTs == null) return;
+    // #815: the session's campaign attribution rides on every event.
+    const source = this.store.selectSnapshot(selectCampaignSource);
     const payload: AnalyticsEvent = {
       event,
       route: route ?? this.router.url.split('?')[0],
       ts: new Date().toISOString(),
       consent_ts: consentTs,
+      ...(source ? { source } : {}),
     };
     // No subscription: `firstValueFrom` settles the single emission, and the
     // caught rejection keeps this fire-and-forget.
     void firstValueFrom(this.api.trackEvent(payload)).catch(() => undefined);
+  }
+
+  /**
+   * #815: campaign attribution for the lead submit. Behind the same
+   * analytics opt-in as events (#814 decision Q2): undefined unless consent
+   * was granted and the session carried a source.
+   */
+  leadSource(): AnalyticsSource | undefined {
+    if (this.consent().status !== 'granted') return undefined;
+    return this.store.selectSnapshot(selectCampaignSource) ?? undefined;
+  }
+
+  /**
+   * Consent snapshot read from the root state. Missing state (a page spec
+   * that never registered ConsentState) reads as pending, so call sites can
+   * track freely and nothing fires.
+   */
+  private consent(): Partial<ConsentStateModel> {
+    return (
+      this.store.selectSnapshot(
+        (root: { readonly [ConsentStateName]?: ConsentStateModel }) => root[ConsentStateName],
+      ) ?? {}
+    );
   }
 }

@@ -4,7 +4,7 @@ import { HttpTestingController, provideHttpClientTesting } from '@angular/common
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { provideRouter, Router } from '@angular/router';
 import { provideStore, Store } from '@ngxs/store';
-import { beforeEach, describe, expect, it } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { throwError } from 'rxjs';
 import type { PreviewEstimateResponse, PropertyRecord } from '@feasly/contracts';
 import { API_SERVICE, provideApi, type ApiService } from '../../core/api/api.service';
@@ -14,6 +14,7 @@ import { ConfigService } from '../../core/config/config.service';
 import { SelectProperty, StorePreviewEstimate, UpdateInputs, WizardState } from '../wizard';
 import { ReportState } from '../report/report.state';
 import { EmbedState } from '../embed/embed.state';
+import { AnalyticsService } from '../consent/analytics.service';
 import { PreviewPageComponent } from './preview-page.component';
 import { provideDataFreshnessStub } from '../../shared/test-helpers/data-freshness.stub';
 
@@ -440,8 +441,9 @@ describe('PreviewPageComponent validation failure (consumer/06)', () => {
   async function setupFailure(
     message: string,
     retryable: boolean,
-  ): Promise<{ fixture: ComponentFixture<PreviewPageComponent>; store: Store }> {
+  ): Promise<{ fixture: ComponentFixture<PreviewPageComponent>; store: Store; track: ReturnType<typeof vi.fn> }> {
     TestBed.resetTestingModule();
+    const track = vi.fn();
     TestBed.configureTestingModule({
       imports: [PreviewPageComponent, BlankComponent],
       providers: [
@@ -452,6 +454,7 @@ describe('PreviewPageComponent validation failure (consumer/06)', () => {
         provideStore([WizardState, ReportState, EmbedState]),
         providePropertyData(),
         { provide: API_SERVICE, useValue: failingApi(message, retryable) },
+        { provide: AnalyticsService, useValue: { track } },
       ],
     });
     const httpMock = TestBed.inject(HttpTestingController);
@@ -477,7 +480,8 @@ describe('PreviewPageComponent validation failure (consumer/06)', () => {
       }
       await new Promise((resolve) => setTimeout(resolve, 25));
     }
-    return { fixture, store };
+    fixture.detectChanges();
+    return { fixture, store, track };
   }
 
   it('explains a validation rejection in plain English with no retry button', async () => {
@@ -517,6 +521,20 @@ describe('PreviewPageComponent validation failure (consumer/06)', () => {
     expect(card.textContent).toContain('We could not load your report.');
     const retry = card.querySelector('button.cta') as HTMLButtonElement;
     expect(retry?.textContent).toContain('Try again');
+    TestBed.resetTestingModule();
+  });
+
+  it('a validation rejection fires property_unsupported once (#815)', async () => {
+    const { fixture, track } = await setupFailure('assessedLandValue outside configured bounds', false);
+    fixture.detectChanges();
+    expect(track.mock.calls).toEqual([['property_unsupported']]);
+    TestBed.resetTestingModule();
+  });
+
+  it('a transient failure fires estimate_error once (#815)', async () => {
+    const { fixture, track } = await setupFailure('Request failed. Please try again.', true);
+    fixture.detectChanges();
+    expect(track.mock.calls).toEqual([['estimate_error']]);
     TestBed.resetTestingModule();
   });
 });
