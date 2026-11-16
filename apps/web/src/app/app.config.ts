@@ -14,6 +14,7 @@ import { providePropertyData } from './core/api/property-data.service';
 import { GlobalErrorHandler, connectivityInterceptor } from './core/errors';
 import { credentialsInterceptor } from './core/api/credentials.interceptor';
 import { ConfigService } from './core/config/config.service';
+import { PartnersState } from './core/partners/partners.state';
 import { EmbedState } from './features/embed/embed.state';
 import { ComparisonState } from './features/compare/comparison.state';
 import { ReportState, serializeReportState } from './features/report/report.state';
@@ -138,6 +139,9 @@ export const appConfig: ApplicationConfig = {
         // context is navigation-scoped, and a refresh behaves like a direct
         // URL visit (community average only).
         CommunityProfileState,
+        // PartnersState (#918) is memory-only: the partner list is read once
+        // per session from GET /api/v1/partners and never persisted.
+        PartnersState,
       ],
       NGXS_STORE_OPTIONS,
       withNgxsStoragePlugin({

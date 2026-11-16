@@ -215,6 +215,10 @@ import {
   type BuilderService,
 } from './services/builder.service';
 import {
+  createLeadAssignmentService,
+  type LeadAssignmentService,
+} from './services/lead-assignment.service';
+import {
   createDrizzleAdminSessionStore,
 } from './services/admin-auth.store';
 import { withSessionPolicy } from './services/session-policy';
@@ -1263,6 +1267,12 @@ export function createComposition(
   // sessions, and the embed config lookup. Created before the lead
   // service so embed lead capture can dual-write builder_id in the same
   // insert (the lead is visible in the builder portal immediately).
+  // #721: lead reassignment rules (attribution close/open, invoice block).
+  // (adminAuditStore is defined above, before the auth middleware.)
+  const leadAssignmentService: LeadAssignmentService = createLeadAssignmentService({
+    db: db.db,
+    audit: adminAuditStore,
+  });
   // #716: the Stripe customer re-syncs on a builder profile change. The
   // card service is built later (it needs the payment provider), so the
   // hook binds late.
@@ -1270,6 +1280,7 @@ export function createComposition(
   const builderService: BuilderService = createBuilderService({
     db: db.db,
     audit: adminAuditStore,
+    leadAssignment: leadAssignmentService,
     // #725: late-bound — the notifications service is built further down
     // (it needs the builder-leads "Needs you" feed). Never throws.
     onLeadAssigned: (args) => builderNotificationsService.notifyNewLead(args),
@@ -1715,6 +1726,7 @@ export function createComposition(
     estimateStore,
     audit: adminAuditStore,
     maxExportRows: 10000,
+    reassignments: leadAssignmentService,
   });
   const adminLeadsRoute: AdminLeadsRoute = createAdminLeadsRoute({
     adminLeads: adminLeadsService,
@@ -2280,6 +2292,7 @@ export function createComposition(
     email: emailService,
     fallbackAdminInbox: config.email.opsAlertEmail,
     statusChanges: leadStatusChangeStore,
+    reassignments: leadAssignmentService,
     needsYou: {
       staleAfterDays: config.lead.needsYouStaleDays,
       scanLimit: config.lead.needsYouScanLimit,

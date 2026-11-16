@@ -265,7 +265,12 @@
           @if (callbackStatus() === 'error') {
             <p class="field-error" role="alert">{{ copy.callbackError }}</p>
           }
-          <app-builder-matching-explainer />
+          <!-- #918: own-site callbacks go to Feasly's builder partner(s).
+               Embeds skip both: the lead goes to that builder. -->
+          @if (isOwnSite()) {
+            <app-partner-disclosure [partners]="partners()" />
+            <app-builder-matching-explainer />
+          }
         </section>
       }
 

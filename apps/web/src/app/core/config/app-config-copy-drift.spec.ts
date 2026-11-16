@@ -19,6 +19,7 @@ import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
 import { DEFAULT_APP_CONFIG } from './app-config.defaults';
+import { ZONING_ELIGIBILITY } from './zoning-eligibility.generated';
 
 const here = dirname(fileURLToPath(import.meta.url));
 // apps/web/src/app/core/config -> apps/web/public/assets/config/app-config.json
@@ -91,6 +92,42 @@ describe('served app-config.json copy drift', () => {
       expect(typeof value).toBe('string');
       expect((value as string).length).toBeGreaterThan(0);
       expect((value as string).startsWith('ENTRA_')).toBe(false);
+    }
+  });
+});
+
+/**
+ * Zoning-guide drift (#911 review). The zoning catalogue marks some districts
+ * as discretionary for single-detached (needs City approval). The public
+ * zoning guide — rendered on the page AND mirrored into FAQPage JSON-LD — must
+ * never tell owners of those districts that a single-family build is simply
+ * "allowed" / a "listed use" without the approval wording.
+ */
+describe('zoning guide copy vs. catalogue', () => {
+  const guide = DEFAULT_APP_CONFIG.copy.marketing.zoningGuide;
+  const discretionary = ZONING_ELIGIBILITY.calgary.discretionary as readonly string[];
+  const mentions = (text: string, code: string): boolean =>
+    new RegExp(`(^|[^A-Za-z0-9-])${code.replace(/[-]/g, '\\-')}(?![A-Za-z0-9-])`).test(text);
+  const approval = /City approval|City has to approve|discretionary/i;
+
+  it('marks every discretionary district row as needing City approval', () => {
+    for (const code of discretionary) {
+      const row = guide.zones.find((z) => z.code.split(' / ').includes(code));
+      expect(row, `zone table row for ${code}`).toBeDefined();
+      expect(row?.build, `build cell for ${code}`).toMatch(approval);
+    }
+  });
+
+  it('no FAQ calls a discretionary district "allowed"/"listed use" without the approval wording', () => {
+    for (const faq of guide.faqs) {
+      const text = `${faq.q} ${faq.a}`;
+      for (const code of discretionary) {
+        if (!mentions(text, code)) continue;
+        if (/\ballowed\b|listed use|permitted use/i.test(faq.a)) {
+          expect(faq.a, `FAQ "${faq.q}" mentions ${code}`).toMatch(approval);
+        }
+        expect(faq.a, `FAQ "${faq.q}" mentions ${code}`).not.toMatch(/listed use/i);
+      }
     }
   });
 });

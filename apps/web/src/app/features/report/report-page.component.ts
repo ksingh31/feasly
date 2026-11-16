@@ -8,6 +8,7 @@ import type { CallbackWindow, CostRange, FinishTier, ApiError } from '@feasly/co
 import { API_SERVICE } from '../../core/api/api.service';
 import { ConfigService } from '../../core/config/config.service';
 import { SeoService } from '../../core/seo/seo.service';
+import { LoadPartners, PartnersState } from '../../core/partners';
 import {
   BrandMarkComponent,
   BuildTimelineComponent,
@@ -15,6 +16,7 @@ import {
   SiteNavComponent,
   BuilderMatchingExplainerComponent,
   OptionSelectorComponent,
+  PartnerDisclosureComponent,
   PrivacyDataLinkComponent,
 } from '../../shared/components';
 import type { TierOption } from '../../shared/components';
@@ -31,6 +33,7 @@ import { narrativeDisplayParagraphs } from '../../shared/utils/narrative-display
 import { parseDeepLinkAddress } from '../../shared/utils/deep-link';
 import { UpdateInputs, WizardState, LeadState, ClearLead, ResetWizard } from '../wizard';
 import { AnalyticsService } from '../consent';
+import { EmbedState } from '../embed/embed.state';
 import { ClearReport, LoadLeadEstimate, LoadPreview, ReviseReport, UnlockReport } from './report.actions';
 import { ReportState } from './report.state';
 // NOTE: ReportPdfService is intentionally NOT statically imported — it is
@@ -114,6 +117,7 @@ const SHARE_LINK_SOURCE = 'share';
     BuilderMatchingExplainerComponent,
     BuildTimelineComponent,
     OptionSelectorComponent,
+    PartnerDisclosureComponent,
     PrivacyDataLinkComponent,
     SiteFooterComponent,
     SiteNavComponent,
@@ -158,6 +162,17 @@ export class ReportPageComponent implements OnInit {
    * callback form.
    */
   protected readonly partnerView = this.store.selectSignal(ReportState.partnerView);
+
+  /**
+   * #918: Feasly's own site (no embed tenant). Own-site callbacks go to
+   * Feasly's builder partner(s), so the callback block shows the partner
+   * disclosure; in an embed the lead goes to that builder instead.
+   */
+  private readonly embedTenantKey = this.store.selectSignal(EmbedState.tenantKey);
+  protected readonly isOwnSite = computed(() => this.embedTenantKey() === null);
+
+  /** #918: active partners for the disclosure (one request per session). */
+  protected readonly partners = this.store.selectSignal(PartnersState.partners);
   protected readonly status = this.store.selectSignal(ReportState.status);
   protected readonly loadError = this.store.selectSignal(ReportState.error);
   protected readonly leadEmail = this.store.selectSignal(LeadState.email);
@@ -480,6 +495,9 @@ export class ReportPageComponent implements OnInit {
 
   ngOnInit(): void {
     this.seo.setForRoute('estimate/report');
+    if (this.isOwnSite()) {
+      this.store.dispatch(new LoadPartners());
+    }
     // Reno reports step the affected area, not the new-build living area:
     // seed the draft from the reno inputs when in the renovation flow.
     if (this.isReno()) {

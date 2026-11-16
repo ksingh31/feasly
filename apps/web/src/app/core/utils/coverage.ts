@@ -129,14 +129,37 @@ export type PricingCoverageIssue = 'non-residential' | 'unsupported-property-typ
  * zoning (or a list with no non-blank tokens) returns false — never block on
  * missing data.
  */
+function zoningTokens(zoning: string | null | undefined): string[] {
+  return (zoning ?? '')
+    .split(',')
+    .map((token) => token.trim().toUpperCase())
+    .filter((token) => token.length > 0);
+}
+
+/**
+ * True when the parcel is quotable ONLY through districts where a
+ * single-detached dwelling is a discretionary use (#911): the build needs
+ * City approval, so the property card says so. A compound designation with
+ * any district where single-detached is permitted (or 'DC') returns false.
+ * Both lists come from config (generated from the zoning catalogue).
+ */
+export function singleDetachedNeedsApproval(
+  zoning: string | null | undefined,
+  singleFamilyDistricts: readonly string[],
+  discretionaryDistricts: readonly string[],
+): boolean {
+  const norm = (code: string): string => code.trim().toUpperCase();
+  const quotable = new Set(singleFamilyDistricts.map(norm));
+  const discretionary = new Set(discretionaryDistricts.map(norm));
+  const listed = zoningTokens(zoning).filter((district) => quotable.has(district));
+  return listed.length > 0 && listed.every((district) => discretionary.has(district));
+}
+
 function isUnsupportedPropertyType(
   zoning: string | null | undefined,
   singleFamilyDistricts: readonly string[],
 ): boolean {
-  const districts = (zoning ?? '')
-    .split(',')
-    .map((token) => token.trim().toUpperCase())
-    .filter((token) => token.length > 0);
+  const districts = zoningTokens(zoning);
   if (districts.length === 0) return false;
   const supported = new Set(singleFamilyDistricts.map((code) => code.trim().toUpperCase()));
   return !districts.some((district) => supported.has(district));
