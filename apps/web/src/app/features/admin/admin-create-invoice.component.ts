@@ -33,6 +33,7 @@ import {
   DismissCreateInvoiceFeedback,
   SearchInvoiceLeads,
 } from './billing-health.actions';
+import { injectAdminCopy } from './admin-copy';
 
 /**
  * Formats a local Date as ISO 8601 WITH an explicit timezone offset
@@ -109,7 +110,7 @@ export class AdminCreateInvoiceComponent implements OnInit, OnDestroy {
   private readonly ref = inject<DialogRef<boolean>>(DialogRef, { optional: true });
   private readonly router = inject(Router);
 
-  protected readonly entityCopy = this.config.get('copy').admin.entities;
+  protected readonly entityCopy = injectAdminCopy().entities;
 
   readonly builders = this.store.selectSignal(AdminBuildersState.builders);
   readonly listStatus = this.store.selectSignal(AdminBuildersState.listStatus);

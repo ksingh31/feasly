@@ -14,7 +14,6 @@ import {
   type UiDrawerRef,
   UiDrawerService,
 } from '@app/shared/ui';
-import { ConfigService } from '../../core/config/config.service';
 import { openAdminEntity } from './admin-entity-routes';
 import {
   type DisputeSlaChip,
@@ -26,6 +25,7 @@ import {
 import { ClearSelectedAdminDispute, LoadAdminDisputes, SelectAdminDispute } from './admin-disputes.actions';
 import { AdminDisputesState } from './admin-disputes.state';
 import { AdminDisputeDrawerComponent, type AdminDisputeDrawerData } from './admin-dispute-drawer.component';
+import { injectAdminCopy } from './admin-copy';
 
 /** Query param holding the open dispute (portal-ui-kit §3: `?open=<id>`). */
 const OPEN_PARAM = 'open';
@@ -71,7 +71,7 @@ export class AdminDisputesComponent implements OnInit {
   private readonly drawers = inject(UiDrawerService);
 
   /** EntityLink copy (#538): the invoice cell never shows a raw UUID. */
-  protected readonly entityCopy = inject(ConfigService).get('copy').admin.entities;
+  protected readonly entityCopy = injectAdminCopy().entities;
 
   protected readonly disputes = this.store.selectSignal(AdminDisputesState.disputes);
   protected readonly listStatus = this.store.selectSignal(AdminDisputesState.listStatus);

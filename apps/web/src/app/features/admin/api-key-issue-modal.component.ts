@@ -16,6 +16,7 @@ import { AdminBuildersState } from './admin-builders.state';
 import { API_KEY_SCOPES, IssueApiKey } from './api-keys.actions';
 import { ApiKeysState } from './api-keys.state';
 import { builderOptions, fill, parseRateLimit, rateLimitValidator, scopesValidator } from './api-keys-view';
+import { injectAdminCopy } from './admin-copy';
 
 /**
  * Issue-key modal (#546, review S13): name, builder (EntityCombobox over
@@ -37,7 +38,7 @@ export class ApiKeyIssueModalComponent {
   private readonly ref = inject<DialogRef<boolean>>(DialogRef);
   private readonly config = inject(ConfigService);
 
-  protected readonly copy = this.config.get('copy').admin.apiKeys;
+  protected readonly copy = injectAdminCopy().apiKeys;
   private readonly rateLimitMax = this.config.get('admin').rateLimitMax;
   protected readonly rateLimitError = fill(this.copy.rateLimitError, { max: this.rateLimitMax });
   protected readonly scopes: readonly ApiKeyScope[] = API_KEY_SCOPES;

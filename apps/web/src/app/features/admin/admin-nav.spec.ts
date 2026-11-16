@@ -6,6 +6,7 @@ import { describe, expect, it } from 'vitest';
 import { routes } from '../../app.routes';
 import { DEFAULT_APP_CONFIG } from '../../core/config/app-config.defaults';
 import { ADMIN_NAV, findAdminNavItem } from './admin-nav';
+import { DEFAULT_ADMIN_COPY } from './admin-copy.defaults';
 
 /** Child paths of the /admin shell route that are not nav destinations. */
 const NOT_IN_NAV = new Set(['', 'error']);
@@ -31,7 +32,7 @@ describe('ADMIN_NAV', () => {
   });
 
   it('has a configured label for every group and item', () => {
-    const copy = DEFAULT_APP_CONFIG.copy.admin.shell;
+    const copy = DEFAULT_ADMIN_COPY.shell;
     for (const group of ADMIN_NAV) {
       expect(copy.groups[group.id]).toBeTruthy();
       for (const item of group.items) expect(copy.nav[item.id]).toBeTruthy();

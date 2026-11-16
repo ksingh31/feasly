@@ -15,6 +15,7 @@ import {
 } from '../../shared/components';
 import { formatCount, formatWholeCad } from '../../shared/utils/money';
 import { ChooseProjectType, type ProjectType } from '../wizard/wizard.actions';
+import { injectHowItWorksCopy } from './how-it-works-copy';
 
 /** One formula card: a term (hard / soft / contingency) and its line items. */
 export interface FormulaCard {
@@ -94,7 +95,7 @@ export class HowItWorksPageComponent implements OnInit {
   private readonly dataFreshness = inject(DataFreshnessService);
 
   /** How-it-works copy (config-owned). */
-  readonly copy = this.config.get('copy').marketing.howItWorks;
+  readonly copy = injectHowItWorksCopy();
 
   /** #827: engine/catalogue-generated figures behind the page (config). */
   private readonly data = this.config.get('howWeEstimate');

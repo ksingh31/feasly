@@ -2261,137 +2261,11 @@ export interface AppConfig {
      * claims — copy-linted by `tools/check-prerender-seo.mjs`.
      */
     marketing: {
-      howItWorks: {
-        eyebrow: string;
-        title: string;
-        sub: string;
-        steps: { n: string; title: string; body: string }[];
-        mathNoteTitle: string;
-        mathNoteBody: string;
-        ctaNewBuild: string;
-        ctaReno: string;
-        /** Zoning cross-link card (SEO guides): why the address/zoning matters. */
-        zoningCardTitle: string;
-        zoningCardBody: string;
-        zoningCardCta: string;
-        /**
-         * #827 transparency sections. Copy only — every figure comes from
-         * `howWeEstimate` (engine/catalogue generated) or the live freshness
-         * endpoint. No accuracy claims (banned-phrase tripwire).
-         */
-        /** Answer-first passage (SEO standard §2.1): how the estimate is built. */
-        answer: string;
-        formulaTitle: string;
-        formulaIntro: string;
-        /** One card per formula term, keyed like the engine's row groups. */
-        formulaGroups: Record<FormulaGroupKey, { title: string; body: string }>;
-        /** Operator glyphs between the terms (visual; hidden from AT). */
-        formulaPlus: string;
-        formulaEquals: string;
-        /** Screen-reader sentence for the whole formula. */
-        formulaSentence: string;
-        formulaResultTitle: string;
-        formulaResultBody: string;
-        /** What each engine line item covers, keyed by engine row key. */
-        lineItemNotes: Record<string, string>;
-        whyRangeTitle: string;
-        whyRangeIntro: string;
-        whyRangeItems: { title: string; body: string }[];
-        sourcesTitle: string;
-        sourcesIntro: string;
-        sources: {
-          assessment: HowWeEstimateSourceCopy;
-          landUse: HowWeEstimateSourceCopy;
-          costData: HowWeEstimateSourceCopy;
-        };
-        exampleTitle: string;
-        /** "{sqft} sq ft home, {tier} finish, on a {lot} sq ft lot" */
-        exampleIntro: string;
-        /** Display names for the example's finish tier key. */
-        exampleTierNames: Record<string, string>;
-        exampleCaption: string;
-        exampleColItem: string;
-        exampleColRange: string;
-        exampleSubtotals: Record<FormulaGroupKey, string>;
-        exampleTotal: string;
-        /** "{low} – {high}" */
-        exampleRangeTemplate: string;
-        exampleNote: string;
-        /** "Priced with cost data {version}." */
-        exampleVersion: string;
-        currentTitle: string;
-        currentItems: string[];
-        nextTitle: string;
-        nextSteps: { title: string; body: string }[];
-        linksTitle: string;
-        /** Related pages. `flag` hides a link while its feature flag is off. */
-        links: { label: string; route: string; flag?: 'sampleReport' }[];
-      };
       faq: {
         eyebrow: string;
         title: string;
         sub: string;
         items: { q: string; a: string }[];
-      };
-      /**
-       * Pillar guide (SEO pillar): long-form "cost to build a house in
-       * Calgary" guide at `/guides/cost-to-build-a-house-calgary`.
-       * Figures are planning ranges from the cost model — never accuracy
-       * claims (banned-phrase tripwire).
-       */
-      pillarGuide: {
-        eyebrow: string;
-        title: string;
-        lede: string;
-        tiersTitle: string;
-        tiersIntro: string;
-        tiers: { name: string; range: string; blurb: string }[];
-        exampleTitle: string;
-        exampleBody: string;
-        includedTitle: string;
-        includedBody: string;
-        excludedTitle: string;
-        excludedBody: string;
-        infillTitle: string;
-        infillBody: string;
-        financingTitle: string;
-        financingBody: string;
-        faqTitle: string;
-        faqs: { q: string; a: string }[];
-        mathNoteTitle: string;
-        mathNoteBody: string;
-        ctaEstimate: string;
-        ctaCommunities: string;
-      };
-      /**
-       * Zoning explainer (SEO guides): long-form "Calgary zoning explained"
-       * guide at `/guides/calgary-zoning-explained`. Zone facts follow the
-       * City of Calgary Land Use Bylaw 1P2007 — no invented designations.
-       */
-      zoningGuide: {
-        eyebrow: string;
-        title: string;
-        lede: string;
-        introTitle: string;
-        introBody: string;
-        tableTitle: string;
-        tableIntro: string;
-        tableHeaders: { zone: string; name: string; allows: string; build: string };
-        zones: { code: string; name: string; allows: string; build: string }[];
-        recentTitle: string;
-        recentBody: string;
-        lookupTitle: string;
-        lookupBody: string;
-        faqTitle: string;
-        /** `anchor` is optional: deep-link target for cross-page links. */
-        faqs: { q: string; a: string; anchor?: string }[];
-        sourceTitle: string;
-        sourceBody: string;
-        sourceLinkLabel: string;
-        sourceUrl: string;
-        verifyNote: string;
-        ctaEstimate: string;
-        ctaCostGuide: string;
       };
       /**
        * Community index (SEO-05). Copy for `/communities/` and the landing
@@ -2572,476 +2446,6 @@ export interface AppConfig {
       entra: BuilderEntraConfig;
     };
     /**
-     * Admin funnel dashboard (story admin/07). All user-facing dashboard
-     * copy lives here so the no-hardcode tripwire stays green.
-     */
-    admin: {
-      /**
-       * Admin shell (#503, portal-ui-kit §4): grouped sidebar, top bar,
-       * ⌘K placeholder. Nav labels are keyed by the item ids in
-       * features/admin/admin-nav.ts.
-       */
-      shell: {
-        brand: string;
-        homeLabel: string;
-        navLabel: string;
-        groups: { pipeline: string; partners: string; money: string; system: string };
-        nav: {
-          leads: string;
-          estimates: string;
-          builders: string;
-          users: string;
-          apiKeys: string;
-          billing: string;
-          invoices: string;
-          disputes: string;
-          calibration: string;
-          sheets: string;
-          funnels: string;
-          webhooks: string;
-          quarantine: string;
-        };
-        /** Screen-reader suffix for a queue badge, e.g. "3 open". */
-        badgeSuffix: string;
-        openMenu: string;
-        closeMenu: string;
-        collapseSidebar: string;
-        expandSidebar: string;
-        breadcrumbLabel: string;
-        searchLabel: string;
-        searchShortcut: string;
-        /** `aria-keyshortcuts` for the search button. */
-        searchKeyShortcuts: string;
-        /** ⌘K command palette (#538). */
-        palette: {
-          title: string;
-          placeholder: string;
-          hint: string;
-          loading: string;
-          noResults: string;
-          error: string;
-          retry: string;
-          close: string;
-          escKey: string;
-          resultsLabel: string;
-          /** Keyboard hint under the results ("↑↓ to move · Enter to open"). */
-          navHint: string;
-          /** Group headings per hit kind. */
-          kinds: { lead: string; invoice: string; builder: string; user: string };
-        };
-        environmentLabel: string;
-        userMenuLabel: string;
-        signOut: string;
-      };
-      /**
-       * Admin Quarantine (#540): honeypot-flagged leads on their own route,
-       * with row and bulk approve/discard. `{count}`, `{name}`, `{failed}`
-       * and `{total}` are filled in by the page.
-       */
-      quarantine: {
-        title: string;
-        description: string;
-        searchLabel: string;
-        searchPlaceholder: string;
-        clearFilters: string;
-        countOne: string;
-        countMany: string;
-        tableLabel: string;
-        columns: { lead: string; address: string; source: string; tenant: string; created: string };
-        emptyHeading: string;
-        emptyMessage: string;
-        noResultsHeading: string;
-        noResultsMessage: string;
-        errorHeading: string;
-        loadError: string;
-        retry: string;
-        loading: string;
-        actionsHeader: string;
-        loadMore: string;
-        loadingMore: string;
-        selectAll: string;
-        selectRow: string;
-        selectedCount: string;
-        approve: string;
-        approving: string;
-        discard: string;
-        discarding: string;
-        approveSelected: string;
-        discardSelected: string;
-        cancel: string;
-        approveConfirmTitleMany: string;
-        approveConfirmBody: string;
-        discardConfirmTitle: string;
-        discardConfirmTitleMany: string;
-        discardConfirmBody: string;
-        approvedOne: string;
-        approvedMany: string;
-        discardedOne: string;
-        discardedMany: string;
-        failedOne: string;
-        failedMany: string;
-        dismiss: string;
-      };
-      /**
-       * Admin Leads (#539, admin review S5/S6): saved views, the kit
-       * DataTable and the lead drawer with one footer Save.
-       */
-      leads: {
-        title: string;
-        description: string;
-        sandboxToggle: string;
-        exportCsv: string;
-        exporting: string;
-        dismiss: string;
-        totalsLabel: string;
-        viewsLabel: string;
-        /** Saved views. `quotingStale` takes `{days}`. */
-        views: { all: string; new: string; unassigned: string; quotingStale: string };
-        /** One-line explanation under the views, per view. `quotingStale` takes `{days}`. */
-        viewHints: { all: string; new: string; unassigned: string; quotingStale: string };
-        searchLabel: string;
-        searchPlaceholder: string;
-        statusFilter: string;
-        anyStatus: string;
-        assignedFilter: string;
-        anyAssignment: string;
-        unassigned: string;
-        clearFilters: string;
-        /** "{count} leads". */
-        countOne: string;
-        countMany: string;
-        sandboxExcluded: string;
-        tableLabel: string;
-        columns: {
-          lead: string;
-          address: string;
-          status: string;
-          tenant: string;
-          source: string;
-          score: string;
-          timeline: string;
-          consent: string;
-          created: string;
-        };
-        consentIn: string;
-        consentOut: string;
-        sandboxBadge: string;
-        emptyHeading: string;
-        emptyMessage: string;
-        noResultsHeading: string;
-        noResultsMessage: string;
-        errorHeading: string;
-        retry: string;
-        loading: string;
-        actionsHeader: string;
-        loadMore: string;
-        loadingMore: string;
-        drawer: {
-          loading: string;
-          refreshing: string;
-          retry: string;
-          close: string;
-          cancel: string;
-          save: string;
-          saving: string;
-          /** Toast after a successful save. */
-          saved: string;
-          readOnlyHint: string;
-          sections: {
-            pipeline: string;
-            contact: string;
-            property: string;
-            invoices: string;
-            notes: string;
-            comments: string;
-            activity: string;
-            record: string;
-            /** #815: campaign attribution section. */
-            campaign: string;
-          };
-          statusLabel: string;
-          builderLabel: string;
-          unassigned: string;
-          labels: {
-            email: string;
-            phone: string;
-            source: string;
-            tenant: string;
-            magicLink: string;
-            contactConsent: string;
-            marketingConsent: string;
-            address: string;
-            projectType: string;
-            livingArea: string;
-            finishTier: string;
-            totalRange: string;
-            buildRange: string;
-            land: string;
-            estimated: string;
-            leadScore: string;
-            consented: string;
-            sheetsSynced: string;
-            snapshots: string;
-            unsubscribed: string;
-            nudgeSent: string;
-            /** #815: campaign attribution (leads.source_*). */
-            utmSource: string;
-            utmMedium: string;
-            utmCampaign: string;
-            utmTerm: string;
-            utmContent: string;
-            clickIdType: string;
-          };
-          /** "{sqft} sq ft". */
-          sqftValue: string;
-          yes: string;
-          no: string;
-          magicLink: { sent: string; used: string; expired: string; none: string };
-          openEstimate: string;
-          noEstimate: string;
-          invoicesHint: string;
-          openInvoices: string;
-          noNotes: string;
-          addNoteLabel: string;
-          addNotePlaceholder: string;
-          addNote: string;
-          addingNote: string;
-          notesHint: string;
-          commentsHint: string;
-          noActivity: string;
-          /** #815: shown when the lead arrived with no campaign attribution. */
-          noAttribution: string;
-          /** #836: callback requests section (preferred day, window, notes). */
-          callbacksHeading: string;
-          noCallbacks: string;
-          callbackLabels: {
-            day: string;
-            window: string;
-            notes: string;
-            phone: string;
-            requested: string;
-          };
-          /** Shown for a request filed before #836 (no preferred day). */
-          callbackAnyDay: string;
-          honeypotBadge: string;
-          /** Activity sub-list of builder moves (#803). */
-          reassignmentsHeading: string;
-          /** Shown for a builder id no longer in the builders list. */
-          unknownBuilder: string;
-          /**
-           * Confirm before moving a lead away from its builder (#803).
-           * `{lead}`, `{from}`, `{to}` are filled in.
-           */
-          reassignConfirm: {
-            title: string;
-            body: string;
-            verb: string;
-            unassignTitle: string;
-            unassignBody: string;
-            unassignVerb: string;
-            cancel: string;
-          };
-        };
-      },
-      /** EntityLink + "Technical IDs" copy shared by admin pages (#538). */
-      entities: {
-        technicalIds: string;
-        copyId: string;
-        idCopied: string;
-        /** Link text when a record has no human label in the payload. */
-        viewLead: string;
-        viewInvoice: string;
-        /** Disclosure label for an audit event's raw JSON payload. */
-        rawPayload: string;
-      };
-      funnels: {
-        /** Page heading. */
-        title: string;
-        /** Page subheading. */
-        subtitle: string;
-        /** Date-range "from" label. */
-        fromLabel: string;
-        /** Date-range "to" label. */
-        toLabel: string;
-        /** Tenant filter label. */
-        tenantLabel: string;
-        /** Tenant filter: all traffic. */
-        tenantAll: string;
-        /** Tenant filter: Feasly-direct only. */
-        tenantDirect: string;
-        /** Tenant filter: one embed tenant. */
-        tenantKey: string;
-        /** Tenant-key text input label. */
-        tenantKeyLabel: string;
-        /** Tenant-key text input placeholder. */
-        tenantKeyPlaceholder: string;
-        /** Apply-filters button. */
-        apply: string;
-        /** Reset-filters button. */
-        reset: string;
-        /** Loading indicator text. */
-        loading: string;
-        /** Empty funnel state. */
-        empty: string;
-        /** Fetch failure banner (static — no error detail in the DOM). */
-        loadError: string;
-        /** Invalid date range (from after to). */
-        invalidRange: string;
-        /** First-step conversion label. */
-        entryStep: string;
-        /** Conversion prefix before the percentage. */
-        conversionPrefix: string;
-        /** Shown when conversion is meaningless (first step / zero prior). */
-        noConversion: string;
-        /** Accessible name of the date-preset button group. */
-        presetsLabel: string;
-        /** Date presets: label + trailing day count (today inclusive). */
-        presets: ReadonlyArray<{ readonly label: string; readonly days: number }>;
-        /** Date preset that clears both dates. */
-        presetAll: string;
-        /** KPI label: entry → final step conversion. */
-        overallConversion: string;
-        /** KPI sub line under the overall conversion; `{from}`/`{to}` = step labels. */
-        overallConversionSub: string;
-        /** Drop-off annotation; `{count}` = people lost since the previous step. */
-        dropOff: string;
-        /** Accessible name of the funnel step list. */
-        stepsLabel: string;
-        /** #815: utm_source filter label / placeholder. */
-        utmSourceLabel: string;
-        utmSourcePlaceholder: string;
-        /** #815: utm_campaign filter label / placeholder. */
-        utmCampaignLabel: string;
-        utmCampaignPlaceholder: string;
-        /** #815: hint under the utm filters (exact match). */
-        utmHint: string;
-        /** #815: per-(source, campaign) breakdown heading, note, headers. */
-        sourcesHeading: string;
-        sourcesNote: string;
-        sourceHeader: string;
-        campaignHeader: string;
-        /** Shown for an untagged (null) source or campaign. */
-        sourceNone: string;
-        /** Shown when the backend capped the breakdown. */
-        sourcesTruncated: string;
-      };
-      /** Admin API keys (api-mcp/02; redesign #546, review S13). */
-      apiKeys: {
-        title: string;
-        subtitle: string;
-        issueButton: string;
-        /** DataTable. */
-        tableLabel: string;
-        colName: string;
-        colBuilder: string;
-        colPrefix: string;
-        colScopes: string;
-        colLastUsed: string;
-        colStatus: string;
-        never: string;
-        noBuilder: string;
-        sandboxChip: string;
-        openKey: string;
-        empty: string;
-        emptyMessage: string;
-        loadError: string;
-        loadErrorMessage: string;
-        retry: string;
-        /** Key drawer. */
-        tabsLabel: string;
-        tabOverview: string;
-        tabUsage: string;
-        builderLabel: string;
-        prefixLabel: string;
-        modeLabel: string;
-        modeLive: string;
-        modeSandbox: string;
-        createdLabel: string;
-        lastUsedLabel: string;
-        revokedAtLabel: string;
-        accessHeading: string;
-        accessHint: string;
-        revokedNote: string;
-        scopesLabel: string;
-        scopesError: string;
-        rateLimitLabel: string;
-        rateLimitHint: string;
-        rateLimitError: string;
-        saveButton: string;
-        savedToast: string;
-        saveError: string;
-        closeButton: string;
-        dangerHeading: string;
-        rotateHint: string;
-        revokeHint: string;
-        rotateButton: string;
-        revokeButton: string;
-        rotateConfirmTitle: string;
-        rotateConfirm: string;
-        revokeConfirmTitle: string;
-        revokeConfirm: string;
-        cancelButton: string;
-        revokedToast: string;
-        actionError: string;
-        /** Usage tab. */
-        usageChartLabel: string;
-        usageTotal: string;
-        usageShowTable: string;
-        usageLoading: string;
-        usageEmpty: string;
-        usageDateHeader: string;
-        usageEndpointHeader: string;
-        usageRequestsHeader: string;
-        usageEstimatesHeader: string;
-        /** Issue modal. */
-        issueTitle: string;
-        nameLabel: string;
-        namePlaceholder: string;
-        nameError: string;
-        builderPlaceholder: string;
-        builderHint: string;
-        builderEmpty: string;
-        sandboxLabel: string;
-        sandboxHint: string;
-        createButton: string;
-        issueError: string;
-        /** One-time secret modal. */
-        secretTitle: string;
-        plaintextWarning: string;
-        secretLabel: string;
-        copyButton: string;
-        copiedButton: string;
-        copyFailed: string;
-        ackLabel: string;
-        doneButton: string;
-      };
-      /**
-       * Admin auth pages (auth/02 pivot): Entra sign-in + callback copy.
-       * All user-facing strings live here so the no-hardcode tripwire
-       * stays green and copy is deploy-tunable. Exact strings are pinned
-       * by the login/callback specs.
-       */
-      auth: {
-        /** Session-expired notice on the login page. */
-        loginExpired: string;
-        /** Label of the Entra "Sign in →" button. */
-        entraSignInLabel: string;
-        /** Intro line above the Entra button. */
-        entraSignInIntro: string;
-        /**
-         * Callback failure when Entra reports `error=access_denied`
-         * (user cancelled) or the callback carries no usable code.
-         */
-        entraIncomplete: string;
-        /** Callback failure when the `state` param mismatches (CSRF). */
-        entraStateMismatch: string;
-        /** Network/5xx failure exchanging the code with the backend. */
-        entraTransient: string;
-        /** Shown when the Entra tenant config is still a placeholder. */
-        entraNotConfigured: string;
-      };
-    };
-    /**
      * Unsubscribe center (email/03) copy. The confirmation line
      * `doneHeading` is pinned by the story's acceptance criteria.
      */
@@ -3210,5 +2614,625 @@ export interface AppConfig {
       /** navigator.share text: `{address}` is replaced. */
       shareText: string;
     };
+  };
+}
+
+/**
+ * `copy.marketing.howItWorks`: the `/how-it-works` transparency page (#827).
+ *
+ * Not part of {@link AppConfig}: lazy-loaded with the how-it-works page (features/marketing/how-it-works-copy.ts) to keep it out of
+ * the initial bundle (#980, Lighthouse script budget). Deploy overrides still
+ * apply from the same app-config.json path (merged by mergeLazyCopy).
+ */
+export interface HowItWorksCopy {
+  eyebrow: string;
+  title: string;
+  sub: string;
+  steps: { n: string; title: string; body: string }[];
+  mathNoteTitle: string;
+  mathNoteBody: string;
+  ctaNewBuild: string;
+  ctaReno: string;
+  /** Zoning cross-link card (SEO guides): why the address/zoning matters. */
+  zoningCardTitle: string;
+  zoningCardBody: string;
+  zoningCardCta: string;
+  /**
+   * #827 transparency sections. Copy only — every figure comes from
+   * `howWeEstimate` (engine/catalogue generated) or the live freshness
+   * endpoint. No accuracy claims (banned-phrase tripwire).
+   */
+  /** Answer-first passage (SEO standard §2.1): how the estimate is built. */
+  answer: string;
+  formulaTitle: string;
+  formulaIntro: string;
+  /** One card per formula term, keyed like the engine's row groups. */
+  formulaGroups: Record<FormulaGroupKey, { title: string; body: string }>;
+  /** Operator glyphs between the terms (visual; hidden from AT). */
+  formulaPlus: string;
+  formulaEquals: string;
+  /** Screen-reader sentence for the whole formula. */
+  formulaSentence: string;
+  formulaResultTitle: string;
+  formulaResultBody: string;
+  /** What each engine line item covers, keyed by engine row key. */
+  lineItemNotes: Record<string, string>;
+  whyRangeTitle: string;
+  whyRangeIntro: string;
+  whyRangeItems: { title: string; body: string }[];
+  sourcesTitle: string;
+  sourcesIntro: string;
+  sources: {
+    assessment: HowWeEstimateSourceCopy;
+    landUse: HowWeEstimateSourceCopy;
+    costData: HowWeEstimateSourceCopy;
+  };
+  exampleTitle: string;
+  /** "{sqft} sq ft home, {tier} finish, on a {lot} sq ft lot" */
+  exampleIntro: string;
+  /** Display names for the example's finish tier key. */
+  exampleTierNames: Record<string, string>;
+  exampleCaption: string;
+  exampleColItem: string;
+  exampleColRange: string;
+  exampleSubtotals: Record<FormulaGroupKey, string>;
+  exampleTotal: string;
+  /** "{low} – {high}" */
+  exampleRangeTemplate: string;
+  exampleNote: string;
+  /** "Priced with cost data {version}." */
+  exampleVersion: string;
+  currentTitle: string;
+  currentItems: string[];
+  nextTitle: string;
+  nextSteps: { title: string; body: string }[];
+  linksTitle: string;
+  /** Related pages. `flag` hides a link while its feature flag is off. */
+  links: { label: string; route: string; flag?: 'sampleReport' }[];
+}
+
+/**
+ * Pillar guide (SEO pillar): long-form "cost to build a house in
+ * Calgary" guide at `/guides/cost-to-build-a-house-calgary`.
+ * Figures are planning ranges from the cost model — never accuracy
+ * claims (banned-phrase tripwire). `copy.marketing.pillarGuide`.
+ *
+ * Not part of {@link AppConfig}: lazy-loaded with the pillar guide + help pages (features/marketing/pillar-guide-copy.ts) to keep it out of
+ * the initial bundle (#980, Lighthouse script budget). Deploy overrides still
+ * apply from the same app-config.json path (merged by mergeLazyCopy).
+ */
+export interface PillarGuideCopy {
+  eyebrow: string;
+  title: string;
+  lede: string;
+  tiersTitle: string;
+  tiersIntro: string;
+  tiers: { name: string; range: string; blurb: string }[];
+  exampleTitle: string;
+  exampleBody: string;
+  includedTitle: string;
+  includedBody: string;
+  excludedTitle: string;
+  excludedBody: string;
+  infillTitle: string;
+  infillBody: string;
+  financingTitle: string;
+  financingBody: string;
+  faqTitle: string;
+  faqs: { q: string; a: string }[];
+  mathNoteTitle: string;
+  mathNoteBody: string;
+  ctaEstimate: string;
+  ctaCommunities: string;
+}
+
+/**
+ * Zoning explainer (SEO guides): long-form "Calgary zoning explained"
+ * guide at `/guides/calgary-zoning-explained`. Zone facts follow the
+ * City of Calgary Land Use Bylaw 1P2007 — no invented designations.
+ * `copy.marketing.zoningGuide`.
+ *
+ * Not part of {@link AppConfig}: lazy-loaded with the zoning guide, help and preview pages (core/config/zoning-guide-copy.ts) to keep it out of
+ * the initial bundle (#980, Lighthouse script budget). Deploy overrides still
+ * apply from the same app-config.json path (merged by mergeLazyCopy).
+ */
+export interface ZoningGuideCopy {
+  eyebrow: string;
+  title: string;
+  lede: string;
+  introTitle: string;
+  introBody: string;
+  tableTitle: string;
+  tableIntro: string;
+  tableHeaders: { zone: string; name: string; allows: string; build: string };
+  zones: { code: string; name: string; allows: string; build: string }[];
+  recentTitle: string;
+  recentBody: string;
+  lookupTitle: string;
+  lookupBody: string;
+  faqTitle: string;
+  /** `anchor` is optional: deep-link target for cross-page links. */
+  faqs: { q: string; a: string; anchor?: string }[];
+  sourceTitle: string;
+  sourceBody: string;
+  sourceLinkLabel: string;
+  sourceUrl: string;
+  verifyNote: string;
+  ctaEstimate: string;
+  ctaCostGuide: string;
+}
+
+/**
+ * Admin funnel dashboard (story admin/07). All user-facing dashboard
+ * copy lives here so the no-hardcode tripwire stays green. `copy.admin`.
+ *
+ * Not part of {@link AppConfig}: lazy-loaded with the admin console (features/admin/admin-copy.ts) to keep it out of
+ * the initial bundle (#980, Lighthouse script budget). Deploy overrides still
+ * apply from the same app-config.json path (merged by mergeLazyCopy).
+ */
+export interface AdminCopy {
+  /**
+   * Admin shell (#503, portal-ui-kit §4): grouped sidebar, top bar,
+   * ⌘K placeholder. Nav labels are keyed by the item ids in
+   * features/admin/admin-nav.ts.
+   */
+  shell: {
+    brand: string;
+    homeLabel: string;
+    navLabel: string;
+    groups: { pipeline: string; partners: string; money: string; system: string };
+    nav: {
+      leads: string;
+      estimates: string;
+      builders: string;
+      users: string;
+      apiKeys: string;
+      billing: string;
+      invoices: string;
+      disputes: string;
+      calibration: string;
+      sheets: string;
+      funnels: string;
+      webhooks: string;
+      quarantine: string;
+    };
+    /** Screen-reader suffix for a queue badge, e.g. "3 open". */
+    badgeSuffix: string;
+    openMenu: string;
+    closeMenu: string;
+    collapseSidebar: string;
+    expandSidebar: string;
+    breadcrumbLabel: string;
+    searchLabel: string;
+    searchShortcut: string;
+    /** `aria-keyshortcuts` for the search button. */
+    searchKeyShortcuts: string;
+    /** ⌘K command palette (#538). */
+    palette: {
+      title: string;
+      placeholder: string;
+      hint: string;
+      loading: string;
+      noResults: string;
+      error: string;
+      retry: string;
+      close: string;
+      escKey: string;
+      resultsLabel: string;
+      /** Keyboard hint under the results ("↑↓ to move · Enter to open"). */
+      navHint: string;
+      /** Group headings per hit kind. */
+      kinds: { lead: string; invoice: string; builder: string; user: string };
+    };
+    environmentLabel: string;
+    userMenuLabel: string;
+    signOut: string;
+  };
+  /**
+   * Admin Quarantine (#540): honeypot-flagged leads on their own route,
+   * with row and bulk approve/discard. `{count}`, `{name}`, `{failed}`
+   * and `{total}` are filled in by the page.
+   */
+  quarantine: {
+    title: string;
+    description: string;
+    searchLabel: string;
+    searchPlaceholder: string;
+    clearFilters: string;
+    countOne: string;
+    countMany: string;
+    tableLabel: string;
+    columns: { lead: string; address: string; source: string; tenant: string; created: string };
+    emptyHeading: string;
+    emptyMessage: string;
+    noResultsHeading: string;
+    noResultsMessage: string;
+    errorHeading: string;
+    loadError: string;
+    retry: string;
+    loading: string;
+    actionsHeader: string;
+    loadMore: string;
+    loadingMore: string;
+    selectAll: string;
+    selectRow: string;
+    selectedCount: string;
+    approve: string;
+    approving: string;
+    discard: string;
+    discarding: string;
+    approveSelected: string;
+    discardSelected: string;
+    cancel: string;
+    approveConfirmTitleMany: string;
+    approveConfirmBody: string;
+    discardConfirmTitle: string;
+    discardConfirmTitleMany: string;
+    discardConfirmBody: string;
+    approvedOne: string;
+    approvedMany: string;
+    discardedOne: string;
+    discardedMany: string;
+    failedOne: string;
+    failedMany: string;
+    dismiss: string;
+  };
+  /**
+   * Admin Leads (#539, admin review S5/S6): saved views, the kit
+   * DataTable and the lead drawer with one footer Save.
+   */
+  leads: {
+    title: string;
+    description: string;
+    sandboxToggle: string;
+    exportCsv: string;
+    exporting: string;
+    dismiss: string;
+    totalsLabel: string;
+    viewsLabel: string;
+    /** Saved views. `quotingStale` takes `{days}`. */
+    views: { all: string; new: string; unassigned: string; quotingStale: string };
+    /** One-line explanation under the views, per view. `quotingStale` takes `{days}`. */
+    viewHints: { all: string; new: string; unassigned: string; quotingStale: string };
+    searchLabel: string;
+    searchPlaceholder: string;
+    statusFilter: string;
+    anyStatus: string;
+    assignedFilter: string;
+    anyAssignment: string;
+    unassigned: string;
+    clearFilters: string;
+    /** "{count} leads". */
+    countOne: string;
+    countMany: string;
+    sandboxExcluded: string;
+    tableLabel: string;
+    columns: {
+      lead: string;
+      address: string;
+      status: string;
+      tenant: string;
+      source: string;
+      score: string;
+      timeline: string;
+      consent: string;
+      created: string;
+    };
+    consentIn: string;
+    consentOut: string;
+    sandboxBadge: string;
+    emptyHeading: string;
+    emptyMessage: string;
+    noResultsHeading: string;
+    noResultsMessage: string;
+    errorHeading: string;
+    retry: string;
+    loading: string;
+    actionsHeader: string;
+    loadMore: string;
+    loadingMore: string;
+    drawer: {
+      loading: string;
+      refreshing: string;
+      retry: string;
+      close: string;
+      cancel: string;
+      save: string;
+      saving: string;
+      /** Toast after a successful save. */
+      saved: string;
+      readOnlyHint: string;
+      sections: {
+        pipeline: string;
+        contact: string;
+        property: string;
+        invoices: string;
+        notes: string;
+        comments: string;
+        activity: string;
+        record: string;
+        /** #815: campaign attribution section. */
+        campaign: string;
+      };
+      statusLabel: string;
+      builderLabel: string;
+      unassigned: string;
+      labels: {
+        email: string;
+        phone: string;
+        source: string;
+        tenant: string;
+        magicLink: string;
+        contactConsent: string;
+        marketingConsent: string;
+        address: string;
+        projectType: string;
+        livingArea: string;
+        finishTier: string;
+        totalRange: string;
+        buildRange: string;
+        land: string;
+        estimated: string;
+        leadScore: string;
+        consented: string;
+        sheetsSynced: string;
+        snapshots: string;
+        unsubscribed: string;
+        nudgeSent: string;
+        /** #815: campaign attribution (leads.source_*). */
+        utmSource: string;
+        utmMedium: string;
+        utmCampaign: string;
+        utmTerm: string;
+        utmContent: string;
+        clickIdType: string;
+      };
+      /** "{sqft} sq ft". */
+      sqftValue: string;
+      yes: string;
+      no: string;
+      magicLink: { sent: string; used: string; expired: string; none: string };
+      openEstimate: string;
+      noEstimate: string;
+      invoicesHint: string;
+      openInvoices: string;
+      noNotes: string;
+      addNoteLabel: string;
+      addNotePlaceholder: string;
+      addNote: string;
+      addingNote: string;
+      notesHint: string;
+      commentsHint: string;
+      noActivity: string;
+      /** #815: shown when the lead arrived with no campaign attribution. */
+      noAttribution: string;
+      /** #836: callback requests section (preferred day, window, notes). */
+      callbacksHeading: string;
+      noCallbacks: string;
+      callbackLabels: {
+        day: string;
+        window: string;
+        notes: string;
+        phone: string;
+        requested: string;
+      };
+      /** Shown for a request filed before #836 (no preferred day). */
+      callbackAnyDay: string;
+      honeypotBadge: string;
+      /** Activity sub-list of builder moves (#803). */
+      reassignmentsHeading: string;
+      /** Shown for a builder id no longer in the builders list. */
+      unknownBuilder: string;
+      /**
+       * Confirm before moving a lead away from its builder (#803).
+       * `{lead}`, `{from}`, `{to}` are filled in.
+       */
+      reassignConfirm: {
+        title: string;
+        body: string;
+        verb: string;
+        unassignTitle: string;
+        unassignBody: string;
+        unassignVerb: string;
+        cancel: string;
+      };
+    };
+  },
+  /** EntityLink + "Technical IDs" copy shared by admin pages (#538). */
+  entities: {
+    technicalIds: string;
+    copyId: string;
+    idCopied: string;
+    /** Link text when a record has no human label in the payload. */
+    viewLead: string;
+    viewInvoice: string;
+    /** Disclosure label for an audit event's raw JSON payload. */
+    rawPayload: string;
+  };
+  funnels: {
+    /** Page heading. */
+    title: string;
+    /** Page subheading. */
+    subtitle: string;
+    /** Date-range "from" label. */
+    fromLabel: string;
+    /** Date-range "to" label. */
+    toLabel: string;
+    /** Tenant filter label. */
+    tenantLabel: string;
+    /** Tenant filter: all traffic. */
+    tenantAll: string;
+    /** Tenant filter: Feasly-direct only. */
+    tenantDirect: string;
+    /** Tenant filter: one embed tenant. */
+    tenantKey: string;
+    /** Tenant-key text input label. */
+    tenantKeyLabel: string;
+    /** Tenant-key text input placeholder. */
+    tenantKeyPlaceholder: string;
+    /** Apply-filters button. */
+    apply: string;
+    /** Reset-filters button. */
+    reset: string;
+    /** Loading indicator text. */
+    loading: string;
+    /** Empty funnel state. */
+    empty: string;
+    /** Fetch failure banner (static — no error detail in the DOM). */
+    loadError: string;
+    /** Invalid date range (from after to). */
+    invalidRange: string;
+    /** First-step conversion label. */
+    entryStep: string;
+    /** Conversion prefix before the percentage. */
+    conversionPrefix: string;
+    /** Shown when conversion is meaningless (first step / zero prior). */
+    noConversion: string;
+    /** Accessible name of the date-preset button group. */
+    presetsLabel: string;
+    /** Date presets: label + trailing day count (today inclusive). */
+    presets: ReadonlyArray<{ readonly label: string; readonly days: number }>;
+    /** Date preset that clears both dates. */
+    presetAll: string;
+    /** KPI label: entry → final step conversion. */
+    overallConversion: string;
+    /** KPI sub line under the overall conversion; `{from}`/`{to}` = step labels. */
+    overallConversionSub: string;
+    /** Drop-off annotation; `{count}` = people lost since the previous step. */
+    dropOff: string;
+    /** Accessible name of the funnel step list. */
+    stepsLabel: string;
+    /** #815: utm_source filter label / placeholder. */
+    utmSourceLabel: string;
+    utmSourcePlaceholder: string;
+    /** #815: utm_campaign filter label / placeholder. */
+    utmCampaignLabel: string;
+    utmCampaignPlaceholder: string;
+    /** #815: hint under the utm filters (exact match). */
+    utmHint: string;
+    /** #815: per-(source, campaign) breakdown heading, note, headers. */
+    sourcesHeading: string;
+    sourcesNote: string;
+    sourceHeader: string;
+    campaignHeader: string;
+    /** Shown for an untagged (null) source or campaign. */
+    sourceNone: string;
+    /** Shown when the backend capped the breakdown. */
+    sourcesTruncated: string;
+  };
+  /** Admin API keys (api-mcp/02; redesign #546, review S13). */
+  apiKeys: {
+    title: string;
+    subtitle: string;
+    issueButton: string;
+    /** DataTable. */
+    tableLabel: string;
+    colName: string;
+    colBuilder: string;
+    colPrefix: string;
+    colScopes: string;
+    colLastUsed: string;
+    colStatus: string;
+    never: string;
+    noBuilder: string;
+    sandboxChip: string;
+    openKey: string;
+    empty: string;
+    emptyMessage: string;
+    loadError: string;
+    loadErrorMessage: string;
+    retry: string;
+    /** Key drawer. */
+    tabsLabel: string;
+    tabOverview: string;
+    tabUsage: string;
+    builderLabel: string;
+    prefixLabel: string;
+    modeLabel: string;
+    modeLive: string;
+    modeSandbox: string;
+    createdLabel: string;
+    lastUsedLabel: string;
+    revokedAtLabel: string;
+    accessHeading: string;
+    accessHint: string;
+    revokedNote: string;
+    scopesLabel: string;
+    scopesError: string;
+    rateLimitLabel: string;
+    rateLimitHint: string;
+    rateLimitError: string;
+    saveButton: string;
+    savedToast: string;
+    saveError: string;
+    closeButton: string;
+    dangerHeading: string;
+    rotateHint: string;
+    revokeHint: string;
+    rotateButton: string;
+    revokeButton: string;
+    rotateConfirmTitle: string;
+    rotateConfirm: string;
+    revokeConfirmTitle: string;
+    revokeConfirm: string;
+    cancelButton: string;
+    revokedToast: string;
+    actionError: string;
+    /** Usage tab. */
+    usageChartLabel: string;
+    usageTotal: string;
+    usageShowTable: string;
+    usageLoading: string;
+    usageEmpty: string;
+    usageDateHeader: string;
+    usageEndpointHeader: string;
+    usageRequestsHeader: string;
+    usageEstimatesHeader: string;
+    /** Issue modal. */
+    issueTitle: string;
+    nameLabel: string;
+    namePlaceholder: string;
+    nameError: string;
+    builderPlaceholder: string;
+    builderHint: string;
+    builderEmpty: string;
+    sandboxLabel: string;
+    sandboxHint: string;
+    createButton: string;
+    issueError: string;
+    /** One-time secret modal. */
+    secretTitle: string;
+    plaintextWarning: string;
+    secretLabel: string;
+    copyButton: string;
+    copiedButton: string;
+    copyFailed: string;
+    ackLabel: string;
+    doneButton: string;
+  };
+  /**
+   * Admin auth pages (auth/02 pivot): Entra sign-in + callback copy.
+   * All user-facing strings live here so the no-hardcode tripwire
+   * stays green and copy is deploy-tunable. Exact strings are pinned
+   * by the login/callback specs.
+   */
+  auth: {
+    /** Session-expired notice on the login page. */
+    loginExpired: string;
+    /** Label of the Entra "Sign in →" button. */
+    entraSignInLabel: string;
+    /** Intro line above the Entra button. */
+    entraSignInIntro: string;
+    /**
+     * Callback failure when Entra reports `error=access_denied`
+     * (user cancelled) or the callback carries no usable code.
+     */
+    entraIncomplete: string;
+    /** Callback failure when the `state` param mismatches (CSRF). */
+    entraStateMismatch: string;
+    /** Network/5xx failure exchanging the code with the backend. */
+    entraTransient: string;
+    /** Shown when the Entra tenant config is still a placeholder. */
+    entraNotConfigured: string;
   };
 }

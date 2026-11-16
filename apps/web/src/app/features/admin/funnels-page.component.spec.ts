@@ -101,6 +101,8 @@ describe('FunnelsPageComponent', () => {
     const configStub = {
       get: (section: string) =>
         section === 'copy' ? { admin: { funnels: FUNNELS_COPY } } : {},
+      // #980: admin copy is lazy — served overrides reach it via getServedCopy.
+      getServedCopy: () => ({ funnels: FUNNELS_COPY }),
     };
     const seoStub = { setForRoute: () => undefined };
     await TestBed.configureTestingModule({
@@ -235,6 +237,8 @@ describe('FunnelsPageComponent', () => {
     const configStub = {
       get: (section: string) =>
         section === 'copy' ? { admin: { funnels: FUNNELS_COPY } } : {},
+      // #980: admin copy is lazy — served overrides reach it via getServedCopy.
+      getServedCopy: () => ({ funnels: FUNNELS_COPY }),
     };
     const seoStub = { setForRoute: () => undefined };
     await TestBed.configureTestingModule({
