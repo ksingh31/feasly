@@ -1,10 +1,11 @@
-import { Component, inject, OnInit } from '@angular/core';
+import { Component, computed, inject, OnInit } from '@angular/core';
 import { Router, RouterLink } from '@angular/router';
 import { Store } from '@ngxs/store';
-import type { BasementOption, FinishTier, GarageOption } from '@feasly/contracts';
+import type { AnalyticsEventName, BasementOption, FinishTier, GarageOption } from '@feasly/contracts';
 import { SeoService } from '../../core/seo/seo.service';
 import { ConfigService } from '../../core/config/config.service';
-import { ChooseProjectType, GoToStep, UpdateInputs, WizardState, type ProjectType } from '../wizard';
+import { ChooseProjectType, GoToStep, MarkSteerApplied, UpdateInputs, WizardState, type ProjectType } from '../wizard';
+import { AnalyticsService } from '../consent';
 import {
   PropertyCardComponent,
   SiteFooterComponent,
@@ -36,7 +37,23 @@ import {
  * card carries a "Coming soon" badge and picking it shows an email capture
  * plus a way back to New Build — the reno scope form (which ends on the
  * coming-soon page) is never reached, so nobody fills a form for nothing.
+ *
+ * #755: the API's home-age steer (`property.steer`, computed server-side
+ * from the year built and the market threshold) decides what is offered
+ * first. A redevelopment candidate opens on New Build; a younger home opens
+ * on Renovation (card first, with a short reason) plus an "Estimate a new
+ * build anyway" override; an unknown year opens with nothing selected. The
+ * steer is applied once per property, so later explicit picks survive
+ * refresh/back. Without a steer (older records, non-API sources) the
+ * New Build preselect above applies unchanged. No rule lives here.
  */
+/** #755: analytics event per steer offered on the scope step. */
+const STEER_OFFERED_EVENT: Record<'new_build' | 'renovation' | 'none', AnalyticsEventName> = {
+  new_build: 'steer_new_build_offered',
+  renovation: 'steer_renovation_offered',
+  none: 'steer_none_offered',
+};
+
 @Component({
   selector: 'app-scope-page',
   standalone: true,
@@ -70,9 +87,62 @@ export class ScopePageComponent implements OnInit {
   protected readonly copy = this.config.get('copy').wizard;
   /** #520: Renovation is "Coming soon" with a waitlist (deploy flag). */
   protected readonly renoWaitlist = this.config.get('features').renovationWaitlist;
+  private readonly analytics = inject(AnalyticsService);
+
+  /** #755: server-computed home-age steer for the selected property (absent = none). */
+  protected readonly steer = computed(() => this.property()?.steer ?? null);
+  /** #755: the API steers this home to renovation (so the override is offered). */
+  protected readonly steeredToRenovation = computed(
+    () => this.steer()?.recommendedProjectType === 'renovation',
+  );
+  /** #755: the override shows while a renovation-steered home is on Renovation. */
+  protected readonly showSteerOverride = computed(
+    () => this.steeredToRenovation() && this.projectType() === 'renovation',
+  );
+  /** #755: short reason under the cards, from config copy; null = no steering. */
+  protected readonly steerReason = computed(() => {
+    const steer = this.steer();
+    const year = this.property()?.yearBuilt;
+    if (!steer?.recommendedProjectType || year == null) {
+      return null;
+    }
+    const template =
+      steer.recommendedProjectType === 'renovation'
+        ? this.copy.steerRenovationReason
+        : this.copy.steerNewBuildReason;
+    return template.replace('{year}', String(year));
+  });
+  /** #755: project-type cards in display order — the steered type first. */
+  protected readonly projectTypes = computed(() => {
+    const cards = this.copy.scopeProjectTypes;
+    if (!this.steeredToRenovation()) {
+      return cards;
+    }
+    return [...cards.filter((t) => t.id === 'renovation'), ...cards.filter((t) => t.id !== 'renovation')];
+  });
 
   ngOnInit(): void {
     this.seo.setForRoute('estimate/scope');
+    const property = this.property();
+    const steer = property?.steer;
+    if (property && steer) {
+      // #755: apply the API's steer once per property, then respect picks.
+      if (this.store.selectSnapshot(WizardState.steerAppliedFor) !== property.addressKey) {
+        const offered = steer.recommendedProjectType;
+        const actions: object[] = [new MarkSteerApplied(property.addressKey)];
+        if (offered === 'new_build') {
+          actions.push(new ChooseProjectType('new-build'));
+        } else if (offered === 'renovation') {
+          actions.push(new ChooseProjectType('renovation'));
+        } else if (this.projectType() != null) {
+          // Unknown year: show both equally — no carried-over selection.
+          actions.push(new ChooseProjectType(null));
+        }
+        this.store.dispatch(actions);
+        this.analytics.track(STEER_OFFERED_EVENT[offered ?? 'none']);
+      }
+      return;
+    }
     // New builds are the marketed path: preselect New Build when no choice
     // exists yet, so the scope step never opens on Renovation. A stored
     // choice (refresh/back, marketing preselect) is always respected.
@@ -83,7 +153,16 @@ export class ScopePageComponent implements OnInit {
 
   /** Project-type card: stores the selection in NGXS (persisted). */
   chooseProjectType(type: ProjectType): void {
+    if (type === 'new-build' && this.steeredToRenovation() && this.projectType() !== 'new-build') {
+      // #755: a younger home's user chose a new build over the steer.
+      this.analytics.track('steer_override_new_build');
+    }
     this.store.dispatch(new ChooseProjectType(type));
+  }
+
+  /** #755: "Estimate a new build anyway" — continues on the normal new-build path. */
+  overrideToNewBuild(): void {
+    this.chooseProjectType('new-build');
   }
 
   /**
@@ -97,7 +176,7 @@ export class ScopePageComponent implements OnInit {
       return;
     }
     event.preventDefault();
-    const ids = this.copy.scopeProjectTypes.map((t) => t.id);
+    const ids = this.projectTypes().map((t) => t.id);
     const current = ids.indexOf(this.projectType() as ProjectType);
     const next = (current + (forward ? 1 : -1) + ids.length) % ids.length;
     this.chooseProjectType(ids[next]);

@@ -23,7 +23,9 @@ import { HttpError, ErrorCodes } from '../../middleware/errors';
 import {
   normalizeStripeEvent,
   type CardSummary,
+  type CustomerDetails,
   type NormalizedStripeEvent,
+  type OffSessionChargeInput,
   type OffSessionChargeResult,
   type PaymentIntentConfirmation,
   type PaymentIntentStatus,
@@ -32,7 +34,9 @@ import {
 
 export type {
   CardSummary,
+  CustomerDetails,
   NormalizedStripeEvent,
+  OffSessionChargeInput,
   OffSessionChargeResult,
   PaymentIntentConfirmation,
   PaymentIntentStatus,
@@ -57,12 +61,11 @@ export interface StripeService {
   /** #753: which provider is live (absent on legacy test fakes = stripe). */
   readonly provider?: PaymentProviderName;
   createCustomer(
-    input: {
-      tenantKey: string;
-      email?: string;
-    },
+    input: CustomerDetails,
     idempotencyKey: string,
   ): Promise<{ id: string }>;
+  /** #716: sync the customer's business name/email/builder metadata. */
+  updateCustomer(customerId: string, input: CustomerDetails): Promise<void>;
   createSetupIntent(customerId: string): Promise<{
     id: string;
     clientSecret: string;
@@ -72,14 +75,21 @@ export interface StripeService {
    * summaries only — never the PAN.
    */
   listPaymentMethods(customerId: string): Promise<readonly CardSummary[]>;
+  /** #716: the customer's default payment method id, or null. */
+  getDefaultPaymentMethodId(customerId: string): Promise<string | null>;
+  /** #716: make a saved card the customer's default payment method. */
+  setDefaultPaymentMethod(
+    customerId: string,
+    paymentMethodId: string,
+  ): Promise<void>;
+  /** #716: detach (remove) a saved card from its customer. */
+  detachPaymentMethod(paymentMethodId: string): Promise<{ id: string }>;
+  /**
+   * Charge the customer's default card off-session. The configured
+   * statement descriptor (#716) is added here — callers never pass it.
+   */
   createOffSessionPaymentIntent(
-    input: {
-      amountCents: number;
-      currency: string;
-      customerId: string;
-      description: string;
-      metadata?: Readonly<Record<string, string>>;
-    },
+    input: Omit<OffSessionChargeInput, 'statementDescriptorSuffix'>,
     idempotencyKey: string,
   ): Promise<OffSessionChargeResult>;
   /**
@@ -121,6 +131,12 @@ export interface StripeService {
   getCustomerId(tenantKey: string): Promise<string | null>;
   /** Reverse lookup: which tenant owns this Stripe customer id. */
   getTenantKeyByCustomerId(customerId: string): Promise<string | null>;
+  /**
+   * #716 `customer.deleted`: forget a Stripe customer id on whichever tenant
+   * holds it, so the next card setup creates a fresh customer. Returns the
+   * tenant key that was cleared, or null when no tenant held it.
+   */
+  clearCustomerId(customerId: string): Promise<string | null>;
 }
 
 export interface StripeServiceDeps {
@@ -177,23 +193,48 @@ export function declinedPaymentIntent(
   };
 }
 
+/** Customer metadata Feasly owns (#716 adds the builder id). */
+function customerMetadata(input: CustomerDetails): Record<string, string> {
+  return {
+    feasly_tenant_key: input.tenantKey,
+    ...(input.builderId ? { feasly_builder_id: input.builderId } : {}),
+  };
+}
+
 /**
  * The production `PaymentProvider` (StripePaymentProvider) — thin wrapper
  * over the official Stripe SDK.
  */
 export function createStripeSdkClient(secretKey: string): StripeClient {
   const stripe = new Stripe(secretKey);
+  async function defaultPaymentMethodId(
+    customerId: string,
+  ): Promise<string | null> {
+    const customer = await stripe.customers.retrieve(customerId);
+    if (customer.deleted) return null;
+    const pm = customer.invoice_settings?.default_payment_method;
+    if (!pm) return null;
+    return typeof pm === 'string' ? pm : pm.id;
+  }
   return {
     name: 'stripe',
     async createCustomer(input, idempotencyKey) {
       const customer = await stripe.customers.create(
         {
           email: input.email,
-          metadata: { feasly_tenant_key: input.tenantKey },
+          ...(input.name ? { name: input.name } : {}),
+          metadata: customerMetadata(input),
         },
         { idempotencyKey },
       );
       return { id: customer.id };
+    },
+    async updateCustomer(customerId, input) {
+      await stripe.customers.update(customerId, {
+        ...(input.email ? { email: input.email } : {}),
+        ...(input.name ? { name: input.name } : {}),
+        metadata: customerMetadata(input),
+      });
     },
     async createSetupIntent(customerId) {
       const intent = await stripe.setupIntents.create({
@@ -219,23 +260,30 @@ export function createStripeSdkClient(secretKey: string): StripeClient {
         expYear: pm.card?.exp_year ?? 0,
       }));
     },
+    getDefaultPaymentMethodId: defaultPaymentMethodId,
+    async setDefaultPaymentMethod(customerId, paymentMethodId) {
+      await stripe.customers.update(customerId, {
+        invoice_settings: { default_payment_method: paymentMethodId },
+      });
+    },
     async detachPaymentMethod(paymentMethodId) {
       const pm = await stripe.paymentMethods.detach(paymentMethodId);
       return { id: pm.id };
     },
     async createOffSessionPaymentIntent(input, idempotencyKey) {
-      // Resolve an explicit payment method: a card attached via SetupIntent
-      // is NOT automatically the customer's default payment method, so
-      // charging with only `customer` fails when no default is set
-      // ("no payment method attached to customer"). Newest card first —
-      // matches listPaymentMethods ordering, so the card the builder most
-      // recently saved is the one we charge.
-      const methods = await stripe.paymentMethods.list({
-        customer: input.customerId,
-        type: 'card',
-        limit: 1,
-      });
-      const pm = methods.data[0];
+      // Resolve an explicit payment method (#716): the customer's default
+      // card — the one the builder chose. Charging with only `customer`
+      // fails when no default is set, so fall back to the newest saved card
+      // (a card saved before the default was set by the setup webhook).
+      const defaultPm = await defaultPaymentMethodId(input.customerId);
+      const methods = defaultPm
+        ? null
+        : await stripe.paymentMethods.list({
+            customer: input.customerId,
+            type: 'card',
+            limit: 1,
+          });
+      const pm = defaultPm ? { id: defaultPm } : methods?.data[0];
       if (!pm) {
         throw new HttpError(
           422,
@@ -252,6 +300,9 @@ export function createStripeSdkClient(secretKey: string): StripeClient {
             payment_method: pm.id,
             description: input.description,
             ...(input.metadata ? { metadata: { ...input.metadata } } : {}),
+            ...(input.statementDescriptorSuffix
+              ? { statement_descriptor_suffix: input.statementDescriptorSuffix }
+              : {}),
             off_session: true,
             confirm: true,
           },
@@ -361,12 +412,28 @@ export function createStripeService(deps: StripeServiceDeps): StripeService {
 
     createCustomer: (input, idempotencyKey) =>
       requireClient().createCustomer(input, idempotencyKey),
+    updateCustomer: (customerId, input) =>
+      requireClient().updateCustomer(customerId, input),
     createSetupIntent: (customerId) =>
       requireClient().createSetupIntent(customerId),
     listPaymentMethods: (customerId) =>
       requireClient().listPaymentMethods(customerId),
+    getDefaultPaymentMethodId: (customerId) =>
+      requireClient().getDefaultPaymentMethodId(customerId),
+    setDefaultPaymentMethod: (customerId, paymentMethodId) =>
+      requireClient().setDefaultPaymentMethod(customerId, paymentMethodId),
+    detachPaymentMethod: (paymentMethodId) =>
+      requireClient().detachPaymentMethod(paymentMethodId),
     createOffSessionPaymentIntent: (input, idempotencyKey) =>
-      requireClient().createOffSessionPaymentIntent(input, idempotencyKey),
+      requireClient().createOffSessionPaymentIntent(
+        {
+          ...input,
+          ...(billing.statementDescriptor
+            ? { statementDescriptorSuffix: billing.statementDescriptor }
+            : {}),
+        },
+        idempotencyKey,
+      ),
     createSubscription: (input) =>
       requireClient().createSubscription(input),
     cancelSubscription: (subscriptionId) =>
@@ -443,6 +510,15 @@ export function createStripeService(deps: StripeServiceDeps): StripeService {
         columns: { tenantKey: true },
       });
       return row?.tenantKey ?? null;
+    },
+
+    async clearCustomerId(customerId: string): Promise<string | null> {
+      const cleared = await db
+        .update(tenants)
+        .set({ stripeCustomerId: null })
+        .where(eq(tenants.stripeCustomerId, customerId))
+        .returning({ tenantKey: tenants.tenantKey });
+      return cleared[0]?.tenantKey ?? null;
     },
   };
 }

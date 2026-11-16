@@ -17,6 +17,7 @@ import { describe, expect, it, vi } from 'vitest';
 import { createBillingOverviewService } from '../src/services/billing/billing-overview.service';
 import type { InvoiceSummaryRecord } from '../src/services/billing/invoice-summary.store';
 import type { CommissionCardStatus } from '../src/services/billing/commission-card.service';
+import type { BillingTaxConfig } from '../src/config';
 
 const TENANT = 'elite-craft';
 
@@ -40,6 +41,7 @@ function makeService(opts?: {
   readonly model?: 'commission' | 'flat';
   readonly ratePercent?: number;
   readonly card?: CommissionCardStatus;
+  readonly tax?: BillingTaxConfig;
 }) {
   const findByTenantKey = vi.fn(async (tenantKey: string) =>
     tenantKey === TENANT ? (opts?.invoices ?? []) : [],
@@ -49,7 +51,7 @@ function makeService(opts?: {
     async (): Promise<CommissionCardStatus> => opts?.card ?? { hasCard: false },
   );
   const service = createBillingOverviewService({
-    billing: { model: opts?.model ?? 'commission', flatCurrency: 'CAD' },
+    billing: { model: opts?.model ?? 'commission', flatCurrency: 'CAD', tax: opts?.tax },
     invoiceSummaries: { findByTenantKey },
     commission: { getCommissionRatePercent },
     commissionCard: { getCard },
@@ -260,5 +262,37 @@ describe('BillingOverviewService.getOverview', () => {
     expect(result.commissionRatePercent).toBeNull();
     expect(result.card).toBeNull();
     expect(result.nextCharge).toBeNull();
+  });
+
+  describe('tax preview (#764)', () => {
+    const TAX: BillingTaxConfig = {
+      enabled: true,
+      ratePercent: 5,
+      label: 'GST',
+      inclusive: false,
+      supplierLegalName: 'Feasly Inc.',
+      supplierAddress: '1 Main St',
+      registrationNumber: '123456789RT0001',
+    };
+
+    it('exposes rate, label and mode — never supplier details — when tax is on', async () => {
+      const { service } = makeService({ tax: TAX });
+      const result = await service.getOverview(TENANT);
+      expect(result.tax).toEqual({ ratePercent: 5, label: 'GST', inclusive: false });
+    });
+
+    it('omits tax when disabled, at a 0% rate, or absent', async () => {
+      for (const tax of [{ ...TAX, enabled: false }, { ...TAX, ratePercent: 0 }, undefined]) {
+        const { service } = makeService({ tax });
+        const result = await service.getOverview(TENANT);
+        expect(result).not.toHaveProperty('tax');
+      }
+    });
+
+    it('omits tax under the flat model', async () => {
+      const { service } = makeService({ model: 'flat', tax: TAX });
+      const result = await service.getOverview(TENANT);
+      expect(result).not.toHaveProperty('tax');
+    });
   });
 });

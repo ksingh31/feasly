@@ -438,3 +438,76 @@ describe('BuilderService tenants row sync (#710)', () => {
     });
   });
 });
+
+describe('BuilderService.updateBuilder Stripe customer sync hook (#716)', () => {
+  function makeUpdateDb(
+    current: ReturnType<typeof makeRow>,
+    returning: ReturnType<typeof makeRow>,
+  ): AppDb {
+    const db = {
+      query: { builders: { findFirst: vi.fn(async () => current) } },
+      update: vi.fn(() => ({
+        set: vi.fn(() => ({
+          where: vi.fn(() => ({ returning: vi.fn(async () => [returning]) })),
+        })),
+      })),
+    } as Record<string, unknown>;
+    withTx(db);
+    return db as unknown as AppDb;
+  }
+
+  function service(db: AppDb, hook: (b: unknown) => Promise<void>) {
+    const audit = { log: vi.fn(async () => {}) } as unknown as AdminAuditStore;
+    const logWarning = vi.fn();
+    return {
+      svc: createBuilderService({ db, audit, onBillingProfileChanged: hook, logWarning }),
+      logWarning,
+    };
+  }
+
+  it('fires when the business name changes', async () => {
+    const current = makeRow({});
+    const hook = vi.fn(async () => {});
+    const { svc } = service(
+      makeUpdateDb(current, makeRow({ businessName: 'Elite Craft Ltd' })),
+      hook,
+    );
+    await svc.updateBuilder(current.id, { businessName: 'Elite Craft Ltd' }, 'admin@example.com');
+    expect(hook).toHaveBeenCalledWith(
+      expect.objectContaining({ businessName: 'Elite Craft Ltd' }),
+    );
+  });
+
+  it('fires when the email changes', async () => {
+    const current = makeRow({});
+    const hook = vi.fn(async () => {});
+    const { svc } = service(
+      makeUpdateDb(current, makeRow({ email: 'billing@elite.test' })),
+      hook,
+    );
+    await svc.updateBuilder(current.id, { email: 'billing@elite.test' }, 'admin@example.com');
+    expect(hook).toHaveBeenCalledTimes(1);
+  });
+
+  it('does not fire for unrelated changes', async () => {
+    const current = makeRow({});
+    const hook = vi.fn(async () => {});
+    const { svc } = service(makeUpdateDb(current, makeRow({ phone: '403-555-0100' })), hook);
+    await svc.updateBuilder(current.id, { phone: '403-555-0100' }, 'admin@example.com');
+    expect(hook).not.toHaveBeenCalled();
+  });
+
+  it('a failing hook is logged and never fails the update', async () => {
+    const current = makeRow({});
+    const { svc, logWarning } = service(
+      makeUpdateDb(current, makeRow({ businessName: 'Elite Craft Ltd' })),
+      async () => {
+        throw new Error('stripe down');
+      },
+    );
+    await expect(
+      svc.updateBuilder(current.id, { businessName: 'Elite Craft Ltd' }, 'admin@example.com'),
+    ).resolves.toMatchObject({ businessName: 'Elite Craft Ltd' });
+    expect(logWarning).toHaveBeenCalledWith(expect.stringContaining('stripe down'));
+  });
+});

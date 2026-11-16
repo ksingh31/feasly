@@ -23,6 +23,11 @@
  * - `invoice.payment_succeeded|payment_failed` → flat-plan subscription
  *   dunning handling (Stripe Billing's own invoices)
  * - `payment_method.attached` → tenant billing-ready audit event
+ * - #716 card lifecycle (`setup_intent.succeeded|setup_failed`,
+ *   `payment_method.detached|updated|automatically_updated`,
+ *   `customer.deleted`) → CommissionCardService.handleCardEvent (the saved
+ *   card becomes the default and replaces the old one; a deleted customer
+ *   is forgotten)
  * - `customer.subscription.updated|deleted` → audit event
  * - anything else → logged audit event, 200 (never 500-retry loops)
  * - `payment_intent.*` for a PaymentIntent no invoice owns → audited as
@@ -39,6 +44,10 @@ import { AUTHENTICATION_REQUIRED_CODE } from '../../lib/charge-outcome';
 import type { EmailService } from '../email/email.service';
 import { ensureOpsAlertDelivered } from '../ops-alerts.service';
 import type { BillingAuditService } from './billing-audit.service';
+import {
+  isCardWebhookEvent,
+  type CommissionCardService,
+} from './commission-card.service';
 import type { CommissionService } from './commission.service';
 import type { FlatPlanService } from './flat-plan.service';
 import type { NormalizedStripeEvent, StripeService } from './stripe.service';
@@ -61,6 +70,8 @@ export interface BillingWebhookServiceDeps {
   readonly audit: BillingAuditService;
   readonly commission: CommissionService;
   readonly flatPlan: FlatPlanService;
+  /** #716 card lifecycle events. Absent (legacy tests) = audited only. */
+  readonly commissionCard?: Pick<CommissionCardService, 'handleCardEvent'>;
   /** Ops alert delivery for orphan PaymentIntents (#711). */
   readonly email: Pick<EmailService, 'sendOpsAlert'>;
   readonly opsInbox: string;
@@ -345,6 +356,10 @@ export function createBillingWebhookService(
           });
           break;
         default:
+          if (isCardWebhookEvent(event.type) && deps.commissionCard) {
+            await deps.commissionCard.handleCardEvent(event, tenantKey);
+            break;
+          }
           // Unhandled types → logged, 200. Never 500-retry loops.
           await audit.append({
             tenantKey,

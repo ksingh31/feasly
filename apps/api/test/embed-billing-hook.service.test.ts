@@ -77,6 +77,12 @@ function fakeStripe(): StripeService & { calls: unknown[] } {
   const service: StripeService = {
     isConfigured: true,
     testMode: true,
+    // #716 card lifecycle — unused here.
+    updateCustomer: async () => undefined,
+    getDefaultPaymentMethodId: async () => null,
+    setDefaultPaymentMethod: async () => undefined,
+    detachPaymentMethod: async (id: string) => ({ id }),
+    clearCustomerId: async () => null,
     createCustomer: async (input) => {
       calls.push({ op: 'createCustomer', input });
       return { id: 'cus_test_123' };

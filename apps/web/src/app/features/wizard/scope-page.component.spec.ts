@@ -10,6 +10,7 @@ import type { PropertyRecord } from '@feasly/contracts';
 import { API_SERVICE, type ApiService } from '../../core/api';
 import { ConfigService } from '../../core/config/config.service';
 import { ChooseProjectType, GoToStep, SelectProperty, WizardState } from '../wizard';
+import { AnalyticsService } from '../consent';
 import { ScopePageComponent } from './scope-page.component';
 import { provideDataFreshnessStub } from '../../shared/test-helpers/data-freshness.stub';
 
@@ -62,8 +63,12 @@ describe('ScopePageComponent', () => {
   /** Stubbed API seam: only the waitlist call is reachable from this step. */
   const joinWaitlist = vi.fn((req: { topic: string }) => of({ ok: true as const, topic: req.topic }));
 
-  async function setup(renoWaitlist = false): Promise<void> {
+  /** Analytics seam (#755): records which steer events fired. */
+  const track = vi.fn();
+
+  async function setup(renoWaitlist = false, property: PropertyRecord = fakeProperty): Promise<void> {
     joinWaitlist.mockClear();
+    track.mockClear();
     TestBed.resetTestingModule();
     TestBed.configureTestingModule({
       imports: [ScopePageComponent, BlankComponent],
@@ -79,6 +84,7 @@ describe('ScopePageComponent', () => {
         ]),
         provideStore([WizardState]),
         { provide: API_SERVICE, useValue: { joinWaitlist } as unknown as ApiService },
+        { provide: AnalyticsService, useValue: { track } },
       ],
     });
     httpMock = TestBed.inject(HttpTestingController);
@@ -93,7 +99,7 @@ describe('ScopePageComponent', () => {
     await pending;
     store = TestBed.inject(Store);
     router = TestBed.inject(Router);
-    store.dispatch(new SelectProperty(fakeProperty));
+    store.dispatch(new SelectProperty(property));
     fixture = TestBed.createComponent(ScopePageComponent);
     fixture.detectChanges();
   }
@@ -419,6 +425,124 @@ describe('ScopePageComponent', () => {
       fixture.componentInstance.seePreview();
       await fixture.whenStable();
       expect(router.url).not.toBe('/estimate/reno-scope');
+    });
+  });
+  /**
+   * #755: the API's home-age steer decides what is offered first. Web holds
+   * no rule — these records carry the server-computed steer.
+   */
+  describe('home-age steer (#755)', () => {
+    const steered = (
+      yearBuilt: number | null,
+      recommended: 'new_build' | 'renovation' | null,
+    ): PropertyRecord => ({
+      ...fakeProperty,
+      addressKey: `steer-${yearBuilt ?? 'unknown'}`,
+      yearBuilt,
+      steer: {
+        redevelopmentCandidate: recommended === null ? null : recommended === 'new_build',
+        reason:
+          recommended === null
+            ? 'year_built_unknown'
+            : recommended === 'new_build'
+              ? 'age_at_or_over_threshold'
+              : 'age_under_threshold',
+        recommendedProjectType: recommended,
+        homeAgeYears: yearBuilt === null ? null : 2026 - yearBuilt,
+        thresholdYears: 25,
+      },
+    });
+
+    function cardOrder(): string[] {
+      return Array.from(fixture.nativeElement.querySelectorAll('.ptype-card')).map(
+        (el) => (el as HTMLElement).dataset['ptype'] ?? '',
+      );
+    }
+
+    function reason(): HTMLElement | null {
+      return fixture.nativeElement.querySelector('[data-testid="steer-reason"]');
+    }
+
+    function override(): HTMLButtonElement | null {
+      return fixture.nativeElement.querySelector('button.steer-override');
+    }
+
+    it('defaults a 1962 home to new build, new build card first', async () => {
+      await setup(false, steered(1962, 'new_build'));
+      expect(store.selectSnapshot(WizardState.projectType)).toBe('new-build');
+      expect(cardOrder()).toEqual(['new-build', 'renovation']);
+      expect(reason()?.textContent).toContain('1962');
+      expect(override()).toBeNull();
+      expect(track).toHaveBeenCalledWith('steer_new_build_offered');
+    });
+
+    it('defaults a 2008 home to renovation, card first, with reason and override', async () => {
+      await setup(false, steered(2008, 'renovation'));
+      expect(store.selectSnapshot(WizardState.projectType)).toBe('renovation');
+      expect(cardOrder()).toEqual(['renovation', 'new-build']);
+      expect(reason()?.textContent?.trim()).toBe(
+        'This home was built in 2008, so renovation is usually the better fit.',
+      );
+      expect(override()?.textContent?.trim()).toBe('Estimate a new build anyway');
+      expect(track).toHaveBeenCalledWith('steer_renovation_offered');
+    });
+
+    it('override continues to a normal new-build estimate and is recorded', async () => {
+      await setup(false, steered(2008, 'renovation'));
+      override()!.click();
+      fixture.detectChanges();
+      expect(track).toHaveBeenCalledWith('steer_override_new_build');
+      expect(store.selectSnapshot(WizardState.projectType)).toBe('new-build');
+      expect(slider()).not.toBeNull();
+      expect(override()).toBeNull();
+      cta().click();
+      await pollUrl('/estimate/preview');
+      expect(store.selectSnapshot(WizardState.step)).toBe(3);
+    });
+
+    it('records choosing the New Build card over the renovation steer as the override', async () => {
+      await setup(false, steered(2008, 'renovation'));
+      ptypeButton('new-build').click();
+      expect(track).toHaveBeenCalledWith('steer_override_new_build');
+    });
+
+    it('shows the override instead of the waitlist fallback CTA while reno is waitlisted', async () => {
+      await setup(true, steered(2008, 'renovation'));
+      const button = fixture.nativeElement.querySelector('button.reno-new-build') as HTMLButtonElement;
+      expect(button.textContent?.trim()).toBe('Estimate a new build anyway');
+      button.click();
+      fixture.detectChanges();
+      expect(store.selectSnapshot(WizardState.projectType)).toBe('new-build');
+      expect(track).toHaveBeenCalledWith('steer_override_new_build');
+    });
+
+    it('shows both types equally when the year built is unknown', async () => {
+      // A previous property left Renovation selected; the new one has no year.
+      await setup(false, steered(2008, 'renovation'));
+      track.mockClear();
+      store.dispatch(new SelectProperty(steered(null, null)));
+      fixture.destroy();
+      fixture = TestBed.createComponent(ScopePageComponent);
+      fixture.detectChanges();
+      expect(store.selectSnapshot(WizardState.projectType)).toBeNull();
+      expect(cardOrder()).toEqual(['new-build', 'renovation']);
+      expect(reason()).toBeNull();
+      expect(override()).toBeNull();
+      expect(cta().disabled).toBe(true);
+      expect(track).toHaveBeenCalledWith('steer_none_offered');
+    });
+
+    it('applies the steer once per property so an explicit pick survives a revisit', async () => {
+      const home = steered(2008, 'renovation');
+      await setup(false, home);
+      ptypeButton('new-build').click();
+      track.mockClear();
+      // Revisit the step (refresh/back): the stored pick wins, nothing re-offered.
+      fixture.destroy();
+      fixture = TestBed.createComponent(ScopePageComponent);
+      fixture.detectChanges();
+      expect(store.selectSnapshot(WizardState.projectType)).toBe('new-build');
+      expect(track).not.toHaveBeenCalledWith('steer_renovation_offered');
     });
   });
 });

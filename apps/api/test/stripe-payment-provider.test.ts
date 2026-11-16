@@ -12,6 +12,9 @@ const mocks = vi.hoisted(() => ({
   paymentIntentsRetrieve: vi.fn(),
   refundsCreate: vi.fn(),
   constructEvent: vi.fn(),
+  customersCreate: vi.fn(),
+  customersRetrieve: vi.fn(),
+  customersUpdate: vi.fn(),
 }));
 
 vi.mock('stripe', () => {
@@ -20,6 +23,11 @@ vi.mock('stripe', () => {
     paymentIntents = { create: mocks.paymentIntentsCreate, retrieve: mocks.paymentIntentsRetrieve };
     refunds = { create: mocks.refundsCreate };
     webhooks = { constructEvent: mocks.constructEvent };
+    customers = {
+      create: mocks.customersCreate,
+      retrieve: mocks.customersRetrieve,
+      update: mocks.customersUpdate,
+    };
     constructor() {}
   }
   return { default: FakeStripe };
@@ -39,6 +47,10 @@ beforeEach(() => {
   for (const m of Object.values(mocks)) m.mockReset();
   mocks.paymentMethodsList.mockResolvedValue({
     data: [{ id: 'pm_1', card: { brand: 'visa', last4: '4242', exp_month: 1, exp_year: 2030 } }],
+  });
+  mocks.customersRetrieve.mockResolvedValue({
+    id: 'cus_123',
+    invoice_settings: { default_payment_method: null },
   });
 });
 
@@ -150,6 +162,73 @@ describe('StripePaymentProvider (createStripeSdkClient)', () => {
     await expect(client.createOffSessionPaymentIntent(INPUT, 'k')).rejects.toThrow('declined');
   });
 
+  it('charges the customer default card explicitly, with the statement descriptor suffix (#716)', async () => {
+    mocks.customersRetrieve.mockResolvedValue({
+      id: 'cus_123',
+      invoice_settings: { default_payment_method: 'pm_default' },
+    });
+    mocks.paymentIntentsCreate.mockResolvedValue({ id: 'pi_1', status: 'succeeded' });
+    await createStripeSdkClient('sk_test_fake').createOffSessionPaymentIntent(
+      { ...INPUT, statementDescriptorSuffix: 'FEASLY COMMISSION' },
+      'k',
+    );
+    expect(mocks.paymentMethodsList).not.toHaveBeenCalled();
+    expect(mocks.paymentIntentsCreate).toHaveBeenCalledWith(
+      expect.objectContaining({
+        customer: 'cus_123',
+        payment_method: 'pm_default',
+        statement_descriptor_suffix: 'FEASLY COMMISSION',
+      }),
+      { idempotencyKey: 'k' },
+    );
+  });
+
+  it('falls back to the newest card when no default is set, and omits an unset descriptor (#716)', async () => {
+    mocks.paymentIntentsCreate.mockResolvedValue({ id: 'pi_1', status: 'succeeded' });
+    await createStripeSdkClient('sk_test_fake').createOffSessionPaymentIntent(INPUT, 'k');
+    const params = mocks.paymentIntentsCreate.mock.calls[0]?.[0] as Record<string, unknown>;
+    expect(params['payment_method']).toBe('pm_1');
+    expect(params).not.toHaveProperty('statement_descriptor_suffix');
+  });
+
+  it('reads and sets the default payment method (#716)', async () => {
+    const client = createStripeSdkClient('sk_test_fake');
+    expect(await client.getDefaultPaymentMethodId('cus_123')).toBeNull();
+    mocks.customersRetrieve.mockResolvedValueOnce({
+      id: 'cus_123',
+      invoice_settings: { default_payment_method: { id: 'pm_expanded' } },
+    });
+    expect(await client.getDefaultPaymentMethodId('cus_123')).toBe('pm_expanded');
+    mocks.customersRetrieve.mockResolvedValueOnce({ id: 'cus_123', deleted: true });
+    expect(await client.getDefaultPaymentMethodId('cus_123')).toBeNull();
+    await client.setDefaultPaymentMethod('cus_123', 'pm_2');
+    expect(mocks.customersUpdate).toHaveBeenCalledWith('cus_123', {
+      invoice_settings: { default_payment_method: 'pm_2' },
+    });
+  });
+
+  it('creates and updates customers with business name and builder id (#716)', async () => {
+    mocks.customersCreate.mockResolvedValue({ id: 'cus_new' });
+    const client = createStripeSdkClient('sk_test_fake');
+    await client.createCustomer(
+      { tenantKey: 'elite', email: 'a@b.test', name: 'Elite Craft Builders', builderId: 'b-1' },
+      'idem',
+    );
+    expect(mocks.customersCreate).toHaveBeenCalledWith(
+      {
+        email: 'a@b.test',
+        name: 'Elite Craft Builders',
+        metadata: { feasly_tenant_key: 'elite', feasly_builder_id: 'b-1' },
+      },
+      { idempotencyKey: 'idem' },
+    );
+    await client.updateCustomer('cus_new', { tenantKey: 'elite', name: 'Elite Craft Ltd' });
+    expect(mocks.customersUpdate).toHaveBeenCalledWith('cus_new', {
+      name: 'Elite Craft Ltd',
+      metadata: { feasly_tenant_key: 'elite' },
+    });
+  });
+
   it('refunds in full, or partially when an amount is given', async () => {
     mocks.refundsCreate.mockResolvedValue({ id: 're_1', status: 'succeeded' });
     const client = createStripeSdkClient('sk_test_fake');
@@ -233,5 +312,55 @@ describe('normalizeStripeEvent', () => {
         data: { object: { id: 'ch_1', payment_intent: 'pi_4', metadata: { feasly_commission_invoice_id: 'inv-9' } } },
       }).commissionInvoiceId,
     ).toBeUndefined();
+  });
+
+  it('reads card lifecycle events (#716)', () => {
+    expect(
+      normalizeStripeEvent({
+        id: 'evt_s',
+        type: 'setup_intent.succeeded',
+        data: { object: { id: 'seti_1', customer: 'cus_1', payment_method: 'pm_1' } },
+      }),
+    ).toMatchObject({ customerId: 'cus_1', paymentMethodId: 'pm_1' });
+    expect(
+      normalizeStripeEvent({
+        id: 'evt_sf',
+        type: 'setup_intent.setup_failed',
+        data: {
+          object: {
+            id: 'seti_2',
+            customer: 'cus_1',
+            payment_method: null,
+            last_setup_error: { message: 'authentication failed' },
+          },
+        },
+      }),
+    ).toMatchObject({ customerId: 'cus_1', failureMessage: 'authentication failed' });
+    // Stripe's detached event has customer: null; the owner is in
+    // previous_attributes.
+    expect(
+      normalizeStripeEvent({
+        id: 'evt_pd',
+        type: 'payment_method.detached',
+        data: {
+          object: { id: 'pm_1', customer: null },
+          previous_attributes: { customer: 'cus_1' },
+        },
+      }),
+    ).toMatchObject({ customerId: 'cus_1', paymentMethodId: 'pm_1' });
+    expect(
+      normalizeStripeEvent({
+        id: 'evt_cd',
+        type: 'customer.deleted',
+        data: { object: { id: 'cus_1', object: 'customer' } },
+      }).customerId,
+    ).toBe('cus_1');
+    expect(
+      normalizeStripeEvent({
+        id: 'evt_sub',
+        type: 'customer.subscription.updated',
+        data: { object: { id: 'sub_1', customer: 'cus_9' } },
+      }),
+    ).toMatchObject({ customerId: 'cus_9', subscriptionId: 'sub_1' });
   });
 });

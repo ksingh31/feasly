@@ -11,7 +11,7 @@
  * payment_intent events for unknown PaymentIntents are acknowledged with
  * one audit row and one ops alert.
  */
-import { describe, expect, it, beforeAll, afterAll } from 'vitest';
+import { describe, expect, it, beforeAll, afterAll, vi } from 'vitest';
 import { eq } from 'drizzle-orm';
 import { createHmac } from 'node:crypto';
 import {
@@ -76,6 +76,12 @@ function fakeStripe(): StripeService {
   return {
     isConfigured: true,
     testMode: true,
+    // #716 card lifecycle — unused here.
+    updateCustomer: async () => undefined,
+    getDefaultPaymentMethodId: async () => null,
+    setDefaultPaymentMethod: async () => undefined,
+    detachPaymentMethod: async (id: string) => ({ id }),
+    clearCustomerId: async () => null,
     createCustomer: async () => ({ id: 'cus_test' }),
     createSetupIntent: async () => ({
       id: 'seti_test',
@@ -794,5 +800,79 @@ describe('billing webhook service', () => {
     // Redelivery of the same (unprocessed) event settles it.
     await expect(webhook.handleWebhook(body, signature)).resolves.toEqual({ received: true, duplicate: false });
     expect((await commission.getById(inReview.id)).status).toBe('paid');
+  });
+
+  it('routes card lifecycle events to the card service (#716), and only those', async () => {
+    const handleCardEvent = vi.fn(async () => undefined);
+    const withCard = createBillingWebhookService({
+      db: testDb.db,
+      stripe,
+      audit,
+      commission,
+      flatPlan,
+      commissionCard: { handleCardEvent },
+      email,
+      opsInbox: 'ops@example.com',
+    });
+    for (const [i, type] of [
+      'setup_intent.succeeded',
+      'setup_intent.setup_failed',
+      'payment_method.detached',
+      'payment_method.updated',
+      'payment_method.automatically_updated',
+      'customer.deleted',
+    ].entries()) {
+      const { body, signature } = signPayload({
+        id: `evt_card_${i}`,
+        type,
+        data: { object: { id: `obj_${i}` } },
+      });
+      await expect(withCard.handleWebhook(body, signature)).resolves.toEqual({
+        received: true,
+        duplicate: false,
+      });
+    }
+    expect(handleCardEvent).toHaveBeenCalledTimes(6);
+    expect(handleCardEvent).toHaveBeenCalledWith(
+      expect.objectContaining({ id: 'evt_card_0', type: 'setup_intent.succeeded' }),
+      null,
+    );
+    // payment_method.attached keeps its own audit-only branch.
+    const attached = signPayload({
+      id: 'evt_card_attached',
+      type: 'payment_method.attached',
+      data: { object: { id: 'pm_x' } },
+    });
+    await withCard.handleWebhook(attached.body, attached.signature);
+    expect(handleCardEvent).toHaveBeenCalledTimes(6);
+  });
+
+  it('leaves a card event unprocessed when the card service throws, so Stripe retries (#716)', async () => {
+    const withCard = createBillingWebhookService({
+      db: testDb.db,
+      stripe,
+      audit,
+      commission,
+      flatPlan,
+      commissionCard: {
+        handleCardEvent: vi.fn(async () => {
+          throw new Error('stripe down');
+        }),
+      },
+      email,
+      opsInbox: 'ops@example.com',
+    });
+    const { body, signature } = signPayload({
+      id: 'evt_card_retry',
+      type: 'setup_intent.succeeded',
+      data: { object: { id: 'seti_r' } },
+    });
+    await expect(withCard.handleWebhook(body, signature)).rejects.toThrow('stripe down');
+    const [row] = await testDb.db
+      .select()
+      .from(stripeEvents)
+      .where(eq(stripeEvents.eventId, 'evt_card_retry'));
+    expect(row).toBeDefined();
+    expect(row?.processedAt ?? null).toBeNull();
   });
 });

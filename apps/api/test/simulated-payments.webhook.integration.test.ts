@@ -21,6 +21,7 @@ import { createBillingWebhookService } from '../src/services/billing/billing-web
 import { createCommissionCardService, type CommissionCardService } from '../src/services/billing/commission-card.service';
 import { createCommissionService, type CommissionService } from '../src/services/billing/commission.service';
 import { createFlatPlanService } from '../src/services/billing/flat-plan.service';
+import { createInvoiceSummaryStore } from '../src/services/billing/invoice-summary.store';
 import {
   createSimulatedPaymentProvider,
   type SimulatedPaymentProvider,
@@ -124,19 +125,26 @@ describe('simulated payments through the production webhook handler', () => {
       newId: nextId,
     });
     const flatPlan = createFlatPlanService({ billing: BILLING, audit, stripe, email, opsInbox: 'ops@example.com', now });
+    // #716: the card service handles setup/detach events (single-card model).
+    card = createCommissionCardService({
+      billing: BILLING,
+      audit,
+      stripe,
+      invoiceSummaries: createInvoiceSummaryStore({ db: testDb.db }),
+    });
     const webhook = createBillingWebhookService({
       db: testDb.db,
       stripe,
       audit,
       commission,
       flatPlan,
+      commissionCard: card,
       email,
       opsInbox: 'ops@example.com',
       logWarning: () => undefined,
     });
     const route = createStripeWebhooksRoute({ billingWebhooks: webhook });
     provider.connectWebhook((body, signature) => route.handle(body, signature));
-    card = createCommissionCardService({ billing: BILLING, audit, stripe });
     devService = createSimulatedPaymentsService({ provider, stripe, commission, audit });
   }, 60_000);
 
@@ -341,6 +349,52 @@ describe('simulated payments through the production webhook handler', () => {
     expect(retried.stripePaymentIntentId).not.toBe(inv.stripePaymentIntentId);
     await provider.deliverPendingEvents();
     expect((await commission.getById(inv.id)).status).toBe('paid');
+  });
+
+  // ── #716 card lifecycle through the production handler ──────────────
+
+  it('saving a second card replaces the first: one card, the default, and the one charged', async () => {
+    await saveCard('sim-replace', CARD.declined);
+    const customerId = (await stripe.getCustomerId('sim-replace'))!;
+    const si = await card.createSetupIntent('sim-replace');
+    await devService.confirmSetup('sim-replace', si.setupIntentId, CARD.ok);
+    const cards = await stripe.listPaymentMethods(customerId);
+    expect(cards).toEqual([expect.objectContaining({ last4: '4242' })]);
+    expect(await stripe.getDefaultPaymentMethodId(customerId)).toBe(cards[0]!.id);
+    await expect(card.getCard('sim-replace')).resolves.toMatchObject({
+      hasCard: true,
+      last4: '4242',
+    });
+    const inReview = await seedInReviewInvoice('sim-replace');
+    const inv = await commission.finalizeInvoice(inReview.id);
+    await provider.deliverPendingEvents();
+    expect((await commission.getById(inv.id)).status).toBe('paid');
+    expect(await auditTypes('sim-replace')).toEqual(
+      expect.arrayContaining([
+        'setup_intent.succeeded',
+        'payment_method.default_set',
+        'payment_method.replaced',
+      ]),
+    );
+  });
+
+  it('removing the card is blocked by an unpaid card invoice, and allowed without one', async () => {
+    await saveCard('sim-remove-blocked', CARD.ok);
+    await seedInReviewInvoice('sim-remove-blocked');
+    await expect(card.removeCard('sim-remove-blocked')).rejects.toMatchObject({
+      status: 409,
+      code: 'CONFLICT',
+    });
+    await expect(card.getCard('sim-remove-blocked')).resolves.toMatchObject({ hasCard: true });
+
+    await saveCard('sim-remove', CARD.ok);
+    await expect(card.removeCard('sim-remove')).resolves.toEqual({ hasCard: false });
+    await expect(card.getCard('sim-remove')).resolves.toEqual({ hasCard: false });
+    await provider.deliverPendingEvents();
+    expect((await processedEvents('payment_method.detached')).length).toBeGreaterThan(0);
+    expect(await auditTypes('sim-remove')).toEqual(
+      expect.arrayContaining(['payment_method.removed', 'payment_method.detached']),
+    );
   });
 
   // ── AC2: one test per event type, through the production handler ────

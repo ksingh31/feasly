@@ -44,7 +44,7 @@ export interface BillingOverviewService {
 }
 
 export interface BillingOverviewServiceDeps {
-  readonly billing: Pick<BillingConfig, 'model' | 'flatCurrency'>;
+  readonly billing: Pick<BillingConfig, 'model' | 'flatCurrency' | 'tax'>;
   readonly invoiceSummaries: Pick<InvoiceSummaryStore, 'findByTenantKey'>;
   readonly commission: Pick<CommissionService, 'getCommissionRatePercent'>;
   readonly commissionCard: Pick<CommissionCardService, 'getCard'>;
@@ -145,6 +145,17 @@ export function createBillingOverviewService(
         failedInvoices,
         disputedCount,
         card,
+        // #764: the tax new invoices will carry, for the record-contract
+        // preview. Supplier details stay server-side.
+        ...(isCommission && billing.tax?.enabled && billing.tax.ratePercent > 0
+          ? {
+              tax: {
+                ratePercent: billing.tax.ratePercent,
+                label: billing.tax.label,
+                inclusive: billing.tax.inclusive,
+              },
+            }
+          : {}),
       };
     },
   };
