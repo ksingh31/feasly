@@ -209,3 +209,70 @@ test('linkedIssues extracts closing-keyword references only', () => {
   assert.deepEqual(linkedIssues(''), []);
   assert.deepEqual(linkedIssues(null), []);
 });
+
+// --- fix-round cap (#924) ---
+const round = (n, reason = 'review requested changes', max = 5) => ({ body: `${MARKERS.fixRound}\nFix round ${n}/${max}: ${reason}` });
+const conflictRound = (n) => ({ body: `${MARKERS.fixRound}\nFix round ${n} (merge main — not counted toward the 5-round cap): merge conflict with main: merge main in, resolve, re-verify` });
+const legacyConflict = (n) => round(n, 'merge conflict with main: merge main in, resolve, re-verify');
+const fiveRounds = [1, 2, 3, 4, 5].map((n) => round(n));
+
+test('fixRoundState: counts rounds, merge-conflict rounds on their own counter', () => {
+  const s = lib.fixRoundState([round(1), legacyConflict(2), conflictRound(1), round(3, 'CI failed: build'), { body: 'chatter' }], 5);
+  assert.deepEqual(s, { rounds: 2, conflictRounds: 2, max: 5, atCap: false, parkedNoted: false });
+  assert.equal(lib.fixRoundState(fiveRounds, 5).atCap, true);
+  assert.equal(lib.fixRoundState(fiveRounds, 6).atCap, false);
+  // A busy main can no longer burn the whole budget on merges (#904, #886).
+  assert.equal(lib.fixRoundState([1, 2, 3, 4, 5].map(legacyConflict), 5).atCap, false);
+  assert.equal(lib.fixRoundState(null).atCap, false);
+});
+
+test('fixRoundState: orchestrator reset marker releases a parked PR', () => {
+  const parked = [...fiveRounds, { body: `${MARKERS.fixCap}\nFix-round cap (5) reached` }];
+  assert.equal(lib.fixRoundState(parked).atCap, true);
+  const released = lib.fixRoundState([...parked, { body: `${MARKERS.fixCapReset}\nReleased` }, round(1)]);
+  assert.deepEqual(released, { rounds: 1, conflictRounds: 0, max: 5, atCap: false, parkedNoted: false });
+});
+
+test('fixRoundState: legacy "parked for Karan" comment stays parked until reset', () => {
+  const legacy = [round(1), round(2), legacyConflict(3), legacyConflict(4), legacyConflict(5), { body: 'Fix-round cap (5) reached — parked for Karan.' }];
+  const s = lib.fixRoundState(legacy);
+  assert.equal(s.rounds, 2);
+  assert.equal(s.atCap, true);
+  assert.equal(lib.planFixRound({ comments: legacy, reason: 'CI failed: build' }).action, 'skip');
+  assert.equal(lib.fixRoundState([...legacy, { body: MARKERS.fixCapReset }]).atCap, false);
+  assert.equal(lib.fixRoundState([{ body: 'quoting: see "Fix-round cap (5) reached" above' }]).atCap, false);
+});
+
+test('planFixRound: parked comment once, then silent exits', () => {
+  assert.deepEqual(
+    (({ action, round: r, conflict }) => ({ action, r, conflict }))(lib.planFixRound({ comments: [round(1)], reason: 'review requested changes' })),
+    { action: 'start', r: 2, conflict: false },
+  );
+  const conflictPlan = lib.planFixRound({ comments: [round(1), round(2)], reason: 'merge conflict with main: merge main in' });
+  assert.equal(conflictPlan.action, 'start');
+  assert.equal(conflictPlan.conflict, true);
+  assert.equal(conflictPlan.round, 1);
+  assert.equal(lib.planFixRound({ comments: fiveRounds, reason: 'CI failed: build' }).action, 'park');
+  const noted = [...fiveRounds, { body: `${MARKERS.fixCap}\nFix-round cap (5) reached — parked` }];
+  assert.equal(lib.planFixRound({ comments: noted, reason: 'CI failed: build' }).action, 'skip');
+  // A parked PR gets no conflict rounds either (merger must not re-trigger it).
+  assert.equal(lib.planFixRound({ comments: noted, reason: 'merge conflict with main: x' }).action, 'skip');
+});
+
+test('judgeAgentPr: at cap + recent bot comment → parked; below cap → unchanged', () => {
+  const recent = { isDraft: false, updatedAt: ago(0.1), checks: [{ name: 'build', bucket: 'fail', completedAt: ago(20) }] };
+  const atCap = lib.fixRoundState([...fiveRounds, { body: 'Fix-round cap (5) reached — parked for Karan.' }]);
+  assert.deepEqual(judgeAgentPr({ pr: recent, now: NOW, fixRounds: atCap }), { action: 'none', reason: 'parked at fix-round cap' });
+  const staleAtCap = { isDraft: false, updatedAt: ago(30), checks: [] };
+  assert.deepEqual(judgeAgentPr({ pr: staleAtCap, now: NOW, fixRounds: atCap }), { action: 'none', reason: 'parked at fix-round cap' });
+  const below = lib.fixRoundState([round(1), round(2)]);
+  assert.equal(judgeAgentPr({ pr: recent, now: NOW, fixRounds: below }).action, 'fix');
+  assert.equal(judgeAgentPr({ pr: staleAtCap, now: NOW, fixRounds: below }).action, 'rereview');
+  assert.equal(judgeAgentPr({ pr: { isDraft: false, updatedAt: ago(1), checks: [] }, now: NOW, fixRounds: below }).reason, 'moving');
+});
+
+test('claimed issue whose PR is parked at the cap is not reported as in flight', () => {
+  const base = { issue: issue(1, ['size:L']), claimedAt: ago(5), linkedPr: { number: 7 }, comments: [], now: NOW, cfg: DEFAULTS };
+  assert.equal(judgeClaimedIssue(base).reason, 'PR in flight');
+  assert.deepEqual(judgeClaimedIssue({ ...base, linkedPrParked: true }), { action: 'none', reason: 'PR #7 parked at fix-round cap' });
+});

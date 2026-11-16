@@ -11,6 +11,7 @@ export const LABELS = {
   claimed: 'agent:claimed',
   pr: 'agent:pr',
   needsKaran: 'needs:karan',
+  stuck: 'agent:stuck',
   areaWeb: 'area:web',
   areaApi: 'area:api',
   areaInfra: 'area:infra',
@@ -29,6 +30,7 @@ export const DEFAULTS = {
   ciRedHours: 12,
   maxRequeues: 2,
   maxOpenPrs: 8,
+  maxFixRounds: 5,
 };
 
 /** Hidden comment markers so repeated runs stay idempotent. */
@@ -36,7 +38,18 @@ export const MARKERS = {
   requeue: '<!-- agent:requeue -->',
   overdue: '<!-- agent:overdue -->',
   claim: '<!-- agent:claim -->',
+  fixRound: '<!-- agent:fix-round -->',
+  fixCap: '<!-- agent:fix-cap -->',
+  // Orchestrator releases a parked PR by commenting this: only rounds after it count.
+  fixCapReset: '<!-- agent:fix-cap-reset -->',
 };
+
+/**
+ * Fix rounds whose reason starts with this are "merge main in" rounds. A busy main
+ * would otherwise burn the whole fix-round budget on merges (#904, #886, #924), so
+ * they are counted separately and never toward the cap.
+ */
+export const CONFLICT_REASON = 'merge conflict with main';
 
 /** Authors whose issues an agent may act on (issue body is the agent's prompt). */
 const TRUSTED_ASSOCIATIONS = new Set(['OWNER', 'MEMBER', 'COLLABORATOR']);
@@ -154,10 +167,11 @@ export function findMergedPrFor(issueNumber, mergedPrs, since) {
  * `mergedPr`: a PR merged since the claim that delivers this issue (see findMergedPrFor).
  * When there is no open PR but the work already merged, the issue is closed as completed
  * instead of being requeued (GitHub does not always auto-close on merge — #635).
- * @param {{issue:any, claimedAt:string, linkedPr:any|null, mergedPr?:any|null, comments:any[], now:number, cfg?:object}} s
+ * `linkedPrParked`: the open PR is parked at the fix-round cap — reported as such, not "in flight" (#924).
+ * @param {{issue:any, claimedAt:string, linkedPr:any|null, mergedPr?:any|null, linkedPrParked?:boolean, comments:any[], now:number, cfg?:object}} s
  * @returns {{action:'none'|'requeue'|'escalate'|'overdue'|'close', reason:string}}
  */
-export function judgeClaimedIssue({ issue, claimedAt, linkedPr, mergedPr = null, comments, now, cfg = DEFAULTS }) {
+export function judgeClaimedIssue({ issue, claimedAt, linkedPr, mergedPr = null, linkedPrParked = false, comments, now, cfg = DEFAULTS }) {
   if (!linkedPr && mergedPr) {
     return { action: 'close', reason: `delivered by merged PR #${mergedPr.number}` };
   }
@@ -175,15 +189,84 @@ export function judgeClaimedIssue({ issue, claimedAt, linkedPr, mergedPr = null,
   if (hoursBetween(claimedAt, now) > budgetHours && countMarker(comments, MARKERS.overdue) === 0) {
     return { action: 'overdue', reason: `open longer than ${sizeLabel ?? 'size:M'} budget` };
   }
-  return { action: 'none', reason: 'PR in flight' };
+  return { action: 'none', reason: linkedPrParked ? `PR #${linkedPr.number} ${PARKED_REASON}` : 'PR in flight' };
+}
+
+export const PARKED_REASON = 'parked at fix-round cap';
+const LEGACY_PARKED = /^Fix-round cap \(\d+\) reached/m;
+
+/**
+ * Fix-round budget for one PR, from its comments. agent-fix.yml (via fix-round.mjs gate)
+ * posts one `<!-- agent:fix-round -->\nFix round n/max: <reason>` comment per round;
+ * merge-conflict rounds (reason starts with CONFLICT_REASON) do not count toward
+ * the cap (#924). A PR is parked once its counted rounds reach `max`; every
+ * dispatch site checks this so no further agent-fix runs (and no repeated
+ * "parked" comments) are started for it. Comments are in chronological order; a
+ * MARKERS.fixCapReset comment (orchestrator release) zeroes the counts before it.
+ * @param {{body?:string}[]} comments
+ * @param {number} [max]
+ * @returns {{rounds:number, conflictRounds:number, max:number, atCap:boolean, parkedNoted:boolean}}
+ */
+export function fixRoundState(comments, max = DEFAULTS.maxFixRounds) {
+  let rounds = 0;
+  let conflictRounds = 0;
+  let parkedNoted = false;
+  for (const c of comments ?? []) {
+    const body = c.body ?? '';
+    if (body.includes(MARKERS.fixCapReset)) {
+      rounds = 0;
+      conflictRounds = 0;
+      parkedNoted = false;
+      continue;
+    }
+    // Pre-#924 agent-fix.yml parked with a plain "Fix-round cap (N) reached" comment (no marker,
+    // counting merge rounds). Treat it as parked so those PRs stop being re-dispatched; the
+    // orchestrator releases them with MARKERS.fixCapReset.
+    if (body.includes(MARKERS.fixCap) || LEGACY_PARKED.test(body)) parkedNoted = true;
+    if (!body.includes(MARKERS.fixRound)) continue;
+    // "Fix round n/max: <reason>" (or the conflict-round variant): reason = text after the first ": ".
+    const line = body.slice(body.indexOf(MARKERS.fixRound) + MARKERS.fixRound.length).trim().split('\n')[0];
+    const reason = line.includes(': ') ? line.slice(line.indexOf(': ') + 2) : '';
+    if (isConflictReason(reason)) conflictRounds += 1;
+    else rounds += 1;
+  }
+  return { rounds, conflictRounds, max, atCap: rounds >= max || parkedNoted, parkedNoted };
+}
+
+/** True for a fix-round reason that only asks to merge main in (see CONFLICT_REASON). */
+export const isConflictReason = (reason) => String(reason ?? '').trim().toLowerCase().startsWith(CONFLICT_REASON);
+
+/**
+ * What agent-fix.yml's round-cap step should do for a new dispatch.
+ *   start → post the fix-round comment and run the round.
+ *   park  → first time at the cap: post the parked comment (with MARKERS.fixCap) once,
+ *           label agent:stuck (orchestrator queue — repeated failures are not an owner
+ *           decision, escalation policy 2026-11-15). A PR that already carries
+ *           needs:karan keeps it; this never adds or removes it.
+ *   skip  → already parked and noted: exit without commenting or relabelling.
+ * Merge-conflict rounds don't count toward the cap (and are numbered on their own
+ * counter), but a PR already parked gets no rounds of any kind until the orchestrator
+ * releases it with a MARKERS.fixCapReset comment.
+ * @param {{comments:{body?:string}[], reason?:string, max?:number}} s
+ * @returns {{action:'start'|'park'|'skip', round:number, conflict:boolean, state:ReturnType<typeof fixRoundState>}}
+ */
+export function planFixRound({ comments, reason = '', max = DEFAULTS.maxFixRounds }) {
+  const state = fixRoundState(comments, max);
+  const conflict = isConflictReason(reason);
+  if (state.atCap) return { action: state.parkedNoted ? 'skip' : 'park', round: state.rounds, conflict, state };
+  return { action: 'start', round: (conflict ? state.conflictRounds : state.rounds) + 1, conflict, state };
 }
 
 /**
  * Watchdog decisions for one open agent PR.
- * @param {{pr:any, now:number, cfg?:object}} s  pr: {updatedAt, isDraft, checks:[{name,bucket,completedAt}], reviewDecision}
+ * `fixRounds` (from fixRoundState): a PR parked at the fix-round cap is reported as
+ * parked regardless of `updatedAt` — bot comments keep bumping it, which used to
+ * make parked PRs look "moving" (#924).
+ * @param {{pr:any, now:number, cfg?:object, fixRounds?:{atCap:boolean}|null}} s  pr: {updatedAt, isDraft, checks:[{name,bucket,completedAt}], reviewDecision}
  * @returns {{action:'none'|'rereview'|'fix', reason:string}}
  */
-export function judgeAgentPr({ pr, now, cfg = DEFAULTS }) {
+export function judgeAgentPr({ pr, now, cfg = DEFAULTS, fixRounds = null }) {
+  if (fixRounds?.atCap) return { action: 'none', reason: PARKED_REASON };
   if (pr.isDraft) return { action: 'none', reason: 'draft' };
   const required = (pr.checks ?? []).filter((c) => c.name === 'build' || c.name === 'lighthouse');
   const red = required.filter((c) => c.bucket === 'fail');
