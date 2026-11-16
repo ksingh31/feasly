@@ -871,6 +871,16 @@ const EnvSchema = z.object({
     .enum(['true', 'false'])
     .default('true')
     .transform((value) => value === 'true'),
+}).superRefine((e, ctx) => {
+  // #822: the permit load only reaches back HISTORY_YEARS, so an address
+  // lookback beyond it would silently undercount. Fail fast at startup.
+  if (e.NEIGHBOURHOOD_PERMITS_ADDRESS_LOOKBACK_YEARS > e.NEIGHBOURHOOD_PERMITS_HISTORY_YEARS) {
+    ctx.addIssue({
+      code: 'custom',
+      path: ['NEIGHBOURHOOD_PERMITS_ADDRESS_LOOKBACK_YEARS'],
+      message: 'must not exceed NEIGHBOURHOOD_PERMITS_HISTORY_YEARS',
+    });
+  }
 });
 
 export interface RateLimitConfig {

@@ -150,11 +150,13 @@ describe('PermitsProvider — calgary-open-data (#822)', () => {
     expect(bp).toContain(
       "permitclassgroup in('Single Family','Two Family','Townhouse','Additional Dwelling') AND workclassgroup='New'",
     );
-    expect(bp).toContain("applieddate >= '2021-01-01'");
+    // Applied OR issued in the window, so the oldest per-year bucket is complete.
+    expect(bp).toContain("(applieddate >= '2021-01-01' OR issueddate >= '2021-01-01')");
     expect(bp).toContain("communitycode in('ALT')");
     expect(bp).not.toContain('applicantname');
     const dp = decodeURIComponent(urls.find((u) => u.includes('6933-unw5'))!);
     expect(dp).toContain("category in('Residential - New Single / Semi / Duplex',");
+    expect(dp).toContain("(applieddate >= '2021-01-01' OR decisiondate >= '2021-01-01')");
     expect(dp).toContain("communitycode in('ALT')");
     expect(dp).not.toMatch(/\bapplicant\b/);
   });

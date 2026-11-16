@@ -363,6 +363,16 @@ describe('loadConfig', () => {
     expect(() => loadConfig({ ...VALID_ENV, LEAD_MIN_SUBMIT_MS: '-1' })).toThrow(/LEAD_MIN_SUBMIT_MS/);
   });
 
+  it('rejects a permits address lookback longer than the loaded history (#822)', () => {
+    expect(
+      loadConfig({ ...VALID_ENV, NEIGHBOURHOOD_PERMITS_HISTORY_YEARS: '3', NEIGHBOURHOOD_PERMITS_ADDRESS_LOOKBACK_YEARS: '3' })
+        .neighbourhoodData.permits.addressLookbackYears,
+    ).toBe(3);
+    expect(() =>
+      loadConfig({ ...VALID_ENV, NEIGHBOURHOOD_PERMITS_HISTORY_YEARS: '3', NEIGHBOURHOOD_PERMITS_ADDRESS_LOOKBACK_YEARS: '4' }),
+    ).toThrow(/NEIGHBOURHOOD_PERMITS_ADDRESS_LOOKBACK_YEARS/);
+  });
+
   it('enables the bot challenge (#788) only when both the Turnstile site key and secret are set', () => {
     expect(loadConfig({ ...VALID_ENV, TURNSTILE_SITE_KEY: 'site' }).botChallenge.enabled).toBe(false);
     expect(loadConfig({ ...VALID_ENV, TURNSTILE_SECRET_KEY: 'secret' }).botChallenge.enabled).toBe(false);

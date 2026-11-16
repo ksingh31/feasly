@@ -555,7 +555,9 @@ export interface CalgaryPermitsDeps {
  * City of Calgary open data → residential new-build permits (#822) for the
  * established communities (#690 rule): building permits (work class 'New' in
  * the configured class groups) and development permits (configured
- * categories) applied for since 1 January, `historyYears` years back.
+ * categories) applied for — or issued / decided — since 1 January,
+ * `historyYears` years back. Including permits decided in the window but
+ * applied for before it keeps the oldest per-year bucket complete.
  */
 export function createCalgaryPermitsProvider(deps: CalgaryPermitsDeps): PermitsProvider {
   const cfg = deps.permits;
@@ -584,14 +586,14 @@ export function createCalgaryPermitsProvider(deps: CalgaryPermitsDeps): PermitsP
             'housingunits,originaladdress,communitycode,latitude,longitude,point',
           where:
             `permitclassgroup in(${cfg.bpClassGroups.map(soql).join(',')}) AND workclassgroup='New'` +
-            ` AND applieddate >= '${since}' AND communitycode in(${codes})`,
+            ` AND (applieddate >= '${since}' OR issueddate >= '${since}') AND communitycode in(${codes})`,
         }),
         deps.fetchRows(cfg.developmentPermitsDatasetId, {
           select:
             'permitnum,address,category,statuscurrent,applieddate,decisiondate,communitycode,point',
           where:
             `category in(${cfg.dpCategories.map(soql).join(',')})` +
-            ` AND applieddate >= '${since}' AND communitycode in(${codes})`,
+            ` AND (applieddate >= '${since}' OR decisiondate >= '${since}') AND communitycode in(${codes})`,
         }),
       ]);
       if (bpRows.length >= deps.maxRows) throw new TruncatedPermitsError(cfg.buildingPermitsDatasetId, deps.maxRows);
