@@ -344,6 +344,37 @@ const EnvSchema = z.object({
   // console.groq.com/docs/models as of 2026-09-28). Overridable without
   // a code change.
   NARRATIVE_FALLBACK_MODELS: z.string().default('openai/gpt-oss-120b'),
+  // --- Monthly community narratives (#759) ---
+  // One stored LLM narrative per community per month, reused by every
+  // report (no LLM call per estimate). Off switch for the timer + admin
+  // regenerate; reports still read whatever is stored.
+  COMMUNITY_NARRATIVE_ENABLED: z
+    .enum(['true', 'false'])
+    .default('true')
+    .transform((value) => value === 'true'),
+  // NCRONTAB tick for the community-narrative timer. Must equal the
+  // schedule in community-narrative-timer/function.json (pinned by test).
+  // Daily: the service decides whether today is the run day or a retry day.
+  COMMUNITY_NARRATIVE_SCHEDULE: z.string().min(1).default('0 0 9 * * *'),
+  // Day of the month the job generates next month's narratives:
+  // 'last' (owner decision) or a fixed day 1-28.
+  COMMUNITY_NARRATIVE_RUN_DAY: z
+    .string()
+    .regex(/^(last|[1-9]|1\d|2[0-8])$/, "use 'last' or a day 1-28")
+    .default('last'),
+  // Daily ticks after the run day that retry failed communities before
+  // one ops alert fires.
+  COMMUNITY_NARRATIVE_RETRY_DAYS: z.coerce.number().int().min(0).max(10).default(3),
+  // Comma-separated model list for community narratives; empty = reuse
+  // NARRATIVE_MODELS.
+  COMMUNITY_NARRATIVE_MODELS: z.string().default(''),
+  // Prompt version stamped on every stored narrative (bump on prompt edits).
+  COMMUNITY_NARRATIVE_PROMPT_VERSION: z.string().min(1).default('community-v1'),
+  // Cost guard: max LLM generations per timer tick / admin request.
+  COMMUNITY_NARRATIVE_MAX_PER_RUN: z.coerce.number().int().positive().default(400),
+  // Wall-clock budget (ms) for an admin "regenerate all" request; the rest
+  // is left 'stale' and finished by the next daily tick.
+  COMMUNITY_NARRATIVE_ADMIN_BUDGET_MS: z.coerce.number().int().positive().default(60_000),
   // Service-account email — placeholder until provisioned in Key Vault.
   // Empty = sync disabled (worker fails closed, alert fires).
   SHEETS_SERVICE_ACCOUNT_EMAIL: z.string().default(''),
@@ -1218,6 +1249,26 @@ export function parseNarrativeModels(raw: string): readonly string[] {
   return models;
 }
 
+/** Monthly community narratives (#759). */
+export interface CommunityNarrativesConfig {
+  /** Timer + admin regenerate on/off (reads always work). */
+  readonly enabled: boolean;
+  /** NCRONTAB tick — mirrors community-narrative-timer/function.json. */
+  readonly schedule: string;
+  /** 'last' or a day of the month 1-28. */
+  readonly runDay: 'last' | number;
+  /** Daily retry ticks after the run day before one ops alert. */
+  readonly retryDays: number;
+  /** Ordered model list (COMMUNITY_NARRATIVE_MODELS, else NARRATIVE_MODELS). */
+  readonly models: readonly string[];
+  /** Stamped on every stored narrative. */
+  readonly promptVersion: string;
+  /** Cost guard: max generations per tick / admin request. */
+  readonly maxPerRun: number;
+  /** Wall-clock budget for an admin "regenerate all" request. */
+  readonly adminBudgetMs: number;
+}
+
 export interface ApiConfig {
   readonly serviceName: string;
   /** Mirrors apps/api/package.json — the single source of truth. */
@@ -1263,6 +1314,7 @@ export interface ApiConfig {
   readonly builderNotifications: BuilderNotificationsConfig;
   readonly sheets: SheetsConfig;
   readonly narrative: NarrativeConfig;
+  readonly communityNarratives: CommunityNarrativesConfig;
   readonly communityStatsRefresh: CommunityStatsRefreshConfig;
   readonly backupCheck: BackupCheckConfig;
   readonly embed: EmbedConfig;
@@ -1785,6 +1837,21 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): ApiConfig {
         apiKey: e.NARRATIVE_FALLBACK_API_KEY,
         models: parseNarrativeModels(e.NARRATIVE_FALLBACK_MODELS),
       },
+    },
+    communityNarratives: {
+      enabled: e.COMMUNITY_NARRATIVE_ENABLED,
+      schedule: e.COMMUNITY_NARRATIVE_SCHEDULE,
+      runDay:
+        e.COMMUNITY_NARRATIVE_RUN_DAY === 'last'
+          ? 'last'
+          : Number(e.COMMUNITY_NARRATIVE_RUN_DAY),
+      retryDays: e.COMMUNITY_NARRATIVE_RETRY_DAYS,
+      models: parseNarrativeModels(
+        e.COMMUNITY_NARRATIVE_MODELS.trim() || e.NARRATIVE_MODELS,
+      ),
+      promptVersion: e.COMMUNITY_NARRATIVE_PROMPT_VERSION,
+      maxPerRun: e.COMMUNITY_NARRATIVE_MAX_PER_RUN,
+      adminBudgetMs: e.COMMUNITY_NARRATIVE_ADMIN_BUDGET_MS,
     },
     embed: {
       relayCodeTtlSeconds: e.EMBED_RELAY_CODE_TTL_SECONDS,

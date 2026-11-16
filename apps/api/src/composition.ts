@@ -376,6 +376,15 @@ import { createLogNarrativeProvider } from './services/narrative/providers/log.p
 import { createOpenAiCompatibleNarrativeProvider } from './services/narrative/providers/openai-compatible.provider';
 import type { NarrativeProvider } from './services/narrative/narrative.types';
 import {
+  createCommunityNarrativeService,
+  type CommunityNarrativeService,
+} from './services/community-narrative.service';
+import { createDrizzleCommunityNarrativeStore } from './services/community-narrative.store';
+import {
+  createAdminCommunityNarrativesRoute,
+  type AdminCommunityNarrativesRoute,
+} from './routes/admin-community-narratives.route';
+import {
   createCommunityStatsRoute,
   type CommunityStatsRoute,
 } from './routes/community-stats.route';
@@ -771,6 +780,8 @@ export interface AppComposition {
   readonly privacyService: PrivacyService;
   readonly privacyRoute: PrivacyRoute;
   readonly narrativeService: NarrativeService;
+  readonly communityNarrativeService: CommunityNarrativeService;
+  readonly adminCommunityNarrativesRoute: AdminCommunityNarrativesRoute;
   readonly narrativeRoute: NarrativeRoute;
   /** Cache-first community stats (neighbourhood/01). */
   readonly communityStatsService: CommunityStatsService;
@@ -1714,6 +1725,9 @@ export function createComposition(
   // static-guide tier in the narrative service. Fails closed until the
   // API key is in Key Vault; the Groq step stays dormant (skipped
   // gracefully) until its key is provisioned.
+  // #759: the narrative LLM is only called by the monthly community-
+  // narrative job (and admin regenerate) — never per estimate. The model
+  // list is config-owned (COMMUNITY_NARRATIVE_MODELS, else NARRATIVE_MODELS).
   const narrativeProvider: NarrativeProvider =
     config.narrative.provider === 'openai-compatible'
       ? createOpenAiCompatibleNarrativeProvider({
@@ -1721,7 +1735,7 @@ export function createComposition(
             {
               label: 'gemini',
               apiKey: config.narrative.apiKey || undefined,
-              models: config.narrative.models,
+              models: config.communityNarratives.models,
               endpoint: config.narrative.endpoint,
             },
             {
@@ -1739,9 +1753,23 @@ export function createComposition(
       'NARRATIVE_PROVIDER=log refuses production — configure the OpenAI-compatible provider.',
     );
   }
+  // Monthly community narratives (#759): generation (timer + admin
+  // regenerate) and the stored-narrative read used by reports.
+  const communityNarrativeService: CommunityNarrativeService =
+    createCommunityNarrativeService({
+      store: createDrizzleCommunityNarrativeStore({ db: db.db }),
+      provider: narrativeProvider,
+      opsAlerts: opsAlertsService,
+      config: config.communityNarratives,
+    });
+  const adminCommunityNarrativesRoute: AdminCommunityNarrativesRoute =
+    createAdminCommunityNarrativesRoute({
+      narratives: communityNarrativeService,
+      audit: adminAuditStore,
+      adminGuard,
+    });
   // (Narrative service is created after propertyService below — it needs
-  // property + community-stats lookups for the prompt's neighbourhood
-  // section.)
+  // the property lookup to resolve the community.)
   // Community stats route (neighbourhood/01): uses the service created above
   // for the NBH-02 estimate comparison.
   const communityStatsRoute: CommunityStatsRoute = createCommunityStatsRoute({
@@ -1874,17 +1902,15 @@ export function createComposition(
     followUps: leadFollowUpStore,
   });
   const reportRoute: ReportRoute = createReportRoute({ reports: reportService });
-  // Narrative worker (consumer/06): created here (after propertyService)
-  // because it resolves community context for the prompt's neighbourhood
-  // section via property + community-stats lookups.
+  // Report narrative read path (consumer/06, #759): created here (after
+  // propertyService) because it resolves the property's community, then
+  // reads the stored community narrative — no LLM call per estimate.
   const narrativeService: NarrativeService = createNarrativeService({
     magicLinks: magicLinkStore,
     leads: leadStore,
     estimates: estimateStore,
-    provider: narrativeProvider,
-    opsAlerts: opsAlertsService,
     properties: propertyService,
-    communityStats: communityStatsService,
+    communityNarratives: communityNarrativeService,
   });
   const narrativeRoute: NarrativeRoute = createNarrativeRoute({
     narrative: narrativeService,
@@ -2330,6 +2356,8 @@ export function createComposition(
     privacyRoute,
     narrativeService,
     narrativeRoute,
+    communityNarrativeService,
+    adminCommunityNarrativesRoute,
     communityStatsService,
     communityStatsRoute,
     cityDataFreshnessService,

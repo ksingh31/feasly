@@ -58,7 +58,7 @@ Related: [rate-limits.md](rate-limits.md) · [asvs-l1.md](asvs-l1.md) ·
 | GET | `/api/v1/privacy/export` | magic-token | — | 100/min per IP | live |  |
 | POST | `/api/v1/privacy/erase-requests` | magic-token | — | 10/min per IP | live |  |
 | POST | `/api/v1/privacy/erase-requests/{requestId}/confirm` | magic-token | — | 10/min per IP | live | Token must belong to the same identity as the request id: unknown id 404, cross-user id 403 + audit (ids are random UUIDs). |
-| POST | `/api/v1/estimates/{estimateId}/narrative` | magic-token | — | 100/min per IP + 5/day per estimate (cost guard) | live | LLM cost surface: per-estimate daily cap; LLM writes narrative only, never dollar figures. |
+| POST | `/api/v1/estimates/{estimateId}/narrative` | magic-token | — | 100/min per IP | live | No LLM call per request (#759): reads the stored monthly community narrative; dollar figures come from the engine only. |
 | GET | `/api/v1/unsubscribe/{token}` | magic-token | — | 100/min per IP | live | Signed token; GET is read-only (mail scanners prefetch links), POST performs the opt-out. |
 | POST | `/api/v1/unsubscribe/{token}` | magic-token | — | 10/min per IP | live |  |
 | GET | `/api/v1/communities/{slug}/stats` | none | — | 100/min per IP | live |  |
@@ -141,6 +141,8 @@ Related: [rate-limits.md](rate-limits.md) · [asvs-l1.md](asvs-l1.md) ·
 | PUT | `/api/v1/admin/billing/invoices/{id}/payment-method` | admin | billing:manage | 300/min per session | live |  |
 | POST | `/api/v1/admin/billing/invoices` | admin | billing:manage | 300/min per session | live |  |
 | POST | `/api/v1/admin/community-stats/refresh` | admin | ops:manage | 10/min per session | live |  |
+| GET | `/api/v1/admin/community-narratives` | admin | ops:manage | 300/min per session | live |  |
+| POST | `/api/v1/admin/community-narratives/regenerate` | admin | ops:manage | 10/min per session | live |  |
 | GET | `/api/v1/admin/usage` | admin | usage:read | 300/min per session | planned |  |
 | GET | `/api/v1/admin/calibration` | admin | calibration:read | 300/min per session | live |  |
 | GET | `/api/v1/admin/ops/sheets-status` | admin | ops:manage | 300/min per session | live |  |

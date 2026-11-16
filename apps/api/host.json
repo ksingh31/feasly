@@ -8,6 +8,8 @@
       "Function": "Warning",
       "Function.backup-check-timer.User": "Information",
       "Function.builder-notifications-timer.User": "Information",
+      "Function.community-narrative-timer.User": "Information",
+      "Function.admin-community-narratives-regenerate.User": "Information",
       "Function.community-stats-refresh-timer.User": "Information",
       "Function.dispute-sla-timer.User": "Information",
       "Function.follow-up-timer.User": "Information",
