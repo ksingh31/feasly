@@ -31,6 +31,35 @@ export interface PropertyLandUse {
   readonly dcBylaw?: string;
 }
 
+/**
+ * Why a property was (or was not) steered toward redevelopment (#755).
+ * - `age_at_or_over_threshold`: built `thresholdYears`+ years ago → redevelopment candidate.
+ * - `age_under_threshold`: younger home → renovation is usually the better fit.
+ * - `year_built_unknown`: no City year of construction → no steering.
+ */
+export type PropertySteerReason =
+  | 'age_at_or_over_threshold'
+  | 'age_under_threshold'
+  | 'year_built_unknown';
+
+/**
+ * Server-computed project-type steer (#755). The rule (home age vs the
+ * market's threshold) lives in the API's market config; clients only read it.
+ * Renovation is offered at any age; a younger home may still continue with a
+ * new build (the override).
+ */
+export interface PropertySteer {
+  /** True for homes at/over the threshold age, false under it, null when the year is unknown. */
+  readonly redevelopmentCandidate: boolean | null;
+  readonly reason: PropertySteerReason;
+  /** The project type offered first; null = no steering (show both equally). */
+  readonly recommendedProjectType: 'new_build' | 'renovation' | null;
+  /** Home age in whole years at lookup time; null when the year is unknown. */
+  readonly homeAgeYears: number | null;
+  /** The market's redevelopment age threshold, in years. */
+  readonly thresholdYears: number;
+}
+
 export interface PropertyRecord {
   readonly addressKey: string;
   readonly address: string;
@@ -63,6 +92,12 @@ export interface PropertyRecord {
    */
   readonly assessmentYearInferred?: boolean;
   readonly yearBuilt: number | null;
+  /**
+   * Project-type steer by home age (#755). Optional (additive): cached or
+   * stored records from before this field, and non-API data sources, omit
+   * it — treat absent as "no steering".
+   */
+  readonly steer?: PropertySteer;
   /** City assessment class code, verbatim (e.g. 'R', 'NR'). */
   readonly assessmentClass: string;
   /** True when the City classifies the parcel non-residential (commercial/industrial). */

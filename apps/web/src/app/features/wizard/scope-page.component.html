@@ -15,7 +15,7 @@
             [attr.aria-label]="copy.scopeProjectTypeLabel"
             (keydown)="onProjectTypeKeydown($event)"
           >
-            @for (pt of copy.scopeProjectTypes; track pt.id) {
+            @for (pt of projectTypes(); track pt.id) {
               <button
                 class="ptype-card"
                 type="button"
@@ -35,6 +35,9 @@
               </button>
             }
           </div>
+          @if (steerReason(); as reason) {
+            <p class="hint steer-reason" data-testid="steer-reason">{{ reason }}</p>
+          }
         </section>
 
         @if (projectType() === 'new-build') {
@@ -77,8 +80,8 @@
         @if (projectType() === 'renovation' && renoWaitlist) {
           <app-waitlist-signup class="reno-waitlist" variant="renovation" />
           <div class="actions">
-            <button class="reno-new-build" type="button" (click)="chooseProjectType('new-build')">
-              {{ copy.renoNewBuildCta }}
+            <button class="reno-new-build" type="button" (click)="overrideToNewBuild()">
+              {{ steeredToRenovation() ? copy.steerOverrideCta : copy.renoNewBuildCta }}
             </button>
           </div>
         } @else {
@@ -87,6 +90,11 @@
           }
 
           <div class="actions">
+            @if (showSteerOverride()) {
+              <button class="reno-new-build steer-override" type="button" (click)="overrideToNewBuild()">
+                {{ copy.steerOverrideCta }}
+              </button>
+            }
             <button class="cta" type="button" [disabled]="projectType() == null" (click)="seePreview()">{{ copy.scopeCta }}</button>
           </div>
         }

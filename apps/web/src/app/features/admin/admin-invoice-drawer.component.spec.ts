@@ -29,6 +29,12 @@ const INVOICE: BuilderCommissionInvoice = {
   leadName: 'Ava Smith',
   contractValueCents: 198_000_000,
   commissionCents: 1_980_000,
+  subtotalCents: 1_980_000,
+  taxRatePercent: 0,
+  taxInclusive: false,
+  taxCents: 0,
+  totalCents: 1_980_000,
+  taxLabel: null,
   currency: 'CAD',
   stripePaymentIntentId: null,
   status: 'in_review',
@@ -145,6 +151,23 @@ describe('AdminInvoiceDrawerComponent', () => {
     expect(el.textContent).toContain('$19,800');
     expect(el.textContent).toContain('Technical IDs');
     expect(el.textContent).toContain('attr-1');
+  });
+
+  it('#764: shows total, commission subtotal and the GST line to the cent for a taxed invoice', async () => {
+    const { q } = await setup({
+      invoice: { ...INVOICE, taxCents: 99_000, totalCents: 2_079_000, taxRatePercent: 5, taxLabel: 'GST' },
+    });
+    expect(q('invoice-total')?.textContent).toContain('$20,790');
+    expect(q('invoice-subtotal')?.textContent).toContain('$19,800');
+    expect(q('invoice-tax')?.textContent).toContain('GST (5%)');
+    expect(q('invoice-tax')?.textContent).toContain('$990');
+  });
+
+  it('#764 AC2: an untaxed invoice shows no tax rows', async () => {
+    const { q, el } = await setup();
+    expect(q('invoice-tax')).toBeNull();
+    expect(q('invoice-total')).toBeNull();
+    expect(el.textContent).toContain('$19,800');
   });
 
   it('offers Change rate, Change payment method and Record payment on an unpaid invoice (AC1)', async () => {

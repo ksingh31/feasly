@@ -21,10 +21,25 @@
           <dt>Status</dt>
           <dd><ui-status-chip domain="invoice" [status]="invoice.status" /></dd>
         </div>
-        <div class="create-invoice__row">
-          <dt>Commission</dt>
-          <dd><strong>{{ invoice.commissionCents | kitMoney }}</strong></dd>
-        </div>
+        @if (confirmedTax(); as t) {
+          <div class="create-invoice__row" data-testid="create-invoice-subtotal">
+            <dt>Commission subtotal</dt>
+            <dd>{{ t.subtotal }}</dd>
+          </div>
+          <div class="create-invoice__row" data-testid="create-invoice-tax">
+            <dt>{{ t.line }}</dt>
+            <dd>{{ t.amount }}</dd>
+          </div>
+          <div class="create-invoice__row" data-testid="create-invoice-total">
+            <dt>Total</dt>
+            <dd><strong>{{ t.total }}</strong></dd>
+          </div>
+        } @else {
+          <div class="create-invoice__row">
+            <dt>Commission</dt>
+            <dd><strong>{{ invoice.commissionCents | kitMoney }}</strong></dd>
+          </div>
+        }
         @if (invoice.reviewDueAt) {
           <div class="create-invoice__row">
             <dt>Review window ends</dt>

@@ -4,7 +4,7 @@ export type { WizardStateModel, RenoInputs, ComparisonInputs } from './wizard.st
 export { LeadState } from './lead.state';
 export type { LeadStateModel } from './lead.state';
 export type { ProjectType, RenoType, WizardStep } from './wizard.actions';
-export { ChooseProjectType, DismissResume, GoToStep, ResetWizard, SelectProperty, SetEntrySource, StorePreviewEstimate, UpdateInputs, UpdateRenoInputs, UpdateComparison, ClearComparison } from './wizard.actions';
+export { ChooseProjectType, DismissResume, MarkSteerApplied, GoToStep, ResetWizard, SelectProperty, SetEntrySource, StorePreviewEstimate, UpdateInputs, UpdateRenoInputs, UpdateComparison, ClearComparison } from './wizard.actions';
 export { ClearLead, StoreLeadResult } from './lead.actions';
 export { wizardPropertyGuard } from './wizard-property.guard';
 export { wizardScopeGuard } from './wizard-scope.guard';
