@@ -16,6 +16,7 @@ import { LeadState } from '../wizard/lead.state';
 import { WizardState } from '../wizard/wizard.state';
 import {
   ChooseProjectType,
+  MarkSteerApplied,
   SelectProperty,
   StorePreviewEstimate,
   UpdateInputs,
@@ -489,6 +490,9 @@ export class ReportState {
       actions.push(new ChooseProjectType('new-build'), new UpdateInputs({ ...snapshot.inputs }));
     }
     const addressKey = snapshot.addressKey;
+    // #755: the snapshot's project type is an explicit pick — mark the
+    // home-age steer applied so a later scope-step visit doesn't flip it.
+    if (addressKey) actions.push(new MarkSteerApplied(addressKey));
     const current = this.store.selectSnapshot(WizardState.property);
     const property$ =
       !addressKey || current?.addressKey === addressKey

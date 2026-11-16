@@ -87,3 +87,25 @@ action — commission rate, attribution window, reporting duty; issue #722.)_
 > rewrites) the text: replace the draft, bump the version (every builder org
 > then accepts again; older acceptances stay on record), set the document
 > status to `approved` and remove the `draft-pending-lawyer` marker.
+
+### Builder-partner disclosure (builder-matching explainer + FAQ)
+
+_(lawyer: confirm or rewrite the referral-commission disclosure shown under
+the lead-gate form, in the report's next steps, and in the FAQ answers
+"How do builder introductions work?" / "Is Feasly a home builder?")_
+
+> **Status: draft-pending-lawyer.** Owner decision 2026-11-15 (#878,
+> option (a)): the copy matches the partner model. Leads from Feasly's own
+> site go to the builder partner(s) named on How it works, who pay a
+> referral commission on signed contracts. Source of truth while draft:
+> `copy.builderMatching.paragraphs` in
+> `apps/web/src/app/core/config/app-config.defaults.ts` (mirrored in
+> `apps/web/public/assets/config/app-config.json`). Neutral-matching claims
+> ("no favourites", "no paid placement", "matches on project fit", "rank
+> builders", "hand-pick") are banned by
+> `apps/web/tools/check-banned-phrases.mjs`. Embedded estimators on a
+> builder's own site don't show this explainer: the lead goes to that builder.
+
+```text
+Feasly is an independent estimator. We don’t build homes. If you ask to be contacted, leads from Feasly’s own site go to our builder partner(s), listed on How it works. A partner pays Feasly a referral commission only if you sign a contract with them. It never changes your estimate, and you’re never obliged to hire anyone. You can opt out anytime.
+```
