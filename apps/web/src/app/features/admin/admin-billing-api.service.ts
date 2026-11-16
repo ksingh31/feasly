@@ -14,6 +14,8 @@ import type {
   SetCommissionRateResponse,
   SimulatedInvoiceEventRequest,
   SimulatedInvoiceEventResponse,
+  UpdateInvoiceDunningRequest,
+  UpdateInvoiceDunningResponse,
 } from '@feasly/contracts';
 import { BUILDER_PAYMENT_METHODS } from '../builder/builder-payment-methods';
 import { ConfigService } from '../../core/config/config.service';
@@ -97,6 +99,24 @@ export class AdminBillingApiService {
       }>(this.retryUrl(invoiceId), null, {
         withCredentials: true,
       }),
+    );
+  }
+
+  /**
+   * POST /api/v1/admin/billing/invoices/{id}/dunning (#718/#901) — pause,
+   * resume or cancel an invoice's automatic retries, or set its grace
+   * days. Admin-gated, `billing:manage`; audited server-side.
+   */
+  updateInvoiceDunning(
+    invoiceId: string,
+    body: UpdateInvoiceDunningRequest,
+  ): Observable<UpdateInvoiceDunningResponse> {
+    return this.call(
+      this.http.post<UpdateInvoiceDunningResponse>(
+        this.billingBase + '/invoices/' + encodeURIComponent(invoiceId) + '/dunning',
+        body,
+        { withCredentials: true },
+      ),
     );
   }
 

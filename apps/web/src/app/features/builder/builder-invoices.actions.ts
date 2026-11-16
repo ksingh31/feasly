@@ -57,6 +57,15 @@ export class UpdateInvoicePaymentMethod {
 }
 
 /**
+ * #901 Pay now: charges a failed card invoice against the card on file
+ * right away. The builder can never change the retry schedule — only pay.
+ */
+export class PayInvoiceNow {
+  static readonly type = '[BuilderInvoices] Pay now';
+  constructor(public readonly id: string) {}
+}
+
+/**
  * Downloads an invoice's PDF / receipt (#661). `invoiceNumber` names the
  * saved file; the PDF itself is rendered server-side.
  */

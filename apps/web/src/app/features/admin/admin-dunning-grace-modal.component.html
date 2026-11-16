@@ -1,0 +1,24 @@
+<ui-modal [heading]="t.graceHeading" asForm (submitted)="save()">
+  <p class="invoice-modal__context">{{ context }}</p>
+
+  <ui-text-field
+    [label]="t.graceLabel"
+    inputmode="numeric"
+    required
+    data-testid="grace-days-input"
+    [formControl]="days"
+    [hint]="hint"
+    [error]="fieldError()"
+  />
+
+  @if (error(); as err) {
+    <p class="invoice-modal__alert" role="alert" data-testid="grace-days-error">{{ err }}</p>
+  }
+
+  <ng-container uiModalFooter>
+    <button type="button" ui-button variant="secondary" (click)="cancel()">{{ t.graceCancel }}</button>
+    <button type="submit" ui-button data-testid="grace-days-submit" [loading]="submitting()" [disabled]="!canSave()">
+      {{ t.graceSave }}
+    </button>
+  </ng-container>
+</ui-modal>

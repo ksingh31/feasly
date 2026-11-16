@@ -197,6 +197,12 @@ export interface BuilderCopy {
   invoicesDueIn: string;
   invoicesDueTomorrow: string;
   invoicesDueToday: string;
+  /** #901: Due column for a failed card invoice — `{date}` of the next automatic retry. */
+  invoicesNextRetry: string;
+  /** #901: a manual-method invoice 1 day past its due date. */
+  invoicesOverdueOne: string;
+  /** #901: a manual-method invoice past its due date — `{days}`. */
+  invoicesOverdueMany: string;
   invoicesPaymentFailed: string;
   invoicesPaymentReceived: string;
   invoicesUpdateCardCta: string;
@@ -848,6 +854,28 @@ export interface BuilderInvoiceDrawerCopy {
   confirmPaymentStalled: string;
   /** #867: re-check button after the poll window. */
   confirmPaymentCheckAgain: string;
+  /** #901: failed card invoice — label of the next-retry row. */
+  nextRetryLabel: string;
+  /** #901: value when no automatic retry is scheduled. */
+  nextRetryNone: string;
+  /** #901: Pay now button on a failed card invoice. */
+  payNowCta: string;
+  /** #901: Pay now while the charge is in flight. */
+  payNowBusy: string;
+  /** #901: one line under the button explaining what Pay now does. */
+  payNowNote: string;
+  /** #901: toast — Pay now charged the card. */
+  payNowPaidToast: string;
+  /** #901: toast — the card was declined again. */
+  payNowDeclinedToast: string;
+  /** #901: toast — the bank wants the builder to confirm (3D Secure). */
+  payNowConfirmToast: string;
+  /** #901: inline error when the Pay now request itself fails. */
+  payNowError: string;
+  /** #901: banner on a manual-method invoice past its due date — `{days}`, `{date}`. */
+  overdueBanner: string;
+  /** #901: same banner when exactly 1 day overdue — `{date}`. */
+  overdueBannerOne: string;
   modalHeading: string;
   /** "Before" label in the modal. */
   modalBefore: string;
@@ -1197,6 +1225,13 @@ export interface AppConfig {
      */
     confirmPollIntervalMs: number;
     confirmPollAttempts: number;
+    /**
+     * #901: bounds for the admin "Edit grace days" control on a dunning
+     * invoice. Mirror the API's MIN_/MAX_DUNNING_GRACE_DAYS (1–90), which
+     * stays the authority (a value outside them is rejected with 400).
+     */
+    dunningGraceDaysMin: number;
+    dunningGraceDaysMax: number;
   };
   /** Property-data wiring (FE1-002): autocomplete + property records. */
   propertyData: {
@@ -3250,6 +3285,48 @@ export interface AdminCopy {
    * stays green and copy is deploy-tunable. Exact strings are pinned
    * by the login/callback specs.
    */
+  /**
+   * #901 admin dunning controls on /admin/billing: the retry schedule
+   * (next retry, grace days, state), Pause / Resume / Cancel / Edit grace
+   * days, collections age and manual-payment age. `{days}`, `{date}`,
+   * `{builder}`, `{amount}`, `{min}`, `{max}` are filled in by the page.
+   */
+  dunning: {
+    columns: { nextRetry: string; grace: string; state: string; awaiting: string };
+    stateActive: string;
+    statePaused: string;
+    stateCancelled: string;
+    /** Collections age, e.g. "Collections · 4 days". */
+    collectionsOne: string;
+    collectionsMany: string;
+    noRetry: string;
+    graceOne: string;
+    graceMany: string;
+    /** In-review manual invoice past its due date. */
+    awaitingManualOne: string;
+    awaitingManualMany: string;
+    notOverdue: string;
+    pause: string;
+    resume: string;
+    cancel: string;
+    editGrace: string;
+    cancelTitle: string;
+    cancelBody: string;
+    cancelVerb: string;
+    pausedToast: string;
+    resumedToast: string;
+    cancelledToast: string;
+    graceSavedToast: string;
+    conflictError: string;
+    genericError: string;
+    graceHeading: string;
+    graceContext: string;
+    graceLabel: string;
+    graceHint: string;
+    graceInvalid: string;
+    graceSave: string;
+    graceCancel: string;
+  };
   auth: {
     /** Session-expired notice on the login page. */
     loginExpired: string;

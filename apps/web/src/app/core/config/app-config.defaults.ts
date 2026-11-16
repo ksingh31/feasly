@@ -54,6 +54,9 @@ export const DEFAULT_APP_CONFIG: AppConfig = {
     // settles a bank confirmation.
     confirmPollIntervalMs: 3000,
     confirmPollAttempts: 10,
+    // #901: admin grace-days editor bounds (API: 1–90 days).
+    dunningGraceDaysMin: 1,
+    dunningGraceDaysMax: 90,
   },
   propertyData: {
     source: 'backend',

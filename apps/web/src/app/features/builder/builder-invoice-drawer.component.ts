@@ -39,17 +39,21 @@ import {
   type BuilderInvoiceMethodModalData,
 } from './builder-invoice-method-modal.component';
 import {
+  canPayNow,
   fillCopy,
   invoiceRatePercent,
   invoiceTimelineEvents,
   methodEffect,
   methodLabel,
+  nextRetryText,
+  overdueBanner,
   paymentMethodEditable,
   reviewCountdown,
 } from './builder-invoice-view';
 import {
   DownloadInvoicePdf,
   LoadInvoices,
+  PayInvoiceNow,
   RefreshSelectedInvoice,
   SelectInvoice,
 } from './builder-invoices.actions';
@@ -136,6 +140,29 @@ export class BuilderInvoiceDrawerComponent {
   private readonly openCardModal = injectCardModal();
   private readonly pdfDownloadingId = this.store.selectSignal(BuilderInvoicesState.pdfDownloadingId);
   private readonly pdfErrorId = this.store.selectSignal(BuilderInvoicesState.pdfErrorId);
+
+  private readonly payNowId = this.store.selectSignal(BuilderInvoicesState.payNowId);
+  private readonly payNowErrorId = this.store.selectSignal(BuilderInvoicesState.payNowErrorId);
+
+  /** #901: failed card invoice — offer Pay now and show the next retry. */
+  protected readonly payable = computed(() => {
+    const inv = this.invoice();
+    return !!inv && canPayNow(inv);
+  });
+  /** #901: next automatic retry date, or "None scheduled"; null when not payable. */
+  protected readonly nextRetry = computed(() => {
+    const inv = this.invoice();
+    return inv ? nextRetryText(inv, this.copy) : null;
+  });
+  /** #901: the Pay now charge is in flight — the button stays disabled. */
+  protected readonly paying = computed(() => this.payNowId() === this.data.invoiceId);
+  /** #901: the last Pay now request for this invoice failed. */
+  protected readonly payFailed = computed(() => this.payNowErrorId() === this.data.invoiceId);
+  /** #901: manual-method invoice past its due date; null when not overdue. */
+  protected readonly overdue = computed(() => {
+    const inv = this.invoice();
+    return inv ? overdueBanner(inv, this.copy) : null;
+  });
 
   /** #661: this invoice's PDF is being fetched. */
   protected readonly pdfDownloading = computed(() => this.pdfDownloadingId() === this.data.invoiceId);
@@ -358,6 +385,36 @@ export class BuilderInvoiceDrawerComponent {
             ]);
           }
         },
+      });
+  }
+
+  /**
+   * #901 Pay now: charge the card on file right away. Disabled while in
+   * flight (and the state + API both ignore a double submit). The result
+   * decides the toast; an `action_required` answer leaves the drawer on
+   * the bank-confirmation step. The list and billing overview reload so
+   * every surface shows the new status.
+   */
+  protected payNow(): void {
+    const inv = this.invoice();
+    if (!inv || !canPayNow(inv) || this.paying() || this.payNowId() !== null) return;
+    this.store
+      .dispatch(new PayInvoiceNow(inv.id))
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe(() => {
+        if (this.payFailed()) return;
+        const status = this.invoice()?.status;
+        if (status === 'paid' || status === 'finalized') {
+          this.toasts.show({ message: this.t.payNowPaidToast, tone: 'success' });
+        } else if (status === 'action_required') {
+          this.toasts.show({ message: this.t.payNowConfirmToast });
+        } else if (status === 'failed') {
+          this.toasts.show({ message: this.t.payNowDeclinedToast, tone: 'danger' });
+        }
+        this.store.dispatch([
+          new LoadInvoices(this.store.selectSnapshot(BuilderInvoicesState.page)),
+          new LoadBillingOverview(),
+        ]);
       });
   }
 

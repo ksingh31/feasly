@@ -129,6 +129,19 @@
   border: 1px solid var(--status-warning-fg);
   border-radius: var(--radius-md);
 }
+/* #901: Pay now on a failed card invoice. */
+.invoice-drawer__banner + .invoice-drawer__banner {
+  margin-top: var(--space-3);
+}
+.invoice-drawer__pay {
+  padding: var(--space-4);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+}
+.invoice-drawer__pay-cta {
+  margin-top: var(--space-3);
+  min-height: 44px;
+}
 .invoice-drawer__note--danger {
   color: var(--status-danger-fg);
 }
