@@ -8,6 +8,10 @@
  * effective permissions + tenant scoping to the TARGET's view.
  *
  * Guarantees:
+ * - Builder targets (`{ builderId }`) are STAFF-ONLY (#876): only a staff
+ *   `super_admin`/`admin` may view as a builder. A builder_admin holds
+ *   `view_as` for builder-side view-as (scoped to their own org) and is
+ *   refused here (403 + `authz.denied` audit) — never a cross-tenant borrow.
  * - Never escalates: ADMIN TARGETS ARE REJECTED OUTRIGHT. A staff
  *   `super_admin`/`admin`, or anyone holding a `builder_admin` membership,
  *   can never be viewed-as (403 + `authz.denied` audit). For regular-user
@@ -87,6 +91,16 @@ function requireToken(sessionToken: string | null): string {
   return sessionToken;
 }
 
+/**
+ * Staff admin = staff role super_admin/admin on the actor's resolved
+ * context. While view-as is active the context carries the TARGET's staff
+ * role (always null — admin targets are rejected), so an actor already
+ * viewing-as can never chain into a builder view-as.
+ */
+function isStaffAdmin(actor: AuthContext): boolean {
+  return actor.staffRole === 'super_admin' || actor.staffRole === 'admin';
+}
+
 export function createViewAsService(deps: ViewAsServiceDeps): ViewAsService {
   const { sessions, users, memberships, builders, audit } = deps;
   const clock = deps.clock ?? (() => new Date());
@@ -126,6 +140,26 @@ export function createViewAsService(deps: ViewAsServiceDeps): ViewAsService {
       }
 
       if ('builderId' in target) {
+        // #876: viewing as a BUILDER resolves to that builder's full
+        // builder_admin permission set. Only staff (super_admin/admin) may
+        // do this — a builder_admin holds `view_as` for builder-side
+        // view-as (scoped to their own org), and must never borrow another
+        // tenant's builder_admin view through this endpoint. Checked before
+        // the target lookup so the response never reveals whether an
+        // arbitrary builder id exists.
+        if (!isStaffAdmin(actor)) {
+          await audit.log({
+            actorEmail: actor.realUser?.email ?? actor.email,
+            action: 'authz.denied',
+            detail: `route=view-as target=builder:${target.builderId} reason=not-staff`,
+          });
+          throw new HttpError(
+            403,
+            ErrorCodes.FORBIDDEN,
+            'You don’t have access to this.',
+            false,
+          );
+        }
         // getBuilder throws 404 when unknown — a missing target is a 404,
         // never a silent widen.
         const builder = await builders.getBuilder(target.builderId);
