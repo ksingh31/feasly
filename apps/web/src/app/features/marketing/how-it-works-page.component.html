@@ -5,6 +5,8 @@
     {{ copy.eyebrow }}
   </p>
   <h1>{{ copy.title }}</h1>
+  <!-- #827: answer-first passage (SEO standard §2.1). -->
+  <p class="lede answer">{{ copy.answer }}</p>
   <p class="lede">{{ copy.sub }}</p>
 
   <ol class="steps">
@@ -24,11 +26,140 @@
     <p>{{ copy.mathNoteBody }}</p>
   </aside>
 
+  <!-- #827: the formula, one card per term, listing every engine line item
+       (generated from the cost engine) with what it covers. No figures. -->
+  <section class="hwe-section" aria-labelledby="formula-title">
+    <h2 id="formula-title">{{ copy.formulaTitle }}</h2>
+    <p>{{ copy.formulaIntro }}</p>
+    <p class="sr-only">{{ copy.formulaSentence }}</p>
+    <div class="formula">
+      @for (card of formulaCards; track card.key) {
+        <div class="formula-term" [attr.data-term]="card.key">
+          <h3 class="formula-term-title">{{ card.title }}</h3>
+          <p class="formula-term-body">{{ card.body }}</p>
+          <ul class="formula-items">
+            @for (item of card.items; track item.key) {
+              <li class="formula-item" [attr.data-key]="item.key">
+                <span class="formula-item-label">{{ item.label }}</span>
+                @if (item.note) {
+                  <span class="formula-item-note">{{ item.note }}</span>
+                }
+              </li>
+            }
+          </ul>
+        </div>
+        <span class="formula-op" aria-hidden="true">{{ $last ? copy.formulaEquals : copy.formulaPlus }}</span>
+      }
+      <div class="formula-term formula-result">
+        <h3 class="formula-term-title">{{ copy.formulaResultTitle }}</h3>
+        <p class="formula-term-body">{{ copy.formulaResultBody }}</p>
+      </div>
+    </div>
+  </section>
+
+  <section class="hwe-section" aria-labelledby="why-range-title">
+    <h2 id="why-range-title">{{ copy.whyRangeTitle }}</h2>
+    <p>{{ copy.whyRangeIntro }}</p>
+    <ul class="hwe-cards">
+      @for (item of copy.whyRangeItems; track item.title) {
+        <li class="hwe-card">
+          <h3 class="hwe-card-title">{{ item.title }}</h3>
+          <p>{{ item.body }}</p>
+        </li>
+      }
+    </ul>
+  </section>
+
+  <section class="hwe-section" aria-labelledby="sources-title">
+    <h2 id="sources-title">{{ copy.sourcesTitle }}</h2>
+    <p>{{ copy.sourcesIntro }}</p>
+    <ul class="hwe-cards">
+      @for (src of sources(); track src.key) {
+        <li class="hwe-card source" [attr.data-source]="src.key">
+          <h3 class="hwe-card-title">{{ src.title }}</h3>
+          <p>{{ src.body }}</p>
+          <p class="source-stamp">{{ src.stamp }}</p>
+          @if (src.url && src.linkLabel) {
+            <p><a [href]="src.url" target="_blank" rel="noopener noreferrer">{{ src.linkLabel }}</a></p>
+          }
+        </li>
+      }
+    </ul>
+  </section>
+
   <!-- #824: what every estimate includes (the engine's line items,
        generated) and what it leaves out (config). Static — prerendered. -->
   <div class="math-note estimate-scope">
     <app-estimate-scope [headingLevel]="2" />
   </div>
+
+  <!-- #823: typical build timeline (shared component, config-driven). -->
+  <div class="math-note timeline">
+    <app-build-timeline />
+  </div>
+
+  <!-- #827: worked example — figures priced by the cost engine at
+       generation time (estimate-scope.generated.ts); display only. -->
+  <section class="hwe-section" aria-labelledby="example-title">
+    <h2 id="example-title">{{ copy.exampleTitle }}</h2>
+    <p>{{ exampleIntro }}</p>
+    <div class="example-wrap">
+      <table class="example-table">
+        <caption>{{ copy.exampleCaption }}</caption>
+        <thead>
+          <tr>
+            <th scope="col">{{ copy.exampleColItem }}</th>
+            <th scope="col" class="num">{{ copy.exampleColRange }}</th>
+          </tr>
+        </thead>
+        @for (section of exampleSections; track section.key) {
+          <tbody [attr.data-term]="section.key">
+            @if (section.rows.length > 1) {
+              @for (row of section.rows; track row.key) {
+                <tr>
+                  <th scope="row">{{ row.label }}</th>
+                  <td class="num">{{ row.range }}</td>
+                </tr>
+              }
+            }
+            <tr class="subtotal">
+              <th scope="row">{{ section.subtotalLabel }}</th>
+              <td class="num">{{ section.subtotal }}</td>
+            </tr>
+          </tbody>
+        }
+        <tfoot>
+          <tr class="total">
+            <th scope="row">{{ copy.exampleTotal }}</th>
+            <td class="num">{{ exampleTotal }}</td>
+          </tr>
+        </tfoot>
+      </table>
+    </div>
+    <p class="example-note">{{ copy.exampleNote }}</p>
+    <p class="example-note">{{ exampleVersion }}</p>
+  </section>
+
+  <section class="hwe-section" aria-labelledby="current-title">
+    <h2 id="current-title">{{ copy.currentTitle }}</h2>
+    <ul class="hwe-list">
+      @for (item of copy.currentItems; track item) {
+        <li>{{ item }}</li>
+      }
+    </ul>
+  </section>
+
+  <section class="hwe-section" aria-labelledby="next-title">
+    <h2 id="next-title">{{ copy.nextTitle }}</h2>
+    <ol class="next-steps">
+      @for (step of copy.nextSteps; track step.title) {
+        <li class="next-step">
+          <h3 class="hwe-card-title">{{ step.title }}</h3>
+          <p>{{ step.body }}</p>
+        </li>
+      }
+    </ol>
+  </section>
 
   <aside class="math-note" [attr.aria-label]="copy.zoningCardTitle">
     <h2>{{ copy.zoningCardTitle }}</h2>
@@ -62,6 +193,15 @@
       <p class="partner-unavailable" role="status">{{ partnersCopy.sectionUnavailable }}</p>
     }
   </section>
+
+  <nav class="hwe-section related" aria-labelledby="links-title">
+    <h2 id="links-title">{{ copy.linksTitle }}</h2>
+    <ul class="hwe-links">
+      @for (link of links; track link.route) {
+        <li><a [routerLink]="link.route">{{ link.label }}</a></li>
+      }
+    </ul>
+  </nav>
 
   <div class="cta-row">
     <button type="button" class="cta" (click)="startEstimate('new-build')">{{ copy.ctaNewBuild }}</button>

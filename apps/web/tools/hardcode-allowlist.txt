@@ -372,3 +372,11 @@ apps/web/src/app/features/communities/community-profile-page.component.html
 # (wire-param assertions on page/pageSize).
 apps/web/src/app/features/admin/admin-invoices.actions.ts
 apps/web/src/app/features/admin/admin-invoices.state.ts
+# #827: generated from the cost engine by packages/cost-engine/tools/gen-web-scope.ts
+# (never hand-edited). The worked-example figures are engine output, pinned by
+# packages/cost-engine/test/web-scope-agreement.test.ts; read via config.howWeEstimate.
+apps/web/src/app/core/config/estimate-scope.generated.ts
+# #827: generated from the zoning catalogue by packages/zoning/tools/gen-web-eligibility.ts
+# (never hand-edited): the catalogue's effective date and City bylaw source URL,
+# pinned by packages/zoning/test/eligibility-agreement.test.ts; read via config.
+apps/web/src/app/core/config/zoning-eligibility.generated.ts

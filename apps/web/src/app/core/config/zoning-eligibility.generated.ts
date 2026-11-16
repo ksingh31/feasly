@@ -7,9 +7,14 @@
  * `quotable`: districts with a cited single-detached use,
  * permitted or discretionary, plus site-specific Direct Control (fail-open).
  * `discretionary`: the subset where single-detached needs City approval.
+ * `rulesAsOf`: the catalogue's effective date (ISO) — the "updated" stamp
+ * for land use districts on How it works (#827). `sourceUrl`: the City
+ * bylaw page the catalogue was read from (cited as the primary source).
  */
 export const ZONING_ELIGIBILITY = {
   calgary: {
+    rulesAsOf: '2026-08-04',
+    sourceUrl: 'https://www.calgary.ca/pda/pd/calgary-land-use-bylaw-1p2007/calgary-land-use-bylaw-1p2007.html',
     quotable: [
       'R-C1L',
       'R-C1Ls',

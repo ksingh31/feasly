@@ -42,9 +42,14 @@ export function renderWebEligibility(): string {
  * \`quotable\`: districts with a cited single-detached use,
  * permitted or discretionary, plus site-specific Direct Control (fail-open).
  * \`discretionary\`: the subset where single-detached needs City approval.
+ * \`rulesAsOf\`: the catalogue's effective date (ISO) — the "updated" stamp
+ * for land use districts on How it works (#827). \`sourceUrl\`: the City
+ * bylaw page the catalogue was read from (cited as the primary source).
  */
 export const ZONING_ELIGIBILITY = {
   calgary: {
+    rulesAsOf: '${CALGARY_2026_08_04.effectiveDate}',
+    sourceUrl: '${CALGARY_2026_08_04.sourceUrl}',
     quotable: [
 ${list(calgary.quotable)}
     ],
