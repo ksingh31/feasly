@@ -196,3 +196,63 @@ export interface CommunityIndexFile {
   readonly generatedAt: string;
   readonly communities: readonly CommunityIndexEntry[];
 }
+
+// ── Community lot inventory (issue #691) ────────────────────────────────
+
+/**
+ * Why a parcel is listed: `vacant` = residential land-only parcel (phase 1);
+ * `candidate` = home 25+ years old, a redevelopment candidate (phase 2).
+ */
+export type CommunityLotKind = 'vacant' | 'candidate';
+
+/**
+ * Where `district` came from: the City's current Land Use Districts map, or
+ * (fallback) the assessment roll's designation.
+ */
+export type CommunityLotDistrictSource = 'land-use-districts' | 'assessment-roll';
+
+/** Sort orders for the lot list. Default `address`. */
+export type CommunityLotSort = 'address' | 'lot-size-asc' | 'lot-size-desc';
+
+/**
+ * One listed lot. Public City open data only: no owner name, no per-square-
+ * foot figure. `assessedValue` is the City-assessed value passed through
+ * verbatim (whole CAD) — not market value, not a Feasly estimate.
+ */
+export interface CommunityLot {
+  /** City assessment roll number. */
+  readonly rollNumber: string;
+  /** Street address as published by the City, e.g. "2032 42 AV SW". */
+  readonly address: string;
+  /** Lot area in square feet; null when the City has none. */
+  readonly lotSqft: number | null;
+  /** City-assessed value, whole CAD (not market value). */
+  readonly assessedValue: number;
+  /** Assessment roll year the value is from, e.g. "2026". */
+  readonly rollYear: string;
+  /** Current land-use district, e.g. "R-CG"; null when unresolved. */
+  readonly district: string | null;
+  readonly districtSource: CommunityLotDistrictSource;
+  readonly kind: CommunityLotKind;
+  /** A point inside the parcel (WGS84); null when the City has no geometry. */
+  readonly latitude: number | null;
+  readonly longitude: number | null;
+  /** When Feasly first listed the lot (ISO 8601). */
+  readonly firstSeenAt: string;
+}
+
+/** GET /api/v1/communities/{slug}/lots — one page of a community's lots. */
+export interface CommunityLotsResponse {
+  readonly community: { readonly slug: string; readonly name: string };
+  /** City key, e.g. "calgary". */
+  readonly city: string;
+  /** When the community's lots were last refreshed (ISO 8601). */
+  readonly refreshedAt: string;
+  /** True when the refresh is older than the configured threshold. */
+  readonly stale: boolean;
+  /** Lots matching the filters, across all pages. */
+  readonly total: number;
+  readonly lots: readonly CommunityLot[];
+  /** Opaque cursor for the next page; null on the last page. */
+  readonly nextCursor: string | null;
+}

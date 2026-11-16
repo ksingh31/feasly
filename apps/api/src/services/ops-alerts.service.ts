@@ -19,6 +19,7 @@ import type { OpsAlertStore } from './ops-alerts.store';
 export const OPS_ALERT_TYPES = [
   'sheets_sync_failed',
   'community_stats_failed',
+  'community_lots_failed',
   'stripe_webhook_failed',
   'narrative_worker_failed',
   'backup_missed',
@@ -41,6 +42,10 @@ const ALERT_COPY: Record<OpsAlertType, AlertCopy> = {
   },
   community_stats_failed: {
     name: 'Community stats refresh',
+    detailsPath: '/admin/ops/community-stats',
+  },
+  community_lots_failed: {
+    name: 'Community lots refresh',
     detailsPath: '/admin/ops/community-stats',
   },
   stripe_webhook_failed: {

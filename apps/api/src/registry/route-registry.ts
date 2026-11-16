@@ -313,6 +313,19 @@ export const ROUTE_REGISTRY: readonly ApiRouteEntry[] = [
   },
   {
     method: 'GET',
+    path: '/api/v1/communities/{slug}/lots',
+    auth: 'none',
+    permissions: [] as const,
+    rateLimit: '100/min per IP',
+    status: 'live',
+    summary:
+      'Community lot inventory (#691): vacant residential lots in an ' +
+      'established infill community, derived weekly from City open data. ' +
+      'Filters kind/district/minLotSqft/maxLotSqft, sort, cursor pagination; ' +
+      'refreshedAt + stale flag. City-assessed value only; no owner names.',
+  },
+  {
+    method: 'GET',
     path: '/api/v1/city-data/freshness',
     auth: 'none',
     permissions: [] as const,

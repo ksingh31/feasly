@@ -428,6 +428,41 @@ export const CommunityStatsResponseSchema = z
   })
   .openapi('CommunityStatsResponse');
 
+// ── Community lot inventory (#691) ──────────────────────────────────────
+
+export const CommunityLotSchema = z
+  .object({
+    rollNumber: z.string().min(1).describe('City assessment roll number'),
+    address: z.string().min(1).describe('Street address as published by the City'),
+    lotSqft: z.number().int().nullable().describe('Lot area in square feet; null when unknown'),
+    assessedValue: z
+      .number()
+      .int()
+      .describe('City-assessed value, whole CAD (not market value, not a Feasly estimate)'),
+    rollYear: z.string().describe('Assessment roll year of the value'),
+    district: z.string().nullable().describe('Current land-use district, e.g. R-CG'),
+    districtSource: z.enum(['land-use-districts', 'assessment-roll']),
+    kind: z.enum(['vacant', 'candidate']),
+    latitude: z.number().nullable(),
+    longitude: z.number().nullable(),
+    firstSeenAt: z.string().datetime().describe('When Feasly first listed the lot'),
+  })
+  .strict()
+  .openapi('CommunityLot');
+
+export const CommunityLotsResponseSchema = z
+  .object({
+    community: z.object({ slug: z.string(), name: z.string() }).strict(),
+    city: z.string(),
+    refreshedAt: z.string().datetime(),
+    stale: z.boolean().describe('True when the refresh is older than the configured threshold'),
+    total: z.number().int().nonnegative().describe('Lots matching the filters, across all pages'),
+    lots: z.array(CommunityLotSchema),
+    nextCursor: z.string().nullable().describe('Opaque cursor for the next page; null on the last'),
+  })
+  .strict()
+  .openapi('CommunityLotsResponse');
+
 // ── City-data freshness ────────────────────────────────────────────────
 
 export const CityDataFreshnessResponseSchema = z

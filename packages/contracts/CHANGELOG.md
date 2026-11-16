@@ -12,6 +12,15 @@ real backend. Changing them has a cost, so:
 - **Never** widen a type to `any` to "unblock" something — the no-`any` lint exists
   precisely to stop that.
 
+## Unreleased — 2026-11-16 (additive) — community lots
+
+Community lot inventory, phase 1 (issue #691):
+
+- **Added** `CommunityLot`, `CommunityLotsResponse`, `CommunityLotKind`,
+  `CommunityLotDistrictSource`, `CommunityLotSort` (served by
+  `GET /api/v1/communities/{slug}/lots`). The only money value is the
+  City-assessed value, passed through verbatim.
+
 ## Unreleased — 2026-11-16 (additive)
 
 Project-type steer by home age (issue #755):

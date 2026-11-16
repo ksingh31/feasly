@@ -1723,3 +1723,61 @@ export const cityDataCache = pgTable(
   },
   (t) => [index('city_data_cache_expires_at_idx').on(t.expiresAt)],
 );
+
+/**
+ * Community lot inventory, phase 1 (#691).
+ *
+ * Vacant residential land-only parcels in established infill communities,
+ * derived from City open data by the community-lots refresh timer. One row
+ * per parcel; `id` is `<city>:<roll_number>`. A refresh rewrites a
+ * community's rows only when the source changed (idempotent) and deletes
+ * parcels that disappeared from the source. `assessed_value` is the
+ * City-assessed value passed through verbatim (whole CAD) — not market
+ * value. No owner names are stored.
+ */
+export const communityLots = pgTable(
+  'community_lots',
+  {
+    id: text('id').primaryKey(),
+    city: text('city').notNull(),
+    communitySlug: text('community_slug').notNull(),
+    rollNumber: text('roll_number').notNull(),
+    address: text('address').notNull(),
+    lotSqft: integer('lot_sqft'),
+    assessedValue: integer('assessed_value').notNull(),
+    rollYear: text('roll_year').notNull(),
+    /** Current district, e.g. 'R-CG'; null when unresolved. */
+    district: text('district'),
+    /** 'land-use-districts' (current map) | 'assessment-roll' (fallback). */
+    districtSource: text('district_source').notNull(),
+    /** 'vacant' (phase 1) | 'candidate' (phase 2, homes 25+ years). */
+    kind: text('kind').notNull().default('vacant'),
+    /** Optional signals (demolition / DP permits) — stored, not required. */
+    signals: jsonb('signals').notNull().default(sql`'{}'::jsonb`),
+    latitude: doublePrecision('latitude'),
+    longitude: doublePrecision('longitude'),
+    firstSeenAt: timestamp('first_seen_at', { withTimezone: true }).notNull().defaultNow(),
+    /** Last time the parcel's data changed (not touched by no-op refreshes). */
+    updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [index('community_lots_city_slug_idx').on(t.city, t.communitySlug)],
+);
+
+/**
+ * One row per community the last lot refresh covered (#691). Drives the
+ * lots API's `refreshedAt` / `stale` flag and its 404 for communities
+ * outside the inventory; `id` is `<city>:<community_slug>`.
+ */
+export const communityLotRefreshes = pgTable(
+  'community_lot_refreshes',
+  {
+    id: text('id').primaryKey(),
+    city: text('city').notNull(),
+    communitySlug: text('community_slug').notNull(),
+    communityName: text('community_name').notNull(),
+    rollYear: text('roll_year').notNull(),
+    lotCount: integer('lot_count').notNull(),
+    refreshedAt: timestamp('refreshed_at', { withTimezone: true }).notNull(),
+  },
+  (t) => [uniqueIndex('community_lot_refreshes_city_slug_idx').on(t.city, t.communitySlug)],
+);
