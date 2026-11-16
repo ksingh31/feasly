@@ -58,6 +58,7 @@ export interface AuditLogListQuery {
   readonly actor?: string;
   /** Action key prefix, e.g. `invoice.` or `user.invited`. */
   readonly action?: string;
+  /** Applied server-side before paging: every page is full while matches remain. */
   readonly entityType?: AuditEntityType;
   readonly entityId?: string;
   /** ISO date/time, inclusive. */

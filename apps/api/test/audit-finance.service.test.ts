@@ -187,6 +187,69 @@ describe('audit-finance service', () => {
   });
 });
 
+describe('builder activity redaction', () => {
+  const billing = (over: Partial<RawAuditRow>): RawAuditRow => ({
+    source: 'billing',
+    id: '00000000-0000-4000-8000-0000000000b1',
+    ts: '2026-11-10T12:00:00.000000Z',
+    createdAt: new Date('2026-11-10T12:00:00Z'),
+    actorEmail: null,
+    action: 'dispute.resolved',
+    detail: null,
+    tenantKey: 'elite-craft',
+    entityType: 'billing_dispute',
+    entityId: 'd-1',
+    payload: null,
+    ...over,
+  });
+
+  it('hides a staff dispute resolver from the actor and payload', async () => {
+    const { service } = makeService({
+      listAuditRows: vi.fn().mockResolvedValue([
+        billing({
+          actorEmail: 'staff@feasly.test',
+          payload: { outcome: 'accepted', invoiceId: 'inv-1', resolvedBy: 'staff@feasly.test' },
+        }),
+      ]),
+    });
+    const res = await service.builderActivity(
+      {},
+      { email: 'owner@elite.test', tenantKey: 'elite-craft', builderId: 'b-1', team: true },
+    );
+    expect(res.items[0]).toMatchObject({
+      actorEmail: null,
+      payload: { outcome: 'accepted', invoiceId: 'inv-1' },
+    });
+    expect(JSON.stringify(res.items)).not.toContain('staff@feasly.test');
+  });
+
+  it('keeps a builder actor recorded under a non-staff payload key', async () => {
+    const { service } = makeService({
+      listAuditRows: vi.fn().mockResolvedValue([
+        billing({
+          action: 'invoice.disputed',
+          actorEmail: 'owner@elite.test',
+          payload: { builderEmail: 'owner@elite.test' },
+        }),
+      ]),
+    });
+    const res = await service.builderActivity(
+      {},
+      { email: 'owner@elite.test', tenantKey: 'elite-craft', builderId: 'b-1', team: true },
+    );
+    expect(res.items[0]!.actorEmail).toBe('owner@elite.test');
+  });
+
+  it('passes the entityType filter to the store (applied before the limit)', async () => {
+    const { service, store } = makeService();
+    await service.listAudit({ entityType: 'lead', limit: '5' });
+    expect(store.listAuditRows).toHaveBeenCalledWith(
+      expect.objectContaining({ entityType: 'lead' }),
+      6,
+    );
+  });
+});
+
 describe('csv helpers', () => {
   it('neutralises formula injection and quotes separators', () => {
     expect(csvCell('=HYPERLINK("x")')).toBe(`"'=HYPERLINK(""x"")"`);

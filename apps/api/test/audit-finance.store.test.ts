@@ -258,6 +258,41 @@ describe('audit-finance store (PGlite)', () => {
     expect(actions).not.toContain('authz.denied');
     const staffRow = res.items.find((e) => e.action === 'admin_builder_updated');
     expect(staffRow!.actorEmail).toBeNull();
+    // A staff-marked manual payment never exposes the Feasly admin's email,
+    // neither as the actor nor inside the payload.
+    const manual = res.items.find((e) => e.action === 'invoice.paid_manually');
+    expect(manual!.actorEmail).toBeNull();
+    expect(manual!.payload).toEqual({ method: 'cheque' });
+    expect(JSON.stringify(res.items)).not.toContain('karan@feasly.test');
+  });
+
+  it('filters by entity type in SQL, before the page limit', async () => {
+    const types = async (entityType: string) =>
+      (await service.listAudit({ entityType, limit: '100' })).items.map((e) => e.id);
+    expect(await types('builder')).toEqual([
+      'admin:00000000-0000-4000-8000-000000000003',
+      'admin:00000000-0000-4000-8000-000000000002',
+      'admin:00000000-0000-4000-8000-000000000001',
+    ]);
+    expect(await types('lead')).toEqual([
+      'admin:00000000-0000-4000-8000-000000000007',
+      'admin:00000000-0000-4000-8000-000000000005',
+    ]);
+    const invoices = await service.listAudit({ entityType: 'invoice' });
+    expect(invoices.items.map((e) => e.action)).toEqual([
+      'invoice.status_changed',
+      'invoice.paid_manually',
+    ]);
+    expect(await types('user')).toEqual([]);
+    expect(await types('other')).toEqual([]);
+
+    // Pages of one: full pages, and a cursor only while matches remain.
+    const p1 = await service.listAudit({ entityType: 'lead', limit: '1' });
+    expect(p1.items).toHaveLength(1);
+    expect(p1.nextCursor).not.toBeNull();
+    const p2 = await service.listAudit({ entityType: 'lead', limit: '1', cursor: p1.nextCursor! });
+    expect(p2.items.map((e) => e.id)).toEqual(['admin:00000000-0000-4000-8000-000000000005']);
+    expect(p2.nextCursor).toBeNull();
   });
 
   it('builder member activity: only their own actions', async () => {

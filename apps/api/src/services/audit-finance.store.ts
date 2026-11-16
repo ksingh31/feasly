@@ -11,7 +11,8 @@
  * (microseconds, UTC text) — a JS Date would truncate to milliseconds and
  * skip or repeat rows that share a millisecond.
  */
-import { and, asc, desc, eq, gte, inArray, lt, or, sql, type SQL } from 'drizzle-orm';
+import { and, asc, desc, eq, gte, inArray, lt, notInArray, or, sql, type SQL } from 'drizzle-orm';
+import type { AuditEntityType } from '@feasly/contracts';
 import type { AppDb } from '../db/client';
 import {
   adminAuditLog,
@@ -57,6 +58,11 @@ export interface AuditRowFilter {
   readonly to?: Date;
   readonly impersonationOnly?: boolean;
   readonly source?: 'admin' | 'billing';
+  /**
+   * Derived entity type (see `toAuditEntry`). Applied in SQL before the page
+   * limit so a filtered page is never short while more rows exist.
+   */
+  readonly entityType?: AuditEntityType;
   /**
    * Builder scoping (activity history): admin rows whose detail names this
    * tenant or builder id, and billing rows for this tenant.
@@ -130,6 +136,59 @@ function regexLiteral(value: string): string {
   return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 }
 
+/** Billing `entity_type` values with a dedicated audit entity type. */
+const BILLING_ENTITY_TYPES: Partial<Record<AuditEntityType, string>> = {
+  invoice: 'commission_invoice',
+  dispute: 'billing_dispute',
+};
+
+/**
+ * SQL mirror of the service's `adminEntity` precedence over the free-text
+ * `key=value` detail: invoiceId > disputeId > leadId > target=builder:/user:
+ * > builderId > userId > apiKeyId. Null = the type never derives from an
+ * admin row.
+ */
+function adminEntityTypePredicate(detail: SQL, type: AuditEntityType): SQL | null {
+  const has = (key: string): SQL => sql`${detail} ~ ${`(^|\\s)${key}=\\S`}`;
+  const target = (kind: 'builder' | 'user'): SQL =>
+    sql`${detail} ~ ${`(^|\\s)target=${kind}:\\S`}`;
+  const not = (p: SQL): SQL => sql`not (${p})`;
+  const inv = has('invoiceId');
+  const disp = has('disputeId');
+  const lead = has('leadId');
+  const tBuilder = target('builder');
+  const tUser = target('user');
+  const anyTarget = or(tBuilder, tUser) as SQL;
+  const builderId = has('builderId');
+  const userId = has('userId');
+  const before = (...ps: SQL[]): SQL[] => ps.map(not);
+  switch (type) {
+    case 'invoice':
+      return inv;
+    case 'dispute':
+      return and(disp, ...before(inv)) as SQL;
+    case 'lead':
+      return and(lead, ...before(inv, disp)) as SQL;
+    case 'builder':
+      return and(
+        ...before(inv, disp, lead),
+        or(tBuilder, and(not(anyTarget), builderId)) as SQL,
+      ) as SQL;
+    case 'user':
+      return and(
+        ...before(inv, disp, lead),
+        or(tUser, and(not(anyTarget), not(builderId), userId)) as SQL,
+      ) as SQL;
+    case 'api_key':
+      return and(
+        ...before(inv, disp, lead, anyTarget, builderId, userId),
+        has('apiKeyId'),
+      ) as SQL;
+    default:
+      return null;
+  }
+}
+
 /** The actor of a billing event: whichever identity its payload recorded. */
 const billingActor = sql<string | null>`coalesce(
   ${billingEvents.payload}->>'adminEmail',
@@ -177,6 +236,11 @@ export function createDrizzleAuditFinanceStore(
       }
       const pattern = `(^|\\s)(${names.join('|')})(\\s|$)`;
       where.push(sql`${adminAuditLog.detail} ~ ${pattern}`);
+    }
+    if (filter.entityType) {
+      const p = adminEntityTypePredicate(sql`${adminAuditLog.detail}`, filter.entityType);
+      if (!p) return [];
+      where.push(p);
     }
     for (const prefix of filter.excludeActionPrefixes ?? []) {
       where.push(sql`${adminAuditLog.action} not like ${`${likeLiteral(prefix)}%`}`);
@@ -235,6 +299,13 @@ export function createDrizzleAuditFinanceStore(
     if (filter.from) where.push(gte(billingEvents.createdAt, filter.from));
     if (filter.to) where.push(lt(billingEvents.createdAt, filter.to));
     if (filter.builder) where.push(eq(billingEvents.tenantKey, filter.builder.tenantKey));
+    if (filter.entityType) {
+      const mapped = BILLING_ENTITY_TYPES[filter.entityType];
+      if (mapped) where.push(eq(billingEvents.entityType, mapped));
+      else if (filter.entityType === 'other') {
+        where.push(notInArray(billingEvents.entityType, Object.values(BILLING_ENTITY_TYPES)));
+      } else return [];
+    }
     if (filter.after) {
       const at = sql`${filter.after.ts}::timestamptz`;
       where.push(

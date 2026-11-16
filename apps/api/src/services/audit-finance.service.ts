@@ -99,6 +99,42 @@ const BUILDER_HIDDEN_ACTION_PREFIXES = [
 /** Staff-originated actions: builders see them as "Feasly", not an email. */
 const STAFF_ACTION_PREFIXES = ['admin_', 'view_as.'] as const;
 
+/**
+ * Billing-event payload keys that only ever carry a Feasly staff identity
+ * (manual payment / rate change `adminEmail`, dispute `resolvedBy`). Builders
+ * never see these keys, and an actor taken from one of them shows as null.
+ */
+const STAFF_PAYLOAD_KEYS = ['adminEmail', 'resolvedBy'] as const;
+
+/** Builder view of an entry: Feasly staff identities removed. */
+function redactStaffForBuilder(
+  e: AuditLogEntry,
+  callerEmail: string,
+): { actorEmail: string | null; payload: AuditLogEntry['payload'] } {
+  const caller = callerEmail.toLowerCase();
+  if (e.source === 'billing') {
+    const payload: Record<string, unknown> | null = e.payload ? { ...e.payload } : null;
+    const staff = new Set<string>();
+    if (payload) {
+      for (const key of STAFF_PAYLOAD_KEYS) {
+        const v = payload[key];
+        if (typeof v === 'string') staff.add(v.toLowerCase());
+        delete payload[key];
+      }
+    }
+    const actor = e.actorEmail?.toLowerCase();
+    return {
+      actorEmail: actor !== undefined && staff.has(actor) ? null : e.actorEmail,
+      payload,
+    };
+  }
+  const staffAction = STAFF_ACTION_PREFIXES.some((p) => e.action.startsWith(p));
+  return {
+    actorEmail: staffAction && e.actorEmail?.toLowerCase() !== caller ? null : e.actorEmail,
+    payload: e.payload,
+  };
+}
+
 const ENTITY_TYPES = [
   'builder',
   'lead',
@@ -387,14 +423,11 @@ export function createAuditFinanceService(
         to: q.to,
         impersonationOnly: q.impersonation,
         source: q.source,
+        entityType: q.entityType,
         after: decodeCursor(q.cursor),
       };
       const { rows, nextCursor } = await listTrail(filter, q.limit);
-      let items = rows.map(toAuditEntry);
-      // entityType is derived from the detail text, so it filters the page
-      // in memory; pair it with entityId for an exact entity history.
-      if (q.entityType) items = items.filter((e) => e.entityType === q.entityType);
-      return { items, nextCursor };
+      return { items: rows.map(toAuditEntry), nextCursor };
     },
 
     async financeSummary(query) {
@@ -488,16 +521,16 @@ export function createAuditFinanceService(
       const { rows, nextCursor } = await listTrail(filter, q.limit);
       const items: BuilderActivityEntry[] = rows.map((row) => {
         const e = toAuditEntry(row);
-        const staff = STAFF_ACTION_PREFIXES.some((p) => e.action.startsWith(p));
+        // Feasly staff identities are not part of the builder's team.
+        const redacted = redactStaffForBuilder(e, actor.email);
         return {
           id: e.id,
           occurredAt: e.occurredAt,
-          // Feasly staff identities are not part of the builder's team.
-          actorEmail: staff && e.actorEmail?.toLowerCase() !== actor.email.toLowerCase() ? null : e.actorEmail,
+          actorEmail: redacted.actorEmail,
           action: e.action,
           entityType: e.entityType,
           entityId: e.entityId,
-          payload: e.payload,
+          payload: redacted.payload,
         };
       });
       return { scope: actor.team ? 'team' : 'self', items, nextCursor };

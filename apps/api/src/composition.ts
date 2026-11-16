@@ -231,6 +231,7 @@ import {
 } from './services/builder-auth.store';
 import {
   createSessionAdminGuard,
+  adminOrBuilderSessionRateLimitKey,
   createAdminSearchPipeline,
   type AdminGuard,
 } from './middleware/admin-guard';
@@ -1628,6 +1629,8 @@ export function createComposition(
       maxRequests: config.financeExport.rateLimit.maxRequests,
       maxTrackedKeys: config.rateLimit.maxTrackedKeys,
     }),
+    // Admin and builder exports share this pipeline: key either session.
+    sessionKeyFor: adminOrBuilderSessionRateLimitKey,
     logger: options.logger,
   });
   // Builders table admin (embed/02 admin-UI migration): CRUD + the route is
