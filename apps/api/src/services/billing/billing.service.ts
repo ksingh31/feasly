@@ -132,6 +132,16 @@ export interface BillingService {
     invoiceId: string,
     tenantKey: string,
   ): Promise<ConfirmInvoicePaymentResponse>;
+  /**
+   * #718 Pay now: charge a failed card invoice against the card on file
+   * right away. Builders may only pay their own tenant's invoices (403
+   * otherwise). Double submission returns the invoice as it is — one
+   * charge. 409 unless the card payment failed.
+   */
+  payInvoice(
+    invoiceId: string,
+    tenantKey: string,
+  ): Promise<CommissionInvoiceRecord>;
 }
 
 export interface BillingServiceDeps {
@@ -324,6 +334,14 @@ export function createBillingService(
     ): Promise<ConfirmInvoicePaymentResponse> {
       await requireTenantInvoice(invoiceId, tenantKey);
       return commission.createPaymentConfirmation(invoiceId);
+    },
+
+    async payInvoice(
+      invoiceId: string,
+      tenantKey: string,
+    ): Promise<CommissionInvoiceRecord> {
+      await requireTenantInvoice(invoiceId, tenantKey);
+      return commission.payNow(invoiceId);
     },
   };
 }

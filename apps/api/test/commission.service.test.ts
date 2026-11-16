@@ -151,6 +151,10 @@ function fakeEmail(): EmailService & { sent: unknown[] } {
       sent.push({ op: 'sendCommissionPaymentActionRequired', input });
       return { sent: true, provider: 'log' as const };
     },
+    sendCommissionInvoiceOverdue: async (input: unknown) => {
+      sent.push({ op: 'sendCommissionInvoiceOverdue', input });
+      return { sent: true, provider: 'log' as const };
+    },
   };
   return Object.assign(service as unknown as EmailService, { sent });
 }

@@ -115,6 +115,7 @@ function makeDeps(builderStatus = 'active') {
     }),
     disputeInvoice: vi.fn(async () => ({ ...invoice, status: 'disputed' })),
     resolveDispute: vi.fn(async () => ({ ...invoice, status: 'in_review' })),
+    payNow: vi.fn(async () => ({ ...invoice, status: 'finalized' })),
     createPaymentConfirmation: vi.fn(async (id: string) => ({
       invoiceId: id,
       paymentIntentId: 'pi_1',
@@ -259,6 +260,18 @@ describe('billing service facade', () => {
       service.confirmInvoicePayment('inv-1', 'elite-craft'),
     ).resolves.toMatchObject({ invoiceId: 'inv-1', clientSecret: 'pi_1_secret_x' });
     expect(commission.createPaymentConfirmation).toHaveBeenCalledWith('inv-1');
+  });
+
+  it('payInvoice 403s for another tenant invoice and charges nothing (#718)', async () => {
+    const { service, commission } = makeDeps();
+    await expect(service.payInvoice('inv-1', 'other-builder')).rejects.toMatchObject({ status: 403 });
+    expect(commission.payNow).not.toHaveBeenCalled();
+  });
+
+  it('payInvoice checks the tenant then pays now (#718)', async () => {
+    const { service, commission } = makeDeps();
+    await expect(service.payInvoice('inv-1', 'elite-craft')).resolves.toMatchObject({ status: 'finalized' });
+    expect(commission.payNow).toHaveBeenCalledWith('inv-1');
   });
 
   it('disputeInvoice checks the tenant then disputes', async () => {
