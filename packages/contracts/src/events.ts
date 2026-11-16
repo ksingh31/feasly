@@ -7,6 +7,9 @@
 export type AnalyticsEventName =
   | 'step_view'
   | 'gate_view'
+  // #835: a valid gate form was submitted (before the API answers);
+  // `gate_convert` fires on success. view → submit → convert.
+  | 'gate_submit'
   | 'gate_convert'
   | 'report_open'
   | 'tier_toggle'

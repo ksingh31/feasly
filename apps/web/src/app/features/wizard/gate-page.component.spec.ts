@@ -177,6 +177,21 @@ describe('GatePageComponent', () => {
       expect(fixture.nativeElement.querySelector('#gate-name-error')).not.toBeNull();
       expect(fixture.nativeElement.querySelector('#gate-email-error')).not.toBeNull();
       expect(router.url).not.toBe('/estimate/analyzing');
+      // #835: an invalid form is not a submit — no funnel event.
+      expect(TestBed.inject(AnalyticsService).track).not.toHaveBeenCalledWith('gate_submit');
+    });
+
+    it('#835: says exactly what the free report adds, from config copy', () => {
+      const config = TestBed.inject(ConfigService).get('copy').gate;
+      const section = fixture.nativeElement.querySelector('.gate-unlocks') as HTMLElement;
+      expect(section.querySelector('h2')?.textContent?.trim()).toBe(config.unlocksHeading);
+      const items = Array.from(section.querySelectorAll('li'), (li) => li.textContent?.trim());
+      expect(items).toEqual(config.unlocksItems);
+      expect(items.length).toBe(4);
+      expect(items.join(' ')).toMatch(/itemized cost breakdown/);
+      expect(items.join(' ')).toMatch(/finish levels/);
+      expect(items.join(' ')).toMatch(/PDF.*emailed copy/);
+      expect(items.join(' ')).toMatch(/builder-ready summary/);
     });
 
     it('rejects a malformed email', () => {
@@ -245,8 +260,9 @@ describe('GatePageComponent', () => {
       expect(store.selectSnapshot(LeadState.leadId)).toMatch(/^lead-mock-/);
       expect(store.selectSnapshot(LeadState.email)).toBe('jane@example.com');
       // The gate conversion is reported to analytics (consent-gated inside
-      // the real service; mocked here).
-      expect(TestBed.inject(AnalyticsService).track).toHaveBeenCalledWith('gate_convert');
+      // the real service; mocked here). #835: submit fires before convert.
+      const track = vi.mocked(TestBed.inject(AnalyticsService).track);
+      expect(track.mock.calls.map((c) => c[0])).toEqual(['gate_submit', 'gate_convert']);
     });
 
     it('blocks submit when the timeline is unchosen — timeline is required (Karan 2026-09-27)', async () => {

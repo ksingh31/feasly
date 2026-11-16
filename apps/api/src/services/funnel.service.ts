@@ -42,6 +42,7 @@ export interface FunnelStepDef {
     | 'address'
     | 'preview'
     | 'gate'
+    | 'submit'
     | 'convert'
     | 'report';
   readonly label: string;
@@ -72,6 +73,13 @@ export const FUNNEL_STEPS: readonly FunnelStepDef[] = [
     id: 'gate',
     label: 'Gate view',
     matchers: [{ event: 'gate_view', routes: ['/estimate/gate'] }],
+  },
+  {
+    // #835: valid gate submits — splits form abandonment (gate → submit)
+    // from submit failures (submit → convert).
+    id: 'submit',
+    label: 'Gate submit',
+    matchers: [{ event: 'gate_submit' }],
   },
   {
     id: 'convert',

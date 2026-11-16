@@ -1523,6 +1523,23 @@ export interface AppConfig {
       recapEditAriaLabel: string;
       recapSqftUnit: string;
       /**
+       * #835: the total range shows in the clear before the gate (owner,
+       * 2026-11-15). Note under it: what the total is made of.
+       */
+      totalShownNote: string;
+      /**
+       * #835 address overview, shown free before the gate: land-use district
+       * and what it typically allows (from `copy.marketing.zoningGuide.zones`), the
+       * redevelop/renovate steer (from `copy.wizard.steer*Reason`) and the
+       * typical build timeline. No figures here — the engine owns those.
+       */
+      overviewHeading: string;
+      overviewDistrictLabel: string;
+      overviewAllowedLabel: string;
+      overviewSteerLabel: string;
+      /** "Confirm with the City" line under the district facts. */
+      overviewConfirmNote: string;
+      /**
        * Validation-failure explainer (consumer/06): shown when the preview
        * API rejects the request (e.g. assessed value out of range). Retry
        * cannot succeed, so no retry button — just a plain-English
@@ -1752,6 +1769,12 @@ export interface AppConfig {
     gate: {
       heading: string;
       sub: string;
+      /**
+       * #835: exactly what the free report adds over the preview. Never
+       * uses the word reserved for the single preview CTA.
+       */
+      unlocksHeading: string;
+      unlocksItems: string[];
       /** Quiet trust line under the gate subheading — data-driven, not a calculator. */
       trustLine: string;
       nameLabel: string;

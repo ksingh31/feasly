@@ -205,6 +205,9 @@ export class GatePageComponent implements OnInit {
       this.form.markAllAsTouched();
       return;
     }
+    // #835 funnel: a valid submit (view → submit → convert). Consent-gated
+    // inside AnalyticsService; a retry after an error counts again.
+    this.analytics.track('gate_submit');
     // Comparison mode (NBH-03): the estimateId was already minted by the
     // comparison pipeline — submit the lead against it and unlock.
     if (this.isComparisonFlow) {

@@ -109,7 +109,7 @@ describe('PreviewPageComponent', () => {
     expect(store.selectSnapshot(ReportState.preview)).not.toBeNull();
     // Locked numbers: real computed digits behind CSS blur (no shimmer bars).
     const lockedValues = fixture.nativeElement.querySelectorAll('.locked-value');
-    expect(lockedValues.length).toBe(3); // total range + blurred "most likely" (#504) + build
+    expect(lockedValues.length).toBe(2); // blurred "most likely" (#504) + build; #835 total range is clear
     lockedValues.forEach((el: HTMLElement) => {
       expect(el.getAttribute('aria-hidden')).toBe('true');
       // Real digits present in the DOM — the blur hides them visually.
@@ -183,13 +183,18 @@ describe('PreviewPageComponent', () => {
     expect(store.selectSnapshot(WizardState.inputs)).toMatchObject({ sqft: 2200, tier: 'premium' });
   });
 
-  it('blurs the real computed build/total figures pre-gate', () => {
+  it('#835: shows the total range in the clear; most likely + build stay blurred', () => {
     const figures = fixture.nativeElement.querySelector('.figures') as HTMLElement;
     expect(figures).toBeTruthy();
-    // The real computed digits ARE in the DOM — blurred via CSS (8px),
-    // aria-hidden, and unselectable. No animated placeholder bars remain.
+    // #835 (owner, 2026-11-15): the engine's total range is readable pre-gate.
+    const totalRange = figures.querySelector('.hero-total .total-range') as HTMLElement;
+    expect(totalRange.getAttribute('aria-hidden')).toBeNull();
+    expect(getComputedStyle(totalRange).filter).not.toContain('blur');
+    expect(figures.querySelector('.hero-total .total-note')?.textContent).toContain('City-assessed lot value');
+    // The rest of the full estimate stays blurred — real digits in the DOM,
+    // aria-hidden and unselectable. No animated placeholder bars remain.
     const lockedValues = figures.querySelectorAll('.locked-value');
-    expect(lockedValues.length).toBe(3); // total range + blurred "most likely" (#504) + build
+    expect(lockedValues.length).toBe(2); // blurred "most likely" (#504) + build
     lockedValues.forEach((el) => {
       expect(el.getAttribute('aria-hidden')).toBe('true');
       expect(el.textContent).toMatch(/\$\d/);
@@ -199,13 +204,75 @@ describe('PreviewPageComponent', () => {
     expect(figures.querySelectorAll('.blur-bar').length).toBe(0);
     // #504: range-first and rounded — the total range is the hero line,
     // "most likely" secondary, and no figure is unrounded.
-    const [total, mostLikely, build] = Array.from(lockedValues).map((el) => el.textContent?.trim() ?? '');
+    const [mostLikely, build] = Array.from(lockedValues).map((el) => el.textContent?.trim() ?? '');
+    const total = totalRange.textContent?.trim() ?? '';
     expect(total).toMatch(/^\$[\d.,]+M? – \$[\d.,]+M?$/);
     expect(mostLikely).toMatch(/^Most likely ≈ \$[\d.,]+M?$/);
     expect(build).toMatch(/ – /);
     for (const amount of [total, mostLikely, build].join(' ').match(/\$[\d,.]+M?/g) ?? []) {
       expect(amount).toMatch(/^\$\d+\.\d{2}M$|^\$[\d,]*,000$/);
     }
+  });
+
+  describe('#835 address overview before the gate', () => {
+    const overview = (): HTMLElement => fixture.nativeElement.querySelector('.overview') as HTMLElement;
+
+    it('shows the district and what it typically allows (from the zoning guide)', () => {
+      expect(overview().querySelector('h2')?.textContent?.trim()).toBe('About this address');
+      expect(overview().querySelector('.overview-district')?.textContent?.trim()).toBe('R-C1');
+      expect(overview().querySelector('.overview-allows')?.textContent).toContain('Single-detached homes');
+      expect(overview().querySelector('.overview-note')?.textContent).toContain('confirm the current one with the City');
+      // No dollar figures in the free overview.
+      expect(overview().textContent).not.toMatch(/\$\d/);
+    });
+
+    it('prefers the City land-use district and matches grouped zoning-guide codes', async () => {
+      store.dispatch(
+        new SelectProperty({
+          ...fakeProperty,
+          zoning: 'R-CG',
+          landUse: { district: 'R-1s', description: 'Residential – One Dwelling', source: 'land-use-districts', asOf: '2026-08-01' },
+        }),
+      );
+      fixture.detectChanges();
+      expect(overview().querySelector('.overview-district')?.textContent?.replace(/\s+/g, ' ').trim()).toBe(
+        'R-1s · Residential – One Dwelling',
+      );
+      expect(overview().querySelector('.overview-allows')?.textContent).toContain('R-1s adds a secondary suite');
+    });
+
+    it('hides the allowed row for a district the guide does not list', () => {
+      store.dispatch(new SelectProperty({ ...fakeProperty, zoning: 'X-UNKNOWN' }));
+      fixture.detectChanges();
+      expect(overview().querySelector('.overview-district')?.textContent?.trim()).toBe('X-UNKNOWN');
+      expect(overview().querySelector('.overview-allows')).toBeNull();
+    });
+
+    it('shows the redevelop/renovate steer when the API sent one', () => {
+      expect(overview().querySelector('.overview-steer')).toBeNull();
+      store.dispatch(
+        new SelectProperty({
+          ...fakeProperty,
+          steer: {
+            redevelopmentCandidate: true,
+            reason: 'age_at_or_over_threshold',
+            recommendedProjectType: 'new_build',
+            homeAgeYears: 52,
+            thresholdYears: 40,
+          },
+        }),
+      );
+      fixture.detectChanges();
+      expect(overview().querySelector('.overview-steer')?.textContent?.trim()).toBe(
+        'This home was built in 1974, so a new build is usually worth a look.',
+      );
+    });
+
+    it('shows the typical build timeline', () => {
+      const timeline = fixture.nativeElement.querySelector('.timeline-card app-build-timeline') as HTMLElement;
+      expect(timeline).toBeTruthy();
+      expect(timeline.querySelectorAll('.bt-phase').length).toBeGreaterThan(0);
+    });
   });
 
   it('renders the single "Unlock" CTA toward the gate', () => {
@@ -388,7 +455,8 @@ describe('PreviewPageComponent loading state', () => {
       // RENO-04 AC2 (updated 2026-09-26): the real computed digits ARE in
       // the DOM pre-gate — blurred via CSS, aria-hidden, and unselectable.
       const lockedValues = figures.querySelectorAll('.locked-value');
-      expect(lockedValues.length).toBe(3); // total range + blurred "most likely" (#504) + build
+      expect(lockedValues.length).toBe(2); // blurred "most likely" (#504) + build; #835 total range is clear
+      expect(figures.querySelector('.total-range')?.textContent).toMatch(/\$\d/);
       lockedValues.forEach((el) => {
         expect(el.getAttribute('aria-hidden')).toBe('true');
         expect(el.textContent).toMatch(/\$\d/);

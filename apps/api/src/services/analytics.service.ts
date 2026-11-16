@@ -37,6 +37,7 @@ import type { AnalyticsStore } from './analytics.store';
 export const ANALYTICS_EVENT_ALLOWLIST: readonly AnalyticsEventName[] = [
   'step_view',
   'gate_view',
+  'gate_submit',
   'gate_convert',
   'report_open',
   'tier_toggle',
