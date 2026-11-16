@@ -80,6 +80,28 @@ const EnvSchema = z.object({
   // gets its own deliberately tight limiter — separate from the general one.
   LEAD_RATE_LIMIT_WINDOW_MS: z.coerce.number().int().positive().default(60_000),
   LEAD_RATE_LIMIT_MAX_REQUESTS: z.coerce.number().int().positive().default(10),
+  // #788 invisible bot protection: the lead gate sends how long the form
+  // was on screen (`elapsedMs`). A submission faster than this is
+  // quarantined exactly like the honeypot (201, no email, no signal).
+  // 0 disables the check. The threshold lives here — never in the web app.
+  LEAD_MIN_SUBMIT_MS: z.coerce.number().int().nonnegative().default(2_000),
+
+  // #788: Cloudflare Turnstile (managed/invisible) — required only from an
+  // IP that tripped a shared money/mail rate limit, for BOT_CHALLENGE_WINDOW_MS
+  // after the trip. Dormant until BOTH the site key (plain config) and the
+  // secret (Key Vault reference) are set. Verification fails closed.
+  TURNSTILE_SITE_KEY: z.string().trim().default(''),
+  TURNSTILE_SECRET_KEY: z.string().trim().default(''),
+  TURNSTILE_VERIFY_URL: z
+    .string()
+    .url()
+    .default('https://challenges.cloudflare.com/turnstile/v0/siteverify'),
+  TURNSTILE_VERIFY_TIMEOUT_MS: z.coerce.number().int().positive().default(5_000),
+  BOT_CHALLENGE_WINDOW_MS: z.coerce.number().int().positive().default(86_400_000),
+  // Cap on outbound Turnstile verifications per tripped IP (#788 review):
+  // junk tokens past this budget are denied without a siteverify call.
+  BOT_CHALLENGE_VERIFY_MAX_ATTEMPTS: z.coerce.number().int().positive().default(10),
+  BOT_CHALLENGE_VERIFY_WINDOW_MS: z.coerce.number().int().positive().default(3_600_000),
 
   // Estimates are the most expensive endpoint to leave unthrottled. These
   // defaults are the FROZEN limits from the canonical API registry
@@ -635,6 +657,30 @@ export interface LeadConfig {
   readonly needsYouStaleDays: number;
   /** "Needs you" feed: max builder leads scanned (newest first). */
   readonly needsYouScanLimit: number;
+  /**
+   * #788: submissions whose client-reported form time is below this many
+   * ms are quarantined like the honeypot. 0 disables the check.
+   */
+  readonly minSubmitMs: number;
+}
+
+/**
+ * #788: invisible bot challenge (Cloudflare Turnstile), required only from
+ * an IP that tripped a shared money/mail rate limit.
+ */
+export interface BotChallengeConfig {
+  /** True only when both the site key and the secret are set. */
+  readonly enabled: boolean;
+  /** Public site key — returned to the client in the challenge problem. */
+  readonly siteKey: string;
+  /** Server-side secret (Key Vault reference). Never logged or serialized. */
+  readonly secretKey: string;
+  readonly verifyUrl: string;
+  readonly verifyTimeoutMs: number;
+  /** How long after a limit trip the IP must pass the challenge. */
+  readonly windowMs: number;
+  /** Per-IP cap on verifier calls (every attempt counts). */
+  readonly verifyRateLimit: Omit<RateLimitConfig, 'maxTrackedKeys'>;
 }
 
 export interface EstimateConfig {
@@ -1228,6 +1274,7 @@ export interface ApiConfig {
   readonly rateLimit: RateLimitConfig;
   readonly sharedRateLimit: SharedRateLimitConfig;
   readonly lead: LeadConfig;
+  readonly botChallenge: BotChallengeConfig;
   readonly estimate: EstimateConfig;
   readonly analytics: AnalyticsConfig;
   readonly adminSearch: AdminSearchConfig;
@@ -1565,6 +1612,19 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): ApiConfig {
       dedupWindowDays: e.LEAD_DEDUP_WINDOW_DAYS,
       needsYouStaleDays: e.LEAD_NEEDS_YOU_STALE_DAYS,
       needsYouScanLimit: e.LEAD_NEEDS_YOU_SCAN_LIMIT,
+      minSubmitMs: e.LEAD_MIN_SUBMIT_MS,
+    },
+    botChallenge: {
+      enabled: e.TURNSTILE_SITE_KEY !== '' && e.TURNSTILE_SECRET_KEY !== '',
+      siteKey: e.TURNSTILE_SITE_KEY,
+      secretKey: e.TURNSTILE_SECRET_KEY,
+      verifyUrl: e.TURNSTILE_VERIFY_URL,
+      verifyTimeoutMs: e.TURNSTILE_VERIFY_TIMEOUT_MS,
+      windowMs: e.BOT_CHALLENGE_WINDOW_MS,
+      verifyRateLimit: {
+        windowMs: e.BOT_CHALLENGE_VERIFY_WINDOW_MS,
+        maxRequests: e.BOT_CHALLENGE_VERIFY_MAX_ATTEMPTS,
+      },
     },
     sandboxPurge: {
       retentionDays: e.SANDBOX_PURGE_RETENTION_DAYS,

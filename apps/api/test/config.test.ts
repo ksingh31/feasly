@@ -24,6 +24,16 @@ describe('loadConfig', () => {
         dedupWindowDays: 90,
         needsYouStaleDays: 7,
         needsYouScanLimit: 500,
+        minSubmitMs: 2_000,
+      },
+      botChallenge: {
+        enabled: false,
+        siteKey: '',
+        secretKey: '',
+        verifyUrl: 'https://challenges.cloudflare.com/turnstile/v0/siteverify',
+        verifyTimeoutMs: 5_000,
+        windowMs: 86_400_000,
+        verifyRateLimit: { windowMs: 3_600_000, maxRequests: 10 },
       },
       estimate: {
         rateLimit: { windowMs: 3_600_000, maxRequests: 20 },
@@ -269,6 +279,32 @@ describe('loadConfig', () => {
   it('reads the waitlist consent version from WAITLIST_CONSENT_VERSION (#740)', () => {
     const config = loadConfig({ ...VALID_ENV, WAITLIST_CONSENT_VERSION: ' waitlist-2027-01-01 ' });
     expect(config.waitlist.consentVersion).toBe('waitlist-2027-01-01');
+  });
+
+  it('reads LEAD_MIN_SUBMIT_MS (#788), allows 0 and rejects negatives', () => {
+    expect(loadConfig({ ...VALID_ENV, LEAD_MIN_SUBMIT_MS: '4500' }).lead.minSubmitMs).toBe(4_500);
+    expect(loadConfig({ ...VALID_ENV, LEAD_MIN_SUBMIT_MS: '0' }).lead.minSubmitMs).toBe(0);
+    expect(() => loadConfig({ ...VALID_ENV, LEAD_MIN_SUBMIT_MS: '-1' })).toThrow(/LEAD_MIN_SUBMIT_MS/);
+  });
+
+  it('enables the bot challenge (#788) only when both the Turnstile site key and secret are set', () => {
+    expect(loadConfig({ ...VALID_ENV, TURNSTILE_SITE_KEY: 'site' }).botChallenge.enabled).toBe(false);
+    expect(loadConfig({ ...VALID_ENV, TURNSTILE_SECRET_KEY: 'secret' }).botChallenge.enabled).toBe(false);
+    const config = loadConfig({
+      ...VALID_ENV,
+      TURNSTILE_SITE_KEY: 'site',
+      TURNSTILE_SECRET_KEY: 'secret',
+      BOT_CHALLENGE_WINDOW_MS: '3600000',
+      BOT_CHALLENGE_VERIFY_MAX_ATTEMPTS: '5',
+      BOT_CHALLENGE_VERIFY_WINDOW_MS: '600000',
+    });
+    expect(config.botChallenge).toMatchObject({
+      enabled: true,
+      siteKey: 'site',
+      secretKey: 'secret',
+      windowMs: 3_600_000,
+      verifyRateLimit: { windowMs: 600_000, maxRequests: 5 },
+    });
   });
 
   it('reads the reno draft-data flag from COST_ENGINE_ALLOW_DRAFT', () => {
