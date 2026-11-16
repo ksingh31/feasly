@@ -60,6 +60,12 @@ function row(leadId: string): SheetLeadRow {
     tenant: '',
     source: 'web',
     createdAt: '2026-11-16T00:00:00.000Z',
+    utmSource: '',
+    utmMedium: '',
+    utmCampaign: '',
+    utmTerm: '',
+    utmContent: '',
+    clickIdType: '',
   };
 }
 
@@ -107,7 +113,7 @@ describe('google sheets client write range', () => {
     expect(append.range).toBe(`A2:${LAST_COLUMN}`);
     expect(append.requestBody.values).toHaveLength(1);
     expect(append.requestBody.values[0]).toHaveLength(SHEET_HEADERS.length);
-    // 20 headers today → column T, not the old hardcoded R.
+    // 26 headers today (#814 utm columns) → column Z, not the old hardcoded R.
     expect(LAST_COLUMN).not.toBe('R');
   });
 });
