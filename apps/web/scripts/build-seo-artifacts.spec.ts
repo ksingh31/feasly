@@ -25,7 +25,7 @@ describe('build-seo-artifacts (SEO-02)', () => {
 
     // Static routes present.
     // Trailing-slash form, matching the canonicals (#707).
-    for (const path of ['/', '/privacy/', '/terms/', '/how-it-works/', '/faq/', '/guides/cost-to-build-a-house-calgary/', '/guides/calgary-zoning-explained/', '/communities/', '/developers/']) {
+    for (const path of ['/', '/privacy/', '/terms/', '/how-it-works/', '/faq/', '/help/', '/guides/cost-to-build-a-house-calgary/', '/guides/calgary-zoning-explained/', '/communities/', '/developers/']) {
       expect(sitemapXml).toContain(`<loc>https://example.com${path}</loc>`);
     }
 
@@ -42,9 +42,9 @@ describe('build-seo-artifacts (SEO-02)', () => {
     // One per community page (the /communities/ index is matched separately above).
     expect(communityUrls.length).toBe(total);
 
-    // Total: 9 static + the community pages. /sample-report is deliberately
+    // Total: 10 static + the community pages. /sample-report is deliberately
     // excluded (noindex route — must never appear in the sitemap).
-    expect(urlCount).toBe(9 + total);
+    expect(urlCount).toBe(10 + total);
 
     expect(readFileSync(join(dir, 'sitemap.xml'), 'utf-8')).toBe(sitemapXml);
   });

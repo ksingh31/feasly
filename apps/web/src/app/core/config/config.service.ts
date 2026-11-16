@@ -73,4 +73,18 @@ export class ConfigService {
     const builder = (copy as Record<string, unknown>)['builder'];
     return isPlainObject(builder) ? (builder as Record<string, unknown>) : null;
   }
+
+  /**
+   * Deploy-time `copy.marketing.help` overrides (#834), if present. Lets the
+   * lazy help-page copy (HELP_COPY) merge deploy overrides over its compiled
+   * defaults without those defaults living in the initial bundle.
+   */
+  getServedHelpCopy(): Record<string, unknown> | null {
+    const copy = this.servedJson?.['copy'];
+    if (!isPlainObject(copy)) return null;
+    const marketing = (copy as Record<string, unknown>)['marketing'];
+    if (!isPlainObject(marketing)) return null;
+    const help = (marketing as Record<string, unknown>)['help'];
+    return isPlainObject(help) ? (help as Record<string, unknown>) : null;
+  }
 }

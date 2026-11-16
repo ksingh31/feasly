@@ -39,6 +39,7 @@ describe('SiteFooterComponent', () => {
       '/how-it-works',
       '/communities',
       '/faq',
+      '/help',
       '/developers',
       '/my-report',
     ]);

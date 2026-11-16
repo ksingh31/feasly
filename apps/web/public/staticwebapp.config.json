@@ -84,6 +84,11 @@
       "statusCode": 301
     },
     {
+      "route": "/help",
+      "redirect": "/help/",
+      "statusCode": 301
+    },
+    {
       "route": "/developers",
       "redirect": "/developers/",
       "statusCode": 301

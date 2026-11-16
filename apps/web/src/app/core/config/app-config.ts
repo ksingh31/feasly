@@ -1003,6 +1003,54 @@ export interface HowWeEstimateBand {
 export type FormulaGroupKey = 'hard' | 'soft' | 'contingency';
 
 /**
+ * Config-owned FAQ lists a help answer (#834) can reuse:
+ * `copy.marketing.faq.items`, `copy.marketing.pillarGuide.faqs`,
+ * `copy.marketing.zoningGuide.faqs`, `copy.communities.faqItems`.
+ */
+export type HelpAnswerSource = 'faq' | 'pillarGuide' | 'zoningGuide' | 'communities';
+
+/**
+ * Help page (#834) at `/help`: answers grouped by topic, reused from
+ * the config-owned FAQ lists (never duplicated here), plus contact.
+ * Each answer references a question by its exact `q` text in one of
+ * the FAQ sources; unknown references are dropped at render and
+ * pinned by `help-page.component.spec.ts`.
+ *
+ * Not part of {@link AppConfig}: lazy-loaded with the help page
+ * (`features/marketing/help-copy.ts`) to keep it out of the initial bundle
+ * (Lighthouse script-size budget). Deploy overrides still live under
+ * `copy.marketing.help` in app-config.json.
+ */
+export interface HelpCopy {
+  eyebrow: string;
+  title: string;
+  /** Answer-first passage (SEO standard §2.1). */
+  answer: string;
+  searchLabel: string;
+  searchPlaceholder: string;
+  /** Live result count. Placeholders: {count}. */
+  resultsTemplate: string;
+  resultsOne: string;
+  noResults: string;
+  clearSearch: string;
+  topics: {
+    id: string;
+    title: string;
+    answers: { source: HelpAnswerSource; q: string }[];
+  }[];
+  linksTitle: string;
+  howWeEstimateLabel: string;
+  faqLabel: string;
+  statusLabel: string;
+  contactTitle: string;
+  contactIntro: string;
+  callbackTitle: string;
+  callbackBody: string;
+  callbackFindReport: string;
+  callbackStartEstimate: string;
+}
+
+/**
  * How it works worked example (#827): a sample home priced by the cost
  * engine at generation time (estimate-scope.generated.ts). Display only.
  */
@@ -2145,6 +2193,8 @@ export interface AppConfig {
       howItWorks: string;
       faqTitle: string;
       faq: string;
+      helpTitle: string;
+      help: string;
       pillarGuideTitle: string;
       pillarGuide: string;
       zoningGuideTitle: string;

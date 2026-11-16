@@ -913,6 +913,8 @@ export const DEFAULT_APP_CONFIG: AppConfig = {
         'How Feasly estimates Calgary build costs: one fixed formula (hard costs + soft costs + contingency), City of Calgary data, and a worked example.',
       faqTitle: 'Feasly — Frequently asked questions',
       faq: 'How much does it cost to build a house in Calgary? Are renovation estimates available? Answers about Calgary build costs, finish tiers, data, and privacy.',
+      helpTitle: 'Help and contact · Feasly',
+      help: 'Search answers about Feasly estimates, Calgary zoning, City-assessed values, privacy and builders, or request a callback from your report.',
       pillarGuideTitle: 'Feasly — How much does it cost to build a house in Calgary?',
       pillarGuide:
         'Planning ranges for building a house in Calgary: cost per square foot by Standard, Premium, and Luxury finish tier, what is included, infill vs greenfield, and financing basics — from real City property data.',
