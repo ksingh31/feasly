@@ -13,6 +13,9 @@
 import type {
   PartnerShareResponse,
   PartnerShareVerifyResponse,
+  ShareLinkCreateResponse,
+  ShareLinkListResponse,
+  ShareLinkRevokeResponse,
 } from '@feasly/contracts';
 import { z } from 'zod';
 import type { ShareService } from '../services/share.service';
@@ -29,6 +32,12 @@ export interface ShareRoute {
    * token. Partner tokens only; anything else answers invalid.
    */
   verify(query: unknown): Promise<PartnerShareVerifyResponse>;
+  /** #838 POST /api/v1/shares/link — mint a read-only copy link. */
+  createLink(requestBody: unknown): Promise<ShareLinkCreateResponse>;
+  /** #838 POST /api/v1/shares/link/list — the owner's link shares. */
+  listLinks(requestBody: unknown): Promise<ShareLinkListResponse>;
+  /** #838 POST /api/v1/shares/link/revoke — turn a link off. */
+  revokeLink(requestBody: unknown): Promise<ShareLinkRevokeResponse>;
 }
 
 const verifyQuerySchema = z.object({
@@ -47,5 +56,8 @@ export function createShareRoute(deps: ShareRouteDeps): ShareRoute {
       }
       return deps.shares.verifyPartnerLink(parsed.data.token);
     },
+    createLink: (requestBody: unknown) => deps.shares.createShareLink(requestBody),
+    listLinks: (requestBody: unknown) => deps.shares.listShareLinks(requestBody),
+    revokeLink: (requestBody: unknown) => deps.shares.revokeShareLink(requestBody),
   };
 }

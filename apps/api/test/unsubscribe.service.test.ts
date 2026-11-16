@@ -432,3 +432,40 @@ describe('UnsubscribeService', () => {
     });
   });
 });
+
+describe('UnsubscribeService — queued jobs (#838)', () => {
+  function jobsSpy(opts?: { throws?: boolean }) {
+    const cancelled: string[] = [];
+    return {
+      cancelled,
+      cancelForLead: async (leadId: string) => {
+        if (opts?.throws) throw new Error('db down');
+        cancelled.push(leadId);
+        return 1;
+      },
+    };
+  }
+
+  it('one-click unsubscribe cancels the lead\'s queued reminders', async () => {
+    const jobs = jobsSpy();
+    const service = deps(worldWithLead(), { jobs });
+    await service.unsubscribe(tokenFor(LEAD_ID));
+    expect(jobs.cancelled).toEqual([LEAD_ID]);
+  });
+
+  it('a preference save with any opt-out cancels; opting in does not', async () => {
+    const jobs = jobsSpy();
+    const service = deps(worldWithLead(), { jobs });
+    await service.savePreferences(tokenFor(LEAD_ID), { emailOptOut: false, contactOptOut: false });
+    expect(jobs.cancelled).toEqual([]);
+    await service.savePreferences(tokenFor(LEAD_ID), { emailOptOut: false, contactOptOut: true });
+    expect(jobs.cancelled).toEqual([LEAD_ID]);
+  });
+
+  it('a failed cancel never fails the unsubscribe (handlers re-check consent)', async () => {
+    const service = deps(worldWithLead(), { jobs: jobsSpy({ throws: true }) });
+    const result = await service.unsubscribe(tokenFor(LEAD_ID));
+    expect(result.unsubscribed).toBe(true);
+  });
+});
+

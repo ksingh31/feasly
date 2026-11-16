@@ -15,7 +15,10 @@ export interface PartnerShareRecord {
   readonly id: string;
   readonly leadId: string;
   readonly magicLinkId: string | null;
-  readonly partnerEmail: string;
+  /** NULL for a link-only share (#838). */
+  readonly partnerEmail: string | null;
+  /** 'email' | 'link' (#838). */
+  readonly kind: string;
   readonly sent: boolean;
   readonly createdAt: Date;
 }
@@ -33,9 +36,9 @@ export interface PartnerShareStore {
   /** Latest shares for a lead, newest first (admin views). */
   listByLeadId(leadId: string): Promise<readonly PartnerShareRecord[]>;
   /**
-   * Number of shares for a lead created at/after `since` — abuse-control
-   * counting for the CAP-008 per-day share cap. DB-side count; rows are
-   * never materialized.
+   * Number of EMAILED shares for a lead created at/after `since` —
+   * abuse-control counting for the CAP-008 per-day share cap. Link-only
+   * shares (#838) have their own active-link cap and are not counted.
    */
   countSince(leadId: string, since: Date): Promise<number>;
   /**
@@ -54,6 +57,7 @@ function toRecord(row: ShareRow): PartnerShareRecord {
     leadId: row.leadId,
     magicLinkId: row.magicLinkId,
     partnerEmail: row.partnerEmail,
+    kind: row.kind,
     sent: row.sent,
     createdAt: row.createdAt,
   };
@@ -100,6 +104,7 @@ export function createDrizzlePartnerShareStore(
         .where(
           and(
             eq(partnerShares.leadId, leadId),
+            eq(partnerShares.kind, 'email'),
             gte(partnerShares.createdAt, since),
           ),
         );

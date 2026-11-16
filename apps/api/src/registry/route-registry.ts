@@ -207,6 +207,41 @@ export const ROUTE_REGISTRY: readonly ApiRouteEntry[] = [
       'Verify a partner-share link token (?token=). Partner-share tokens ' +
       'only — owner tokens answer invalid here. Token IS the credential.',
   },
+  {
+    method: 'POST',
+    path: '/api/v1/shares/link',
+    auth: 'magic-token',
+    permissions: [] as const,
+    rateLimit: '10/min per IP',
+    status: 'live',
+    summary:
+      'Create a link-only report share (#838): a fresh read-only partner-share ' +
+      'link (never the owner token) that expires after SHARE_LINK_TTL_SECONDS. ' +
+      'Owner token in the body IS the credential; partner tokens 403. Max ' +
+      'SHARE_LINK_MAX_ACTIVE live links per report.',
+  },
+  {
+    method: 'POST',
+    path: '/api/v1/shares/link/list',
+    auth: 'magic-token',
+    permissions: [] as const,
+    rateLimit: '10/min per IP',
+    status: 'live',
+    summary:
+      'List the owner\'s link shares with active/expired/revoked status (#838). ' +
+      'Owner token in the body IS the credential.',
+  },
+  {
+    method: 'POST',
+    path: '/api/v1/shares/link/revoke',
+    auth: 'magic-token',
+    permissions: [] as const,
+    rateLimit: '10/min per IP',
+    status: 'live',
+    summary:
+      'Revoke one of the owner\'s link shares (#838) — the link stops opening ' +
+      'the report immediately. Owner token in the body IS the credential.',
+  },
 
   // ── Public v1: property data ──────────────────────────────────────
   {
@@ -1322,6 +1357,17 @@ export const ROUTE_REGISTRY: readonly ApiRouteEntry[] = [
     rateLimit: '300/min per session',
     status: 'live',
     summary: 'Sheets sync worker status (admin/05).',
+  },
+  {
+    method: 'GET',
+    path: '/api/v1/admin/ops/jobs',
+    auth: 'admin',
+    permissions: ['ops:manage'] as const,
+    rateLimit: '300/min per session',
+    status: 'live',
+    summary:
+      'Job queue view (#838): per-status counts + latest jobs in one status ' +
+      '(?status=, default dead = failed jobs that exhausted retries).',
   },
   {
     method: 'POST',
