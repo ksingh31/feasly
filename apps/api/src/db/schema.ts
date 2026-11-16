@@ -1851,3 +1851,150 @@ export const zoningSourceWatch = pgTable('zoning_source_watch', {
   issueUrl: text('issue_url'),
   checkedAt: timestamp('checked_at', { withTimezone: true }).notNull().defaultNow(),
 });
+
+// ── Neighbourhood data (#773) ───────────────────────────────────────────
+//
+// Outside neighbourhood sources (schools, designations, ratings, reviews,
+// amenities, commute) are fetched by provider interfaces on the monthly
+// refresh job and stored here; request paths read these tables only and
+// never call a provider. Every provider-fed table shares the same base
+// columns so one generic snapshot writer serves them all:
+// - `id` = `${source}:${external_id}` — the implementation that produced
+//   the row is part of the key, so switching a provider (free → paid) by
+//   config replaces rows on its next successful refresh.
+// - `provider` = which provider interface owns the row (prune scope).
+// - `content_hash` lets an idempotent re-run count only real changes.
+// Public open data only — no personal data.
+
+/** Base columns shared by every provider-fed neighbourhood table. */
+function neighbourhoodBaseColumns() {
+  return {
+    id: text('id').primaryKey(),
+    provider: text('provider').notNull(),
+    source: text('source').notNull(),
+    externalId: text('external_id').notNull(),
+    /** City community code (e.g. 'CAP') when the source carries one. */
+    communityCode: text('community_code'),
+    lat: doublePrecision('lat'),
+    lng: doublePrecision('lng'),
+    /** Remaining source fields (public data only). */
+    data: jsonb('data').notNull(),
+    contentHash: text('content_hash').notNull(),
+    /** When the refresh that last wrote (or confirmed) this row ran. */
+    refreshedAt: timestamp('refreshed_at', { withTimezone: true }).notNull(),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+  };
+}
+
+/** School directory (SchoolDirectoryProvider). */
+export const schools = pgTable(
+  'schools',
+  {
+    ...neighbourhoodBaseColumns(),
+    name: text('name').notNull(),
+    board: text('board'),
+    grades: text('grades'),
+  },
+  (t) => [
+    index('schools_provider_idx').on(t.provider),
+    index('schools_community_idx').on(t.communityCode),
+  ],
+);
+
+/** Typical school designations (SchoolDesignationProvider). */
+export const schoolDesignations = pgTable(
+  'school_designations',
+  {
+    ...neighbourhoodBaseColumns(),
+    /** Logical reference to `schools.id` (no FK: providers swap independently). */
+    schoolId: text('school_id'),
+    gradeBand: text('grade_band'),
+  },
+  (t) => [
+    index('school_designations_provider_idx').on(t.provider),
+    index('school_designations_community_idx').on(t.communityCode),
+  ],
+);
+
+/** School ratings (SchoolRatingsProvider). */
+export const schoolRatings = pgTable(
+  'school_ratings',
+  {
+    ...neighbourhoodBaseColumns(),
+    /** Logical reference to `schools.id`. */
+    schoolId: text('school_id'),
+    rating: real('rating'),
+    period: text('period'),
+  },
+  (t) => [index('school_ratings_provider_idx').on(t.provider)],
+);
+
+/** Nearby amenities (AmenitiesProvider). */
+export const amenities = pgTable(
+  'amenities',
+  {
+    ...neighbourhoodBaseColumns(),
+    category: text('category').notNull(),
+    name: text('name').notNull(),
+  },
+  (t) => [
+    index('amenities_provider_idx').on(t.provider),
+    index('amenities_community_idx').on(t.communityCode),
+  ],
+);
+
+/**
+ * Per-community living metrics (CommuteProvider, ReviewsProvider). One row
+ * per (source, community, metric); `metric` names the kind ('commute',
+ * 'reviews').
+ */
+export const communityLivingMetrics = pgTable(
+  'community_living_metrics',
+  {
+    ...neighbourhoodBaseColumns(),
+    metric: text('metric').notNull(),
+  },
+  (t) => [
+    index('community_living_metrics_provider_idx').on(t.provider),
+    index('community_living_metrics_community_idx').on(t.communityCode, t.metric),
+  ],
+);
+
+/**
+ * Per-address living metrics, computed on demand from the tables above (never
+ * from a provider) and cached until `expires_at`.
+ */
+export const lotLivingMetrics = pgTable(
+  'lot_living_metrics',
+  {
+    addressKey: text('address_key').primaryKey(),
+    data: jsonb('data').notNull(),
+    computedAt: timestamp('computed_at', { withTimezone: true }).notNull().defaultNow(),
+    expiresAt: timestamp('expires_at', { withTimezone: true }).notNull(),
+  },
+  (t) => [index('lot_living_metrics_expires_at_idx').on(t.expiresAt)],
+);
+
+/**
+ * Per-provider refresh state (#773): drives the monthly schedule, resume
+ * after a partial run, and the "3 days of failures" ops alert across cold
+ * starts. One row per provider interface.
+ */
+export const neighbourhoodRefreshState = pgTable('neighbourhood_refresh_state', {
+  provider: text('provider').primaryKey(),
+  /** Implementation that ran last (e.g. 'calgary-open-data'). */
+  implementation: text('implementation').notNull(),
+  lastRunAt: timestamp('last_run_at', { withTimezone: true }),
+  lastSuccessAt: timestamp('last_success_at', { withTimezone: true }),
+  lastFailureAt: timestamp('last_failure_at', { withTimezone: true }),
+  /** Start of the current failure streak; null when healthy. */
+  firstFailureAt: timestamp('first_failure_at', { withTimezone: true }),
+  consecutiveFailures: integer('consecutive_failures').notNull().default(0),
+  /** When the ops alert fired for the current streak; null when not fired. */
+  alertedAt: timestamp('alerted_at', { withTimezone: true }),
+  lastRowsChanged: integer('last_rows_changed').notNull().default(0),
+  /** Error class name of the last failure (never a message with data). */
+  lastError: text('last_error'),
+  updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+});

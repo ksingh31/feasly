@@ -10,19 +10,23 @@ import { provideHttpClientTesting } from '@angular/common/http/testing';
 import { type ComponentFixture, TestBed } from '@angular/core/testing';
 import { provideRouter } from '@angular/router';
 import { Store, provideStore } from '@ngxs/store';
-import { Subject, of, throwError } from 'rxjs';
+import { NEVER, Subject, of, throwError } from 'rxjs';
+import type { Observable } from 'rxjs';
+import type { ConfirmInvoicePaymentResponse, SimulatedIntentResponse } from '@feasly/contracts';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { UiModalService, UiToastService, type UiToastOptions } from '@app/shared/ui';
 import { stubObjectUrls } from '../../shared/test-helpers/object-url.stub';
 import { ConfigService } from '../../core/config/config.service';
 import { DEFAULT_APP_CONFIG } from '../../core/config/app-config.defaults';
+import { BuilderBillingApiService } from './builder-billing-api.service';
+import { LoadBillingOverview } from './builder-billing.actions';
 import { BuilderBillingState } from './builder-billing.state';
 import { BUILDER_COPY } from './builder-copy';
 import { DEFAULT_BUILDER_COPY } from './builder-copy.defaults';
 import { BuilderCardModalComponent } from './builder-card-modal.component';
 import { BuilderInvoiceDrawerComponent } from './builder-invoice-drawer.component';
 import { BuilderInvoiceMethodModalComponent } from './builder-invoice-method-modal.component';
-import { SelectInvoice } from './builder-invoices.actions';
+import { LoadInvoices, SelectInvoice } from './builder-invoices.actions';
 import { BuilderInvoicesApiService, type BuilderCommissionInvoice } from './builder-invoices-api.service';
 import { BuilderInvoicesState } from './builder-invoices.state';
 import type { BuilderPaymentMethod } from './builder-payment-methods';
@@ -68,6 +72,9 @@ interface Setup {
   readonly questionHref?: string;
   /** #661: what the PDF download returns. */
   readonly pdf?: Subject<Blob> | 'ok' | 'fail';
+  /** #791: POST confirm-payment answer; when set, the billing API is stubbed. */
+  readonly confirm?: () => Observable<ConfirmInvoicePaymentResponse>;
+  readonly authenticate?: () => Observable<SimulatedIntentResponse>;
 }
 
 async function setup(options: Setup = {}) {
@@ -75,6 +82,7 @@ async function setup(options: Setup = {}) {
   let fail = options.getFails ?? false;
   const api = {
     getInvoice: vi.fn(() => (fail ? throwError(() => new Error('boom')) : of(inv))),
+    listInvoices: vi.fn(() => NEVER),
     downloadInvoicePdf: vi.fn(() => {
       const pdf = options.pdf ?? 'ok';
       if (pdf === 'ok') return of(new Blob(['%PDF-1.4'], { type: 'application/pdf' }));
@@ -88,6 +96,14 @@ async function setup(options: Setup = {}) {
     show: vi.fn((_o: UiToastOptions) => ({ id: 1, dismissed: of('manual' as const), dismiss: vi.fn() })),
   };
   const billing = { ...DEFAULT_APP_CONFIG.billing, questionInvoiceHref: options.questionHref ?? '' };
+  const billingApi = {
+    confirmInvoicePayment: vi.fn(options.confirm ?? (() => NEVER)),
+    simulatedAuthenticate: vi.fn(
+      options.authenticate ?? (() => of<SimulatedIntentResponse>({ intentId: 'pi_sim_1', status: 'succeeded' })),
+    ),
+    getOverview: vi.fn(() => NEVER),
+    getCard: vi.fn(() => NEVER),
+  };
   TestBed.resetTestingModule();
   TestBed.configureTestingModule({
     imports: [BuilderInvoiceDrawerComponent],
@@ -107,6 +123,7 @@ async function setup(options: Setup = {}) {
       { provide: BuilderInvoicesApiService, useValue: api },
       { provide: UiModalService, useValue: modals },
       { provide: UiToastService, useValue: toasts },
+      ...(options.confirm ? [{ provide: BuilderBillingApiService, useValue: billingApi }] : []),
     ],
   });
   const store = TestBed.inject(Store);
@@ -122,6 +139,7 @@ async function setup(options: Setup = {}) {
     modals,
     modalClosed,
     toasts,
+    billingApi,
     succeedNext: () => (fail = false),
   };
 }
@@ -381,6 +399,89 @@ describe('BuilderInvoiceDrawerComponent (#533)', () => {
       fixture.detectChanges();
       expect(q(el, 'invoice-download-error')).toBeNull();
       expect(dl.clicked).toEqual(['feasly-INV-0042.pdf']);
+    });
+  });
+
+  describe('simulated 3DS step (#791)', () => {
+    const waiting = () =>
+      invoice({ status: 'action_required', reviewDueAt: null, stripePaymentIntentId: 'pi_sim_1' });
+    const simConfirm = (): Observable<ConfirmInvoicePaymentResponse> =>
+      of({ invoiceId: 'inv-1', paymentIntentId: 'pi_sim_1', clientSecret: 'pi_sim_1_secret_x', provider: 'simulated' });
+
+    async function settle(fixture: ComponentFixture<BuilderInvoiceDrawerComponent>): Promise<void> {
+      fixture.detectChanges();
+      await fixture.whenStable();
+      fixture.detectChanges();
+    }
+
+    it('offers Complete / Fail for the PaymentIntent of an invoice waiting on 3DS', async () => {
+      const { el, fixture, billingApi } = await setup({ invoice: waiting(), confirm: simConfirm });
+      await settle(fixture);
+      expect(billingApi.confirmInvoicePayment).toHaveBeenCalledWith('inv-1');
+      expect(q(el, 'invoice-confirm-payment')?.textContent).toContain(COPY.simulated.paymentHeading);
+      expect(q(el, 'simulated-challenge')?.textContent).toContain(COPY.simulated.challengeHeading);
+      expect(q(el, 'simulated-challenge-complete')).not.toBeNull();
+      expect(q(el, 'simulated-challenge-fail')).not.toBeNull();
+    });
+
+    it('Complete authenticates the PaymentIntent, toasts, and reloads the invoice, list and overview', async () => {
+      const { el, fixture, billingApi, toasts, store } = await setup({ invoice: waiting(), confirm: simConfirm });
+      await settle(fixture);
+      const dispatch = vi.spyOn(store, 'dispatch');
+      q(el, 'simulated-challenge-complete')!.click();
+      await settle(fixture);
+      expect(billingApi.simulatedAuthenticate).toHaveBeenCalledWith({ intentId: 'pi_sim_1', outcome: 'complete' });
+      expect(toasts.show).toHaveBeenCalledWith({ message: COPY.simulated.paymentCompletedToast, tone: 'success' });
+      expect(dispatch).toHaveBeenCalledWith([
+        expect.any(SelectInvoice),
+        expect.any(LoadInvoices),
+        expect.any(LoadBillingOverview),
+      ]);
+      expect(q(el, 'invoice-confirm-payment')).toBeNull();
+    });
+
+    it('Fail authenticates with outcome "fail" and toasts the failed charge', async () => {
+      const { el, fixture, billingApi, toasts } = await setup({
+        invoice: waiting(),
+        confirm: simConfirm,
+        authenticate: () => of({ intentId: 'pi_sim_1', status: 'requires_payment_method' }),
+      });
+      await settle(fixture);
+      q(el, 'simulated-challenge-fail')!.click();
+      await settle(fixture);
+      expect(billingApi.simulatedAuthenticate).toHaveBeenCalledWith({ intentId: 'pi_sim_1', outcome: 'fail' });
+      expect(toasts.show).toHaveBeenCalledWith({ message: COPY.simulated.paymentFailedToast, tone: 'danger' });
+    });
+
+    it('renders nothing for the Stripe provider (#867 owns that confirm)', async () => {
+      const { el, fixture } = await setup({
+        invoice: waiting(),
+        confirm: () => of({ invoiceId: 'inv-1', paymentIntentId: 'pi_1', clientSecret: 'pi_1_secret', provider: 'stripe' }),
+      });
+      await settle(fixture);
+      expect(q(el, 'invoice-confirm-payment')).toBeNull();
+      expect(q(el, 'simulated-challenge')).toBeNull();
+    });
+
+    it('offers a retry when the confirm-payment lookup fails', async () => {
+      let calls = 0;
+      const { el, fixture, billingApi } = await setup({
+        invoice: waiting(),
+        confirm: () => (++calls === 1 ? throwError(() => new Error('boom')) : simConfirm()),
+      });
+      await settle(fixture);
+      const error = q(el, 'invoice-confirm-error');
+      expect(error?.textContent).toContain(COPY.simulated.paymentLoadError);
+      (error!.querySelector('button') as HTMLButtonElement).click();
+      await settle(fixture);
+      expect(billingApi.confirmInvoicePayment).toHaveBeenCalledTimes(2);
+      expect(q(el, 'simulated-challenge')).not.toBeNull();
+    });
+
+    it('never asks for a confirmation when the invoice is not waiting on 3DS', async () => {
+      const { fixture, billingApi } = await setup({ confirm: simConfirm });
+      await settle(fixture);
+      expect(billingApi.confirmInvoicePayment).not.toHaveBeenCalled();
     });
   });
 });
