@@ -75,6 +75,10 @@ const targets = [
     out: 'communities-stats/index.js',
   },
   {
+    entry: 'src/functions/communities-living.ts',
+    out: 'communities-living/index.js',
+  },
+  {
     entry: 'src/functions/city-data-freshness.ts',
     out: 'city-data-freshness/index.js',
   },
