@@ -449,6 +449,13 @@
 			"when": 1796860800000,
 			"tag": "0066_builder_settings",
 			"breakpoints": true
+		},
+		{
+			"idx": 64,
+			"version": "7",
+			"when": 1796947200000,
+			"tag": "0067_builder_lifecycle",
+			"breakpoints": true
 		}
 	]
 }

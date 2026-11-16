@@ -16,6 +16,7 @@ import {
   type AdminBuildersRouteDeps,
 } from '../src/routes/admin-builders.route';
 import { createAdminLeadsRoute } from '../src/routes/admin-leads.route';
+import type { BuilderLifecycleService } from '../src/services/builder-lifecycle.service';
 import type { BuilderService } from '../src/services/builder.service';
 import type { AdminGuard } from '../src/middleware/admin-guard';
 import { ErrorCodes, HttpError } from '../src/middleware/errors';
@@ -76,9 +77,21 @@ function makeDeps() {
     },
   } as unknown as AdminGuard;
 
-  const route = createAdminBuildersRoute({ builders, adminGuard });
+  const lifecycle = {
+    changeStatus: vi.fn(async (id: string, action: string, reason: string) => ({
+      builder: makeBuilder({ id, status: action === 'suspend' ? 'suspended' : 'active', statusReason: reason }),
+      changed: true,
+    })),
+    offboardingBlockers: vi.fn(async () => []),
+    exportCsv: vi.fn(async (_id: string, kind: string) => ({
+      csv: 'lead_id\n',
+      filename: `elite-craft-${kind}-2026-11-16.csv`,
+    })),
+  } as unknown as BuilderLifecycleService;
+
+  const route = createAdminBuildersRoute({ builders, adminGuard, lifecycle });
   const headers = { cookie: VALID_SESSION };
-  return { route, builders, headers };
+  return { route, builders, headers, lifecycle };
 }
 
 describe('admin-builders route', () => {
@@ -157,7 +170,7 @@ describe('admin-builders route', () => {
     const { route, builders, headers } = makeDeps();
     const result = await route.update(headers, BUILDER_ID, {
       displayName: 'Updated Name',
-      status: 'inactive',
+      status: 'active',
     });
     expect(builders.updateBuilder).toHaveBeenCalledTimes(1);
     expect(result.displayName).toBe('Updated Name');
@@ -168,6 +181,56 @@ describe('admin-builders route', () => {
     await expect(
       route.update({}, BUILDER_ID, { displayName: 'X' }),
     ).rejects.toMatchObject({ status: 401 });
+  });
+});
+
+describe('admin-builders lifecycle routes (#860)', () => {
+  it('changeStatus passes action, reason and the admin identity to the service', async () => {
+    const { route, headers, lifecycle } = makeDeps();
+    const result = await route.changeStatus(headers, BUILDER_ID, {
+      action: 'suspend',
+      reason: 'Unpaid invoices',
+    });
+    expect(lifecycle.changeStatus).toHaveBeenCalledWith(
+      BUILDER_ID,
+      'suspend',
+      'Unpaid invoices',
+      'admin@example.com',
+    );
+    expect(result.builder.status).toBe('suspended');
+  });
+
+  it.each([
+    [{ action: 'suspend' }],
+    [{ action: 'suspend', reason: '  ' }],
+    [{ action: 'delete', reason: 'nope nope' }],
+    [{ action: 'suspend', reason: 'x'.repeat(1001) }],
+  ])('changeStatus rejects a missing reason or unknown action (%j)', async (body) => {
+    const { route, headers, lifecycle } = makeDeps();
+    await expect(route.changeStatus(headers, BUILDER_ID, body)).rejects.toMatchObject({
+      status: 400,
+    });
+    expect(lifecycle.changeStatus).not.toHaveBeenCalled();
+  });
+
+  it('changeStatus requires admin auth (401)', async () => {
+    const { route } = makeDeps();
+    await expect(
+      route.changeStatus({}, BUILDER_ID, { action: 'suspend', reason: 'Because' }),
+    ).rejects.toMatchObject({ status: 401 });
+  });
+
+  it('exportCsv validates kind and returns the csv', async () => {
+    const { route, headers, lifecycle } = makeDeps();
+    const out = await route.exportCsv(headers, BUILDER_ID, { kind: 'invoices' });
+    expect(out.filename).toBe('elite-craft-invoices-2026-11-16.csv');
+    expect(lifecycle.exportCsv).toHaveBeenCalledWith(BUILDER_ID, 'invoices', 'admin@example.com');
+    await expect(route.exportCsv(headers, BUILDER_ID, { kind: 'users' })).rejects.toMatchObject({
+      status: 400,
+    });
+    await expect(route.exportCsv({}, BUILDER_ID, { kind: 'leads' })).rejects.toMatchObject({
+      status: 401,
+    });
   });
 });
 

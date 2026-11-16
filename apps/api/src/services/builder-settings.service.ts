@@ -15,6 +15,10 @@
  *   (`builder_change_requests`, idempotent while open), is audit-logged,
  *   and emails the team inbox once. The email is best-effort — a failed
  *   send never fails the request (the task is already recorded).
+ * - #860 "Close my account": an org owner asks Feasly to close the
+ *   account. One open admin task per builder (`account_closure`), audit-
+ *   logged, team inbox emailed. No self-serve deletion: an admin runs the
+ *   offboarding from the console.
  * - Support contact comes from config (email only, "within 1 business day").
  *
  * No PII in logs: contact details never appear in log lines or audit rows.
@@ -23,6 +27,7 @@ import { createHash } from 'node:crypto';
 import { z } from 'zod';
 import type {
   Builder,
+  BuilderAccountClosureResponse,
   BuilderEmbedResponse,
   BuilderOriginRequest,
   BuilderOriginRequestResponse,
@@ -56,6 +61,11 @@ export interface BuilderSettingsService {
     actor: BuilderSettingsActor,
     body: unknown,
   ): Promise<BuilderOriginRequestResponse>;
+  /** #860: an org owner asks Feasly to close the account (idempotent while open). */
+  requestAccountClosure(
+    actor: BuilderSettingsActor,
+    body: unknown,
+  ): Promise<BuilderAccountClosureResponse>;
   /**
    * Admin changed a builder's allowed origins: close the open requests the
    * new list satisfies (every add present, every remove gone).
@@ -125,6 +135,13 @@ const ProfileUpdateSchema = z
       z.string().trim().regex(HEX_COLOR_RE).transform((v) => v.toLowerCase()).nullable(),
     ).optional(),
   })
+  .strict();
+
+/** Max length of the optional note on a closure request. */
+export const MAX_CLOSURE_NOTE = 1000;
+
+const ClosureRequestSchema = z
+  .object({ reason: z.string().trim().max(MAX_CLOSURE_NOTE).optional() })
   .strict();
 
 const OriginRequestSchema = z
@@ -362,6 +379,52 @@ export function createBuilderSettingsService(
         await notifyOrigins(builder, record);
       }
       return { request: toRequest(record), created };
+    },
+
+    async requestAccountClosure(actor, body) {
+      requireOwner(actor, 'ask to close the account');
+      const parsed = ClosureRequestSchema.safeParse(body ?? {});
+      if (!parsed.success) {
+        throw badRequest(`reason must be text of up to ${MAX_CLOSURE_NOTE} characters.`);
+      }
+      const builder = await builders.getBuilder(actor.builderId);
+      const note = parsed.data.reason && parsed.data.reason.length > 0 ? parsed.data.reason : null;
+      const { record, created } = await store.createClosureRequest({
+        builderId: builder.id,
+        note,
+        requestedByUserId: actor.userId,
+        requestedByEmail: actor.email,
+      });
+      if (created) {
+        await audit.log({
+          actorEmail: actor.email,
+          action: 'builder_account_closure_requested',
+          detail: `builderId=${builder.id} tenantKey=${builder.tenantKey} requestId=${record.id}`,
+        });
+        try {
+          const delivery = await email.sendOpsAlert({
+            to: config.opsInbox,
+            title: `Account closure requested — ${builder.displayName}`,
+            summary:
+              `${builder.displayName} (${builder.tenantKey}) asked to close their Feasly account. ` +
+              `Request ${record.id}. Start offboarding from the builder in the admin console.`,
+            detailsUrl: `${config.appBaseUrl.replace(/\/+$/, '')}/admin/builders`,
+            firedAt: record.createdAt,
+          });
+          if (!delivery.sent) {
+            warn(
+              `builder-settings: closure notice not sent for requestId=${record.id} ` +
+                `(${delivery.failureReason})`,
+            );
+          }
+        } catch (error) {
+          warn(
+            `builder-settings: closure notice failed for requestId=${record.id} ` +
+              `(${error instanceof Error ? error.message : 'unknown error'})`,
+          );
+        }
+      }
+      return { requestId: record.id, created, requestedAt: record.createdAt.toISOString() };
     },
 
     async resolveSatisfiedOriginRequests({ builderId, allowedOrigins, actorEmail }) {

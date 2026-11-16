@@ -228,7 +228,7 @@ export const ADMIN_BUILDERS: BuilderListResponse = {
   builders: [
     builder('b-1', ELITE, 'Elite Craft Builders'),
     builder('b-2', NORTHERN, 'Northern Lights Custom Homes & Renovations Ltd.', { commissionRatePercent: 1.5 }),
-    builder('b-3', 'bow-river-custom', 'Bow River Custom', { status: 'inactive', plan: null }),
+    builder('b-3', 'bow-river-custom', 'Bow River Custom', { status: 'suspended', plan: null }),
   ],
 };
 

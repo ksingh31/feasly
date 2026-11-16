@@ -59,6 +59,20 @@ export interface BuilderSettingsStore {
     resolvedByEmail: string,
     at: Date,
   ): Promise<number>;
+  /**
+   * #860: file an open "close my account" request (kind `account_closure`)
+   * unless one is already open for the builder. `created` false = the
+   * existing open request is returned untouched.
+   */
+  createClosureRequest(input: {
+    readonly builderId: string;
+    readonly note: string | null;
+    readonly requestedByUserId: string | null;
+    readonly requestedByEmail: string;
+  }): Promise<{
+    readonly record: { readonly id: string; readonly createdAt: Date };
+    readonly created: boolean;
+  }>;
   /** Most recent `embed_loaded` per origin for a tenant, limited to `origins`. */
   lastEmbedLoads(
     tenantKey: string,
@@ -67,6 +81,8 @@ export interface BuilderSettingsStore {
 }
 
 const KIND_EMBED_ORIGINS = 'embed_origins';
+/** #860: one open closure request per builder (fixed dedupe key). */
+const KIND_ACCOUNT_CLOSURE = 'account_closure';
 
 function stringList(value: unknown): string[] {
   return Array.isArray(value) ? value.filter((v): v is string => typeof v === 'string') : [];
@@ -131,6 +147,29 @@ export function createDrizzleBuilderSettingsStore(deps: {
       const existing = await findOpen(input.builderId, input.dedupeKey);
       if (!existing) throw new Error('builder_change_requests insert returned no row');
       return { record: toRecord(existing), created: false };
+    },
+
+    async createClosureRequest(input) {
+      const inserted = await db
+        .insert(builderChangeRequests)
+        .values({
+          id: randomUUID(),
+          builderId: input.builderId,
+          kind: KIND_ACCOUNT_CLOSURE,
+          status: 'open',
+          payload: {},
+          note: input.note,
+          dedupeKey: KIND_ACCOUNT_CLOSURE,
+          requestedByUserId: input.requestedByUserId,
+          requestedByEmail: input.requestedByEmail,
+        })
+        .onConflictDoNothing()
+        .returning();
+      const row = inserted[0];
+      if (row) return { record: { id: row.id, createdAt: row.createdAt }, created: true };
+      const existing = await findOpen(input.builderId, KIND_ACCOUNT_CLOSURE);
+      if (!existing) throw new Error('builder_change_requests insert returned no row');
+      return { record: { id: existing.id, createdAt: existing.createdAt }, created: false };
     },
 
     async listOpenOriginRequests(builderId) {

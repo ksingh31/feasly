@@ -34,9 +34,15 @@ const METHOD_SHORT: Readonly<Record<BuilderPaymentMethod, string>> = {
   bank_draft: 'Bank draft',
 };
 
+/**
+ * #860: status changes now go through the lifecycle endpoint with a reason
+ * (confirm dialogs land in #861); the drawer shows the current status.
+ */
 export const STATUS_OPTIONS: readonly { value: BuilderStatus; label: string }[] = [
   { value: 'active', label: 'Active' },
-  { value: 'inactive', label: 'Inactive' },
+  { value: 'suspended', label: 'Suspended' },
+  { value: 'offboarding', label: 'Offboarding' },
+  { value: 'offboarded', label: 'Offboarded' },
 ];
 
 /** Default payment method for new invoices (billing/12), stored on settings. */

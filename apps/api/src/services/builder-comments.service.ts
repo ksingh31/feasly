@@ -39,6 +39,7 @@ import type { BuilderService } from './builder.service';
 import type { LeadStore } from './lead.store';
 import type { UserStore } from './user.service';
 import type { CommentRow, CommentStore } from './builder-comments.store';
+import { requireBuilderCapability } from '../lib/builder-status-policy';
 
 export type CommentActor =
   | {
@@ -131,11 +132,17 @@ export function createBuilderCommentsService(
     clock = () => new Date(),
   } = deps;
 
-  async function requireBuilder(tenantKey: string) {
+  async function requireBuilder(
+    tenantKey: string,
+    capability: 'portalRead' | 'portalWrite',
+  ) {
     const builder = await builders.getByTenantKey(tenantKey);
-    if (builder === null || builder.status !== 'active') {
+    if (builder === null) {
       throw new HttpError(404, ErrorCodes.NOT_FOUND, 'Builder not found.', false);
     }
+    // #860 policy: reading stays open while suspended; writing needs
+    // `portalWrite` (403 BUILDER_PAUSED otherwise).
+    requireBuilderCapability(builder.status, capability);
     return builder;
   }
 
@@ -190,9 +197,10 @@ export function createBuilderCommentsService(
   async function requireVisibleLead(
     entityId: string,
     actor: CommentActor,
+    capability: 'portalRead' | 'portalWrite' = 'portalRead',
   ): Promise<{ readonly builderId: string | null }> {
     if (actor.kind === 'builder') {
-      const builder = await requireBuilder(actor.tenantKey);
+      const builder = await requireBuilder(actor.tenantKey, capability);
       const lead = await leadStore.findByIdAndBuilderId({
         id: entityId,
         builderId: builder.id,
@@ -247,7 +255,7 @@ export function createBuilderCommentsService(
       const entityType = parseEntityType(args.entityType);
       const body = parseBody(args.body);
       const author = await requireAuthor(args.actor.email);
-      await requireVisibleLead(args.entityId, args.actor);
+      await requireVisibleLead(args.entityId, args.actor, 'portalWrite');
 
       // The builder path FORCES org visibility server-side — a request
       // body claiming admin_only is silently downgraded. Admins get the
@@ -302,7 +310,7 @@ export function createBuilderCommentsService(
       if (!row || row.deletedAt) {
         throw new HttpError(404, ErrorCodes.NOT_FOUND, 'Comment not found.', false);
       }
-      await requireVisibleLead(row.entityId, args.actor);
+      await requireVisibleLead(row.entityId, args.actor, 'portalWrite');
 
       // Author-only: the caller's user id must match the comment's
       // author_id — for builders AND admins alike. Admins moderate via
