@@ -102,6 +102,11 @@ const targets = [
     entry: 'src/functions/follow-up-timer.ts',
     out: 'follow-up-timer/index.js',
   },
+  // #725 — builder new-lead email retries + daily "Needs you" digest.
+  {
+    entry: 'src/functions/builder-notifications-timer.ts',
+    out: 'builder-notifications-timer/index.js',
+  },
   {
     entry: 'src/functions/sandbox-purge-timer.ts',
     out: 'sandbox-purge-timer/index.js',
@@ -392,6 +397,11 @@ const targets = [
     entry: 'src/functions/billing-commission-rate.ts',
     out: 'billing-commission-rate/index.js',
   },
+  // #725 — builder member email preferences (GET + PUT).
+  {
+    entry: 'src/functions/builder-notifications-preferences.ts',
+    out: 'builder-notifications-preferences/index.js',
+  },
   // #531 — builder portal Money page header (one-call billing overview).
   {
     entry: 'src/functions/builder-billing-overview.ts',
@@ -514,6 +524,16 @@ const targets = [
   {
     entry: 'src/functions/admin-community-stats-refresh.ts',
     out: 'admin-community-stats-refresh/index.js',
+  },
+  // #773: neighbourhood data refresh (daily tick, monthly schedule in config)
+  // + admin "refresh now" per provider.
+  {
+    entry: 'src/functions/neighbourhood-data-refresh-timer.ts',
+    out: 'neighbourhood-data-refresh-timer/index.js',
+  },
+  {
+    entry: 'src/functions/admin-neighbourhood-data-refresh.ts',
+    out: 'admin-neighbourhood-data-refresh/index.js',
   },
   // phase-2 wiring: the five live-API endpoints the web app needs.
   {

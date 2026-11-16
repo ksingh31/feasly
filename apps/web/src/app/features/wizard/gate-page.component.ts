@@ -104,6 +104,19 @@ export class GatePageComponent implements OnInit {
 
   protected status: GateStatus = 'idle';
 
+  /**
+   * #788 minimum time-to-submit: when the form was rendered (monotonic
+   * clock). Each submit sends the elapsed ms; the API quarantines too-fast
+   * submissions against its own configured threshold. The threshold is
+   * never in the client.
+   */
+  private readonly renderedAt = performance.now();
+
+  /** Whole ms since the form was rendered (#788). */
+  private elapsedMs(): number {
+    return Math.max(0, Math.round(performance.now() - this.renderedAt));
+  }
+
   /** EMB-03: embed context from the session-scoped EmbedState. */
   protected readonly embedStatus = this.store.selectSignal(EmbedState.status);
   protected readonly embedConfig = this.store.selectSignal(EmbedState.config);
@@ -190,6 +203,8 @@ export class GatePageComponent implements OnInit {
       return;
     }
     const values = this.form.getRawValue();
+    // #788: measured at submit time, before any preview round-trip.
+    const elapsedMs = this.elapsedMs();
     // EMB-03: in embed context, the tenant key flows through to the backend
     // for server-side attribution. The backend validates the key against
     // the tenants table — it is never trusted blindly.
@@ -225,6 +240,7 @@ export class GatePageComponent implements OnInit {
               marketingConsent: values.consent,
               // HRD-03 honeypot — empty for humans, filled by bots.
               website: values.website,
+              elapsedMs,
               tenantKey,
             })
             .pipe(map((lead) => ({ lead, email: values.email.trim(), preview }))),
@@ -297,6 +313,8 @@ export class GatePageComponent implements OnInit {
         marketingConsent: values.consent,
         // HRD-03 honeypot — empty for humans, filled by bots.
         website: values.website,
+        // #788 minimum time-to-submit.
+        elapsedMs: this.elapsedMs(),
       })
       .pipe(takeUntilDestroyed(this.destroyRef))
       .subscribe({

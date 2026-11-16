@@ -27,6 +27,14 @@ export interface LeadRequest {
    * response so bots learn nothing.
    */
   readonly website?: string;
+  /**
+   * Invisible bot protection (#788): milliseconds between the form being
+   * rendered and submitted, measured client-side. The API quarantines
+   * submissions faster than its configured minimum the same way as the
+   * honeypot (normal 201, no signal). The threshold lives in API config,
+   * never in the client. Optional — agent-API callers may omit it.
+   */
+  readonly elapsedMs?: number;
 }
 
 export interface LeadResponse {

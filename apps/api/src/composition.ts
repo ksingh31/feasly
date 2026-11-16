@@ -394,6 +394,26 @@ import {
   type CommunityStatsRefreshRoute,
 } from './routes/community-stats-refresh.route';
 import {
+  createAdminNeighbourhoodDataRoute,
+  type AdminNeighbourhoodDataRoute,
+} from './routes/admin-neighbourhood-data.route';
+import {
+  createNeighbourhoodProviders,
+  type NeighbourhoodProviders,
+} from './services/neighbourhood-data/providers';
+import {
+  createDrizzleNeighbourhoodDataStore,
+  type NeighbourhoodDataStore,
+} from './services/neighbourhood-data/neighbourhood-data.store';
+import {
+  createNeighbourhoodRefreshService,
+  type NeighbourhoodRefreshService,
+} from './services/neighbourhood-data/neighbourhood-refresh.service';
+import {
+  createNeighbourhoodReadService,
+  type NeighbourhoodReadService,
+} from './services/neighbourhood-data/neighbourhood-read.service';
+import {
   createEmbedConfigRoute,
   type EmbedConfigRoute,
 } from './routes/embed-config.route';
@@ -566,6 +586,9 @@ import {
   type InvoiceReviewerService,
 } from './services/billing/invoice-reviewer.service';
 import {
+  createChargebackService,
+} from './services/billing/chargeback.service';
+import {
   createDisputeService,
   type DisputeService,
 } from './services/billing/dispute.service';
@@ -581,6 +604,15 @@ import {
   createBuilderBillingOverviewRoute,
   type BuilderBillingOverviewRoute,
 } from './routes/builder/billing-overview.route';
+import { createDrizzleBuilderNotificationStore } from './services/builder-notification.store';
+import {
+  createBuilderNotificationsService,
+  type BuilderNotificationsService,
+} from './services/builder-notifications.service';
+import {
+  createBuilderNotificationsRoute,
+  type BuilderNotificationsRoute,
+} from './routes/builder/notifications.route';
 import {
   createStripeWebhooksRoute,
   type StripeWebhooksRoute,
@@ -597,6 +629,12 @@ import {
   type SharedCounterStore,
 } from './middleware/shared-rate-limit';
 import { createDrizzleRateLimitStore } from './services/rate-limit.store';
+import {
+  createBotChallengeGate,
+  type BotChallengeGate,
+  type ChallengeVerifier,
+} from './middleware/bot-challenge';
+import { createTurnstileVerifier } from './services/turnstile.service';
 import {
   createDrizzleCityDataCacheStore,
   type CityDataCacheStore,
@@ -775,6 +813,11 @@ export interface AppComposition {
   /** Monthly refresh timer + manual admin trigger (neighbourhood/05). */
   readonly communityStatsRefreshService: CommunityStatsRefreshService;
   readonly communityStatsRefreshRoute: CommunityStatsRefreshRoute;
+  /** #773: monthly neighbourhood data refresh (the only provider caller). */
+  readonly neighbourhoodRefreshService: NeighbourhoodRefreshService;
+  /** #773: request-path neighbourhood reads (tables only, no providers). */
+  readonly neighbourhoodReadService: NeighbourhoodReadService;
+  readonly adminNeighbourhoodDataRoute: AdminNeighbourhoodDataRoute;
   /** Append-only admin audit log (neighbourhood/05; reused by later admin stories). */
   readonly adminAuditStore: AdminAuditStore;
   readonly builderConfigService: BuilderConfigService;
@@ -815,6 +858,10 @@ export interface AppComposition {
   readonly billingOverviewService: BillingOverviewService;
   /** #531: thin route for GET /api/v1/builder/billing/overview. */
   readonly builderBillingOverviewRoute: BuilderBillingOverviewRoute;
+  /** #725: new-lead email, daily digest, preferences, billing recipients. */
+  readonly builderNotificationsService: BuilderNotificationsService;
+  /** #725: thin route for /api/v1/builder/notifications/preferences. */
+  readonly builderNotificationsRoute: BuilderNotificationsRoute;
   /** billing/01 follow-on: dispute console backend (was OPS-009). */
   readonly disputeService: DisputeService;
   /** billing/01 follow-on: thin route for /api/v1/admin/disputes/*. */
@@ -858,8 +905,14 @@ export interface CompositionOptions {
   readonly estimateStore?: EstimateStore;
   /** #729: shared rate-limit counters (default: Postgres via Drizzle). */
   readonly rateLimitStore?: SharedCounterStore;
+  /** #788: Turnstile verifier seam (default: siteverify over HTTPS). */
+  readonly challengeVerifier?: ChallengeVerifier;
   /** #756: shared City-data cache (tests inject an in-memory fake). */
   readonly cityDataCacheStore?: CityDataCacheStore;
+  /** #773: neighbourhood data tables (tests inject PGlite/fakes). */
+  readonly neighbourhoodDataStore?: NeighbourhoodDataStore;
+  /** #773: neighbourhood providers (tests inject fakes; default from config). */
+  readonly neighbourhoodProviders?: NeighbourhoodProviders;
   readonly leadStore?: LeadStore;
   readonly leadStatusChangeStore?: LeadStatusChangeStore;
   /** #703: report-opened + follow-up stamps (default: Drizzle). */
@@ -1015,9 +1068,33 @@ export function createComposition(
         maxTrackedKeys: config.rateLimit.maxTrackedKeys,
       }),
     });
+  // #788 (owner decision on #750): invisible bot challenge, required only
+  // from an IP that tripped the lead or estimate per-IP limiter, for
+  // BOT_CHALLENGE_WINDOW_MS after the trip. Dormant (undefined) until the
+  // Turnstile site key AND secret are configured — then the pipelines
+  // behave exactly as before #788.
+  const botChallenge: BotChallengeGate | undefined = config.botChallenge.enabled
+    ? createBotChallengeGate({
+        siteKey: config.botChallenge.siteKey,
+        trips: createSharedCooldown({
+          store: rateLimitStore,
+          scope: 'bot-challenge:ip',
+          cooldownMs: config.botChallenge.windowMs,
+        }),
+        attempts: sharedLimiter('bot-challenge:verify', config.botChallenge.verifyRateLimit),
+        verifier:
+          options.challengeVerifier ??
+          createTurnstileVerifier({
+            secretKey: config.botChallenge.secretKey,
+            verifyUrl: config.botChallenge.verifyUrl,
+            timeoutMs: config.botChallenge.verifyTimeoutMs,
+          }),
+      })
+    : undefined;
   const leadRateLimiter: AnyRateLimiter = sharedLimiter('lead:ip', config.lead.rateLimit);
   const leadPipeline: RequestPipeline = createRequestPipeline({
     rateLimiter: leadRateLimiter,
+    challenge: botChallenge,
     csrf,
     logger: options.logger,
   });
@@ -1046,6 +1123,7 @@ export function createComposition(
         label: 'tenant',
       },
     ],
+    challenge: botChallenge,
     csrf,
     logger: options.logger,
   });
@@ -1168,6 +1246,9 @@ export function createComposition(
   const builderService: BuilderService = createBuilderService({
     db: db.db,
     audit: adminAuditStore,
+    // #725: late-bound — the notifications service is built further down
+    // (it needs the builder-leads "Needs you" feed). Never throws.
+    onLeadAssigned: (args) => builderNotificationsService.notifyNewLead(args),
     onBillingProfileChanged: async (builder) => {
       await syncStripeCustomer?.(builder);
     },
@@ -1181,8 +1262,13 @@ export function createComposition(
     appBaseUrl: config.email.appBaseUrl,
     dedupWindowDays: config.lead.dedupWindowDays,
     magicLinkTtlSeconds: config.auth.magicLinkTtlSeconds,
+    minSubmitMs: config.lead.minSubmitMs,
     builderConfigs: builderConfigService,
     builders: builderService,
+    // #725: late-bound (see builderService above).
+    builderNotifier: {
+      notifyNewLead: (args) => builderNotificationsService.notifyNewLead(args),
+    },
   });
   const leadRoute: LeadRoute = createLeadRoute({ leads: leadService });
   const magicLinkService: MagicLinkService = createMagicLinkService({
@@ -1771,6 +1857,41 @@ export function createComposition(
       audit: adminAuditStore,
       adminGuard,
     });
+  // #773: neighbourhood data. Providers (chosen by config) are handed ONLY
+  // to the refresh service; the read service gets the store alone, so no
+  // request path can reach an outside source. One ops alert after
+  // NEIGHBOURHOOD_ALERT_AFTER_FAILURE_DAYS of failures; telemetry is one JSON
+  // trace per provider run: `traces | where message startswith
+  // '{"event":"neighbourhood_data.'`.
+  const neighbourhoodDataStore: NeighbourhoodDataStore =
+    options.neighbourhoodDataStore ?? createDrizzleNeighbourhoodDataStore({ db: db.db });
+  const neighbourhoodRefreshService: NeighbourhoodRefreshService =
+    createNeighbourhoodRefreshService({
+      providers:
+        options.neighbourhoodProviders ?? createNeighbourhoodProviders(config.neighbourhoodData),
+      store: neighbourhoodDataStore,
+      refreshDayOfMonth: config.neighbourhoodData.refreshDayOfMonth,
+      alertAfterFailureDays: config.neighbourhoodData.alertAfterFailureDays,
+      onFailing: ({ consecutiveFailures, firstFailureAt }) =>
+        opsAlertsService.notifyFailure('neighbourhood_data_failed', {
+          consecutiveFailures,
+          firstFailureAt,
+        }),
+      onRecovered: () => opsAlertsService.notifyRecovered('neighbourhood_data_failed'),
+      onEvent: (event) =>
+        console.info(JSON.stringify({ ...event, event: `neighbourhood_data.${event.event}` })),
+    });
+  const neighbourhoodReadService: NeighbourhoodReadService = createNeighbourhoodReadService({
+    store: neighbourhoodDataStore,
+    lotRadiusM: config.neighbourhoodData.lotRadiusM,
+    lotMetricsTtlMs: config.neighbourhoodData.lotMetricsTtlMs,
+  });
+  const adminNeighbourhoodDataRoute: AdminNeighbourhoodDataRoute =
+    createAdminNeighbourhoodDataRoute({
+      refresh: neighbourhoodRefreshService,
+      audit: adminAuditStore,
+      adminGuard,
+    });
   // Builder embed config (embed/02): repo JSON inlined at build time wins,
   // Embed config route uses the builderConfigService created above.
   const embedConfigRoute: EmbedConfigRoute = createEmbedConfigRoute({
@@ -1967,6 +2088,10 @@ export function createComposition(
   });
   const commissionService: CommissionService = createCommissionService({
     db: db.db,
+    // #725: billing emails go to every opted-in active builder admin;
+    // late-bound (see builderService above).
+    billingRecipients: (tenantKey) =>
+      builderNotificationsService.billingRecipients(tenantKey),
     billing: config.billing,
     attribution: attributionService,
     audit: billingAuditService,
@@ -2083,6 +2208,23 @@ export function createComposition(
     builderGuard,
     permissionGuard,
   });
+  // #725: builder notifications — new-lead email (send-once outbox), daily
+  // "Needs you" digest, member preferences, billing-email recipients.
+  const builderNotificationsService: BuilderNotificationsService =
+    createBuilderNotificationsService({
+      store: createDrizzleBuilderNotificationStore({ db: db.db }),
+      email: emailService,
+      needsYou: (tenantKey) => builderLeadsService.getNeedsYou(tenantKey),
+      resolveCommunity: async (addressKey) =>
+        (await propertyService.getProperty(addressKey)).community,
+      config: config.builderNotifications,
+      onError: (message) => console.error(message),
+    });
+  const builderNotificationsRoute: BuilderNotificationsRoute =
+    createBuilderNotificationsRoute({
+      notifications: builderNotificationsService,
+      builderGuard,
+    });
   // billing/05 lead comments: one service, two thin routes (builder/admin).
   const builderCommentsService: BuilderCommentsService =
     createBuilderCommentsService({
@@ -2115,6 +2257,13 @@ export function createComposition(
       audit: billingAuditService,
       commission: commissionService,
       flatPlan: flatPlanService,
+      // #719: bank chargebacks + Stripe-dashboard refunds.
+      chargebacks: createChargebackService({
+        db: db.db,
+        audit: billingAuditService,
+        email: emailService,
+        opsInbox: config.email.opsInbox,
+      }),
       commissionCard: commissionCardService,
       email: emailService,
       opsInbox: config.email.opsInbox,
@@ -2299,6 +2448,9 @@ export function createComposition(
     zoningRoute,
     communityStatsRefreshService,
     communityStatsRefreshRoute,
+    neighbourhoodRefreshService,
+    neighbourhoodReadService,
+    adminNeighbourhoodDataRoute,
     adminAuditStore,
     builderConfigService,
     embedConfigRoute,
@@ -2321,6 +2473,8 @@ export function createComposition(
     billingRoute,
     billingOverviewService,
     builderBillingOverviewRoute,
+    builderNotificationsService,
+    builderNotificationsRoute,
     disputeService,
     adminDisputesRoute,
     adminBillingRoute,

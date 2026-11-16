@@ -62,6 +62,10 @@ measures against), `priority:high`, `bug`, `qa:passed`, `qa:failed`, `ux`,
   A round that merges `main` must regenerate the registry-derived route tables (`npm run gen:route-docs`:
   TECH_PLAN §16 + `docs/security/rate-limits.md` + `docs/security/route-audit.md`) and commit the result. `verify-local.sh` runs it before
   the tests, so a parallel route-adding merge no longer leaves the PR red (#816).
+  It must also run `node tools/renumber-migrations.mjs` (`verify-local.sh` runs it before the typecheck): when
+  main gained a migration with the same number as this branch's, it renames ours to the next free number and
+  rebuilds `_journal.json` as main's entries + ours appended, which resolves the journal conflict (#900).
+  Commit the files it stages. Repair-SQL additions go in `apps/api/tools/repair-sql.d/` so they never conflict.
 - **Requeues**: a claimed issue with no PR for 4h, or a dev run that ends without a PR, is requeued; after 2 requeues → `agent:stuck` (the orchestrator investigates; not an owner decision). A claimed issue whose PR already merged (closing reference or `agent/issue-<n>-` branch, merged since the claim) is closed as completed instead of requeued.
 - **QA reopen cap**: a bug that fails QA twice goes to `needs:karan`.
 - **Trust**: reviews run only for PRs from collaborators, `claude[bot]`,

@@ -64,6 +64,11 @@ export interface SimulatedPaymentProvider extends PaymentProvider {
   getIntentCustomerId(intentId: string): Promise<string | null>;
   /** Stripe-dashboard style triggers for the admin dev panel. */
   fireDispute(paymentIntentId: string): Promise<{ eventType: string }>;
+  /** Close the PaymentIntent's open dispute as won / lost (#719). */
+  fireDisputeClosed(
+    paymentIntentId: string,
+    outcome: 'won' | 'lost',
+  ): Promise<{ eventType: string }>;
   fireDashboardRefund(
     paymentIntentId: string,
     amountCents?: number,
@@ -120,6 +125,16 @@ function behaviorOf(cardNumber: string): SimulatedCardBehavior | null {
 function str(v: unknown): string | undefined {
   return typeof v === 'string' ? v : undefined;
 }
+
+/** Stripe's evidence window for a new dispute (~21 days), in seconds. */
+const DISPUTE_EVIDENCE_WINDOW_SECONDS = 21 * 86_400;
+
+/** Dispute statuses Stripe treats as closed. */
+const CLOSED_DISPUTE_STATUSES: ReadonlySet<string> = new Set([
+  'won',
+  'lost',
+  'warning_closed',
+]);
 
 function num(v: unknown): number {
   return typeof v === 'number' ? v : 0;
@@ -848,12 +863,51 @@ export function createSimulatedPaymentProvider(
         payment_intent: paymentIntentId,
         reason: 'fraudulent',
         status: 'needs_response',
+        // Stripe gives the merchant about three weeks to respond.
+        evidence_details: {
+          due_by: unix() + DISPUTE_EVIDENCE_WINDOW_SECONDS,
+          has_evidence: false,
+          past_due: false,
+          submission_count: 0,
+        },
+        is_charge_refundable: false,
         livemode: false,
       };
       await put(id, 'dispute', pi.customerId, data);
       await emit('charge.dispute.created', data);
+      // Stripe withdraws the disputed amount right after opening.
+      await emit('charge.dispute.funds_withdrawn', data);
       await deliverDue(true);
       return { eventType: 'charge.dispute.created' };
+    },
+
+    async fireDisputeClosed(paymentIntentId, outcome) {
+      await deliverDue(false);
+      const pi = await requireObject(paymentIntentId, 'payment_intent');
+      const disputes = pi.customerId
+        ? await store.listByCustomer(pi.customerId, 'dispute')
+        : [];
+      const open = disputes.find(
+        (d) =>
+          d.data['payment_intent'] === paymentIntentId &&
+          !CLOSED_DISPUTE_STATUSES.has(str(d.data['status']) ?? ''),
+      );
+      if (!open) {
+        throw new HttpError(
+          409,
+          ErrorCodes.CONFLICT,
+          `PaymentIntent ${paymentIntentId} has no open dispute to close`,
+        );
+      }
+      const data = { ...open.data, status: outcome };
+      await store.update(open.id, { data });
+      if (outcome === 'won') {
+        // A won dispute returns the funds before it closes.
+        await emit('charge.dispute.funds_reinstated', data);
+      }
+      await emit('charge.dispute.closed', data);
+      await deliverDue(true);
+      return { eventType: 'charge.dispute.closed' };
     },
 
     async fireDashboardRefund(paymentIntentId, amountCents) {

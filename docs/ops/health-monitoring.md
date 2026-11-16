@@ -69,6 +69,10 @@ bash infra/health/test/test-checks.sh
 Covers: healthy/degraded-db/missing-checks-field/500/site-down mocks, CI
 status parsing (fake `gh`), and the alert dedupe lifecycle
 (fail → ALERT, fail → silent, recover → RECOVERED, fail → ALERT again).
+
+Safe to run in parallel (#897): each run uses its own `mktemp -d` scratch
+dir, an OS-assigned free port for the mock, and stops only its own mock by
+PID.
 Also run in CI (`build` job).
 
 API unit tests: `apps/api/test/health.service.test.ts` (service never throws

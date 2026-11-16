@@ -49,6 +49,7 @@ function invoice(over: Partial<CommissionInvoiceRecord> = {}): CommissionInvoice
     paymentReference: null,
     invoiceNumber: 'INV-0042',
     paymentMethod: 'card',
+    chargebackStatus: null,
     refundedCents: 0,
     refundState: 'none',
     createdAt: new Date('2026-11-13T18:00:00Z'),

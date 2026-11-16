@@ -36,6 +36,11 @@ rm -rf apps/web/dist
 [ "${1:-}" = "--no-ci" ] || step "npm ci" npm ci
 step "dependency audit (high)" npm audit --audit-level=high
 step "build:configs" npm run build:configs --workspace @feasly/api
+# #900: after merging main, two branches' migrations can share a number and
+# conflict in _journal.json. Renumber this branch's colliding migrations to
+# the next free numbers and rebuild the journal (no-op when nothing collides;
+# fails if a migration it would rename was already applied). Commit what it stages.
+step "renumber colliding migrations" node tools/renumber-migrations.mjs
 step "tsc -b (root)" npx tsc -b
 # #816/#848: the TECH_PLAN §16, rate-limits.md and route-audit.md tables are generated from the
 # route registry. Regenerate them before the tests so a stale table (e.g.

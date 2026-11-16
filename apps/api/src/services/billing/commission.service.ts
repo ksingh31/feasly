@@ -90,6 +90,7 @@ import type {
 } from '@feasly/contracts';
 import type { BuilderPaymentMethod } from '@feasly/contracts';
 import type { ChargeOutcome, ConfirmInvoicePaymentResponse } from '@feasly/contracts';
+import type { ChargebackStatus } from '@feasly/contracts';
 
 export type CommissionInvoiceStatus =
   | 'draft'
@@ -178,6 +179,10 @@ export interface CommissionInvoiceRecord {
    */
   readonly paymentMethod: BuilderPaymentMethod;
   /**
+   * Bank chargeback state (#719): null = none; 'open' while Stripe's
+   * dispute is live (retryCharge refuses); then won | lost | warning_closed.
+   */
+  readonly chargebackStatus: ChargebackStatus | null;
    * #715: integer cents refunded (or claimed by an in-flight refund)
    * against this invoice. 0 when never refunded.
    */
@@ -607,6 +612,11 @@ export interface CommissionServiceDeps {
   /** Warning sink for accepted-but-unconfirmed ops alerts. Defaults to console.warn. */
   readonly logWarning?: (message: string) => void;
   /**
+   * #725: builder admins who get billing emails (opted in, active). When it
+   * returns addresses, every one of them is emailed; when it returns none
+   * (or fails) the single resolved billing contact is used, as before.
+   */
+  readonly billingRecipients?: (tenantKey: string) => Promise<readonly string[]>;
    * #715: admin_audit_log sink for admin money actions (refund, void,
    * contract correction, payment reversal). Optional so engine-only
    * callers and tests need not wire it.
@@ -817,6 +827,7 @@ function toRecord(
     paymentReference: row.paymentReference,
     invoiceNumber: row.invoiceNumber,
     paymentMethod: row.paymentMethod as BuilderPaymentMethod,
+    chargebackStatus: row.chargebackStatus as ChargebackStatus | null,
     refundedCents: row.refundedCents,
     refundState: refundStateOf(row.refundedCents, invoiceTotalCents(row)),
     ...(refunds !== undefined ? { refunds } : {}),
@@ -1083,7 +1094,32 @@ export function createCommissionService(
       | 'payment_failed'
       | 'payment_action_required',
   ): Promise<void> {
-    const to = await resolveBuilderEmail(invoice.tenantKey);
+    let recipients: readonly string[] = [];
+    if (deps.billingRecipients) {
+      try {
+        recipients = await deps.billingRecipients(invoice.tenantKey);
+      } catch {
+        // Fall back to the resolved billing contact below.
+        recipients = [];
+      }
+    }
+    if (recipients.length === 0) {
+      const contact = await resolveBuilderEmail(invoice.tenantKey);
+      recipients = contact === null ? [] : [contact];
+    }
+    for (const to of recipients) {
+      await notifyBuilderRecipient(invoice, kind, to);
+    }
+    if (recipients.length === 0) {
+      await notifyBuilderRecipient(invoice, kind, null);
+    }
+  }
+
+  async function notifyBuilderRecipient(
+    invoice: CommissionInvoiceRecord,
+    kind: 'invoice_ready' | 'payment_received' | 'payment_failed' | 'payment_action_required',
+    to: string | null,
+  ): Promise<void> {
     // Short public reference: first 8 of the uuid (stable, non-sensitive).
     const invoiceRef = invoice.id.slice(0, 8);
     if (to === null) {
@@ -1886,6 +1922,14 @@ export function createCommissionService(
           409,
           ErrorCodes.CONFLICT,
           `Invoice "${invoiceId}" is disputed — disputed invoices can never be retried`,
+        );
+      }
+      if (row.chargebackStatus === 'open') {
+        // #719: no further charge attempts while a bank chargeback is live.
+        throw new HttpError(
+          409,
+          ErrorCodes.CONFLICT,
+          `Invoice "${invoiceId}" has an open chargeback — charges are paused until Stripe closes it`,
         );
       }
       if (row.status !== 'failed') {

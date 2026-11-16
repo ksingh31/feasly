@@ -99,6 +99,8 @@ Related: [rate-limits.md](rate-limits.md) · [asvs-l1.md](asvs-l1.md) ·
 | DELETE | `/api/v1/builder/users/{id}` | builder-session | builder:users:manage | 60/min per session | live |  |
 | GET | `/api/v1/builder/leads` | builder-session | builder:leads:read | 100/min per session | live |  |
 | GET | `/api/v1/builder/leads/needs-you` | builder-session | builder:leads:read | 100/min per session | live |  |
+| GET | `/api/v1/builder/notifications/preferences` | builder-session | builder:leads:read | 100/min per session | live |  |
+| PUT | `/api/v1/builder/notifications/preferences` | builder-session | builder:leads:read | 100/min per session | live |  |
 | PATCH | `/api/v1/builder/leads/{id}` | builder-session | builder:leads:manage | 100/min per session | live |  |
 | POST | `/api/v1/builder/leads/{id}/mark-won` | builder-session | builder:leads:manage | 100/min per session | live |  |
 | GET | `/api/v1/builder/leads/{leadId}/comments` | builder-session | builder:leads:read | 100/min per session | live |  |
@@ -143,6 +145,7 @@ Related: [rate-limits.md](rate-limits.md) · [asvs-l1.md](asvs-l1.md) ·
 | POST | `/api/v1/admin/billing/invoices/{id}/reverse-payment` | admin | billing:manage | 300/min per session | live |  |
 | POST | `/api/v1/admin/billing/invoices` | admin | billing:manage | 300/min per session | live |  |
 | POST | `/api/v1/admin/community-stats/refresh` | admin | ops:manage | 10/min per session | live |  |
+| POST | `/api/v1/admin/neighbourhood-data/{provider}/refresh` | admin | ops:manage | 10/min per session | live |  |
 | GET | `/api/v1/admin/usage` | admin | usage:read | 300/min per session | planned |  |
 | GET | `/api/v1/admin/calibration` | admin | calibration:read | 300/min per session | live |  |
 | GET | `/api/v1/admin/ops/sheets-status` | admin | ops:manage | 300/min per session | live |  |
