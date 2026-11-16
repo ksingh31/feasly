@@ -541,6 +541,30 @@ describe('dispute service', () => {
     expect(ledger.reduce((sum, r) => sum + r.amountCents, 0)).toBe(paid.totalCents);
   });
 
+  it('acceptDispute is refused (409) while an admin card refund is still pending', async () => {
+    const tenantKey = 'dispute-accept-pending-refund';
+    await seedTenant(testDb, tenantKey);
+    const f = newFixtures(testDb, FIXED_NOW, 'pi_test_pending');
+    const invoice = await seedReviewedInvoice(testDb, f, tenantKey);
+    await f.commission.finalizeInvoice(invoice.id);
+    await f.commission.markPaidByPaymentIntent('pi_test_pending');
+    await testDb.db.insert(billingRefunds).values({
+      id: randomUUID(),
+      invoiceId: invoice.id,
+      tenantKey,
+      amountCents: 1_000,
+      reason: 'goodwill',
+      method: 'stripe',
+      status: 'pending',
+      idempotencyKey: `pending-${randomUUID()}`,
+    });
+    const dispute = await f.disputes.recordOpenedDispute(await f.commission.getById(invoice.id));
+    await expect(
+      f.disputes.acceptDispute(dispute.id, { adminEmail: 'admin@feasly.test' }),
+    ).rejects.toMatchObject({ status: 409 });
+    expect((await f.commission.getById(invoice.id)).status).toBe('paid');
+  });
+
   it('acceptDispute on a fully refunded invoice issues no further provider refund', async () => {
     const tenantKey = 'dispute-accept-fully-refunded';
     await seedTenant(testDb, tenantKey);

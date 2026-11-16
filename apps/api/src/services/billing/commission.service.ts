@@ -911,12 +911,23 @@ function toRefundRecord(
  * #715: a provider error that definitely created no refund (a 4xx: bad
  * amount, nothing left to refund, unknown PaymentIntent). Anything else —
  * network errors, 5xx — may have reached the provider, so the refund stays
- * 'pending' and a retry with the same key resumes it.
+ * 'pending' and a retry with the same key resumes it. 409 (Stripe's
+ * idempotency_error: the same key is still in flight on another request)
+ * and 429 (rate limit) are transient, never a rejection: the original call
+ * may yet succeed, so the claim must stay held.
  */
 function isDefinitiveRefundRejection(error: unknown): boolean {
-  if (error instanceof HttpError) return error.status < 500;
-  const statusCode = (error as { statusCode?: unknown } | null)?.statusCode;
-  return typeof statusCode === 'number' && statusCode >= 400 && statusCode < 500;
+  const statusCode =
+    error instanceof HttpError
+      ? error.status
+      : (error as { statusCode?: unknown } | null)?.statusCode;
+  return (
+    typeof statusCode === 'number' &&
+    statusCode >= 400 &&
+    statusCode < 500 &&
+    statusCode !== 409 &&
+    statusCode !== 429
+  );
 }
 
 /** Trimmed optional free text, or null when blank. */

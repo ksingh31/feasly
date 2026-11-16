@@ -525,6 +525,30 @@ describe('admin invoice corrections (#715)', () => {
       expect(h.adminAudit.entries.filter((e) => e.action === 'billing.invoice_refunded')).toHaveLength(1);
     });
 
+    it.each([409, 429])('a provider %i (idempotency in flight / rate limit) is transient: row stays pending, retry finishes it once', async (statusCode) => {
+      const h = harness();
+      const paid = await cardPaidInvoice(h);
+      const input = {
+        amountCents: 10_000,
+        reason: 'billing_error' as const,
+        idempotencyKey: key(),
+        adminEmail: ADMIN,
+      };
+      h.stripe.failNext({ statusCode });
+      await expect(h.commission.refundInvoice(paid.id, input)).rejects.toBeDefined();
+      const pending = await h.commission.getById(paid.id);
+      expect(pending.refunds?.[0]?.status).toBe('pending');
+      expect(pending.refundedCents).toBe(10_000);
+      expect((await events(paid.id)).map((e) => e.event_type)).not.toContain('invoice.refund_failed');
+
+      const resumed = await h.commission.refundInvoice(paid.id, input);
+      expect(resumed.refund.status).toBe('succeeded');
+      expect(resumed.invoice.refundedCents).toBe(10_000);
+      expect(h.stripe.refunds.size).toBe(1);
+      expect((await events(paid.id)).filter((e) => e.event_type === 'invoice.refunded')).toHaveLength(1);
+      expect(h.adminAudit.entries.filter((e) => e.action === 'billing.invoice_refunded')).toHaveLength(1);
+    });
+
     it('a definitive provider rejection fails the refund and releases the amount', async () => {
       const h = harness();
       const paid = await cardPaidInvoice(h);

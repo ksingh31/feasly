@@ -512,6 +512,26 @@ export function createDisputeService(
             `Invoice "${invoice.id}" is 'paid' with no PaymentIntent — cannot issue a credit note`,
           );
         }
+        // A card refund still in flight could yet fail and release its
+        // claim against a total this accept is about to set: finish or fail
+        // it first.
+        const [pendingRefund] = await db
+          .select({ id: billingRefunds.id })
+          .from(billingRefunds)
+          .where(
+            and(
+              eq(billingRefunds.invoiceId, invoice.id),
+              eq(billingRefunds.status, 'pending'),
+            ),
+          )
+          .limit(1);
+        if (pendingRefund !== undefined) {
+          throw new HttpError(
+            409,
+            ErrorCodes.CONFLICT,
+            `Invoice "${invoice.id}" has a refund still pending — retry or fail it before accepting this dispute`,
+          );
+        }
         // #715 ledger: admin refunds already issued on this invoice are in
         // refundedCents. Refund only what is left (nothing when it is
         // already fully refunded), so the customer is never refunded twice.
