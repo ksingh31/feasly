@@ -16,7 +16,7 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "contract:regen": "CONTRACT_REGEN=1 vitest run test/contract-conformance.test.ts",
-    "lint": "node tools/check-email-secrets.mjs && node tools/check-email-copy.mjs && node tools/check-function-bundle.mjs && npm run -s openapi:lint",
+    "lint": "node tools/check-email-secrets.mjs && node tools/check-email-copy.mjs && node tools/check-function-bundle.mjs && npm run -s openapi:lint && npm run -s openapi:breaking",
     "db:generate": "drizzle-kit generate",
     "db:migrate": "node tools/migrate.mjs",
     "bundle:functions": "node tools/bundle-functions.mjs",
@@ -27,7 +27,9 @@
     "prebundle:functions": "tsx tools/generate-builder-configs.ts",
     "gen:route-docs": "tsx tools/insert-registry-table.mts && tsx tools/insert-rate-limit-table.mts && tsx tools/insert-route-audit-table.mts",
     "openapi:emit": "tsx tools/emit-openapi.ts",
-    "openapi:lint": "tsx tools/emit-openapi.ts /tmp/feasly-openapi.json && redocly lint /tmp/feasly-openapi.json"
+    "openapi:lint": "tsx tools/emit-openapi.ts /tmp/feasly-openapi.json && redocly lint /tmp/feasly-openapi.json",
+    "openapi:breaking": "tsx tools/emit-openapi.ts /tmp/feasly-openapi-head.json && node ../../tools/check-openapi-breaking.mjs --base ../../tools/openapi-baseline.json --head /tmp/feasly-openapi-head.json --head-version $npm_package_version",
+    "openapi:baseline": "tsx tools/emit-openapi.ts /tmp/feasly-openapi-head.json && node ../../tools/check-openapi-breaking.mjs --head /tmp/feasly-openapi-head.json --head-version $npm_package_version --write-baseline ../../tools/openapi-baseline.json"
   },
   "version": "0.1.0",
   "dependencies": {

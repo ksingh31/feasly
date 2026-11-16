@@ -7,11 +7,13 @@
  */
 import { mkdtempSync, mkdirSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
-import { join } from 'node:path';
+import { dirname, join } from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import {
   APPROVED_DISCLAIMER,
   checkBannedPhrases,
+  checkMcpToolDefinitions,
   checkSingleUnlock,
   jsonStrings,
   templateText,
@@ -121,6 +123,55 @@ describe('checkBannedPhrases disclaimer presence', () => {
     const { failures, notes } = checkBannedPhrases(root);
     expect(failures.filter((f) => f.startsWith('mcp surface'))).toEqual([]);
     expect(notes.some((n) => n.includes('MCP server not merged yet'))).toBe(true);
+  });
+});
+
+describe('MCP tool-definition disclaimer check (#765)', () => {
+  function writeTools(defs: string, withImport = true) {
+    const p = join(root, 'packages', 'mcp', 'src', 'tools.ts');
+    mkdirSync(join(p, '..'), { recursive: true });
+    writeFileSync(
+      p,
+      [
+        withImport ? "import { ESTIMATE_DISCLAIMER } from '@feasly/contracts';" : '',
+        'export const DETERMINISTIC_DISCLAIMER = ` ${ESTIMATE_DISCLAIMER}` + " deterministically";',
+        'export const TOOL_DEFINITIONS: readonly ToolDefinition[] = [',
+        defs,
+        '];',
+        '',
+      ].join('\n'),
+    );
+  }
+  const tool = (name: string, withDisclaimer: boolean) =>
+    `  {\n    name: '${name}',\n    description:\n      'Does ${name}.'${withDisclaimer ? ' +\n      DETERMINISTIC_DISCLAIMER' : ''},\n    inputShape: {},\n  },`;
+
+  it('passes when every tool appends the disclaimer', () => {
+    writeTools([tool('a', true), tool('b', true)].join('\n'));
+    expect(checkMcpToolDefinitions(root)).toEqual([]);
+  });
+
+  it('fails naming the one tool that drops the disclaimer', () => {
+    writeTools([tool('a', true), tool('b', false)].join('\n'));
+    const failures = checkMcpToolDefinitions(root);
+    expect(failures).toHaveLength(1);
+    expect(failures[0]).toContain('tool b');
+  });
+
+  it('fails when the disclaimer is not sourced from @feasly/contracts', () => {
+    writeTools(tool('a', true), false);
+    expect(
+      checkMcpToolDefinitions(root).some((f) => f.includes('does not import ESTIMATE_DISCLAIMER')),
+    ).toBe(true);
+  });
+
+  it('is wired into checkBannedPhrases', () => {
+    writeTools(tool('a', false));
+    const { failures } = checkBannedPhrases(root);
+    expect(failures.some((f) => f.includes('tool a'))).toBe(true);
+  });
+
+  it('passes on the real repo tools.ts', () => {
+    expect(checkMcpToolDefinitions(join(dirname(fileURLToPath(import.meta.url)), '..', '..', '..'))).toEqual([]);
   });
 });
 

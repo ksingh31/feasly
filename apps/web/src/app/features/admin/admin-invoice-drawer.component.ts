@@ -14,6 +14,7 @@ import {
   UiDrawerRef,
   UiModalService,
 } from '@app/shared/ui';
+import { formatInvoiceTax } from '../../shared/utils/invoice-tax';
 import { ClearAdminInvoiceDetail, LoadAdminInvoiceDetail, LoadAdminInvoices } from './admin-invoices.actions';
 import { AdminInvoicesState } from './admin-invoices.state';
 import { ADMIN_PERMISSIONS, adminCan } from './admin-permissions';
@@ -85,6 +86,15 @@ export class AdminInvoiceDrawerComponent implements OnInit {
   });
 
   protected readonly heading = computed(() => this.invoice()?.invoiceNumber ?? 'Invoice');
+
+  /**
+   * #764: subtotal / tax / total, exact to the cent (server figures).
+   * Null for an untaxed invoice — the Amounts list then reads as before.
+   */
+  protected readonly tax = computed(() => {
+    const invoice = this.invoice();
+    return invoice ? formatInvoiceTax(invoice, 'Tax') : null;
+  });
 
   protected readonly canAct = computed(() => {
     const invoice = this.invoice();

@@ -32,7 +32,7 @@ node packages/mcp/dist/stdio.js
 
 ### Streamable HTTP (production)
 
-Mounted at `POST /mcp/v1` in the Azure Functions app.
+Mounted at `POST /api/mcp/v1` in the Azure Functions app.
 
 - **Auth:** `Authorization: Bearer <api-key>` (required)
 - **Scopes:** enforced per-tool (`property:read`, `estimate`, `lead`)
@@ -64,7 +64,7 @@ Mounted at `POST /mcp/v1` in the Azure Functions app.
    (see api-mcp/01 for key issuance).
 2. Start Inspector: `npx @modelcontextprotocol/inspector`
 3. In Inspector, set **Transport Type** to `Streamable HTTP`, **URL** to
-   `http://localhost:7071/mcp/v1` (or the deployed Function App URL).
+   `http://localhost:7071/api/mcp/v1` (or the deployed Function App URL).
 4. Add header: `Authorization: Bearer <test-key>`.
 5. Click **Connect**. Verify the three tools list.
 6. Repeat steps 5–9 from the stdio section above.

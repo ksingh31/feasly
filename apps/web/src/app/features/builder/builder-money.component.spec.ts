@@ -299,6 +299,22 @@ describe('buildKpis', () => {
     ).find((k) => k.key === 'next')!;
     expect(next.sub).toBe('Nov 19, 2026 · no card on file');
   });
+
+  it('#764: labels the tax-inclusive amounts when sales tax is on', () => {
+    const kpis = buildKpis(
+      { ...OVERVIEW, tax: { ratePercent: 5, label: 'GST', inclusive: false } },
+      DEFAULT_BUILDER_COPY,
+    );
+    expect(kpis.find((k) => k.key === 'outstanding')?.label).toBe('Outstanding (incl. GST)');
+    expect(kpis.find((k) => k.key === 'next')?.label).toBe('Next charge (incl. GST)');
+    expect(kpis.find((k) => k.key === 'failed')?.label).toBe(DEFAULT_BUILDER_COPY.moneyKpiFailed);
+  });
+
+  it('#764 AC2: labels stay unchanged without tax', () => {
+    const kpis = buildKpis(OVERVIEW, DEFAULT_BUILDER_COPY);
+    expect(kpis.find((k) => k.key === 'outstanding')?.label).toBe('Outstanding');
+    expect(kpis.find((k) => k.key === 'next')?.label).toBe('Next charge');
+  });
 });
 
 describe('cardExpiry', () => {

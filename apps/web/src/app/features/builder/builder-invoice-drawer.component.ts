@@ -15,6 +15,7 @@ import {
 import { ConfigService } from '../../core/config/config.service';
 import { formatCentsToCad, formatRatePercent } from '../../shared/utils/money';
 import { formatEdmontonMediumDate } from '../../shared/utils/edmonton';
+import { formatInvoiceTax } from '../../shared/utils/invoice-tax';
 import { BuilderBillingState } from './builder-billing.state';
 import { injectCardModal } from './builder-card-modal.component';
 import { BUILDER_COPY } from './builder-copy';
@@ -101,9 +102,17 @@ export class BuilderInvoiceDrawerComponent {
   });
   protected readonly loadFailed = computed(() => !this.invoice() && this.detailStatus() === 'error');
 
+  /** #764: the invoice's tax breakdown; null for untaxed invoices. */
+  private readonly tax = computed(() => {
+    const inv = this.invoice();
+    return inv ? formatInvoiceTax(inv, this.t.breakdownTaxFallback) : null;
+  });
+
+  /** The amount the builder pays: the total when taxed, else the commission. */
   protected readonly heading = computed(() => {
     const inv = this.invoice();
-    return inv ? formatCentsToCad(inv.commissionCents) : this.t.loadingHeading;
+    if (!inv) return this.t.loadingHeading;
+    return this.tax()?.total ?? formatCentsToCad(inv.commissionCents);
   });
   protected readonly meta = computed(() => {
     const inv = this.invoice();
@@ -127,10 +136,14 @@ export class BuilderInvoiceDrawerComponent {
     const contract = formatCentsToCad(inv.contractValueCents);
     const commission = formatCentsToCad(inv.commissionCents);
     const rateText = rate === null ? '—' : formatRatePercent(rate);
+    const tax = this.tax();
     return {
       contract,
       rate: rateText,
       commission,
+      // #764: subtotal / tax / total rows — hidden when the invoice carries no tax.
+      tax,
+      charged: tax?.total ?? commission,
       formula: rate === null ? null : fillCopy(this.t.breakdownFormula, { contract, rate: rateText, commission }),
     };
   });

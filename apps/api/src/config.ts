@@ -125,6 +125,17 @@ const EnvSchema = z.object({
   SANDBOX_PURGE_RETENTION_DAYS: z.coerce.number().int().positive().default(30),
   SANDBOX_PURGE_DRY_RUN: z.coerce.boolean().default(true),
 
+  // #765 (go-live AC6/AC8): API-key auth posture.
+  // AUTH_CACHE_TTL_SECONDS — per-instance cache of successful key lookups.
+  // Capped at 60 so a revoked key is rejected on every instance within one
+  // minute. 0 (default) = no cache: every request re-reads the key row.
+  // ACCEPTED_MODES — which keys this deployment accepts: `all` (default —
+  // live + sandbox side by side, sandbox writes flagged), `live` (a
+  // production-only deployment rejects sandbox keys) or `sandbox` (a
+  // sandbox-only deployment rejects live keys).
+  API_KEY_AUTH_CACHE_TTL_SECONDS: z.coerce.number().int().min(0).max(60).default(0),
+  API_KEY_ACCEPTED_MODES: z.enum(['all', 'live', 'sandbox']).default('all'),
+
   // #703: one post-report follow-up email ("Questions about your
   // estimate?"), marketing-consent leads only. Off by default — flip per
   // environment once the copy is approved. DELAY_HOURS counts from the
@@ -337,6 +348,22 @@ const EnvSchema = z.object({
   PROPERTY_HTTP_TIMEOUT_MS: z.coerce.number().int().positive().default(15_000),
   PROPERTY_SEARCH_ROW_LIMIT: z.coerce.number().int().positive().default(50),
   PROPERTY_SUGGESTION_LIMIT: z.coerce.number().int().positive().default(8),
+  // #755: market rule — homes this many years old (or older, by the City's
+  // year of construction) are redevelopment candidates; younger homes are
+  // steered to renovation. Per market, so other cities can differ.
+  PROPERTY_REDEVELOPMENT_MIN_AGE_YEARS: z.coerce.number().int().positive().default(25),
+  // --- Shared City-data cache (#756) ---
+  // Durable (Postgres) cache of City records, shared by every instance and
+  // every route. Per-dataset TTLs follow the City's refresh cadence: the
+  // assessment roll is published yearly (with occasional corrections), the
+  // Land Use Districts map changes on bylaw amendments (dataset updated weekly).
+  PROPERTY_DB_CACHE_TTL_MS: z.coerce.number().int().positive().default(604_800_000),
+  LAND_USE_DB_CACHE_TTL_MS: z.coerce.number().int().positive().default(604_800_000),
+  // Cap on a cache read/write so a slow database never slows a lookup; on
+  // timeout the lookup goes to the City as before.
+  PROPERTY_DB_CACHE_TIMEOUT_MS: z.coerce.number().int().positive().default(1_500),
+  // Browser/HTTP cache lifetime on property GETs (lookup + autocomplete).
+  PROPERTY_HTTP_CACHE_MAX_AGE_S: z.coerce.number().int().nonnegative().default(3_600),
   // --- Current land-use district (#686) ---
   // The assessment roll's land_use_designation is stale after the 2024
   // rezoning repeal (pre-repeal pairs like "R-C2,R-CG"). The current district
@@ -378,6 +405,22 @@ const EnvSchema = z.object({
   // reconciled against Stripe by the daily reviewer and flagged on
   // /admin/webhooks. 24h default (open owner question on #711 — tunable).
   BILLING_SETTLEMENT_THRESHOLD_HOURS: z.coerce.number().int().positive().default(24),
+  // --- Card lifecycle (#716) ---
+  // Text on the builder's bank statement for a commission charge. Sent as
+  // Stripe's statement_descriptor_suffix (card PaymentIntents reject a full
+  // statement_descriptor). Stripe rules: at most 22 characters, at least one
+  // letter, none of < > \ ' " *. Unset → the Stripe account default.
+  BILLING_STATEMENT_DESCRIPTOR: z
+    .string()
+    .trim()
+    .min(1)
+    .max(22)
+    .regex(/^[^<>\\'"*]+$/, 'must not contain < > \\ \' " *')
+    .regex(/[A-Za-z]/, 'must contain at least one letter')
+    .optional(),
+  // Days before a saved card's expiry month ends that the portal shows
+  // "expires soon" on the card on file.
+  BILLING_CARD_EXPIRY_WARNING_DAYS: z.coerce.number().int().min(1).max(365).default(30),
   // --- Sales tax on commission invoices (#714) ---
   // Owner decision 2026-11-15: Feasly bills through the owner's existing
   // company; GST at 5%, shown as its own line, priced "commission plus GST"
@@ -786,6 +829,17 @@ export interface PropertyDataConfig {
   readonly searchRowLimit: number;
   /** Max autocomplete suggestions returned. */
   readonly suggestionLimit: number;
+  /**
+   * #755: home age (years) at/over which a property is a redevelopment
+   * candidate; younger homes are steered to renovation. Market config.
+   */
+  readonly redevelopmentMinAgeYears: number;
+  /** Durable (Postgres) cache TTL for assessment-roll records (#756). */
+  readonly dbCacheTtlMs: number;
+  /** Max wait on a durable-cache read/write before falling through (#756). */
+  readonly dbCacheTimeoutMs: number;
+  /** `Cache-Control: max-age` (seconds) on property GETs (#756). */
+  readonly httpCacheMaxAgeSeconds: number;
 }
 
 /** Which current land-use district source a city uses (#686). */
@@ -805,6 +859,8 @@ export interface LandUseConfig {
   readonly datasetId: string;
   /** How long a resolved district is reused before re-checking. */
   readonly cacheTtlMs: number;
+  /** Durable (Postgres) cache TTL for a resolved district (#756). */
+  readonly dbCacheTtlMs: number;
   /** HTTP timeout for the district request (falls back to the roll value). */
   readonly httpTimeoutMs: number;
 }
@@ -897,6 +953,16 @@ export interface BillingConfig {
    * no tax: every invoice figure and document matches the pre-tax output.
    */
   readonly tax?: BillingTaxConfig;
+  /**
+   * #716: bank-statement text for commission charges (Stripe
+   * `statement_descriptor_suffix`). Undefined = Stripe account default.
+   */
+  readonly statementDescriptor?: string;
+  /**
+   * #716: a saved card whose expiry month ends within this many days is
+   * flagged `expiresSoon` on GET /billing/card. Default 30.
+   */
+  readonly cardExpiryWarningDays?: number;
   /** Flat-plan fields — dormant until model='flat'. */
   readonly flatPlanName: string;
   /** Flat monthly price in integer minor units (cents). */
@@ -948,6 +1014,14 @@ export interface FollowUpEmailConfig {
   readonly enabled: boolean;
   /** Hours after the report is first opened before the follow-up is due. */
   readonly delayHours: number;
+}
+
+/** #765: API-key auth posture (revocation lag + live/sandbox isolation). */
+export interface ApiKeyAuthConfig {
+  /** Per-instance auth cache TTL, seconds (0–60; 0 = no cache). */
+  readonly authCacheTtlSeconds: number;
+  /** Which keys this deployment accepts. */
+  readonly acceptedModes: 'all' | 'live' | 'sandbox';
 }
 
 export interface SandboxPurgeConfig {
@@ -1120,6 +1194,7 @@ export interface ApiConfig {
   /** #753: which payment provider billing talks to. */
   readonly payments: PaymentsConfig;
   readonly sandboxPurge: SandboxPurgeConfig;
+  readonly apiKeyAuth: ApiKeyAuthConfig;
   readonly followUpEmail: FollowUpEmailConfig;
   readonly sheets: SheetsConfig;
   readonly narrative: NarrativeConfig;
@@ -1430,6 +1505,10 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): ApiConfig {
       retentionDays: e.SANDBOX_PURGE_RETENTION_DAYS,
       dryRun: e.SANDBOX_PURGE_DRY_RUN,
     },
+    apiKeyAuth: {
+      authCacheTtlSeconds: e.API_KEY_AUTH_CACHE_TTL_SECONDS,
+      acceptedModes: e.API_KEY_ACCEPTED_MODES,
+    },
     payments: {
       provider: resolvePaymentsProvider(
         e.PAYMENTS_PROVIDER,
@@ -1560,12 +1639,17 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): ApiConfig {
       httpTimeoutMs: e.PROPERTY_HTTP_TIMEOUT_MS,
       searchRowLimit: e.PROPERTY_SEARCH_ROW_LIMIT,
       suggestionLimit: e.PROPERTY_SUGGESTION_LIMIT,
+      redevelopmentMinAgeYears: e.PROPERTY_REDEVELOPMENT_MIN_AGE_YEARS,
+      dbCacheTtlMs: e.PROPERTY_DB_CACHE_TTL_MS,
+      dbCacheTimeoutMs: e.PROPERTY_DB_CACHE_TIMEOUT_MS,
+      httpCacheMaxAgeSeconds: e.PROPERTY_HTTP_CACHE_MAX_AGE_S,
     },
     landUse: {
       provider: e.LAND_USE_PROVIDER,
       socrataBaseUrl: e.SOCRATA_BASE_URL,
       datasetId: e.LAND_USE_DATASET_ID,
       cacheTtlMs: e.LAND_USE_CACHE_TTL_MS,
+      dbCacheTtlMs: e.LAND_USE_DB_CACHE_TTL_MS,
       httpTimeoutMs: e.LAND_USE_HTTP_TIMEOUT_MS,
     },
     zoning: {
@@ -1586,6 +1670,10 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): ApiConfig {
       maxChargeRetries: e.BILLING_MAX_CHARGE_RETRIES,
       settlementThresholdHours: e.BILLING_SETTLEMENT_THRESHOLD_HOURS,
       tax: buildTaxConfig(e),
+      ...(e.BILLING_STATEMENT_DESCRIPTOR
+        ? { statementDescriptor: e.BILLING_STATEMENT_DESCRIPTOR }
+        : {}),
+      cardExpiryWarningDays: e.BILLING_CARD_EXPIRY_WARNING_DAYS,
       flatPlanName: e.BILLING_FLAT_PLAN_NAME,
       flatMonthlyCents: e.BILLING_FLAT_MONTHLY_CENTS,
       flatCurrency: e.BILLING_FLAT_CURRENCY,
