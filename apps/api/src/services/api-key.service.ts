@@ -111,7 +111,21 @@ export interface ApiKeyServiceDeps {
   readonly audit: ApiKeyAuditStore;
   readonly clock?: () => Date;
   readonly newId?: () => string;
+  /**
+   * #765 (AC6): per-instance cache of successful lookups, seconds. Bounded
+   * 0–60 by config so a key revoked on any instance is rejected on every
+   * instance within one minute. 0 (default) = no cache.
+   */
+  readonly authCacheTtlSeconds?: number;
+  /**
+   * #765 (AC8): which keys this deployment accepts. `live` rejects sandbox
+   * keys, `sandbox` rejects live keys, `all` (default) accepts both.
+   */
+  readonly acceptedModes?: 'all' | 'live' | 'sandbox';
 }
+
+/** Hard ceiling on the auth cache TTL — revocation must propagate in ≤ 60s. */
+export const MAX_API_KEY_AUTH_CACHE_TTL_SECONDS = 60;
 
 const issueRequestSchema = z.object({
   name: z.string().trim().min(1).max(120),
@@ -174,7 +188,40 @@ export function createApiKeyService(deps: ApiKeyServiceDeps): ApiKeyService {
     audit,
     clock = () => new Date(),
     newId = () => randomUUID(),
+    acceptedModes = 'all',
   } = deps;
+  const cacheTtlMs =
+    Math.min(
+      Math.max(deps.authCacheTtlSeconds ?? 0, 0),
+      MAX_API_KEY_AUTH_CACHE_TTL_SECONDS,
+    ) * 1000;
+  const authCache = new Map<
+    string,
+    { readonly record: ApiKeyRecord; readonly expiresAt: number }
+  >();
+
+  function evict(keyId: string): void {
+    for (const [hash, entry] of authCache) {
+      if (entry.record.id === keyId) authCache.delete(hash);
+    }
+  }
+
+  async function lookup(hash: string): Promise<ApiKeyRecord | null> {
+    if (cacheTtlMs === 0) return keys.findActiveByHash(hash);
+    const now = clock().getTime();
+    const hit = authCache.get(hash);
+    if (hit && hit.expiresAt > now) return hit.record;
+    authCache.delete(hash);
+    const record = await keys.findActiveByHash(hash);
+    if (record) authCache.set(hash, { record, expiresAt: now + cacheTtlMs });
+    return record;
+  }
+
+  function modeAccepted(record: ApiKeyRecord): boolean {
+    if (acceptedModes === 'live') return !record.sandbox;
+    if (acceptedModes === 'sandbox') return record.sandbox;
+    return true;
+  }
 
   function mint(sandbox: boolean): { plaintext: string; hash: string; prefix: string } {
     const prefix = sandbox ? TEST_PREFIX : LIVE_PREFIX;
@@ -228,6 +275,7 @@ export function createApiKeyService(deps: ApiKeyServiceDeps): ApiKeyService {
       // Revoke the old key first — AC5: it must 401 within 60 seconds.
       // The hash lookup filters revoked rows, so revocation is immediate.
       await keys.revoke(keyId, now);
+      evict(keyId);
       await audit.log({ apiKeyId: keyId, action: 'revoked', detail: 'rotate' });
 
       const { plaintext, hash, prefix } = mint(existing.sandbox);
@@ -255,6 +303,7 @@ export function createApiKeyService(deps: ApiKeyServiceDeps): ApiKeyService {
         throw new HttpError(404, ErrorCodes.NOT_FOUND, 'API key not found.', false);
       }
       await keys.revoke(keyId, clock());
+      evict(keyId);
       await audit.log({ apiKeyId: keyId, action: 'revoked', detail: 'manual' });
     },
 
@@ -289,6 +338,7 @@ export function createApiKeyService(deps: ApiKeyServiceDeps): ApiKeyService {
         rateLimitPerMin = patch.rateLimitPerMin;
       }
       const updated = await keys.update(keyId, { scopes, rateLimitPerMin });
+      evict(keyId);
       if (!updated) {
         throw new HttpError(404, ErrorCodes.NOT_FOUND, 'API key not found.', false);
       }
@@ -307,12 +357,14 @@ export function createApiKeyService(deps: ApiKeyServiceDeps): ApiKeyService {
     },
 
     async authenticate(bearerToken: string): Promise<ApiKeyRecord> {
-      const record = await keys.findActiveByHash(hashApiKey(bearerToken));
-      if (!record) {
+      const record = await lookup(hashApiKey(bearerToken));
+      if (!record || !modeAccepted(record)) {
+        // Uniform 401 for unknown, revoked and wrong-mode keys (no oracle);
+        // the audit detail tells operators which one it was.
         await audit.log({
-          apiKeyId: null,
+          apiKeyId: record?.id ?? null,
           action: 'auth_failed',
-          detail: 'unknown-or-revoked',
+          detail: record ? `mode-mismatch:${acceptedModes}` : 'unknown-or-revoked',
         });
         throw new HttpError(
           401,

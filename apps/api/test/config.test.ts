@@ -196,6 +196,10 @@ describe('loadConfig', () => {
         retentionDays: 30,
         dryRun: true,
       },
+      apiKeyAuth: {
+        authCacheTtlSeconds: 0,
+        acceptedModes: 'all',
+      },
       followUpEmail: {
         enabled: false,
         delayHours: 72,
