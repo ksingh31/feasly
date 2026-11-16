@@ -34,6 +34,11 @@ import {
   renderNudgeEmail,
   type TemplateContext,
 } from '../src/services/email/templates';
+import {
+  BUILD_TIMELINES,
+  resolveBuildTimeline,
+  type BuildTimeline,
+} from '../src/lib/build-timeline';
 
 const TEST_DIR = __dirname;
 
@@ -284,6 +289,78 @@ describe('report email (#703)', () => {
       expect(r.html).toContain('background-color:#ffffff');
       expect(r.html).toContain('color:#232323');
     }
+  });
+});
+
+describe('report email: typical build timeline (#823)', () => {
+  const CALGARY = BUILD_TIMELINES['calgary']!;
+  const withTimeline = renderMagicLinkEmail({ ...CTX, buildTimeline: CALGARY }, REPORT_INPUT);
+
+  it('carries the 12–16 month total, every phase and the pre-sale note (html + text)', () => {
+    for (const body of [withTimeline.html, withTimeline.text]) {
+      expect(body).toContain('Typical new-build timeline');
+      expect(body).toContain('Typical total: 12–16 months');
+      for (const phase of CALGARY.phases) {
+        expect(body).toContain(phase.label);
+      }
+      expect(body).toContain('2–4 weeks');
+      expect(body).toContain(
+        'Buying a pre-sale or move-in-ready home follows a different timeline.',
+      );
+    }
+    expect(withTimeline.text).toContain('- Development permit: 2–4 months');
+    expect(withTimeline.text).not.toMatch(/<[a-z]/i);
+  });
+
+  it('renders from config: a different timeline changes the email', () => {
+    const custom: BuildTimeline = {
+      totalMinMonths: 9,
+      totalMaxMonths: 11,
+      phases: [{ id: 'x', label: 'Permit review', min: 3, max: 5, unit: 'weeks' }],
+    };
+    const r = renderMagicLinkEmail({ ...CTX, buildTimeline: custom }, REPORT_INPUT);
+    expect(r.text).toContain('Typical total: 9–11 months');
+    expect(r.text).toContain('- Permit review: 3–5 weeks');
+    expect(r.text).not.toContain('Development permit');
+  });
+
+  it('omits the block when no timeline is configured, and on team sign-in emails', () => {
+    expect(renderMagicLinkEmail(CTX, REPORT_INPUT).text).not.toContain('Typical total');
+    const builder = renderMagicLinkEmail(
+      { ...CTX, buildTimeline: CALGARY },
+      { magicLinkUrl: MAGIC_URL, expiresInDays: 7, audience: 'builder' },
+    );
+    expect(builder.text).not.toContain('Typical total');
+  });
+
+  it('stays clean: no dollar figures, no banned phrases', () => {
+    const patterns = loadBannedPatterns();
+    for (const body of [withTimeline.subject, withTimeline.html, withTimeline.text]) {
+      expect(body).not.toMatch(/\$\s?\d/);
+      for (const re of patterns) {
+        expect(body).not.toMatch(re);
+      }
+    }
+  });
+
+  it('resolves the city case-insensitively; unknown cities have no timeline', () => {
+    expect(resolveBuildTimeline(' Calgary ')).toBe(CALGARY);
+    expect(resolveBuildTimeline('red-deer')).toBeUndefined();
+  });
+
+  it('the service renders the served city\'s timeline into the consumer email', async () => {
+    const provider = fakeProvider();
+    const service = createEmailService({
+      provider,
+      fromAddress: 'noreply@feasly.example',
+      fromName: 'Feasly',
+      appBaseUrl: CTX.appBaseUrl,
+      unsubscribeBaseUrl: CTX.unsubscribeBaseUrl,
+      opsInbox: 'ops@feasly.example',
+      buildTimeline: CALGARY,
+    });
+    await service.sendMagicLink({ to: 'a@b.example', ...REPORT_INPUT });
+    expect(provider.sent[0]?.text).toContain('Typical total: 12–16 months');
   });
 });
 

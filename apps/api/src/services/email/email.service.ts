@@ -19,6 +19,7 @@ import type {
 } from './email.types';
 import { EmailProviderError, type EmailFailureCode } from './email.types';
 import { sanitizeErrorMessage } from '../../lib/sanitize-error';
+import type { BuildTimeline } from '../../lib/build-timeline';
 import {
   renderCallbackTeamEmail,
   renderCommissionInvoiceReadyEmail,
@@ -290,6 +291,8 @@ export interface EmailServiceDeps {
   readonly maxAttempts?: number;
   /** Backoff between attempts, ms. Default 1000. */
   readonly retryBackoffMs?: number;
+  /** #823: typical build timeline rendered in the consumer report email. */
+  readonly buildTimeline?: BuildTimeline;
 }
 
 /**
@@ -341,6 +344,7 @@ export function createEmailService(deps: EmailServiceDeps): EmailService {
     appBaseUrl: deps.appBaseUrl,
     unsubscribeBaseUrl: deps.unsubscribeBaseUrl,
     brandName: 'Feasly',
+    ...(deps.buildTimeline ? { buildTimeline: deps.buildTimeline } : {}),
   };
 
   /**

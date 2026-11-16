@@ -116,6 +116,29 @@ export const DEFAULT_APP_CONFIG: AppConfig = {
      */
     estimateRoundingStep: 1000,
   },
+  buildTimeline: {
+    defaultCity: 'calgary',
+    cities: {
+      // Owner decision (Karan, 2026-11-15, #823): a custom infill build
+      // typically takes 12–16 months from design through permits to
+      // completion. Phase ranges are typical and overlap (design wraps up
+      // while the development permit is in review), so the total is set
+      // here, never summed. Permit phases can later use real City approval
+      // times from the permits story.
+      calgary: {
+        totalMinMonths: 12,
+        totalMaxMonths: 16,
+        phases: [
+          { id: 'design', label: 'Design and architecture', min: 2, max: 4, unit: 'months' },
+          { id: 'development-permit', label: 'Development permit', min: 2, max: 4, unit: 'months' },
+          { id: 'building-permit', label: 'Building permit', min: 1, max: 2, unit: 'months' },
+          { id: 'demolition', label: 'Demolition', min: 2, max: 4, unit: 'weeks' },
+          { id: 'construction', label: 'Construction', min: 7, max: 10, unit: 'months' },
+          { id: 'completion', label: 'Final inspections and completion', min: 2, max: 4, unit: 'weeks' },
+        ],
+      },
+    },
+  },
   coverage: {
     singleFamilyDistricts: {
       /**
@@ -642,9 +665,6 @@ export const DEFAULT_APP_CONFIG: AppConfig = {
         'Lenders typically want to see your plans, your builder contract, and a cost breakdown like this report before they approve anything.',
         'Talk to a lender early — financing terms shape what you can build, so it pays to know your numbers before final drawings.',
       ],
-      timelineTitle: 'How long it takes',
-      timelineLine:
-        'From permits to possession, timing depends on your lot, plans, and permits — your builder can confirm a timeline once plans are drawn.',
       shareTitle: 'Share with a partner',
       shareHint: 'Email this report to a partner — they receive their own secure link.',
       shareEmailLabel: 'Partner email',
@@ -954,7 +974,7 @@ export const DEFAULT_APP_CONFIG: AppConfig = {
           },
           {
             q: 'How long does it take to build a home in Calgary?',
-            a: 'Feasly estimates cost, not timelines — build schedules depend on your builder, permits, and site conditions. Your report lays out the next steps so you can take the conversation to builders with real numbers in hand.',
+            a: 'A custom infill home in Calgary typically takes 12–16 months from design through permits to completion. Your report shows the typical range for each phase, from design and permits to construction. Your builder, permits, and site conditions set the actual schedule. Buying a pre-sale or move-in-ready home follows a different timeline.',
           },
           {
             q: 'Is Feasly free?',
@@ -1045,7 +1065,7 @@ export const DEFAULT_APP_CONFIG: AppConfig = {
           },
           {
             q: 'How long does it take to build a house in Calgary?',
-            a: 'Feasly estimates cost, not timelines — build schedules depend on your builder, permits, and site conditions. Your report lays out the next steps so you can take the conversation to builders with real numbers in hand.',
+            a: 'A custom infill home in Calgary typically takes 12–16 months from design through permits to completion. Your report shows the typical range for each phase, from design and permits to construction. Your builder, permits, and site conditions set the actual schedule. Buying a pre-sale or move-in-ready home follows a different timeline.',
           },
           {
             q: 'Which Calgary communities cost the least to build in?',
@@ -1263,6 +1283,16 @@ export const DEFAULT_APP_CONFIG: AppConfig = {
     // ("no paid placement", "project fit", …) are banned by
     // tools/check-banned-phrases.mjs. Embedded estimators don't render this
     // explainer: on a builder's own site the lead goes to that builder.
+    buildTimeline: {
+      title: 'Typical build timeline',
+      intro: 'How long a custom infill home typically takes, from first drawings to moving in.',
+      totalTemplate: 'Typical total: {min}–{max} months',
+      rangeTemplates: { weeks: '{min}–{max} weeks', months: '{min}–{max} months' },
+      phasesLabel: 'Build phases',
+      overlapNote:
+        'Some phases overlap. Your builder can confirm a schedule once plans are drawn and permits are filed.',
+      presaleNote: 'Buying a pre-sale or move-in-ready home follows a different timeline.',
+    },
     builderMatching: {
       summary: 'What does "builders associated with us" mean?',
       paragraphs: [

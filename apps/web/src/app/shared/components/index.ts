@@ -2,6 +2,7 @@
 export { AddressAutocompleteComponent } from './address-autocomplete';
 export { BrandMarkComponent } from './brand-mark';
 export { BuilderMatchingExplainerComponent } from './builder-matching-explainer';
+export { BuildTimelineComponent } from './build-timeline';
 // Note (BILL-06): comment-thread's RUNTIME values (CommentThreadComponent,
 // BUILDER_COMMENT_THREAD_CONFIG, DEFAULT_COMMENT_THREAD_LABELS,
 // formatCommentTimestamp) are intentionally NOT re-exported here. They are

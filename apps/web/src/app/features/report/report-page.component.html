@@ -395,7 +395,7 @@
         </details>
       </section>
 
-      <!-- PLANNING AHEAD: financing + timeline honesty for prospects. No
+      <!-- PLANNING AHEAD: financing honesty for prospects. No
            referrals, no promises, no specific lenders. -->
       <section class="card ref" [attr.aria-label]="copy.planningTitle">
         <details>
@@ -404,8 +404,15 @@
           @for (line of copy.financingLines; track line) {
             <p class="planning-text">{{ line }}</p>
           }
-          <h3 class="subhead">{{ copy.timelineTitle }}</h3>
-          <p class="planning-text">{{ copy.timelineLine }}</p>
+        </details>
+      </section>
+
+      <!-- BUILD TIMELINE (#823): typical design-to-completion phases from
+           config (buildTimeline.cities). "Typical", never a promise. -->
+      <section class="card ref" [attr.aria-label]="timelineCopy.title">
+        <details>
+          <summary><h2 class="disclosure-heading">{{ timelineCopy.title }}</h2></summary>
+          <app-build-timeline [showTitle]="false" />
         </details>
       </section>
     }

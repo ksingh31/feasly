@@ -630,15 +630,26 @@ describe('ReportPageComponent', () => {
         expect(body).not.toContain('Financing costs');
       });
 
-      it('renders the planning-ahead card: financing honesty and a qualitative timeline', () => {
+      it('renders the planning-ahead card: financing honesty', () => {
         const body = text();
         expect(body).toContain('Planning ahead');
         expect(body).toContain('construction loan, not a regular mortgage');
         expect(body).toContain('Talk to a lender early');
-        // No unverified month counts (Karan 2026-09-28): the timeline stays
-        // qualitative and defers to the builder.
-        expect(body).not.toContain('10–14 months');
-        expect(body).toContain('your builder can confirm a timeline');
+      });
+
+      // #823 (owner decision 2026-11-15, supersedes the 2026-09-28
+      // qualitative-only line): typical phases + a 12–16 month total, from config.
+      it('renders the typical build timeline section from config', () => {
+        const section = fixture.nativeElement.querySelector(
+          'section.ref[aria-label="Typical build timeline"]',
+        ) as HTMLElement | null;
+        expect(section).not.toBeNull();
+        const body = section?.textContent ?? '';
+        expect(body).toContain('Typical total: 12–16 months');
+        expect(body).toContain('Development permit');
+        expect(body).toContain('Building permit');
+        expect(body).toContain('Buying a pre-sale or move-in-ready home follows a different timeline.');
+        expect(section?.querySelectorAll('.bt-phase').length).toBe(6);
       });
 
       it('keeps the how-we-calculate h2 inline with the disclosure marker (bug 2026-10-02)', () => {
@@ -803,6 +814,7 @@ describe('ReportPageComponent', () => {
           'How we calculate your estimate',
           'What your estimate covers',
           'Planning ahead',
+          'Typical build timeline',
           'AI summary',
         ]);
         // Inside the header: range total first, then the Build | Land row.
@@ -854,6 +866,7 @@ describe('ReportPageComponent', () => {
           'How we calculate your estimate',
           'What your estimate covers',
           'Planning ahead',
+          'Typical build timeline',
           'AI summary',
         ]);
         for (const r of refs) {
@@ -1476,6 +1489,7 @@ describe('ReportPageComponent', () => {
         expect(t).not.toContain('What your estimate covers');
         expect(t).not.toContain('Built the way a real Calgary builder budgets');
         expect(t).not.toContain('Planning ahead');
+        expect(t).not.toContain('Typical build timeline');
         expect(t).not.toContain('construction loan');
         expect(t).not.toContain('finishes are never compromised');
         expect(t).not.toContain('explicit choices you make in your finish tier');
