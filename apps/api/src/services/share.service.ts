@@ -19,6 +19,10 @@ import { z } from 'zod';
 import type {
   PartnerShareResponse,
   PartnerShareVerifyResponse,
+  ShareLinkCreateResponse,
+  ShareLinkListResponse,
+  ShareLinkRevokeResponse,
+  ShareLinkStatus,
 } from '@feasly/contracts';
 import { ErrorCodes, HttpError } from '../middleware/errors';
 import type { EmailService } from './email';
@@ -32,6 +36,7 @@ import {
 } from './magic-link.store';
 import { requireOwnerLink, resolveReportToken } from './report-context';
 import type { PartnerShareStore } from './partner-share.store';
+import type { ShareLinkRecord, ShareLinkStore } from './share-link.store';
 
 /** Request validation — mirrors the contracts `PartnerShareRequest` shape. */
 export const PartnerShareRequestSchema = z
@@ -40,6 +45,19 @@ export const PartnerShareRequestSchema = z
     partnerEmail: z.string().trim().toLowerCase().email().max(254),
   })
   .strict();
+
+/** #838: link-share requests — the owner token is the only input. */
+const ShareLinkOwnerRequestSchema = z
+  .object({ reportToken: z.string().min(1).max(500) })
+  .strict();
+const ShareLinkRevokeRequestSchema = z
+  .object({
+    reportToken: z.string().min(1).max(500),
+    shareId: z.string().uuid(),
+  })
+  .strict();
+/** Max link shares returned by the list endpoint. */
+const MAX_LISTED_LINKS = 50;
 
 /** CAP-008 abuse control: max partner shares per estimate per day. */
 const MAX_SHARES_PER_DAY = 5;
@@ -62,6 +80,16 @@ export interface ShareService {
    * are denied with the same invalid/expired shape (no purpose oracle).
    */
   verifyPartnerLink(token: string): Promise<PartnerShareVerifyResponse>;
+  /**
+   * #838: mint a link-only, read-only, expiring share link for the owner
+   * to copy. Owner token only (partner tokens → 403); unknown/expired →
+   * 404; more than `maxActive` live links → 429.
+   */
+  createShareLink(requestBody: unknown): Promise<ShareLinkCreateResponse>;
+  /** #838: the owner's link shares with their status (owner token only). */
+  listShareLinks(requestBody: unknown): Promise<ShareLinkListResponse>;
+  /** #838: revoke one of the owner's link shares (owner token only). */
+  revokeShareLink(requestBody: unknown): Promise<ShareLinkRevokeResponse>;
 }
 
 export interface ShareServiceDeps {
@@ -75,10 +103,56 @@ export interface ShareServiceDeps {
   readonly magicLinkTtlSeconds: number;
   /** Injected clock for tests; defaults to wall time. */
   readonly clock?: () => Date;
+  /** #838: link-only shares. Absent = the link endpoints answer 503. */
+  readonly shareLinks?: ShareLinkStore;
+  /** #838: link-share lifetime (SHARE_LINK_TTL_SECONDS). */
+  readonly shareLinkTtlSeconds?: number;
+  /** #838: max live link shares per report (SHARE_LINK_MAX_ACTIVE). */
+  readonly shareLinkMaxActive?: number;
+}
+
+function parseOrThrow<T>(schema: z.ZodType<T>, body: unknown, fallback: string): T {
+  const parsed = schema.safeParse(body);
+  if (!parsed.success) {
+    throw new HttpError(
+      400,
+      ErrorCodes.VALIDATION_FAILED,
+      parsed.error.issues[0]?.message ?? fallback,
+      false,
+    );
+  }
+  return parsed.data;
+}
+
+function linkStatus(record: ShareLinkRecord, now: Date): ShareLinkStatus {
+  if (record.revokedAt !== null) return 'revoked';
+  return record.expiresAt.getTime() > now.getTime() ? 'active' : 'expired';
 }
 
 export function createShareService(deps: ShareServiceDeps): ShareService {
   const clock = deps.clock ?? (() => new Date());
+
+  function requireLinkStore(): ShareLinkStore {
+    if (!deps.shareLinks) {
+      throw new HttpError(
+        503,
+        ErrorCodes.INTERNAL_ERROR,
+        'Share links are not configured.',
+      );
+    }
+    return deps.shareLinks;
+  }
+
+  /** Resolve an owner report token (404 unknown/expired, 403 partner). */
+  async function ownerLead(reportToken: string) {
+    const { lead, linkPurpose } = await resolveReportToken(
+      { magicLinks: deps.magicLinks, leads: deps.leads, clock },
+      reportToken,
+    );
+    requireOwnerLink(linkPurpose);
+    return lead;
+  }
+
   return {
     async shareWithPartner(requestBody: unknown): Promise<PartnerShareResponse> {
       const parsed = PartnerShareRequestSchema.safeParse(requestBody);
@@ -201,9 +275,10 @@ export function createShareService(deps: ShareServiceDeps): ShareService {
       if (!isMagicLinkLive(record, clock())) {
         return { valid: false, reason: 'expired' };
       }
-      // Only links the share service actually emailed redeem: the audit
-      // row is inserted after the provider accepts the message, so a
-      // minted-but-never-sent link stays dead.
+      // Only links the share service created redeem: an emailed share's
+      // audit row is inserted after the provider accepts the message (a
+      // minted-but-never-sent link stays dead); a link-only share (#838)
+      // is recorded at creation and has no recipient.
       const audit = await deps.shares.findByMagicLinkId(record.id);
       if (!audit) {
         return { valid: false, reason: 'invalid' };
@@ -212,12 +287,82 @@ export function createShareService(deps: ShareServiceDeps): ShareService {
         email: lead.email,
         addressKey: lead.addressKey,
       });
+      const estimateId = newest?.estimateId ?? lead.estimateId;
+      return audit.partnerEmail !== null
+        ? { valid: true, reportToken: token, estimateId, partnerEmail: audit.partnerEmail }
+        : { valid: true, reportToken: token, estimateId };
+    },
+
+    async createShareLink(requestBody: unknown): Promise<ShareLinkCreateResponse> {
+      const store = requireLinkStore();
+      const { reportToken } = parseOrThrow(
+        ShareLinkOwnerRequestSchema,
+        requestBody,
+        'Invalid share link request.',
+      );
+      const lead = await ownerLead(reportToken);
+      const now = clock();
+      const maxActive = deps.shareLinkMaxActive ?? 5;
+      if ((await store.countActive(lead.id, now)) >= maxActive) {
+        throw new HttpError(
+          429,
+          ErrorCodes.RATE_LIMITED,
+          `This report already has ${maxActive} active share links. ` +
+            'Turn one off before creating another.',
+        );
+      }
+      // A fresh partner-share link: read-only by token type (owner-only
+      // actions refuse it), expiring, and never the owner's own token.
+      const issued = await deps.magicLinks.issue({
+        leadId: lead.id,
+        purpose: PARTNER_SHARE_LINK_PURPOSE,
+        ttlSeconds: deps.shareLinkTtlSeconds ?? deps.magicLinkTtlSeconds,
+        clock,
+        sandbox: lead.sandbox,
+      });
+      const id = randomUUID();
+      await store.insert({ id, leadId: lead.id, magicLinkId: issued.id });
       return {
-        valid: true,
-        reportToken: token,
-        estimateId: newest?.estimateId ?? lead.estimateId,
-        partnerEmail: audit.partnerEmail,
+        id,
+        url: `${deps.appBaseUrl}/r/${issued.token}`,
+        expiresAt: issued.expiresAt.toISOString(),
       };
+    },
+
+    async listShareLinks(requestBody: unknown): Promise<ShareLinkListResponse> {
+      const store = requireLinkStore();
+      const { reportToken } = parseOrThrow(
+        ShareLinkOwnerRequestSchema,
+        requestBody,
+        'Invalid share link request.',
+      );
+      const lead = await ownerLead(reportToken);
+      const now = clock();
+      const rows = await store.listByLeadId(lead.id, MAX_LISTED_LINKS);
+      return {
+        links: rows.map((row) => ({
+          id: row.id,
+          createdAt: row.createdAt.toISOString(),
+          expiresAt: row.expiresAt.toISOString(),
+          status: linkStatus(row, now),
+        })),
+      };
+    },
+
+    async revokeShareLink(requestBody: unknown): Promise<ShareLinkRevokeResponse> {
+      const store = requireLinkStore();
+      const { reportToken, shareId } = parseOrThrow(
+        ShareLinkRevokeRequestSchema,
+        requestBody,
+        'Invalid revoke request.',
+      );
+      const lead = await ownerLead(reportToken);
+      const revoked = await store.revoke({ shareId, leadId: lead.id, now: clock() });
+      if (!revoked) {
+        // Unknown id or another lead's share — same answer (no oracle).
+        throw new HttpError(404, ErrorCodes.NOT_FOUND, 'Share link not found.', false);
+      }
+      return { id: revoked.id, status: 'revoked' };
     },
   };
 }

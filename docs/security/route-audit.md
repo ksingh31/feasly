@@ -52,6 +52,9 @@ Related: [rate-limits.md](rate-limits.md) · [asvs-l1.md](asvs-l1.md) ·
 | POST | `/api/v1/waitlist` | none | — | 10/min per IP | live |  |
 | POST | `/api/v1/shares` | magic-token | — | 10/min per IP | live |  |
 | GET | `/api/v1/shares/verify` | magic-token | — | 100/min per IP | live |  |
+| POST | `/api/v1/shares/link` | magic-token | — | 10/min per IP | live |  |
+| POST | `/api/v1/shares/link/list` | magic-token | — | 10/min per IP | live |  |
+| POST | `/api/v1/shares/link/revoke` | magic-token | — | 10/min per IP | live |  |
 | GET | `/api/v1/properties/autocomplete` | none | — | 60/min per IP | live | SSRF surface: same fixed-host rule as lookup. |
 | GET | `/api/v1/properties/lookup` | none | — | 60/min per IP | live | SSRF surface: outbound calls go only to fixed City of Calgary hosts from config; the address is a query value, never a URL. |
 | POST | `/api/v1/events` | none | — | 300/min per IP (dedicated analytics limiter) | live | Anonymous analytics; dedicated limiter; schema-validated, no free-text PII fields. |
@@ -149,6 +152,7 @@ Related: [rate-limits.md](rate-limits.md) · [asvs-l1.md](asvs-l1.md) ·
 | GET | `/api/v1/admin/usage` | admin | usage:read | 300/min per session | planned |  |
 | GET | `/api/v1/admin/calibration` | admin | calibration:read | 300/min per session | live |  |
 | GET | `/api/v1/admin/ops/sheets-status` | admin | ops:manage | 300/min per session | live |  |
+| GET | `/api/v1/admin/ops/jobs` | admin | ops:manage | 300/min per session | live |  |
 | POST | `/api/v1/admin/ops/sheets-sync-now` | admin | ops:manage | 10/min per session | live |  |
 | POST | `/api/v1/builder/agreement/accept` | none | — | 10/min per IP | planned | Not live yet. Planned as `auth: none`; must bind acceptance to a builder session or a single-use token before going live. |
 | GET | `/api/v1/builder/leads/{id}` | builder-session | builder:leads:read | 300/min per session | planned |  |

@@ -14,6 +14,7 @@
       "Function.dispute-sla-timer.User": "Information",
       "Function.follow-up-timer.User": "Information",
       "Function.invoice-reviewer-timer.User": "Information",
+      "Function.job-queue-timer.User": "Information",
       "Function.neighbourhood-data-refresh-timer.User": "Information",
       "Function.admin-neighbourhood-data-refresh.User": "Information",
       "Function.nudge-timer.User": "Information",

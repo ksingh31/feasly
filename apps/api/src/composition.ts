@@ -54,12 +54,30 @@ import {
 } from './services/unsubscribe.service';
 import {
   createNudgeService,
+  UNFINISHED_ESTIMATE_REMINDER_JOB,
   type NudgeService,
 } from './services/nudge.service';
 import {
   createFollowUpService,
+  NO_BUILDER_CONTACT_REMINDER_JOB,
   type FollowUpService,
 } from './services/follow-up.service';
+import {
+  createDrizzleJobQueueStore,
+  type JobQueueStore,
+} from './services/job-queue.store';
+import {
+  createJobQueueService,
+  type JobQueueService,
+} from './services/job-queue.service';
+import {
+  createDrizzleShareLinkStore,
+  type ShareLinkStore,
+} from './services/share-link.store';
+import {
+  createAdminJobsRoute,
+  type AdminJobsRoute,
+} from './routes/admin-jobs.route';
 import {
   createDrizzleLeadFollowUpStore,
   type LeadFollowUpStore,
@@ -746,6 +764,10 @@ export interface AppComposition {
   readonly nudgeService: NudgeService;
   /** #703: hourly post-report follow-up timer (flag default off). */
   readonly followUpService: FollowUpService;
+  /** #838: Postgres-backed job queue (job-queue timer + admin view). */
+  readonly jobQueueService: JobQueueService;
+  /** #838: GET /v1/admin/ops/jobs. */
+  readonly adminJobsRoute: AdminJobsRoute;
   /** api-mcp/09: daily sandbox test-data purge timer. */
   readonly sandboxPurgeService: SandboxPurgeService;
   /** admin/04: hourly Google Sheets sync worker (Postgres is source of truth). */
@@ -964,6 +986,10 @@ export interface CompositionOptions {
   readonly leadStatusChangeStore?: LeadStatusChangeStore;
   /** #703: report-opened + follow-up stamps (default: Drizzle). */
   readonly leadFollowUpStore?: LeadFollowUpStore;
+  /** #838: job queue persistence (default: Drizzle). */
+  readonly jobQueueStore?: JobQueueStore;
+  /** #838: link-only report shares (default: Drizzle). */
+  readonly shareLinkStore?: ShareLinkStore;
   readonly magicLinkStore?: MagicLinkStore;
   readonly privacyStore?: PrivacyStore;
   readonly apiKeyStore?: ApiKeyStore;
@@ -1244,6 +1270,27 @@ export function createComposition(
     options.leadFollowUpStore ?? createDrizzleLeadFollowUpStore({ db: db.db });
   const magicLinkStore: MagicLinkStore =
     options.magicLinkStore ?? createDrizzleMagicLinkStore({ db: db.db });
+  // #838 — Postgres-backed job queue. Built early so the unsubscribe
+  // service can cancel a lead's queued reminders; handlers bind late (the
+  // reminder services are built further down).
+  const jobQueueStore: JobQueueStore =
+    options.jobQueueStore ?? createDrizzleJobQueueStore({ db: db.db });
+  const jobQueueService: JobQueueService = createJobQueueService({
+    store: jobQueueStore,
+    handlers: () => ({
+      [UNFINISHED_ESTIMATE_REMINDER_JOB]: async (job) => {
+        if (job.leadId) await nudgeService.sendReminder(job.leadId);
+      },
+      [NO_BUILDER_CONTACT_REMINDER_JOB]: async (job) => {
+        if (job.leadId) await followUpService.sendReminder(job.leadId);
+      },
+    }),
+    batchSize: config.jobQueue.batchSize,
+    maxAttempts: config.jobQueue.maxAttempts,
+    backoffBaseSeconds: config.jobQueue.backoffBaseSeconds,
+    backoffMaxSeconds: config.jobQueue.backoffMaxSeconds,
+    lockTimeoutSeconds: config.jobQueue.lockTimeoutSeconds,
+  });
   const analyticsStore: AnalyticsStore =
     options.analyticsStore ?? createDrizzleAnalyticsStore({ db: db.db });
   const analyticsService: AnalyticsService = createAnalyticsService({
@@ -1305,6 +1352,7 @@ export function createComposition(
     unsubscribeUrlBase: config.email.unsubscribeUrlBase,
     tokenSecret: config.email.unsubscribeTokenSecret,
     tokenTtlSeconds: config.email.unsubscribeTokenTtlSeconds,
+    jobs: jobQueueService,
   });
   // Builders table (embed/02 admin-UI migration): runtime source of truth
   // for builder config. tenant_key stays the join key for billing,
@@ -1387,6 +1435,10 @@ export function createComposition(
     unsubscribe: unsubscribeService,
     appBaseUrl: config.email.appBaseUrl,
     magicLinkTtlSeconds: config.auth.magicLinkTtlSeconds,
+    // #838: the cycle enqueues; the job-queue worker sends (with retries).
+    queue: jobQueueService,
+    nudgeDelayHours: config.reminders.unfinishedDelayHours,
+    maxCandidatesPerRun: config.reminders.maxPerRun,
     // P0-class visibility guard: per-lead failures are swallowed into the
     // `skipped` count by design (batch survives); this sink makes a dead
     // provider visible. Sanitized: no tokens, emails, or keys.
@@ -1407,6 +1459,9 @@ export function createComposition(
     appBaseUrl: config.email.appBaseUrl,
     magicLinkTtlSeconds: config.auth.magicLinkTtlSeconds,
     delayHours: config.followUpEmail.delayHours,
+    // #838: the cycle enqueues; the job-queue worker sends (with retries).
+    queue: jobQueueService,
+    maxCandidatesPerRun: config.reminders.maxPerRun,
     onLeadError: (error) =>
       console.error(
         `follow-up: lead send failed (error=${sanitizeErrorMessage(error)})`,
@@ -1590,6 +1645,11 @@ export function createComposition(
       status: sheetsSyncStatusService,
       adminGuard,
     });
+  // #838 — admin view of the job queue (failed jobs by default).
+  const adminJobsRoute: AdminJobsRoute = createAdminJobsRoute({
+    jobs: jobQueueService,
+    adminGuard,
+  });
   const adminSheetsSyncNowRoute: AdminSheetsSyncNowRoute =
     createAdminSheetsSyncNowRoute({
       status: sheetsSyncStatusService,
@@ -2179,6 +2239,9 @@ export function createComposition(
     email: emailService,
     appBaseUrl: config.email.appBaseUrl,
     magicLinkTtlSeconds: config.auth.magicLinkTtlSeconds,
+    shareLinks: options.shareLinkStore ?? createDrizzleShareLinkStore({ db: db.db }),
+    shareLinkTtlSeconds: config.shareLink.ttlSeconds,
+    shareLinkMaxActive: config.shareLink.maxActive,
   });
   const shareRoute: ShareRoute = createShareRoute({ shares: shareService });
   const openApiRoute: OpenApiRoute = createOpenApiRoute({
@@ -2602,6 +2665,8 @@ export function createComposition(
     adminCalibrationRoute,
     adminSheetsStatusRoute,
     adminSheetsSyncNowRoute,
+    adminJobsRoute,
+    jobQueueService,
     adminEstimatesService,
     adminEstimatesRoute,
     privacyStore,

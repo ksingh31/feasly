@@ -240,6 +240,21 @@ describe('loadConfig', () => {
         enabled: false,
         delayHours: 72,
       },
+      jobQueue: {
+        batchSize: 50,
+        maxAttempts: 5,
+        backoffBaseSeconds: 300,
+        backoffMaxSeconds: 21_600,
+        lockTimeoutSeconds: 900,
+      },
+      reminders: {
+        unfinishedDelayHours: 24,
+        maxPerRun: 500,
+      },
+      shareLink: {
+        ttlSeconds: 604_800,
+        maxActive: 5,
+      },
       builderNotifications: {
         enabled: true,
         maxAttempts: 5,

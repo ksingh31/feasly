@@ -1277,6 +1277,9 @@ absorbed by Flex Consumption scale-out, not by raising limits silently.
 | POST | `/api/v1/waitlist` | none | — | 10/min per IP | live | Join a "tell me when it's ready" waitlist (renovation, Toronto, Vancouver). Idempotent per (email, topic); never reveals membership. |
 | POST | `/api/v1/shares` | magic-token | — | 10/min per IP | live | Email a report to a partner: mints a fresh partner-share magic link (never the owner token) and records the audit row. Token IS the credential. Abuse limits: max 5 shares per estimate per day; partner email must differ from the owner's email. |
 | GET | `/api/v1/shares/verify` | magic-token | — | 100/min per IP | live | Verify a partner-share link token (?token=). Partner-share tokens only — owner tokens answer invalid here. Token IS the credential. |
+| POST | `/api/v1/shares/link` | magic-token | — | 10/min per IP | live | Create a link-only report share (#838): a fresh read-only partner-share link (never the owner token) that expires after SHARE_LINK_TTL_SECONDS. Owner token in the body IS the credential; partner tokens 403. Max SHARE_LINK_MAX_ACTIVE live links per report. |
+| POST | `/api/v1/shares/link/list` | magic-token | — | 10/min per IP | live | List the owner's link shares with active/expired/revoked status (#838). Owner token in the body IS the credential. |
+| POST | `/api/v1/shares/link/revoke` | magic-token | — | 10/min per IP | live | Revoke one of the owner's link shares (#838) — the link stops opening the report immediately. Owner token in the body IS the credential. |
 | GET | `/api/v1/properties/autocomplete` | none | — | 60/min per IP | live | Calgary address autocomplete (City of Calgary assessment roll). Free by design. |
 | GET | `/api/v1/properties/lookup` | none | — | 60/min per IP | live | Property record lookup (assessed value, lot, zoning). Deterministic multi-parcel selection. OUT_OF_COVERAGE for non-Calgary. |
 | POST | `/api/v1/events` | none | — | 300/min per IP (dedicated analytics limiter) | live | First-party analytics ingest (consent-gated funnel events). Payloads require a valid consent_ts. |
@@ -1374,6 +1377,7 @@ absorbed by Flex Consumption scale-out, not by raising limits silently.
 | GET | `/api/v1/admin/usage` | admin | usage:read | 300/min per session | planned | Per-key usage metering (api-mcp/07). |
 | GET | `/api/v1/admin/calibration` | admin | calibration:read | 300/min per session | live | Calibration console (admin/09): current cost-data version, calibration report, import history. Read-only. |
 | GET | `/api/v1/admin/ops/sheets-status` | admin | ops:manage | 300/min per session | live | Sheets sync worker status (admin/05). |
+| GET | `/api/v1/admin/ops/jobs` | admin | ops:manage | 300/min per session | live | Job queue view (#838): per-status counts + latest jobs in one status (?status=, default dead = failed jobs that exhausted retries). |
 | POST | `/api/v1/admin/ops/sheets-sync-now` | admin | ops:manage | 10/min per session | live | Trigger an immediate Sheets sync (admin/05). |
 | POST | `/api/v1/builder/agreement/accept` | none | — | 10/min per IP | planned | Accept the platform agreement (clickwrap, embed/10). Lawyer text pending — placeholder records acceptance. |
 | GET | `/api/v1/builder/leads/{id}` | builder-session | builder:leads:read | 300/min per session | planned | Attributed lead detail (tenant-scoped). |

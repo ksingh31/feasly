@@ -5,7 +5,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 const runFollowUpCycle = vi.fn();
-const fakeApp = { followUpService: { runFollowUpCycle } };
+const fakeApp = { followUpService: { runFollowUpCycle, sendReminder: vi.fn() } };
 
 vi.mock('../src/index', () => ({
   createComposition: () => fakeApp,

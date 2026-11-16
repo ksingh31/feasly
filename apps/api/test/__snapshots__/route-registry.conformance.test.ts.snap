@@ -120,6 +120,10 @@ exports[`route registry > exhaustive role x route permission matrix (auth/04 acc
     "admin",
     "viewer",
   ],
+  "GET /api/v1/admin/ops/jobs": [
+    "super_admin",
+    "admin",
+  ],
   "GET /api/v1/admin/ops/sheets-status": [
     "super_admin",
     "admin",
@@ -739,6 +743,30 @@ exports[`route registry > exhaustive role x route permission matrix (auth/04 acc
     "none",
   ],
   "POST /api/v1/shares": [
+    "super_admin",
+    "admin",
+    "viewer",
+    "builder_admin",
+    "builder_member",
+    "none",
+  ],
+  "POST /api/v1/shares/link": [
+    "super_admin",
+    "admin",
+    "viewer",
+    "builder_admin",
+    "builder_member",
+    "none",
+  ],
+  "POST /api/v1/shares/link/list": [
+    "super_admin",
+    "admin",
+    "viewer",
+    "builder_admin",
+    "builder_member",
+    "none",
+  ],
+  "POST /api/v1/shares/link/revoke": [
     "super_admin",
     "admin",
     "viewer",
