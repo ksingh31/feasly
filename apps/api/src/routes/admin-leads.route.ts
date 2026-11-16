@@ -25,6 +25,7 @@ import type {
   AdminLeadDetail,
   AdminLeadListResponse,
   AdminLeadMutationResponse,
+  LeadAssignBuilderResponse,
 } from '@feasly/contracts';
 import { ErrorCodes, HttpError } from '../middleware/errors';
 import type { AdminGuard } from '../middleware/admin-guard';
@@ -80,7 +81,7 @@ export interface AdminLeadsRoute {
     headers: Record<string, string | string[] | undefined>,
     id: unknown,
     body: unknown,
-  ): Promise<{ readonly ok: true }>;
+  ): Promise<LeadAssignBuilderResponse>;
 }
 
 const leadIdParamSchema = z.string().trim().uuid();
@@ -139,7 +140,7 @@ export function createAdminLeadsRoute(deps: AdminLeadsRouteDeps): AdminLeadsRout
       headers,
       id,
       body,
-    ): Promise<{ readonly ok: true }> {
+    ): Promise<LeadAssignBuilderResponse> {
       const adminEmail = await requireAdminEmail(adminGuard, headers);
       const parsed = assignBuilderBodySchema.safeParse(body);
       if (!parsed.success) {
