@@ -188,7 +188,8 @@ export interface LeadStore {
   /**
    * embed/09 — tenant-scoped lead listing for the builder portal.
    * Returns only leads with the given tenant_key, newest first.
-   * Quarantined rows are EXCLUDED (spam never reaches the builder).
+   * Quarantined and sandbox rows are EXCLUDED (spam and test data never
+   * reach the builder; #840).
    */
   listByTenantKey(args: {
     readonly tenantKey: string;
@@ -196,8 +197,8 @@ export interface LeadStore {
   }): Promise<LeadRecord[]>;
   /**
    * Returns only leads assigned to the given builder, newest first.
-   * Quarantined rows are EXCLUDED (spam never reaches the builder).
-   * This is the builder-portal scoping query (builders table migration).
+   * Quarantined and sandbox rows are EXCLUDED (spam and test data never
+   * reach the builder; #840). This is the builder-portal scoping query (builders table migration).
    */
   listByBuilderId(args: {
     readonly builderId: string;
@@ -433,7 +434,13 @@ export function createDrizzleLeadStore(deps: DrizzleLeadStoreDeps): LeadStore {
         .select()
         .from(leads)
         .where(
-          and(eq(leads.tenantKey, args.tenantKey), eq(leads.quarantined, false)),
+          and(
+            eq(leads.tenantKey, args.tenantKey),
+            eq(leads.quarantined, false),
+            // #840: sandbox (feasly_test_) leads never reach a builder's
+            // lists — they can't be worked, won, or billed.
+            eq(leads.sandbox, false),
+          ),
         )
         .orderBy(desc(leads.createdAt))
         .limit(args.limit ?? 100);
@@ -444,7 +451,13 @@ export function createDrizzleLeadStore(deps: DrizzleLeadStoreDeps): LeadStore {
         .select()
         .from(leads)
         .where(
-          and(eq(leads.builderId, args.builderId), eq(leads.quarantined, false)),
+          and(
+            eq(leads.builderId, args.builderId),
+            eq(leads.quarantined, false),
+            // #840: sandbox (feasly_test_) leads never reach a builder's
+            // lists — they can't be worked, won, or billed.
+            eq(leads.sandbox, false),
+          ),
         )
         .orderBy(desc(leads.createdAt))
         .limit(args.limit ?? 100);
