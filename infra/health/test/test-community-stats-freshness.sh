@@ -39,7 +39,14 @@ cat >"$BIN/az" <<'EOF'
 #!/usr/bin/env bash
 echo "$*" >>"$STATE/az.log"
 rule=""; prev=""
-for a in "$@"; do [[ "$prev" == "--rule-name" ]] && rule="$a"; prev="$a"; done
+for a in "$@"; do [[ "$prev" == "--name" || "$prev" == "-n" ]] && rule="$a"; prev="$a"; done
+# Mirror the real CLI: firewall-rule takes --server-name/-s for
+# the server and --name/-n for the rule; --rule-name is not accepted.
+if [[ "$*" == *"firewall-rule"* ]]; then
+  [[ "$*" == *"--rule-name"* ]] && { echo "ERROR: unrecognized arguments: --rule-name" >&2; exit 2; }
+  [[ "$*" == *"--server-name "* || " $* " == *" -s "* ]] \
+    || { echo "ERROR: the following arguments are required: --server-name/-s" >&2; exit 2; }
+fi
 case "$*" in
   *"firewall-rule create"*)
     [[ "${AZ_CREATE_FAILS:-0}" == 1 ]] && exit 1
@@ -77,7 +84,7 @@ grep -q firewall-rule "$STATE/az.log" \
 run blocked GITHUB_ACTIONS=true GITHUB_RUN_ID=42 GITHUB_RUN_ATTEMPT=1
 [[ $RC -eq 0 && "$OUT" == *"OK: community_stats fresh"* ]] \
   && ok "blocked runner: passes via temporary rule" || bad "blocked runner: rc=$RC out=$OUT"
-grep -Eq 'firewall-rule create -g rg-test -n feasly-dev-pg-test --rule-name ci-freshness-[0-9]+-42-1 --start-ip-address 203.0.113.7 --end-ip-address 203.0.113.7' "$STATE/az.log" \
+grep -Eq 'firewall-rule create -g rg-test --server-name feasly-dev-pg-test --name ci-freshness-[0-9]+-42-1 --start-ip-address 203.0.113.7 --end-ip-address 203.0.113.7' "$STATE/az.log" \
   && ok "blocked runner: rule is /32 for the runner IP on the right server" \
   || bad "blocked runner: unexpected create call: $(cat "$STATE/az.log")"
 ls "$STATE"/rule-* >/dev/null 2>&1 \
@@ -112,11 +119,11 @@ run denied GITHUB_ACTIONS=true AZ_CREATE_FAILS=1
 OLD="ci-freshness-$(( $(date +%s) - 7200 ))-1-1"
 RECENT="ci-freshness-$(( $(date +%s) - 60 ))-2-1"
 run sweep GITHUB_ACTIONS=true EXTRA_RULES="$OLD $RECENT"
-grep -q -- "delete .*--rule-name $OLD" "$STATE/az.log" \
+grep -q -- "delete .*--name $OLD" "$STATE/az.log" \
   && ok "sweep: deletes a stale ci-freshness rule" || bad "sweep: stale rule kept: $(cat "$STATE/az.log")"
-grep -q -- "--rule-name $RECENT" "$STATE/az.log" \
+grep -q -- "--name $RECENT" "$STATE/az.log" \
   && bad "sweep: deleted a recent rule (another job's)" || ok "sweep: keeps recent rules"
-grep -q -- "--rule-name AllowAzureServices" "$STATE/az.log" \
+grep -q -- "--name AllowAzureServices" "$STATE/az.log" \
   && bad "sweep: touched AllowAzureServices" || ok "sweep: never touches AllowAzureServices"
 
 echo
