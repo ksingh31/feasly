@@ -48,6 +48,10 @@ export const ErrorCodes = {
   FORBIDDEN: 'FORBIDDEN',
   NOT_FOUND: 'NOT_FOUND',
   COMMUNITY_NOT_FOUND: 'COMMUNITY_NOT_FOUND',
+  /** #689 — the estimate names a building form the engine has no cost data for. */
+  BUILDING_FORM_NOT_PRICED: 'BUILDING_FORM_NOT_PRICED',
+  /** #689 — the building form is not listed for the lot's (covered) district. */
+  BUILDING_FORM_NOT_ALLOWED: 'BUILDING_FORM_NOT_ALLOWED',
   /** admin/03 — estimate lookup for an unknown id. */
   ESTIMATE_NOT_FOUND: 'ESTIMATE_NOT_FOUND',
   /** Property lookup: the address is outside Feasly's Calgary coverage (reno/05). */

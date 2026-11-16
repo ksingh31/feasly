@@ -172,6 +172,12 @@ describe('HttpApiService', () => {
       method: 'GET',
       url: `${BASE}/city-data/freshness`,
     },
+    {
+      name: 'getZoningDistricts',
+      call: (api) => api.getZoningDistricts(),
+      method: 'GET',
+      url: `${BASE}/zoning/districts`,
+    },
   ];
 
   for (const c of cases) {

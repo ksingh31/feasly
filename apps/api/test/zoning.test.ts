@@ -108,6 +108,10 @@ describe('GET /api/v1/zoning/districts route (AC5)', () => {
     expect(res.districts.find((d) => d.code === 'R-CG')?.rules.maxDensityUnitsPerHa?.value).toBe(75);
   });
 
+  it('#689: lists the forms the cost engine can estimate (single-detached only today)', async () => {
+    expect((await route.handle()).estimableBuildingForms).toEqual(['single-detached']);
+  });
+
   it('conforms to the OpenAPI response schema (strict: no extra keys)', async () => {
     const parsed = ZoningDistrictsResponseSchema.safeParse(await route.handle());
     expect(parsed.success, parsed.success ? '' : JSON.stringify(parsed.error.issues.slice(0, 5))).toBe(true);

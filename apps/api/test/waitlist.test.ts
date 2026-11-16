@@ -58,6 +58,13 @@ describe('waitlist service', () => {
     [{ email: 'a@example.com', topic: 'vancouver', consent: false }],
     [{ email: 'a@example.com', topic: 'vancouver', consent: 'true' }],
     [null],
+    // #689: building-form topic needs a form; other topics refuse form fields.
+    [{ email: 'a@example.com', topic: 'building-form', consent: true }],
+    [{ email: 'a@example.com', topic: 'building-form', consent: true, buildingForm: 'castle' }],
+    [{ email: 'a@example.com', topic: 'renovation', consent: true, buildingForm: 'duplex' }],
+    [{ email: 'a@example.com', topic: 'toronto', consent: true, district: 'R-C2' }],
+    [{ email: 'a@example.com', topic: 'renovation', consent: true, community: 'Altadore' }],
+    [{ email: 'a@example.com', topic: 'building-form', consent: true, buildingForm: 'duplex', district: 'x'.repeat(41) }],
   ])('rejects an invalid body with 400 VALIDATION_FAILED (%j)', async (body) => {
     const { store, inserted } = fakeStore();
     const service = createWaitlistService({ waitlist: store, consentVersion: CONSENT_VERSION });
@@ -66,6 +73,33 @@ describe('waitlist service', () => {
     expect((err as HttpError).status).toBe(400);
     expect((err as HttpError).code).toBe(ErrorCodes.VALIDATION_FAILED);
     expect(inserted).toHaveLength(0);
+  });
+
+  it('#689: a building-form signup records the form, district and community (AC5)', async () => {
+    const { store, inserted } = fakeStore();
+    const service = createWaitlistService({ waitlist: store, consentVersion: CONSENT_VERSION });
+    const res = await service.join({
+      email: 'f@example.com',
+      topic: 'building-form',
+      consent: true,
+      buildingForm: 'semi-detached',
+      district: ' R-C2 ',
+      community: 'Altadore',
+    });
+    expect(res).toEqual({ ok: true, topic: 'building-form' });
+    expect(inserted[0]).toMatchObject({
+      topic: 'building-form',
+      buildingForm: 'semi-detached',
+      district: 'R-C2',
+      community: 'Altadore',
+    });
+  });
+
+  it('#689: renovation signups store null form fields', async () => {
+    const { store, inserted } = fakeStore();
+    const service = createWaitlistService({ waitlist: store, consentVersion: CONSENT_VERSION });
+    await service.join({ email: 'r@example.com', topic: 'renovation', consent: true });
+    expect(inserted[0]).toMatchObject({ buildingForm: null, district: null, community: null });
   });
 
   it('route delegates to the service', async () => {
@@ -113,6 +147,41 @@ describe('waitlist store (PGlite, real migrations)', () => {
     expect(found?.consentTs).toBeInstanceOf(Date);
     expect(found?.consentVersion).toBe(CONSENT_VERSION);
     await expect(store.find('nobody@example.com', 'toronto')).resolves.toBeNull();
+  });
+
+  it('#689: one row per (email, topic, form); a repeat form is a no-op; NULL forms still collide', async () => {
+    const store = createDrizzleWaitlistStore({ db: testDb.db });
+    const service = createWaitlistService({ waitlist: store, consentVersion: CONSENT_VERSION });
+    const form = (buildingForm: string) =>
+      service.join({
+        email: 'forms@example.com',
+        topic: 'building-form',
+        consent: true,
+        buildingForm,
+        district: 'R-CG',
+        community: 'Killarney/Glengarry',
+      });
+    await form('semi-detached');
+    await form('rowhouse');
+    await form('semi-detached');
+    await service.join({ email: 'forms@example.com', topic: 'renovation', consent: true });
+    await service.join({ email: 'forms@example.com', topic: 'renovation', consent: true });
+
+    const rows = await testDb.rows<{ topic: string; building_form: string | null; district: string | null; community: string | null }>(
+      `select topic, building_form, district, community from waitlist_signups
+        where email = 'forms@example.com' order by topic, building_form`,
+    );
+    expect(rows).toEqual([
+      { topic: 'building-form', building_form: 'rowhouse', district: 'R-CG', community: 'Killarney/Glengarry' },
+      { topic: 'building-form', building_form: 'semi-detached', district: 'R-CG', community: 'Killarney/Glengarry' },
+      { topic: 'renovation', building_form: null, district: null, community: null },
+    ]);
+    const found = await store.find('forms@example.com', 'building-form', 'rowhouse');
+    expect(found?.district).toBe('R-CG');
+    expect((await store.find('forms@example.com', 'renovation'))?.buildingForm).toBeNull();
+    // Privacy export/erasure cover the new rows (AC5).
+    expect(await store.listByEmail('forms@example.com')).toHaveLength(3);
+    await expect(store.deleteByEmail('forms@example.com')).resolves.toBe(3);
   });
 
   it('lists and deletes every signup for an email (privacy export/erasure)', async () => {

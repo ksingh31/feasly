@@ -1083,12 +1083,18 @@ export function createComposition(
     configs: BUILDER_CONFIGS,
     isDev: config.env !== 'production',
   });
+  // Zoning rules catalogue (#687): the configured city's district → forms +
+  // key rules table from @feasly/zoning. Pure data, verified values only.
+  // Built before the estimate service: #689 checks a requested building
+  // form against the lot's district.
+  const zoningService: ZoningService = createZoningService({ config: config.zoning });
   const estimateService: EstimateService = createEstimateService({
     costData: PLACEHOLDER_COST_DATA,
     store: estimateStore,
     allowDraftCostData: config.costEngine.allowDraftCostData,
     communityStats: communityStatsService,
     builderConfigs: builderConfigService,
+    zoning: zoningService,
   });
   const estimateRoute: EstimateRoute = createEstimateRoute({ estimate: estimateService });
   const leadStore: LeadStore =
@@ -1701,9 +1707,6 @@ export function createComposition(
     createCityDataFreshnessService(config.cityDataFreshness);
   const cityDataFreshnessRoute: CityDataFreshnessRoute =
     createCityDataFreshnessRoute({ freshness: cityDataFreshnessService });
-  // Zoning rules catalogue (#687): the configured city's district → forms +
-  // key rules table from @feasly/zoning. Pure data, verified values only.
-  const zoningService: ZoningService = createZoningService({ config: config.zoning });
   const zoningRoute: ZoningRoute = createZoningRoute({ zoning: zoningService });
   // Community-stats monthly refresh (neighbourhood/05): recomputes
   // community_stats from fresh Socrata aggregates on a timer; ops can also

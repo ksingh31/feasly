@@ -28,6 +28,12 @@ export interface BuildScope {
   /** Above-grade living area in square feet. */
   readonly buildSqft: number;
   readonly tier: FinishTier;
+  /**
+   * #689: building form to price. Omitted = single-detached (unchanged
+   * output). Any form outside `PRICED_BUILDING_FORMS` throws
+   * `UnpricedBuildingFormError` — never a figure.
+   */
+  readonly buildingForm?: string;
 }
 
 /** Input to the renovation estimate branch (RENO-01). */

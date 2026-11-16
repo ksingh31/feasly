@@ -10,6 +10,7 @@
  * (figures are readable in the API response by design, 2026-09-26).
  */
 import type { CostRange, FixedFigure } from './common';
+import type { BuildingForm } from './zoning';
 
 export type FinishTier = 'standard' | 'premium' | 'luxury';
 export type GarageOption = 'none' | 'double' | 'triple';
@@ -27,6 +28,12 @@ export interface EstimateInputs {
   readonly tier: FinishTier;
   readonly garage: GarageOption;
   readonly basement: BasementOption;
+  /**
+   * #689: the building form chosen on the scope step (client-side wizard
+   * input; becomes `scope.buildingForm` on the request). Absent = none
+   * chosen (single-detached). Responses do not echo it.
+   */
+  readonly buildingForm?: BuildingForm;
 }
 
 /** Inputs captured for a renovation estimate (RENO-01). */
@@ -71,6 +78,15 @@ export interface EstimateScopeInputs {
   readonly tier: FinishTier;
   readonly garage: GarageOption;
   readonly basement: BasementOption;
+  /**
+   * #689: what the person wants to build. Optional; omitted behaves exactly
+   * as before (single-detached). The engine prices only the forms the
+   * zoning catalogue response lists in `estimableBuildingForms`; any other form
+   * is refused with the `BUILDING_FORM_NOT_PRICED` error envelope, never a
+   * figure. A form the lot's (covered) district does not list is refused
+   * with `BUILDING_FORM_NOT_ALLOWED`; unknown/DC districts fail open.
+   */
+  readonly buildingForm?: BuildingForm;
 }
 
 /**

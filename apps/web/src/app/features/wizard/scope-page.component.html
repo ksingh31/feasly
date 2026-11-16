@@ -40,7 +40,72 @@
           }
         </section>
 
-        @if (projectType() === 'new-build') {
+        @if (newBuildFormChoice(); as choice) {
+          <!-- #689: building forms from the API's zoning catalogue. No
+               district or form is named in this template. -->
+          <section class="scope-section bform-section" aria-labelledby="bform-label" [attr.data-status]="choice.status">
+            <h2 id="bform-label">{{ copy.scopeBuildingFormLabel }}</h2>
+            <p class="hint bform-hint" id="bform-hint">
+              {{ formHint() }}
+              <a class="bform-source" [href]="choice.sourceUrl" target="_blank" rel="noopener noreferrer">{{ copy.scopeBuildingFormSourceLink }}</a>
+            </p>
+            <div
+              class="bforms"
+              role="radiogroup"
+              aria-labelledby="bform-label"
+              aria-describedby="bform-hint"
+              (keydown)="onBuildingFormKeydown($event)"
+            >
+              @for (option of choice.options; track option.form) {
+                <button
+                  class="bform-card"
+                  type="button"
+                  role="radio"
+                  [attr.data-form]="option.form"
+                  [attr.data-estimable]="option.estimable"
+                  [attr.aria-checked]="selectedForm() === option.form"
+                  [attr.tabindex]="selectedForm() === option.form ? 0 : -1"
+                  [class.selected]="selectedForm() === option.form"
+                  [class.coming-soon]="!option.estimable"
+                  (click)="chooseBuildingForm(option)"
+                >
+                  <span class="bform-name">
+                    {{ formName(option.form) }}
+                    @if (!option.estimable) {
+                      <span class="ptype-badge bform-badge">{{ copy.scopeBuildingFormComingSoonBadge }}</span>
+                    }
+                  </span>
+                  @if (formBlurb(option.form)) {
+                    <span class="bform-blurb">{{ formBlurb(option.form) }}</span>
+                  }
+                  @if (option.permission) {
+                    <span class="bform-permission">{{ copy.scopeBuildingFormPermission[option.permission] }}</span>
+                  }
+                </button>
+              }
+            </div>
+          </section>
+        }
+
+        @if (newBuildInterest(); as form) {
+          <app-waitlist-signup
+            class="bform-waitlist"
+            variant="building-form"
+            [buildingForm]="form"
+            [formName]="formName(form)"
+            [district]="formChoice()?.districtCode ?? ''"
+            [community]="p.community"
+          />
+          @if (firstEstimable()) {
+            <div class="actions">
+              <button class="bform-back" type="button" (click)="backToEstimableForm()">
+                {{ formBackCta }}
+              </button>
+            </div>
+          }
+        }
+
+        @if (showScopeInputs()) {
           <app-sqft-slider
             [value]="inputs().sqft"
             [min]="wizard.sqftMin"
@@ -84,6 +149,8 @@
               {{ steeredToRenovation() ? copy.steerOverrideCta : copy.renoNewBuildCta }}
             </button>
           </div>
+        } @else if (newBuildInterest()) {
+          <!-- #689: the form waitlist replaces the CTA (rendered above). -->
         } @else {
           @if (projectType() === 'renovation') {
             <p class="hint reno-note">{{ copy.renoSelectedNote }}</p>

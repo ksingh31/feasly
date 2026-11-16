@@ -275,6 +275,9 @@ export function createPrivacyService(deps: PrivacyServiceDeps): PrivacyService {
           createdAt: w.createdAt.toISOString(),
           consentTs: w.consentTs.toISOString(),
           consentVersion: w.consentVersion,
+          buildingForm: w.buildingForm,
+          district: w.district,
+          community: w.community,
         })),
         retentionNotice: EXPORT_RETENTION_NOTICE_DRAFT,
       };

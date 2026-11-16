@@ -16,6 +16,7 @@ import type {
   WaitlistRequest,
   WaitlistResponse,
   CityDataFreshnessResponse,
+  ZoningDistrictsResponse,
   EstimateRequest,
   GetReportResponse,
   LeadRequest,
@@ -126,6 +127,11 @@ export class HttpApiService implements ApiService {
     return this.call(
       this.http.get<CityDataFreshnessResponse>(`${this.base}/city-data/freshness`),
     );
+  }
+
+  /** #689: the zoning catalogue (verified values only). */
+  getZoningDistricts(): Observable<ZoningDistrictsResponse> {
+    return this.call(this.http.get<ZoningDistrictsResponse>(`${this.base}/zoning/districts`));
   }
 
   submitLead(request: LeadRequest): Observable<LeadResponse> {

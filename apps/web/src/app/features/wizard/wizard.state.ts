@@ -253,7 +253,17 @@ export class WizardState implements NgxsOnInit {
   selectProperty(ctx: StateContext<WizardStateModel>, action: SelectProperty): void {
     // #704: a newly selected property is a new estimate — the landing
     // resume chip comes back for it even if the last one was dismissed.
-    ctx.patchState({ property: action.property, resumeDismissed: false });
+    // #689: the building form is per lot (it depends on the district), so
+    // a different lot starts without one; the same lot keeps its choice.
+    const state = ctx.getState();
+    const sameLot = state.property?.addressKey === action.property.addressKey;
+    const inputs: { -readonly [K in keyof EstimateInputs]: EstimateInputs[K] } = { ...state.inputs };
+    delete inputs.buildingForm;
+    ctx.patchState({
+      property: action.property,
+      resumeDismissed: false,
+      ...(sameLot ? {} : { inputs }),
+    });
   }
 
   @Action(ChooseProjectType)

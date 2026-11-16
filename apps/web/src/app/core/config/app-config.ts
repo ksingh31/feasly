@@ -16,6 +16,8 @@ import type {
   GarageOption,
   TimelineOption,
   WaitlistTopic,
+  BuildingForm,
+  FormPermission,
 } from '@feasly/contracts';
 
 /**
@@ -1196,6 +1198,29 @@ export interface AppConfig {
       /** #520: secondary action under the reno waitlist — back to the working flow. */
       renoNewBuildCta: string;
       /**
+       * #689: "What do you want to build?" on the scope step. Which forms
+       * exist, which a district allows and which are estimable all come
+       * from the API's zoning catalogue — this is display copy only.
+       */
+      scopeBuildingFormLabel: string;
+      /**
+       * Hint for a covered district. `{district}` = the district code.
+       * Keep the "typically allowed — confirm with the City" framing.
+       */
+      scopeBuildingFormHint: string;
+      /** Hint when the district is unknown, Direct Control or not covered (fail open). */
+      scopeBuildingFormFailOpenHint: string;
+      /** Link text to the City's bylaw page (catalogue `sourceUrl`). */
+      scopeBuildingFormSourceLink: string;
+      /** Badge on forms the district allows but the engine does not estimate yet. */
+      scopeBuildingFormComingSoonBadge: string;
+      /** Per-permission line on a form card (permitted / discretionary). */
+      scopeBuildingFormPermission: Record<FormPermission, string>;
+      /** Action under the form waitlist, back to an estimable form. `{form}` = its name. */
+      scopeBuildingFormBackCta: string;
+      /** Display names per form. A form missing here shows its id. No prices, ever. */
+      buildingForms: Partial<Record<BuildingForm, { name: string; blurb: string }>>;
+      /**
        * #755: reason shown when the API steers a younger home to renovation.
        * `{year}` is the City's year of construction. "Usually", never "must".
        */
@@ -1646,6 +1671,12 @@ export interface AppConfig {
       /** Shown after a successful signup, per topic. */
       successByTopic: Record<WaitlistTopic, string>;
       renovation: { heading: string; body: string };
+      /**
+       * #689: interest in a building form the district allows but Feasly
+       * does not estimate yet. `{form}` = the form's display name,
+       * `{district}` = the lot's district code.
+       */
+      buildingForm: { heading: string; body: string };
       city: {
         heading: string;
         body: string;

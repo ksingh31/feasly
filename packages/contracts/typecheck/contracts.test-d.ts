@@ -6,6 +6,7 @@
 import type {
   AnalyticsEvent,
   AutocompleteSuggestion,
+  BuildingForm,
   BuilderLeadListResponse,
   BuilderLeadNeedsYouItem,
   BuilderLeadStatusCounts,
@@ -19,6 +20,7 @@ import type {
   EmbedTenantConfig,
   EstimateRequest,
   EstimateResponse,
+  EstimateScopeInputs,
   FixedFigure,
   GetReportResponse,
   LeadRequest,
@@ -28,6 +30,7 @@ import type {
   PropertyRecord,
   ReportSnapshot,
   TierRevisionRequest,
+  WaitlistRequest,
   ZoningDistrict,
   ZoningDistrictsResponse,
   ZoningRulesVersion,
@@ -202,6 +205,12 @@ const publicForm = zoningRes.districts[0]!.forms[0]!;
 // @ts-expect-error — the wire shape never carries a verified flag
 void publicForm.verified;
 assertType<number>(BUILDING_FORMS.length);
+// #689: priced forms ride on the catalogue response; buildingForm is optional.
+assertType<readonly BuildingForm[]>(zoningRes.estimableBuildingForms);
+declare const nbScope: EstimateScopeInputs;
+assertType<BuildingForm | undefined>(nbScope.buildingForm);
+declare const formWaitlist: WaitlistRequest;
+assertType<BuildingForm | undefined>(formWaitlist.buildingForm);
 
 // --- registry covers every contract module ---
 const names = CONTRACT_NAMES;

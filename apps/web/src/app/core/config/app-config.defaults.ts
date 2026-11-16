@@ -389,6 +389,28 @@ export const DEFAULT_APP_CONFIG: AppConfig = {
         'You will describe your renovation — type, area, and finishes — on the next step.',
       renoComingSoonBadge: 'Coming soon',
       renoNewBuildCta: 'Start a new-build estimate instead',
+      scopeBuildingFormLabel: 'What do you want to build?',
+      scopeBuildingFormHint:
+        'Homes typically allowed in {district}. Rules vary by lot, so confirm with the City before you plan.',
+      scopeBuildingFormFailOpenHint:
+        'We couldn’t match this lot’s land use district to our list, so we’ll estimate a single home. Confirm what’s allowed with the City.',
+      scopeBuildingFormSourceLink: 'The City’s Land Use Bylaw',
+      scopeBuildingFormComingSoonBadge: 'Allowed here, estimate coming soon',
+      scopeBuildingFormPermission: {
+        permitted: 'Typically permitted',
+        discretionary: 'The City decides case by case',
+      },
+      scopeBuildingFormBackCta: 'Estimate a {form} home instead',
+      buildingForms: {
+        'single-detached': { name: 'Single-detached', blurb: 'One house on the lot.' },
+        'semi-detached': { name: 'Semi-detached', blurb: 'Two homes side by side, sharing one wall.' },
+        duplex: { name: 'Duplex', blurb: 'Two homes stacked, one above the other.' },
+        rowhouse: { name: 'Rowhouse', blurb: 'Three or more homes in a row, each with its own front door.' },
+        townhouse: { name: 'Townhouse', blurb: 'Attached homes grouped around shared space.' },
+        'secondary-suite': { name: 'Secondary suite', blurb: 'A second, self-contained home inside the house.' },
+        'backyard-suite': { name: 'Backyard suite', blurb: 'A small separate home in the backyard.' },
+        'multi-residential': { name: 'Apartment building', blurb: 'Several homes in one building.' },
+      },
       steerRenovationReason: 'This home was built in {year}, so renovation is usually the better fit.',
       steerNewBuildReason: 'This home was built in {year}, so a new build is usually worth a look.',
       steerOverrideCta: 'Estimate a new build anyway',
@@ -772,10 +794,15 @@ export const DEFAULT_APP_CONFIG: AppConfig = {
         renovation: 'You’re on the list. We’ll email you when renovation estimates are ready.',
         toronto: 'You’re on the list. We’ll email you when Feasly covers Toronto.',
         vancouver: 'You’re on the list. We’ll email you when Feasly covers Vancouver.',
+        'building-form': 'You’re on the list. We’ll email you when we can estimate this kind of home.',
       },
       renovation: {
         heading: 'Renovation estimates are coming soon',
         body: 'We’re building them the same way as our new-build estimates: real City data and one fixed formula. Leave your email and we’ll tell you when they’re ready.',
+      },
+      buildingForm: {
+        heading: '{form} estimates are coming soon',
+        body: 'A {form} home is typically allowed in {district}, but we don’t estimate it yet. Leave your email and we’ll tell you when we do.',
       },
       city: {
         heading: 'Want Feasly in your city?',

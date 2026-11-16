@@ -33,6 +33,11 @@ export interface EstimateRecord {
    * sandbox-purge timer hard-deletes these rows. Omitted → false.
    */
   readonly sandbox?: boolean;
+  /**
+   * #689: building form the person asked for (new builds only). Null when
+   * the request named none (legacy = single-detached). Omitted → null.
+   */
+  readonly buildingForm?: string | null;
 }
 
 export interface EstimateStore {
@@ -82,6 +87,7 @@ export function createDrizzleEstimateStore(
         narrativeGeneratedAt: record.narrativeGeneratedAt,
         assumptions: record.assumptions,
         sandbox: record.sandbox ?? false,
+        buildingForm: record.buildingForm ?? null,
       });
     },
 
@@ -106,6 +112,7 @@ export function createDrizzleEstimateStore(
         narrativeGeneratedAt: row.narrativeGeneratedAt,
         assumptions: row.assumptions,
         sandbox: row.sandbox,
+        buildingForm: row.buildingForm,
       };
     },
 
@@ -150,6 +157,7 @@ export function createDrizzleEstimateStore(
         narrative: row.narrative,
         narrativeGeneratedAt: row.narrativeGeneratedAt,
         assumptions: row.assumptions,
+        buildingForm: row.buildingForm,
       }));
     },
   };

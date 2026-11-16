@@ -74,6 +74,12 @@ export const estimates = pgTable(
      * engine→narrative channel). Only renovation estimates have them.
      */
     assumptions: jsonb('assumptions').$type<readonly string[] | null>(),
+    /**
+     * #689: building form the person asked for (contracts `BuildingForm`).
+     * Null when the request named none (single-detached, as before) and on
+     * renovation/comparison rows. Expand-only nullable column.
+     */
+    buildingForm: text('building_form'),
   },
   (t) => [index('estimates_address_key_idx').on(t.addressKey)],
 );
@@ -1639,8 +1645,22 @@ export const waitlistSignups = pgTable(
       .defaultNow(),
     /** Version tag of the consent wording agreed to (legal-copy.ts). */
     consentVersion: text('consent_version'),
+    /** #689: building form of interest (contracts `BuildingForm`); null on other topics. */
+    buildingForm: text('building_form'),
+    /** #689: lot's land-use district code recorded with a building-form signup. */
+    district: text('district'),
+    /** #689: lot's community recorded with a building-form signup. */
+    community: text('community'),
   },
-  (t) => [uniqueIndex('waitlist_signups_email_topic_idx').on(t.email, t.topic)],
+  // #689: one row per (email, topic, form). COALESCE makes a NULL form
+  // collide, so renovation / city signups stay one row per topic.
+  (t) => [
+    uniqueIndex('waitlist_signups_email_topic_form_idx').on(
+      t.email,
+      t.topic,
+      sql`COALESCE(${t.buildingForm}, '')`,
+    ),
+  ],
 );
 
 /**

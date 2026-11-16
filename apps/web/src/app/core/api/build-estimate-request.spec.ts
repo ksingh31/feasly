@@ -50,4 +50,12 @@ describe('buildNewBuildRequest', () => {
     expect(request.property.assessedLandValue).toBe(PROPERTY.assessedValue);
     expect(request.property.lotSizeSqft).toBe(PROPERTY.lotSqft);
   });
+  it('#689: omits buildingForm unless the wizard chose one (AC3)', () => {
+    const base = { sqft: 2200, tier: 'standard', garage: 'none', basement: 'finished' } as const;
+    expect('buildingForm' in buildNewBuildRequest(PROPERTY, base).scope).toBe(false);
+    expect('buildingForm' in buildNewBuildRequest(PROPERTY, { ...base, buildingForm: undefined }).scope).toBe(false);
+    expect(
+      buildNewBuildRequest(PROPERTY, { ...base, buildingForm: 'single-detached' }).scope.buildingForm,
+    ).toBe('single-detached');
+  });
 });

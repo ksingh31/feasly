@@ -34,6 +34,7 @@ import {
   createEstimate,
   createRenoEstimate,
   EngineInputError,
+  UnpricedBuildingFormError,
   type ComparisonResult,
   type CostData,
   type EngineInput,
@@ -48,11 +49,12 @@ import type {
   EstimateResponse,
   FixedFigure,
 } from '@feasly/contracts';
-import { ESTIMATE_DISCLAIMER } from '@feasly/contracts';
+import { BUILDING_FORMS, ESTIMATE_DISCLAIMER, type BuildingForm } from '@feasly/contracts';
 import { ErrorCodes, HttpError } from '../middleware/errors';
 import type { BuilderConfigService } from './builder-config.service';
 import type { CommunityStatsService } from './community-stats.service';
 import type { EstimateStore } from './estimate.store';
+import type { ZoningService } from './zoning.service';
 
 /**
  * Request shape validation. Only structural checks — the engine owns the
@@ -78,6 +80,8 @@ const NewBuildRequestSchema = z.object({
     tier: z.enum(['standard', 'premium', 'luxury']),
     garage: z.enum(['none', 'double', 'triple']).default('none'),
     basement: z.enum(['unfinished', 'finished']).default('unfinished'),
+    /** #689: optional; omitted = single-detached, exactly as before. */
+    buildingForm: z.enum(BUILDING_FORMS as readonly [BuildingForm, ...BuildingForm[]]).optional(),
   }),
 });
 
@@ -158,6 +162,13 @@ export interface EstimateServiceDeps {
   readonly communityStats: CommunityStatsService;
   /** Validates embed tenant keys (EMB-03). Optional — embeds disabled when absent. */
   readonly builderConfigs?: BuilderConfigService;
+  /**
+   * #689: zoning catalogue, to check a requested building form against the
+   * lot's district. Optional — without it no form check runs (fail open).
+   */
+  readonly zoning?: Pick<ZoningService, 'resolve'>;
+  /** Warning sink (form check fail-open notes). Defaults to console.warn. */
+  readonly logWarning?: (message: string) => void;
 }
 
 /** Engine bands are { low, base, high }; the contract carries all three. */
@@ -278,6 +289,35 @@ function toComparisonResponse(
 }
 
 export function createEstimateService(deps: EstimateServiceDeps): EstimateService {
+  const logWarning = deps.logWarning ?? ((message: string) => console.warn(message));
+
+  /**
+   * #689: check an explicitly requested building form against the lot's
+   * district. Only a covered district that does not list the form refuses
+   * (400 BUILDING_FORM_NOT_ALLOWED). Unknown, Direct Control and not-covered
+   * districts fail open with a warning — never a block. An omitted form is
+   * never checked, so legacy requests behave exactly as before.
+   */
+  function checkBuildingFormAllowed(buildingForm: BuildingForm | undefined, zoning: string): void {
+    if (buildingForm === undefined || !deps.zoning) return;
+    const resolution = deps.zoning.resolve(zoning);
+    if (resolution.status !== 'covered' || !resolution.district) {
+      logWarning(
+        `estimate: building form ${buildingForm} not checked (district status ${resolution.status})`,
+      );
+      return;
+    }
+    const listed = resolution.district.forms.some((f) => f.form === buildingForm);
+    if (!listed) {
+      throw new HttpError(
+        400,
+        ErrorCodes.BUILDING_FORM_NOT_ALLOWED,
+        'That building form is not typically allowed in this land use district.',
+        false,
+      );
+    }
+  }
+
   /**
    * EMB-03: resolve and validate the embed tenant key server-side.
    * Returns the validated key, or undefined when no key was supplied.
@@ -493,12 +533,25 @@ export function createEstimateService(deps: EstimateServiceDeps): EstimateServic
         scope: {
           buildSqft: parsed.data.scope.buildSqft,
           tier: parsed.data.scope.tier,
+          ...(parsed.data.scope.buildingForm !== undefined
+            ? { buildingForm: parsed.data.scope.buildingForm }
+            : {}),
         },
       };
+      checkBuildingFormAllowed(parsed.data.scope.buildingForm, parsed.data.property.zoning);
       let result: EstimateResult;
       try {
         result = createEstimate(engineInput, deps.costData);
       } catch (error) {
+        if (error instanceof UnpricedBuildingFormError) {
+          // #689: a typed refusal, never a figure.
+          throw new HttpError(
+            400,
+            ErrorCodes.BUILDING_FORM_NOT_PRICED,
+            'Estimates for that building form are coming soon.',
+            false,
+          );
+        }
         if (error instanceof EngineInputError) {
           throw new HttpError(400, ErrorCodes.VALIDATION_FAILED, error.message, false);
         }
@@ -519,6 +572,7 @@ export function createEstimateService(deps: EstimateServiceDeps): EstimateServic
         narrativeGeneratedAt: null,
         assumptions: null,
         sandbox,
+        buildingForm: parsed.data.scope.buildingForm ?? null,
       });
       return response;
     },

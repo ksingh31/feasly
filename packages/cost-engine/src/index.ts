@@ -17,6 +17,7 @@ export const COST_ENGINE_VERSION = '0.1.0';
 
 export * from './types';
 export * from './engine';
+export * from './building-forms';
 export * from './reno';
 export * from './comparison';
 export * from './cost-data';
