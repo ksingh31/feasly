@@ -25,7 +25,8 @@ import type {
   MagicLinkEmailInput,
 } from '../src/services/email/email.service';
 import type { EmailDelivery } from '../src/services/email/email.service';
-import { HttpError } from '../src/middleware/errors';
+import { ErrorCodes, HttpError } from '../src/middleware/errors';
+import { API_LEAD_CONSENT_VERSION } from '../src/lib/legal-copy';
 
 const ESTIMATE_ID = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa';
 const NOW = new Date('2026-09-24T12:00:00Z');
@@ -169,6 +170,7 @@ function toFakeRecord(lead: NewLead): LeadRecord {
     tenantKey: lead.tenantKey ?? null,
     quarantined: lead.quarantined ?? false,
     sandbox: lead.sandbox ?? false,
+    consentAttestedByApiKeyId: lead.consentAttestation?.apiKeyId ?? null,
     leadScore: 0,
     status: 'new',
     builderId: null,
@@ -1141,6 +1143,222 @@ describe('consumer/02 duplicate-estimate semantics', () => {
     expect(store.updated).toHaveLength(0);
     expect(result.leadId).toBe(store.inserted[0]!.id);
     expect(result.magicLinkSent).toBe(true);
+  });
+});
+
+describe('lead service: API-key callers (#738)', () => {
+  const CALLER = { keyId: 'key-live-1', sandbox: false, surface: 'rest' as const };
+  const ATTESTED = {
+    ...VALID_BODY,
+    consent: true,
+    consentVersion: API_LEAD_CONSENT_VERSION,
+  };
+
+  it('AC5: rejects a lead without a consent attestation and stores nothing', async () => {
+    for (const body of [
+      VALID_BODY,
+      { ...VALID_BODY, consent: false, consentVersion: API_LEAD_CONSENT_VERSION },
+      { ...VALID_BODY, consent: true },
+      { ...VALID_BODY, consent: 'yes', consentVersion: API_LEAD_CONSENT_VERSION },
+    ]) {
+      const store = fakeLeadStore();
+      const email = fakeEmailService();
+      const service = createLeadService({ ...DEPS, store, email });
+      const error = await service.submitLead(body, CALLER).catch((e: unknown) => e);
+      expect(error).toBeInstanceOf(HttpError);
+      expect((error as HttpError).status).toBe(400);
+      expect((error as HttpError).code).toBe(ErrorCodes.CONSENT_REQUIRED);
+      // PII: never echoes the submitted email.
+      expect((error as HttpError).message).not.toContain('sam@example.com');
+      expect(store.inserted).toHaveLength(0);
+      expect(email.magicLinkSends).toHaveLength(0);
+    }
+  });
+
+  it('AC5: rejects a stale consentVersion and names the current one', async () => {
+    const store = fakeLeadStore();
+    const service = createLeadService({
+      ...DEPS,
+      store,
+      apiLeads: { leadConsentVersion: 'api-lead-2027-01-01', quarantineLeads: true },
+    });
+    await expect(
+      service.submitLead({ ...ATTESTED, consentVersion: API_LEAD_CONSENT_VERSION }, CALLER),
+    ).rejects.toMatchObject({
+      status: 400,
+      code: ErrorCodes.CONSENT_REQUIRED,
+      message: expect.stringContaining('api-lead-2027-01-01'),
+    });
+    expect(store.inserted).toHaveLength(0);
+  });
+
+  it('AC5: an accepted lead stores who attested, which wording, and when', async () => {
+    const store = fakeLeadStore();
+    const service = createLeadService({ ...DEPS, store });
+    await service.submitLead(ATTESTED, CALLER);
+    expect(store.inserted).toHaveLength(1);
+    expect(store.inserted[0]!.consentAttestation).toEqual({
+      version: API_LEAD_CONSENT_VERSION,
+      apiKeyId: 'key-live-1',
+      attestedAt: NOW,
+    });
+    expect(store.inserted[0]!.source).toBe('api');
+    expect(store.inserted[0]!.sandbox).toBe(false);
+  });
+
+  it('records source mcp for the MCP surface', async () => {
+    const store = fakeLeadStore();
+    const service = createLeadService({ ...DEPS, store });
+    await service.submitLead(ATTESTED, { ...CALLER, surface: 'mcp' });
+    expect(store.inserted[0]!.source).toBe('mcp');
+  });
+
+  it('quarantines API-key leads for review: no email, no token (default policy)', async () => {
+    const store = fakeLeadStore();
+    const email = fakeEmailService();
+    const service = createLeadService({ ...DEPS, store, email });
+    const result = await service.submitLead(ATTESTED, CALLER);
+    expect(store.inserted[0]!.quarantined).toBe(true);
+    expect(email.magicLinkSends).toHaveLength(0);
+    expect(result).toEqual({ leadId: store.inserted[0]!.id, magicLinkSent: false, expiresInDays: 1 });
+  });
+
+  it('with quarantine off, a live-key lead is captured and emailed normally', async () => {
+    const store = fakeLeadStore();
+    const email = fakeEmailService();
+    const service = createLeadService({
+      ...DEPS,
+      store,
+      email,
+      apiLeads: { leadConsentVersion: API_LEAD_CONSENT_VERSION, quarantineLeads: false },
+    });
+    const result = await service.submitLead(ATTESTED, CALLER);
+    expect(store.inserted[0]!.quarantined).toBe(false);
+    expect(result.magicLinkSent).toBe(true);
+    expect(email.magicLinkSends).toHaveLength(1);
+  });
+
+  it('sandbox-key leads are sandbox rows and are never emailed', async () => {
+    const store = fakeLeadStore();
+    const email = fakeEmailService();
+    const service = createLeadService({
+      ...DEPS,
+      store,
+      email,
+      apiLeads: { leadConsentVersion: API_LEAD_CONSENT_VERSION, quarantineLeads: false },
+    });
+    await service.submitLead(
+      { ...ATTESTED, estimateId: SANDBOX_ESTIMATE_ID },
+      { ...CALLER, sandbox: true },
+    );
+    expect(store.inserted[0]!.sandbox).toBe(true);
+    expect(store.inserted[0]!.consentAttestation?.apiKeyId).toBe('key-live-1');
+    // #793: the sandbox email decorator swallows every send.
+    expect(email.magicLinkSends).toHaveLength(0);
+  });
+
+  it('a repeat for an existing lead never updates it, emails, or returns its token', async () => {
+    const store = fakeLeadStore();
+    store.recent = existingLeadFixture();
+    const email = fakeEmailService();
+    const magicLinks = fakeMagicLinkStore();
+    const service = createLeadService({
+      ...DEPS,
+      store,
+      email,
+      magicLinks,
+      apiLeads: { leadConsentVersion: API_LEAD_CONSENT_VERSION, quarantineLeads: false },
+    });
+    const result = await service.submitLead({ ...ATTESTED, name: 'Someone Else' }, CALLER);
+    expect(result).toEqual({ leadId: 'existing-lead-id', magicLinkSent: false, expiresInDays: 1 });
+    expect(store.updated).toHaveLength(0);
+    expect(store.inserted).toHaveLength(0);
+    expect(email.magicLinkSends).toHaveLength(0);
+    expect(magicLinks.issued).toHaveLength(0);
+  });
+
+  /** Fake lookup mirroring the real store's sandbox-scoped dedupe. */
+  function dedupeOverInserted(store: FakeLeadStore) {
+    const seenSandbox: boolean[] = [];
+    store.findRecentByEmailAndAddress = async (args) => {
+      seenSandbox.push(args.sandbox ?? false);
+      const match = [...store.inserted]
+        .reverse()
+        .find(
+          (l) =>
+            l.email === args.email &&
+            l.addressKey === args.addressKey &&
+            (l.sandbox ?? false) === args.sandbox,
+        );
+      return match ? toFakeRecord(match) : null;
+    };
+    return seenSandbox;
+  }
+
+  it('review fix: an API lead does not lock the person out — their own web submission gets a token and the email', async () => {
+    const store = fakeLeadStore();
+    dedupeOverInserted(store);
+    const email = fakeEmailService();
+    const magicLinks = fakeMagicLinkStore();
+    const service = createLeadService({ ...DEPS, store, email, magicLinks });
+
+    const apiResult = await service.submitLead(ATTESTED, CALLER);
+    expect(store.inserted[0]!.quarantined).toBe(true);
+    expect(email.magicLinkSends).toHaveLength(0);
+
+    // The homeowner later fills in the gate on the site, same email + address.
+    const web = await service.submitLead(VALID_BODY);
+    expect(web.leadId).toBe(apiResult.leadId);
+    expect(web.magicLinkSent).toBe(true);
+    expect(typeof web.reportToken).toBe('string');
+    expect(web.reportToken!.length).toBeGreaterThan(0);
+    expect(email.magicLinkSends).toHaveLength(1);
+    // Repeat path: scalars refreshed in place, no duplicate row.
+    expect(store.updated).toHaveLength(1);
+    expect(store.inserted).toHaveLength(1);
+  });
+
+  it('review fix: a honeypot-tripping web repeat onto an API row stays buried', async () => {
+    const store = fakeLeadStore();
+    dedupeOverInserted(store);
+    const email = fakeEmailService();
+    const service = createLeadService({ ...DEPS, store, email });
+    await service.submitLead(ATTESTED, CALLER);
+    const bot = await service.submitLead({ ...VALID_BODY, website: 'http://spam.example' });
+    expect(bot.magicLinkSent).toBe(false);
+    expect(bot.reportToken).toBeUndefined();
+    expect(store.updated).toHaveLength(0);
+    expect(email.magicLinkSends).toHaveLength(0);
+  });
+
+  it('review fix: dedupe is sandbox-scoped — a real lead never dedupes onto a sandbox row', async () => {
+    const store = fakeLeadStore();
+    const seenSandbox = dedupeOverInserted(store);
+    const email = fakeEmailService();
+    const service = createLeadService({ ...DEPS, store, email });
+
+    await service.submitLead(
+      { ...ATTESTED, estimateId: SANDBOX_ESTIMATE_ID },
+      { ...CALLER, sandbox: true },
+    );
+    const web = await service.submitLead(VALID_BODY);
+
+    expect(seenSandbox).toEqual([true, false]);
+    // A fresh real row, not the test row the sandbox purge will delete.
+    expect(store.inserted).toHaveLength(2);
+    expect(store.inserted[1]!.sandbox).toBe(false);
+    expect(web.leadId).toBe(store.inserted[1]!.id);
+    expect(web.magicLinkSent).toBe(true);
+    expect(email.magicLinkSends).toHaveLength(1);
+  });
+
+  it('web/embed submissions (no caller) need no attestation and store none', async () => {
+    const store = fakeLeadStore();
+    const service = createLeadService({ ...DEPS, store });
+    const result = await service.submitLead(VALID_BODY);
+    expect(result.magicLinkSent).toBe(true);
+    expect(store.inserted[0]!.quarantined).toBe(false);
+    expect(store.inserted[0]!.consentAttestation).toBeUndefined();
   });
 });
 

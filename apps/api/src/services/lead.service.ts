@@ -50,6 +50,7 @@
 import { randomUUID } from 'node:crypto';
 import { z } from 'zod';
 import type { LeadResponse } from '@feasly/contracts';
+import { API_LEAD_CONSENT_VERSION } from '../lib/legal-copy';
 import { computeLeadScore } from '../lib/lead-score';
 import { isTooFastSubmission } from '../lib/bot-timing';
 import { ErrorCodes, HttpError } from '../middleware/errors';
@@ -109,12 +110,51 @@ export const LeadRequestSchema = z.object({
 
 export type LeadRequest = z.infer<typeof LeadRequestSchema>;
 
+/**
+ * #738 (owner decision 2026-11-15): a lead submitted with an API key must
+ * carry the caller's consent attestation — `consent: true` plus the
+ * current `consentVersion` (docs/legal/approved-copy.md "API lead consent
+ * attestation"). Web/embed submissions never need it.
+ */
+export const ApiLeadAttestationSchema = z.object({
+  consent: z.literal(true, {
+    error: 'consent must be true: attest that the person agreed to be contacted.',
+  }),
+  consentVersion: z.string().trim().min(1).max(100),
+});
+
+/** The API key that submitted a lead (REST Bearer key or MCP). */
+export interface ApiKeyLeadCaller extends LeadOptions {
+  readonly keyId: string;
+  /** `feasly_test_` key: the lead is a sandbox row and is never emailed. */
+  readonly sandbox: boolean;
+  /** Which surface — stored as the lead's `source` ('api' | 'mcp'). */
+  readonly surface: 'rest' | 'mcp';
+}
+
+/** Agent-API lead policy (#738) — from `config.apiAccess`. */
+export interface ApiLeadPolicy {
+  /** The attestation version a caller must send. */
+  readonly leadConsentVersion: string;
+  /** API-key leads go to the admin quarantine queue for review. */
+  readonly quarantineLeads: boolean;
+}
+
 export interface LeadService {
   /**
    * Capture a lead. Rejects with HttpError(400) for invalid input or an
    * unknown estimateId; resolves to the contract `LeadResponse`.
+   *
+   * `caller` is set when the request came with an API key (#738): the
+   * consent attestation is then required and stored, the lead is a
+   * sandbox row for test keys, quarantined for review per policy, and a
+   * repeat for an existing lead never updates it, emails, or returns a
+   * token.
    */
-  submitLead(requestBody: unknown, options?: LeadOptions): Promise<LeadResponse>;
+  submitLead(
+    requestBody: unknown,
+    options?: LeadOptions | ApiKeyLeadCaller,
+  ): Promise<LeadResponse>;
 }
 
 /**
@@ -169,9 +209,19 @@ export interface LeadServiceDeps {
    * builder-notifications timer retries pending sends. Optional.
    */
   readonly builderNotifier?: Pick<BuilderNotificationsService, 'notifyNewLead'>;
+  /**
+   * Agent-API lead policy (#738). Defaults to the canonical consent
+   * version with quarantine on — the safe side when unwired.
+   */
+  readonly apiLeads?: ApiLeadPolicy;
   /** Injected clock for tests; defaults to wall time. */
   readonly clock?: () => Date;
 }
+
+const DEFAULT_API_LEAD_POLICY: ApiLeadPolicy = {
+  leadConsentVersion: API_LEAD_CONSENT_VERSION,
+  quarantineLeads: true,
+};
 
 const MS_PER_DAY = 86_400_000;
 
@@ -190,6 +240,36 @@ function extractTotalBase(figures: unknown): number | undefined {
 
 export function createLeadService(deps: LeadServiceDeps): LeadService {
   const clock = deps.clock ?? (() => new Date());
+  const apiLeadPolicy = deps.apiLeads ?? DEFAULT_API_LEAD_POLICY;
+
+  /**
+   * #738: validate the API caller's consent attestation. Field paths and
+   * the expected version only — never echo submitted values.
+   */
+  function parseAttestation(requestBody: unknown): { readonly version: string } {
+    const parsed = ApiLeadAttestationSchema.safeParse(requestBody);
+    if (!parsed.success) {
+      const first = parsed.error.issues[0];
+      const where = first ? first.path.join('.') : 'body';
+      throw new HttpError(
+        400,
+        ErrorCodes.CONSENT_REQUIRED,
+        where === 'consent'
+          ? 'consent must be true: attest that the person agreed to be contacted.'
+          : `Invalid lead request at '${where}'.`,
+        false,
+      );
+    }
+    if (parsed.data.consentVersion !== apiLeadPolicy.leadConsentVersion) {
+      throw new HttpError(
+        400,
+        ErrorCodes.CONSENT_REQUIRED,
+        `consentVersion must be '${apiLeadPolicy.leadConsentVersion}' (the current attestation wording).`,
+        false,
+      );
+    }
+    return { version: parsed.data.consentVersion };
+  }
   /** #793: sandbox writes never send email — every send is a logged no-op. */
   const sandboxEmail: EmailService = createSandboxSuppressingEmailService({
     inner: deps.email,
@@ -295,7 +375,17 @@ export function createLeadService(deps: LeadServiceDeps): LeadService {
     readonly sandbox: boolean;
   }): Promise<LeadResponse> {
     const { existing, input, estimate, email, expiresInDays, sandbox } = args;
-    if (existing.quarantined) {
+    // #738: an API-attested row is quarantined for review, not as spam.
+    // When the person later submits the gate themselves, they take the
+    // normal repeat path (token + email) — otherwise an agent submission
+    // would lock the real homeowner out for the whole dedupe window. The
+    // row stays in the review queue (`updateOnRepeat` never touches
+    // `quarantined`). Honeypot rows, and honeypot-tripping repeats, stay
+    // buried.
+    const attestedApiRow =
+      existing.consentAttestedByApiKeyId != null &&
+      (input.website ?? '').trim().length === 0;
+    if (existing.quarantined && !attestedApiRow) {
       // Spam stays buried: no update, no email, same response shape.
       return { leadId: existing.id, magicLinkSent: false, expiresInDays };
     }
@@ -414,9 +504,15 @@ export function createLeadService(deps: LeadServiceDeps): LeadService {
   return {
     async submitLead(
       requestBody: unknown,
-      options?: LeadOptions,
+      options?: LeadOptions | ApiKeyLeadCaller,
     ): Promise<LeadResponse> {
+      // #738: an API-key caller carries its keyId; #793 options only the
+      // sandbox flag. Both come from the auth context, never the body.
+      const caller = options !== undefined && 'keyId' in options ? options : undefined;
       const sandbox = options?.sandbox === true;
+      // #738: an API caller must attest consent before anything is read
+      // or stored — a missing or stale attestation is a 400 and no row.
+      const attestation = caller ? parseAttestation(requestBody) : undefined;
       const parsed = LeadRequestSchema.safeParse(requestBody);
       if (!parsed.success) {
         const first = parsed.error.issues[0];
@@ -457,7 +553,7 @@ export function createLeadService(deps: LeadServiceDeps): LeadService {
       // `tenant_id` field is not in the schema, so Zod strips it; only the
       // validated key wins.
       let tenantKey: string | undefined;
-      let source = 'api';
+      let source = caller?.surface === 'mcp' ? 'mcp' : 'api';
       if (input.tenantKey !== undefined) {
         tenantKey = await resolveTenantKey(input.tenantKey);
         source = 'embed';
@@ -498,6 +594,16 @@ export function createLeadService(deps: LeadServiceDeps): LeadService {
         throw new Error('lead store lookup failed', { cause: error });
       }
       const expiresInDays = Math.max(1, Math.ceil(deps.magicLinkTtlSeconds / 86_400));
+      if (existing && caller) {
+        // #738: an API caller never rewrites an existing lead (it may be a
+        // person's own verified capture), never triggers an email, and is
+        // never handed that lead's owner token. Same shape, nothing done.
+        return {
+          leadId: existing.id,
+          magicLinkSent: false,
+          expiresInDays,
+        };
+      }
       if (existing) {
         return handleRepeatEstimate({
           existing,
@@ -516,9 +622,12 @@ export function createLeadService(deps: LeadServiceDeps): LeadService {
       // capture so bots can't probe for the trap.
       // #788: a too-fast submission (form time below LEAD_MIN_SUBMIT_MS)
       // is quarantined the same way — identical 201, no email, no token.
+      // #738: API-key leads go to the same admin quarantine queue for
+      // review while the policy is on (invite-only beta default).
       const quarantined =
         (input.website ?? '').trim().length > 0 ||
-        isTooFastSubmission(input.elapsedMs, deps.minSubmitMs ?? 0);
+        isTooFastSubmission(input.elapsedMs, deps.minSubmitMs ?? 0) ||
+        (caller !== undefined && apiLeadPolicy.quarantineLeads);
 
       let inserted;
       try {
@@ -538,6 +647,15 @@ export function createLeadService(deps: LeadServiceDeps): LeadService {
           quarantined,
           sandbox,
           attribution: sanitizeLeadSource(input.source),
+          ...(caller && attestation
+            ? {
+                consentAttestation: {
+                  version: attestation.version,
+                  apiKeyId: caller.keyId,
+                  attestedAt: now,
+                },
+              }
+            : {}),
         });
       } catch (error) {
         throw new Error('lead store insert failed', { cause: error });

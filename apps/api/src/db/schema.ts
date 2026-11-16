@@ -182,7 +182,7 @@ export const leads = pgTable(
     /**
      * #814: campaign attribution from the lead submit (UTM parameters +
      * which ad click-id parameter was present). Stored once at creation,
-     * never on dedupe updates. Nullable (expand migration 0062); validated
+     * never on dedupe updates. Nullable (expand migration 0063); validated
      * by `lib/campaign-source.ts` — invalid values are stored as NULL.
      * Distinct from `source` (the capture surface).
      */
@@ -192,6 +192,15 @@ export const leads = pgTable(
     sourceUtmTerm: text('source_utm_term'),
     sourceUtmContent: text('source_utm_content'),
     sourceClickIdType: text('source_click_id_type'),
+    /**
+     * #738: agent-API consent attestation. Set only for leads submitted
+     * with an API key: the attested wording version, the attesting key
+     * (no FK — the audit trail outlives key deletion) and when. NULL for
+     * web/embed leads, whose consent is the gate checkbox (`consent_ts`).
+     */
+    consentVersion: text('consent_version'),
+    consentAttestedByApiKeyId: uuid('consent_attested_by_api_key_id'),
+    consentAttestedAt: timestamp('consent_attested_at', { withTimezone: true }),
     /**
      * admin/04: Sheets sync watermark. NULL = never synced; otherwise the
      * timestamp of the last successful upsert to the Google Sheet.

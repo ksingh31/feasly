@@ -83,12 +83,13 @@ export async function leadsHandler(
         headers,
         correlationId,
         { endpoint: '/api/v1/leads', requiredScope: 'lead' },
-        // #793: a sandbox (feasly_test_) key writes a sandbox-flagged lead
-        // and never sends email.
+        // #738: a Bearer key makes this an agent submission — the route
+        // passes the key on so the consent attestation is enforced.
         (auth) =>
-          auth?.sandbox
-            ? app.leadRoute.handle(req.body, { sandbox: true })
-            : app.leadRoute.handle(req.body),
+          app.leadRoute.handle(
+            req.body,
+            auth ? { keyId: auth.keyId, sandbox: auth.sandbox } : undefined,
+          ),
       ),
   );
 

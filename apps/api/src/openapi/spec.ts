@@ -79,9 +79,10 @@ function errorResponses() {
     },
     '429': {
       description:
-        'Rate limit exceeded — per-key sliding window (60s) or per-IP fixed window. ' +
-        'Body is RFC 7807 problem+json with code RATE_LIMITED. ' +
-        'The X-RateLimit-* headers report the key\'s quota state.',
+        'Rate limit exceeded — per-key sliding window (60s) or per-IP fixed window ' +
+        '(code RATE_LIMITED, X-RateLimit-* headers), or the key\'s daily/monthly quota ' +
+        '(code QUOTA_EXCEEDED, X-Quota-Period / -Limit / -Remaining / -Reset headers). ' +
+        'Body is RFC 7807 problem+json; Retry-After says when to try again.',
       headers: z.object({
         'X-RateLimit-Limit': z
           .number()
@@ -97,6 +98,25 @@ function errorResponses() {
           .describe(
             'Unix epoch seconds when the current window slides past the oldest request.',
           ),
+        'X-Quota-Period': z
+          .enum(['day', 'month'])
+          .optional()
+          .describe('QUOTA_EXCEEDED only: which quota ran out (UTC calendar day or month).'),
+        'X-Quota-Limit': z
+          .number()
+          .int()
+          .optional()
+          .describe('QUOTA_EXCEEDED only: requests allowed per period for this API key.'),
+        'X-Quota-Remaining': z
+          .number()
+          .int()
+          .optional()
+          .describe('QUOTA_EXCEEDED only: requests remaining in the period (0).'),
+        'X-Quota-Reset': z
+          .number()
+          .int()
+          .optional()
+          .describe('QUOTA_EXCEEDED only: Unix epoch seconds when the period resets.'),
       }),
       content: {
         'application/problem+json': {
@@ -217,7 +237,10 @@ export function buildOpenApiSpec(options: OpenApiSpecOptions) {
     summary: 'Submit a lead',
     description:
       'Captures a lead and sends the magic-link email. ' +
-      'The lead is persisted even if the link is never clicked.',
+      'The lead is persisted even if the link is never clicked. ' +
+      'With an API key the request must attest consent (`consent: true` plus the current ' +
+      '`consentVersion`, else 400 CONSENT_REQUIRED); the attestation is stored with the key, ' +
+      'and the lead is held for review by the Feasly team before anyone is emailed.',
     security: [{ ApiKeyAuth: [] }],
     request: {
       body: {
@@ -1152,7 +1175,7 @@ export function buildOpenApiSpec(options: OpenApiSpecOptions) {
         'Public endpoints use API-key Bearer auth. Admin key endpoints use the interim `X-Admin-Key` header.\n' +
         '\n' +
         '## Rate limits\n' +
-        'Per-key limits (default 100 req/min) plus per-endpoint IP limits. 429 responses use RFC 7807 problem+json.\n' +
+        'Per-key limits (default 100 req/min), per-key daily and monthly quotas (UTC calendar periods; invite-only beta defaults in the developer guide), plus per-endpoint IP limits. 429 responses use RFC 7807 problem+json with Retry-After.\n' +
         '\n' +
         '## Errors\n' +
         'All errors are RFC 7807 `application/problem+json` with a Feasly `code` and `correlationId`.\n' +

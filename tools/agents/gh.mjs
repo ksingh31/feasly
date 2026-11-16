@@ -4,6 +4,7 @@
  * write into a log line so the scripts can be exercised locally safely.
  */
 import { execFileSync } from 'node:child_process';
+import { DEFAULTS, fixRoundState } from './lib.mjs';
 
 export const DRY_RUN = process.argv.includes('--dry-run');
 
@@ -63,7 +64,7 @@ export function listAgentPrs() {
   return (
     ghJson([
       'pr', 'list', '--state', 'open', '--label', 'agent:pr', '--limit', '100',
-      '--json', 'number,title,headRefName,updatedAt,isDraft,reviewDecision,url,labels',
+      '--json', 'number,title,headRefName,updatedAt,isDraft,reviewDecision,url,labels,comments',
     ]) ?? []
   );
 }
@@ -100,4 +101,40 @@ export function prChecks(prNumber) {
     // gh exits non-zero when checks are failing/pending but still prints JSON on stdout.
     return [];
   }
+}
+
+/**
+ * All issue comments on a PR, oldest first, via paginated REST: unlike
+ * `gh pr view/list --json comments` it isn't capped at 100 and it reports bot
+ * authors as "<name>[bot]" with user.type Bot, which the fix-round trust check
+ * (lib.mjs fixRoundState → isTrustedAuthor) needs.
+ */
+export function prComments(prNumber) {
+  const pages = ghJson(['api', `repos/${repoSlug()}/issues/${prNumber}/comments?per_page=100`, '--paginate', '--slurp']) ?? [];
+  return pages.flat().map((c) => ({
+    body: c.body ?? '',
+    createdAt: c.created_at,
+    author: { login: c.user?.login ?? '', is_bot: c.user?.type === 'Bot' },
+    authorAssociation: c.author_association,
+  }));
+}
+
+/** AGENT_MAX_FIX_ROUNDS (repo variable), default 5 — same knob agent-fix.yml reads. */
+export const maxFixRounds = () => intVar('AGENT_MAX_FIX_ROUNDS', DEFAULTS.maxFixRounds);
+
+/**
+ * Dispatch agent-fix.yml unless the PR is parked at the fix-round cap (#924).
+ * Applies to every reason, merge conflicts included (conflict rounds don't count
+ * toward the cap, but a parked PR gets no rounds at all). Pass `comments` (from
+ * prComments) when the caller already has them, to save an API call.
+ * @returns {boolean} whether a round was dispatched
+ */
+export function dispatchFixRound(prNumber, reason, comments = null) {
+  const state = fixRoundState(comments ?? prComments(prNumber), maxFixRounds());
+  if (state.atCap) {
+    console.log(`#${prNumber}: parked at fix-round cap (${state.rounds}/${state.max}) — not dispatching agent-fix`);
+    return false;
+  }
+  ghWrite(['workflow', 'run', 'agent-fix.yml', '-f', `pr=${prNumber}`, '-f', `reason=${reason}`]);
+  return true;
 }

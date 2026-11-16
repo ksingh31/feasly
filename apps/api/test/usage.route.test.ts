@@ -46,6 +46,9 @@ function createFakeUsage(aggregates: UsageAggregate[]): UsageService & {
     async checkRateLimit() {
       return { allowed: true, limit: 100, remaining: 99, resetEpoch: 0 };
     },
+    async checkQuota() {
+      return { allowed: true, period: 'day' as const, limit: 100, remaining: 99, resetEpoch: 0 };
+    },
     async getUsage(query: unknown, scope: unknown) {
       fake.lastQuery = query;
       fake.lastScope = scope;

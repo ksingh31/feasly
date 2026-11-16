@@ -419,7 +419,14 @@
 			"idx": 59,
 			"version": "7",
 			"when": 1796515200000,
-			"tag": "0062_campaign_source",
+			"tag": "0062_lead_api_consent_attestation",
+			"breakpoints": true
+		},
+		{
+			"idx": 60,
+			"version": "7",
+			"when": 1796601600000,
+			"tag": "0063_campaign_source",
 			"breakpoints": true
 		}
 	]

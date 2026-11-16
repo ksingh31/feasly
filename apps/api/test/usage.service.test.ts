@@ -197,3 +197,85 @@ describe('usage service (api-mcp/07)', () => {
     expect(agg.length).toBe(1);
   });
 });
+
+describe('usage service quotas (#738)', () => {
+  const limits = { daily: 3, monthly: 5 };
+  const record = async (
+    fake: ReturnType<typeof createFakeStore>,
+    usage: ReturnType<typeof createUsageService>,
+    at: string,
+    keyId = 'key-1',
+  ) => {
+    fake.setNow(new Date(at));
+    await usage.recordUsage({ apiKeyId: keyId, endpoint: '/api/v1/estimate' });
+  };
+
+  it('allows under both ceilings and reports the tighter remaining', async () => {
+    const fake = createFakeStore();
+    const usage = createUsageService({ store: fake.store, clock: fake.getNow });
+    await record(fake, usage, '2026-11-15T10:00:00Z');
+    fake.setNow(new Date('2026-11-15T12:00:00Z'));
+    const v = await usage.checkQuota('key-1', limits);
+    expect(v).toEqual({
+      allowed: true,
+      period: 'day',
+      limit: 3,
+      remaining: 1,
+      resetEpoch: Date.UTC(2026, 10, 16) / 1000,
+    });
+  });
+
+  it('denies past the daily ceiling until 00:00 UTC; yesterday does not count', async () => {
+    const fake = createFakeStore();
+    const usage = createUsageService({ store: fake.store, clock: fake.getNow });
+    await record(fake, usage, '2026-11-14T23:59:00Z');
+    for (const t of ['01:00', '02:00', '03:00']) {
+      await record(fake, usage, `2026-11-15T${t}:00Z`);
+    }
+    fake.setNow(new Date('2026-11-15T20:00:00Z'));
+    const denied = await usage.checkQuota('key-1', limits);
+    expect(denied).toEqual({
+      allowed: false,
+      period: 'day',
+      limit: 3,
+      remaining: 0,
+      resetEpoch: Date.UTC(2026, 10, 16) / 1000,
+    });
+    // Next UTC day: the daily count starts over (month has 4 of 5 used).
+    fake.setNow(new Date('2026-11-16T00:00:01Z'));
+    const nextDay = await usage.checkQuota('key-1', limits);
+    expect(nextDay.allowed).toBe(true);
+    expect(nextDay.period).toBe('month');
+    expect(nextDay.remaining).toBe(0);
+  });
+
+  it('denies past the monthly ceiling until the 1st (UTC), across a year end', async () => {
+    const fake = createFakeStore();
+    const usage = createUsageService({ store: fake.store, clock: fake.getNow });
+    for (const d of ['02', '03', '04', '05', '06']) {
+      await record(fake, usage, `2026-12-${d}T09:00:00Z`);
+    }
+    fake.setNow(new Date('2026-12-20T09:00:00Z'));
+    const denied = await usage.checkQuota('key-1', limits);
+    expect(denied).toEqual({
+      allowed: false,
+      period: 'month',
+      limit: 5,
+      remaining: 0,
+      resetEpoch: Date.UTC(2027, 0, 1) / 1000,
+    });
+    fake.setNow(new Date('2027-01-01T00:00:01Z'));
+    expect((await usage.checkQuota('key-1', limits)).allowed).toBe(true);
+  });
+
+  it('counts each key separately', async () => {
+    const fake = createFakeStore();
+    const usage = createUsageService({ store: fake.store, clock: fake.getNow });
+    for (const t of ['01:00', '02:00', '03:00']) {
+      await record(fake, usage, `2026-11-15T${t}:00Z`, 'key-a');
+    }
+    fake.setNow(new Date('2026-11-15T04:00:00Z'));
+    expect((await usage.checkQuota('key-a', limits)).allowed).toBe(false);
+    expect((await usage.checkQuota('key-b', limits)).allowed).toBe(true);
+  });
+});
