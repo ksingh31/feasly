@@ -24,6 +24,16 @@ describe('loadConfig', () => {
         dedupWindowDays: 90,
         needsYouStaleDays: 7,
         needsYouScanLimit: 500,
+        minSubmitMs: 2_000,
+      },
+      botChallenge: {
+        enabled: false,
+        siteKey: '',
+        secretKey: '',
+        verifyUrl: 'https://challenges.cloudflare.com/turnstile/v0/siteverify',
+        verifyTimeoutMs: 5_000,
+        windowMs: 86_400_000,
+        verifyRateLimit: { windowMs: 3_600_000, maxRequests: 10 },
       },
       estimate: {
         rateLimit: { windowMs: 3_600_000, maxRequests: 20 },
@@ -153,6 +163,8 @@ describe('loadConfig', () => {
       },
       // #687: zoning rules catalogue city + public cache lifetime.
       zoning: { city: 'calgary', cacheMaxAgeSeconds: 3_600 },
+      // #888: builder partner list caches (in-memory TTL + HTTP max-age).
+      partners: { cacheTtlMs: 300_000, cacheMaxAgeSeconds: 300 },
       // trust-strip/01: landing "Refreshed <Month Year>" from the Socrata
       // dataset metadata. Reuses the SOCRATA_* source; 24h cache TTL on
       // successful fetches only.
@@ -205,10 +217,41 @@ describe('loadConfig', () => {
         enabled: false,
         delayHours: 72,
       },
+      builderNotifications: {
+        enabled: true,
+        maxAttempts: 5,
+        retryWindowHours: 24,
+        claimLeaseMinutes: 10,
+        digestLocalHour: 7,
+        digestTimeZone: 'America/Edmonton',
+      },
       communityStatsRefresh: {
         minAssessmentCount: 10,
         alertAfterConsecutiveFailures: 2,
         pruneMinRows: 100,
+      },
+      neighbourhoodData: {
+        providers: {
+          schoolDirectory: 'calgary-open-data',
+          schoolDesignation: 'none',
+          schoolRatings: 'none',
+          reviews: 'none',
+          amenities: 'calgary-open-data',
+          commute: 'straight-line',
+        },
+        socrataBaseUrl: 'https://data.calgary.ca',
+        schoolsDatasetId: 'fd9t-tdn2',
+        amenitiesDatasetId: 'x34e-bcjz',
+        communityPointsDatasetId: 'j9ps-fyst',
+        communityClass: 'Residential',
+        communityStructures: ['INNER CITY', '1950s', '1960s/1970s'],
+        commuteDestination: { name: 'Downtown', lat: 51.0453, lng: -114.0581 },
+        httpTimeoutMs: 15_000,
+        maxRows: 50_000,
+        refreshDayOfMonth: 1,
+        alertAfterFailureDays: 3,
+        lotRadiusM: 1_000,
+        lotMetricsTtlMs: 2_592_000_000,
       },
       backupCheck: {
         enabled: false,
@@ -259,6 +302,32 @@ describe('loadConfig', () => {
   it('reads the waitlist consent version from WAITLIST_CONSENT_VERSION (#740)', () => {
     const config = loadConfig({ ...VALID_ENV, WAITLIST_CONSENT_VERSION: ' waitlist-2027-01-01 ' });
     expect(config.waitlist.consentVersion).toBe('waitlist-2027-01-01');
+  });
+
+  it('reads LEAD_MIN_SUBMIT_MS (#788), allows 0 and rejects negatives', () => {
+    expect(loadConfig({ ...VALID_ENV, LEAD_MIN_SUBMIT_MS: '4500' }).lead.minSubmitMs).toBe(4_500);
+    expect(loadConfig({ ...VALID_ENV, LEAD_MIN_SUBMIT_MS: '0' }).lead.minSubmitMs).toBe(0);
+    expect(() => loadConfig({ ...VALID_ENV, LEAD_MIN_SUBMIT_MS: '-1' })).toThrow(/LEAD_MIN_SUBMIT_MS/);
+  });
+
+  it('enables the bot challenge (#788) only when both the Turnstile site key and secret are set', () => {
+    expect(loadConfig({ ...VALID_ENV, TURNSTILE_SITE_KEY: 'site' }).botChallenge.enabled).toBe(false);
+    expect(loadConfig({ ...VALID_ENV, TURNSTILE_SECRET_KEY: 'secret' }).botChallenge.enabled).toBe(false);
+    const config = loadConfig({
+      ...VALID_ENV,
+      TURNSTILE_SITE_KEY: 'site',
+      TURNSTILE_SECRET_KEY: 'secret',
+      BOT_CHALLENGE_WINDOW_MS: '3600000',
+      BOT_CHALLENGE_VERIFY_MAX_ATTEMPTS: '5',
+      BOT_CHALLENGE_VERIFY_WINDOW_MS: '600000',
+    });
+    expect(config.botChallenge).toMatchObject({
+      enabled: true,
+      siteKey: 'site',
+      secretKey: 'secret',
+      windowMs: 3_600_000,
+      verifyRateLimit: { windowMs: 600_000, maxRequests: 5 },
+    });
   });
 
   it('reads the reno draft-data flag from COST_ENGINE_ALLOW_DRAFT', () => {
@@ -386,6 +455,16 @@ describe('loadConfig', () => {
     expect(() =>
       loadConfig({ ...VALID_ENV, BILLING_SETTLEMENT_THRESHOLD_HOURS: '0' }),
     ).toThrow(/BILLING_SETTLEMENT_THRESHOLD_HOURS/);
+  });
+
+  it('#725: BUILDER_DIGEST_TIMEZONE must be a real IANA zone', () => {
+    expect(
+      loadConfig({ ...VALID_ENV, BUILDER_DIGEST_TIMEZONE: 'America/Toronto' })
+        .builderNotifications.digestTimeZone,
+    ).toBe('America/Toronto');
+    expect(() =>
+      loadConfig({ ...VALID_ENV, BUILDER_DIGEST_TIMEZONE: 'America/Edmonon' }),
+    ).toThrow(/BUILDER_DIGEST_TIMEZONE/);
   });
 
   it('reads BILLING_STATEMENT_DESCRIPTOR (#716) and enforces Stripe descriptor rules', () => {

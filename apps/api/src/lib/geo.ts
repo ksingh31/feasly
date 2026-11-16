@@ -134,3 +134,20 @@ export function parcelInteriorPoint(geometry: unknown): LonLat | null {
   if (c && pointInRing(c, largest)) return c;
   return scanlinePoint(largest);
 }
+
+/** Mean Earth radius in metres (IUGG). */
+const EARTH_RADIUS_M = 6_371_008.8;
+
+/**
+ * Great-circle distance in metres between two points (#773). Straight-line
+ * only — never a travel time.
+ */
+export function haversineMeters(a: LonLat, b: LonLat): number {
+  const toRad = (deg: number): number => (deg * Math.PI) / 180;
+  const dLat = toRad(b.lat - a.lat);
+  const dLon = toRad(b.lon - a.lon);
+  const h =
+    Math.sin(dLat / 2) ** 2 +
+    Math.cos(toRad(a.lat)) * Math.cos(toRad(b.lat)) * Math.sin(dLon / 2) ** 2;
+  return 2 * EARTH_RADIUS_M * Math.asin(Math.min(1, Math.sqrt(h)));
+}

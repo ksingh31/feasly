@@ -18,6 +18,22 @@
         {{ copy.invoicesPaymentFailed }}
       </p>
     }
+    @if (simulatedPaymentIntentId(); as intentId) {
+      <section class="invoice-drawer__section" aria-labelledby="invoice-drawer-confirm" data-testid="invoice-confirm-payment">
+        <h3 id="invoice-drawer-confirm" class="invoice-drawer__heading">{{ simCopy.paymentHeading }}</h3>
+        <p class="invoice-drawer__note">{{ simCopy.paymentBody }}</p>
+        <app-builder-simulated-challenge
+          headingId="invoice-drawer-sim-challenge"
+          [intentId]="intentId"
+          (resolved)="onChallengeResolved($event)"
+        />
+      </section>
+    } @else if (confirmLoadFailed()) {
+      <div class="invoice-drawer__error" role="alert" data-testid="invoice-confirm-error">
+        <p>{{ simCopy.paymentLoadError }}</p>
+        <button type="button" ui-button variant="secondary" (click)="loadConfirmation()">{{ copy.retryLabel }}</button>
+      </div>
+    }
     @if (inv.status === 'paid') {
       <p class="invoice-drawer__banner invoice-drawer__banner--success" role="status">
         {{ copy.invoicesPaymentReceived }}
