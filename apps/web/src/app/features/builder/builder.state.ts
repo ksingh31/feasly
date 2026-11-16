@@ -20,6 +20,8 @@ import { BuilderEntraAuthService } from './builder-entra-auth.service';
 import { BuilderLeadsApiService } from './builder-leads-api.service';
 import {
   ActivateBuilderViewAs,
+  BuilderAccountPaused,
+  DismissBuilderAccountPaused,
   ClearBuilderState,
   ClearBuilderViewAsError,
   CompleteBuilderEntraSignIn,
@@ -99,6 +101,12 @@ export interface BuilderStateModel {
    * authoritative — this is display only.
    */
   viewAsError: 'forbidden' | 'failed' | null;
+  /**
+   * #861: set when the API refused a call with 403 BUILDER_PAUSED — the
+   * shell shows the "account paused" screen. `message` is the server's
+   * text (null = use the copy default). Memory-only.
+   */
+  accountPaused: { readonly message: string | null } | null;
 }
 
 export const EMPTY_SUMMARY: BuilderLeadListResponse['summary'] = {
@@ -130,6 +138,7 @@ const defaults: BuilderStateModel = {
   updateError: null,
   viewAsBusy: false,
   viewAsError: null,
+  accountPaused: null,
 };
 
 /**
@@ -197,6 +206,12 @@ export class BuilderState {
   @Selector()
   static membershipsLoading(state: BuilderStateModel): boolean {
     return state.membershipsLoading;
+  }
+
+  /** #861: the org's account is paused (403 BUILDER_PAUSED seen). */
+  @Selector()
+  static accountPaused(state: BuilderStateModel): { readonly message: string | null } | null {
+    return state.accountPaused;
   }
 
   @Selector()
@@ -328,6 +343,16 @@ export class BuilderState {
   @Selector()
   static viewAsError(state: BuilderStateModel): 'forbidden' | 'failed' | null {
     return state.viewAsError;
+  }
+
+  @Action(BuilderAccountPaused)
+  accountPausedSeen(ctx: StateContext<BuilderStateModel>, action: BuilderAccountPaused): void {
+    ctx.patchState({ accountPaused: { message: action.message } });
+  }
+
+  @Action(DismissBuilderAccountPaused)
+  dismissAccountPaused(ctx: StateContext<BuilderStateModel>): void {
+    if (ctx.getState().accountPaused !== null) ctx.patchState({ accountPaused: null });
   }
 
   @Action(LoadBuilderSession)

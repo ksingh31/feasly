@@ -101,7 +101,12 @@
   }
 
   <main class="builder-shell__main">
-    <router-outlet />
+    @if (accountPaused(); as paused) {
+      <app-builder-paused [message]="paused.message" [isAdmin]="isBuilderAdmin()" />
+    }
+    <div class="builder-shell__page" [hidden]="accountPaused() !== null">
+      <router-outlet />
+    </div>
   </main>
 
   <nav class="builder-shell__tabs" [attr.aria-label]="copy.shellTabsLabel">

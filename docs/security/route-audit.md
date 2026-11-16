@@ -138,6 +138,7 @@ Related: [rate-limits.md](rate-limits.md) · [asvs-l1.md](asvs-l1.md) ·
 | GET | `/api/v1/admin/builders/{id}` | admin | builders:read | 300/min per session | live |  |
 | PATCH | `/api/v1/admin/builders/{id}` | admin | builders:manage | 60/min per session | live |  |
 | POST | `/api/v1/admin/builders/{id}/status` | admin | builders:manage | 60/min per session | live |  |
+| GET | `/api/v1/admin/builders/{id}/offboarding-blockers` | admin | builders:manage | 60/min per session | live |  |
 | GET | `/api/v1/admin/builders/{id}/export.csv` | admin | builders:manage | 10/min per session | live |  |
 | GET | `/api/v1/admin/partners` | admin | builders:read | 300/min per session | live |  |
 | POST | `/api/v1/admin/partners` | admin | builders:manage | 60/min per session | live |  |

@@ -1195,6 +1195,18 @@ export const ROUTE_REGISTRY: readonly ApiRouteEntry[] = [
   },
   {
     method: 'GET',
+    path: '/api/v1/admin/builders/{id}/offboarding-blockers',
+    auth: 'admin',
+    permissions: ['builders:manage'] as const,
+    rateLimit: '60/min per session',
+    status: 'live',
+    summary:
+      'What blocks "complete offboarding" for one builder right now (#861): ' +
+      'unpaid invoices and open disputes, each naming the invoice. Empty ' +
+      'list = nothing blocks. Read-only; drives the admin offboarding checklist.',
+  },
+  {
+    method: 'GET',
     path: '/api/v1/admin/builders/{id}/export.csv',
     auth: 'admin',
     permissions: ['builders:manage'] as const,

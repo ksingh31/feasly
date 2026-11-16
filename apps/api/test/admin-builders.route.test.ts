@@ -220,6 +220,27 @@ describe('admin-builders lifecycle routes (#860)', () => {
     ).rejects.toMatchObject({ status: 401 });
   });
 
+  it('offboardingBlockers returns the service blockers (#861)', async () => {
+    const { route, headers, lifecycle } = makeDeps();
+    const blocker = {
+      kind: 'unpaid_invoice' as const,
+      invoiceId: 'inv-1',
+      invoiceNumber: 'FEA-0001',
+      status: 'issued',
+    };
+    vi.mocked(lifecycle.offboardingBlockers).mockResolvedValueOnce([blocker]);
+    const out = await route.offboardingBlockers(headers, BUILDER_ID);
+    expect(out).toEqual({ blockers: [blocker] });
+    expect(lifecycle.offboardingBlockers).toHaveBeenCalledWith(BUILDER_ID);
+  });
+
+  it('offboardingBlockers requires admin auth (401) and a uuid id (400)', async () => {
+    const { route, headers, lifecycle } = makeDeps();
+    await expect(route.offboardingBlockers({}, BUILDER_ID)).rejects.toMatchObject({ status: 401 });
+    await expect(route.offboardingBlockers(headers, 'nope')).rejects.toMatchObject({ status: 400 });
+    expect(lifecycle.offboardingBlockers).not.toHaveBeenCalled();
+  });
+
   it('exportCsv validates kind and returns the csv', async () => {
     const { route, headers, lifecycle } = makeDeps();
     const out = await route.exportCsv(headers, BUILDER_ID, { kind: 'invoices' });

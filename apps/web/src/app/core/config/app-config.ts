@@ -497,6 +497,19 @@ export interface BuilderCopy {
   simulated: BuilderSimulatedPaymentsCopy;
   /** #871: builder Settings page (Profile & branding, Embed, Help). */
   settings: BuilderSettingsCopy;
+  /** #861: the "Your account is paused" screen (403 BUILDER_PAUSED). */
+  paused: BuilderPausedCopy;
+}
+
+/** #861: shown instead of a generic error when the org's account is paused. */
+export interface BuilderPausedCopy {
+  heading: string;
+  /** Fallback body when the API sent no message. */
+  body: string;
+  /** Extra line for org owners: invoices stay viewable and payable. */
+  invoicesNote: string;
+  contactLabel: string;
+  invoicesLabel: string;
 }
 
 /** One link on the builder Settings Help tab. */
@@ -596,6 +609,21 @@ export interface BuilderSettingsCopy {
   helpResponseTime: string;
   helpLinksHeading: string;
   helpLinks: BuilderHelpLink[];
+  /** #861 "Close my account" (Help tab, org owners). No self-serve deletion. */
+  closeHeading: string;
+  closeIntro: string;
+  closeOwnerOnly: string;
+  closeButton: string;
+  closeModalHeading: string;
+  closeModalIntro: string;
+  closeNoteLabel: string;
+  /** {max} = character limit. */
+  closeNoteHint: string;
+  closeSubmit: string;
+  closeCancel: string;
+  closeError: string;
+  closeCreatedToast: string;
+  closeDuplicateToast: string;
 }
 
 /**
@@ -1194,6 +1222,8 @@ export interface AppConfig {
     builderLogoUrlMaxLength: number;
     builderOriginRequestMaxOrigins: number;
     builderOriginRequestNoteMaxLength: number;
+    /** #861: optional note on a "Close my account" request (API max 1000). */
+    builderAccountClosureNoteMaxLength: number;
   };
   /**
    * What a new-build estimate includes and leaves out (#824, owner decision

@@ -738,5 +738,27 @@ export const DEFAULT_BUILDER_COPY: BuilderCopy = {
       { label: 'How Feasly estimates work', href: '/how-it-works' },
       { label: 'Frequently asked questions', href: '/faq' },
     ],
+    closeHeading: 'Close your account',
+    closeIntro:
+      'Want to stop working with Feasly? Send a request and our team will contact you to wrap things up. Nothing is deleted right away.',
+    closeOwnerOnly: 'Only your organization’s owners can ask to close the account.',
+    closeButton: 'Ask to close my account',
+    closeModalHeading: 'Ask to close your account?',
+    closeModalIntro:
+      'We’ll let the Feasly team know. They’ll contact you about open invoices and handing over your leads before anything changes.',
+    closeNoteLabel: 'Anything we should know? (optional)',
+    closeNoteHint: 'Up to {max} characters.',
+    closeSubmit: 'Send request',
+    closeCancel: 'Cancel',
+    closeError: 'We couldn’t send your request. Please try again.',
+    closeCreatedToast: 'Request sent. The Feasly team will contact you.',
+    closeDuplicateToast: 'You already asked to close your account. The Feasly team will contact you.',
+  },
+  paused: {
+    heading: 'Your account is paused',
+    body: 'This builder account is paused. Contact Feasly to restore access.',
+    invoicesNote: 'You can still view and pay your invoices.',
+    contactLabel: 'Contact Feasly',
+    invoicesLabel: 'View invoices',
   },
 };

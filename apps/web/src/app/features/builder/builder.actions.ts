@@ -112,3 +112,18 @@ export class ExitBuilderViewAs {
 export class ClearBuilderViewAsError {
   static readonly type = '[Builder] Clear view-as error';
 }
+
+/**
+ * #861: an API call was refused with 403 BUILDER_PAUSED (the org is
+ * suspended, offboarding or closed). The shell swaps the page for the
+ * "Your account is paused" screen. Dispatched by builderPausedInterceptor.
+ */
+export class BuilderAccountPaused {
+  static readonly type = '[Builder] Account paused';
+  constructor(readonly message: string | null) {}
+}
+
+/** #861: leave the paused screen (navigation, e.g. to invoices). */
+export class DismissBuilderAccountPaused {
+  static readonly type = '[Builder] Dismiss account paused';
+}

@@ -5,12 +5,16 @@ import type { Observable } from 'rxjs';
 import type {
   Builder,
   BuilderCreateBody,
+  BuilderExportKind,
+  BuilderLifecycleBody,
+  BuilderLifecycleResponse,
   BuilderListResponse,
+  BuilderOffboardingBlockersResponse,
   BuilderUpdateBody,
   LeadAssignBuilderBody,
 } from '@feasly/contracts';
 import { ConfigService } from '../../core/config/config.service';
-import { toApiError } from '../../core/api/api-error';
+import { toApiError, toBlobApiError } from '../../core/api/api-error';
 
 /**
  * Admin builders-management API client (embed/02 admin-UI migration).
@@ -36,6 +40,9 @@ export class AdminBuildersApiService {
   private static readonly BUILDERS_PATH = '/api/v1/admin/builders';
   private static readonly LEADS_PATH = '/api/v1/admin/leads';
   private static readonly ASSIGN_BUILDER_SEGMENT = '/assign-builder';
+  private static readonly STATUS_SEGMENT = '/status';
+  private static readonly BLOCKERS_SEGMENT = '/offboarding-blockers';
+  private static readonly EXPORT_SEGMENT = '/export.csv';
 
   private get buildersBase(): string {
     return this.config.get('api').baseUrl + AdminBuildersApiService.BUILDERS_PATH;
@@ -89,6 +96,46 @@ export class AdminBuildersApiService {
         withCredentials: true,
       }),
     );
+  }
+
+  /**
+   * Lifecycle action (#860/#861): suspend · reactivate · start or complete
+   * offboarding, with a mandatory reason. 409 OFFBOARDING_BLOCKED while an
+   * invoice is unpaid or a dispute is open.
+   */
+  changeStatus(id: string, body: BuilderLifecycleBody): Observable<BuilderLifecycleResponse> {
+    return this.call(
+      this.http.post<BuilderLifecycleResponse>(
+        this.builderUrl(id) + AdminBuildersApiService.STATUS_SEGMENT,
+        body,
+        { withCredentials: true },
+      ),
+    );
+  }
+
+  /** What blocks "complete offboarding" right now (#861 checklist). */
+  offboardingBlockers(id: string): Observable<BuilderOffboardingBlockersResponse> {
+    return this.call(
+      this.http.get<BuilderOffboardingBlockersResponse>(
+        this.builderUrl(id) + AdminBuildersApiService.BLOCKERS_SEGMENT,
+        { withCredentials: true },
+      ),
+    );
+  }
+
+  /**
+   * One builder's leads or invoices as CSV (#860 hand-over export). Fetched
+   * as a blob (cookie auth can't ride a plain navigation) with the bulk
+   * export timeout and blob-aware error mapping (same as the leads export).
+   */
+  exportCsv(id: string, kind: BuilderExportKind): Observable<Blob> {
+    return this.http
+      .get(this.builderUrl(id) + AdminBuildersApiService.EXPORT_SEGMENT, {
+        params: { kind },
+        withCredentials: true,
+        responseType: 'blob',
+      })
+      .pipe(timeout(this.config.get('api').exportTimeoutMs), catchError(toBlobApiError));
   }
 
   /**

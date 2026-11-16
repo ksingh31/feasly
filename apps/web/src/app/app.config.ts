@@ -13,6 +13,7 @@ import { provideApi } from './core/api/api.service';
 import { providePropertyData } from './core/api/property-data.service';
 import { GlobalErrorHandler, connectivityInterceptor } from './core/errors';
 import { credentialsInterceptor } from './core/api/credentials.interceptor';
+import { builderPausedInterceptor } from './features/builder/builder-paused.interceptor';
 import { ConfigService } from './core/config/config.service';
 import { WebTelemetryService } from './core/telemetry/web-telemetry.service';
 import { PartnersState } from './core/partners/partners.state';
@@ -60,10 +61,12 @@ export const appConfig: ApplicationConfig = {
     // credentials interceptor (ADM-10) attaches withCredentials to API-base
     // requests plus `Authorization: Bearer <token>` on admin/builder paths —
     // the cross-origin session cookie never sticks on modern browsers, so
-    // the bearer token is the primary session credential.
+    // the bearer token is the primary session credential. The builder-paused
+    // interceptor (#861) flags a 403 BUILDER_PAUSED on builder-portal calls
+    // so the shell shows the "account paused" screen.
     provideHttpClient(
       withFetch(),
-      withInterceptors([credentialsInterceptor, connectivityInterceptor]),
+      withInterceptors([credentialsInterceptor, connectivityInterceptor, builderPausedInterceptor]),
     ),
     // Load /assets/config/app-config.json before first render (FE0-002).
     // Never rejects: ConfigService falls back to compiled defaults.
@@ -214,6 +217,7 @@ export const appConfig: ApplicationConfig = {
                       leadsStatus: 'idle',
                       updatingLeadId: null,
                       updateError: null,
+                      accountPaused: null,
                     }
                   : // AdminAuthState persists the session token + identity so the
                     // session survives a reload, but the transient Entra

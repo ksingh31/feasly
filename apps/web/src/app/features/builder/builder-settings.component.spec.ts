@@ -18,6 +18,7 @@ import { UiModalService, UiToastService } from '@app/shared/ui';
 import { BuilderSettingsComponent, originInstallState } from './builder-settings.component';
 import { BuilderSettingsState } from './builder-settings.state';
 import { BuilderSettingsApiService } from './builder-settings-api.service';
+import { BuilderAccountClosureModalComponent } from './builder-account-closure-modal.component';
 import { BuilderOriginRequestModalComponent } from './builder-origin-request-modal.component';
 import { BuilderState } from './builder.state';
 import { BUILDER_COPY } from './builder-copy';
@@ -331,6 +332,21 @@ describe('BuilderSettingsComponent (#871)', () => {
         a.getAttribute('href'),
       );
       expect(links).toEqual(COPY.helpLinks.map((l) => l.href));
+    });
+
+    it('#861: owners can ask to close the account; the outcome is toasted', async () => {
+      const { el, modals, closed, toasts } = await setup({ tab: 'help' });
+      expect(el.querySelector('[data-testid="close-account"] h2')?.textContent).toBe(COPY.closeHeading);
+      click(el, 'close-account-request');
+      expect(modals.open).toHaveBeenCalledWith(BuilderAccountClosureModalComponent, expect.any(Object));
+      closed.next('duplicate');
+      expect(toasts.show).toHaveBeenCalledWith({ message: COPY.closeDuplicateToast, tone: 'info' });
+    });
+
+    it('#861: members see the owner-only note, no close button', async () => {
+      const { el } = await setup({ tab: 'help', profile: { ...PROFILE, canEdit: false } });
+      expect(el.querySelector('[data-testid="close-account-request"]')).toBeNull();
+      expect(el.textContent).toContain(COPY.closeOwnerOnly);
     });
   });
 });
