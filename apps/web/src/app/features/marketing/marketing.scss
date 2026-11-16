@@ -313,3 +313,250 @@ a.partner-name {
     text-align: center;
   }
 }
+
+/* #827: How it works — transparency sections. */
+.marketing .lede.answer {
+  color: var(--text);
+  margin-bottom: 16px;
+}
+
+.hwe-section {
+  margin-bottom: 48px;
+}
+
+.hwe-section h2 {
+  font-family: var(--font-ui);
+  font-size: 22px;
+  font-weight: 700;
+  margin: 0 0 10px;
+  color: var(--text);
+}
+
+.hwe-section > p {
+  font-size: 15px;
+  line-height: 1.75;
+  color: var(--text);
+  margin: 0 0 16px;
+}
+
+.formula {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 8px;
+  align-items: stretch;
+}
+
+.formula-term {
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  padding: 20px 24px;
+  min-width: 0;
+}
+
+.formula-result {
+  background: var(--accent-bg);
+}
+
+.formula-term-title,
+.hwe-card-title {
+  font-family: var(--font-ui);
+  font-size: 17px;
+  font-weight: 700;
+  margin: 0 0 6px;
+  color: var(--text);
+}
+
+.formula-term-body {
+  font-size: 15px;
+  line-height: 1.6;
+  color: var(--muted);
+  margin: 0 0 12px;
+}
+
+.formula-result .formula-term-body {
+  margin: 0;
+  color: var(--text);
+}
+
+.formula-items {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 10px;
+}
+
+.formula-item {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  font-size: 15px;
+  line-height: 1.5;
+}
+
+.formula-item-label {
+  font-weight: 600;
+  color: var(--text);
+}
+
+.formula-item-note {
+  color: var(--muted);
+}
+
+.formula-op {
+  justify-self: center;
+  font-family: var(--font-ui);
+  font-size: 24px;
+  font-weight: 700;
+  line-height: 1;
+  color: var(--accent-text);
+}
+
+.hwe-cards,
+.next-steps {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 8px;
+}
+
+@media (min-width: 720px) {
+  .hwe-cards {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}
+
+.hwe-card,
+.next-step {
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  padding: 20px;
+  min-width: 0;
+}
+
+.hwe-card p,
+.next-step p {
+  font-size: 15px;
+  line-height: 1.6;
+  color: var(--text);
+  margin: 0 0 8px;
+  overflow-wrap: anywhere;
+}
+
+.hwe-card p:last-child,
+.next-step p:last-child {
+  margin-bottom: 0;
+}
+
+.source-stamp {
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.hwe-card a,
+.hwe-links a {
+  color: var(--accent-text);
+}
+
+.next-steps {
+  counter-reset: next-step;
+}
+
+.next-step {
+  counter-increment: next-step;
+}
+
+.next-step .hwe-card-title::before {
+  content: counter(next-step) '. ';
+  color: var(--accent-text);
+}
+
+.example-wrap {
+  overflow-x: auto;
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  padding: 8px 20px 12px;
+  margin-bottom: 12px;
+}
+
+.example-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 15px;
+}
+
+.example-table caption {
+  text-align: left;
+  padding: 12px 0 8px;
+  font-weight: 600;
+  color: var(--text);
+}
+
+.example-table th,
+.example-table td {
+  padding: 8px 0;
+  text-align: left;
+  font-weight: 400;
+  color: var(--text);
+  border-bottom: 1px solid var(--border);
+  vertical-align: top;
+}
+
+.example-table thead th {
+  font-weight: 600;
+  color: var(--muted);
+}
+
+.example-table .num {
+  text-align: right;
+  white-space: nowrap;
+  padding-left: 16px;
+  font-variant-numeric: tabular-nums;
+}
+
+.example-table .subtotal th,
+.example-table .subtotal td {
+  font-weight: 600;
+}
+
+.example-table .total th,
+.example-table .total td {
+  font-weight: 700;
+  border-bottom: 0;
+  padding-top: 12px;
+}
+
+.example-note {
+  font-size: 14px;
+  line-height: 1.6;
+  color: var(--muted);
+  margin: 0 0 6px;
+}
+
+.hwe-list {
+  margin: 0;
+  padding-left: 20px;
+  display: grid;
+  gap: 8px;
+  font-size: 15px;
+  line-height: 1.6;
+  color: var(--text);
+}
+
+.hwe-links {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 4px;
+}
+
+.hwe-links a {
+  display: inline-flex;
+  align-items: center;
+  min-height: 44px;
+}

@@ -11,7 +11,7 @@ import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import { createEstimate, PLACEHOLDER_COST_DATA } from '../src';
-import { estimateLineItems, renderWebScope, WEB_SCOPE_FILE } from '../tools/gen-web-scope';
+import { estimateLineItems, renderWebScope, WEB_SCOPE_FILE, workedExample } from '../tools/gen-web-scope';
 
 const WEB_DEFAULTS = join(__dirname, '..', '..', '..', 'apps', 'web', 'src', 'app', 'core', 'config', 'app-config.defaults.ts');
 
@@ -49,5 +49,44 @@ describe('estimate includes list is derived from the engine line items (#824)', 
   it('the web config reads the includes list from the generated file, not an inline list', () => {
     const src = readFileSync(WEB_DEFAULTS, 'utf8');
     expect(src).toMatch(/estimateScope:\s*\{[\s\S]*?includes:\s*ESTIMATE_LINE_ITEMS\.items/);
+  });
+});
+
+describe('How it works worked example is priced by the engine (#827)', () => {
+  const ex = workedExample(PLACEHOLDER_COST_DATA);
+
+  it('is a 2,400 sq ft standard-finish home', () => {
+    expect(ex.input).toEqual({ buildSqft: 2_400, tier: 'standard', lotSizeSqft: 6_000 });
+    expect(ex.costDataVersion).toBe(PLACEHOLDER_COST_DATA.version);
+  });
+
+  it('every row and the build band equal what createEstimate() returns', () => {
+    const result = createEstimate(
+      {
+        property: { assessedLandValue: 400_000, lotSizeSqft: ex.input.lotSizeSqft, zoning: 'R-CG' },
+        scope: { buildSqft: ex.input.buildSqft, tier: ex.input.tier },
+      },
+      PLACEHOLDER_COST_DATA,
+    );
+    const engineRows = result.rows.filter((r) => r.key !== 'land').map(({ key, label, range }) => ({ key, label, range }));
+    expect(ex.groups.flatMap((g) => g.rows)).toEqual(engineRows);
+    expect(ex.build).toEqual(result.totals.build);
+  });
+
+  it('groups are hard + soft + contingency, and their subtotals add up to the build band', () => {
+    expect(ex.groups.map((g) => g.key)).toEqual(['hard', 'soft', 'contingency']);
+    for (const g of ex.groups) {
+      for (const field of ['low', 'base', 'high'] as const) {
+        expect(g.subtotal[field]).toBe(g.rows.reduce((sum, r) => sum + r.range[field], 0));
+      }
+    }
+    for (const field of ['low', 'base', 'high'] as const) {
+      expect(ex.groups.reduce((sum, g) => sum + g.subtotal[field], 0)).toBe(ex.build[field]);
+    }
+  });
+
+  it('the generated file carries the example (regenerate when the cost data changes)', () => {
+    expect(renderWebScope()).toContain('export const ESTIMATE_WORKED_EXAMPLE = {');
+    expect(renderWebScope()).toContain(`build: { low: ${ex.build.low}, base: ${ex.build.base}, high: ${ex.build.high} },`);
   });
 });

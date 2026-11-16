@@ -152,6 +152,12 @@ for (const route of [...INDEXABLE, '/404']) {
   if (html !== null) {
     mustContain(html, '/how-it-works', 'What this estimate includes', 'estimate includes list');
     mustContain(html, '/how-it-works', 'Not included', 'estimate not-included list');
+    // #827: transparency sections ship in the prerendered HTML.
+    mustContain(html, '/how-it-works', 'The formula behind every estimate', 'formula section');
+    mustContain(html, '/how-it-works', 'Where the data comes from', 'data sources section');
+    mustContain(html, '/how-it-works', 'A worked example', 'worked example section');
+    mustContain(html, '/how-it-works', 'class="example-table"', 'worked example table');
+    mustContain(html, '/how-it-works', 'What happens after your estimate', 'next steps section');
   }
 }
 

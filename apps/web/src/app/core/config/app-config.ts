@@ -801,6 +801,43 @@ export interface BuildTimelinePhase {
 }
 
 /** One entry in the estimate's includes / not-included lists (#824). */
+/** A whole-dollar `{ low, base, high }` band, as the engine emits it. */
+export interface HowWeEstimateBand {
+  readonly low: number;
+  readonly base: number;
+  readonly high: number;
+}
+
+/** Formula term of an engine line item (#827). */
+export type FormulaGroupKey = 'hard' | 'soft' | 'contingency';
+
+/**
+ * How it works worked example (#827): a sample home priced by the cost
+ * engine at generation time (estimate-scope.generated.ts). Display only.
+ */
+export interface HowWeEstimateWorkedExample {
+  readonly costDataVersion: string;
+  readonly input: { readonly buildSqft: number; readonly tier: string; readonly lotSizeSqft: number };
+  readonly groups: readonly {
+    readonly key: FormulaGroupKey;
+    readonly rows: readonly { readonly key: string; readonly label: string; readonly range: HowWeEstimateBand }[];
+    readonly subtotal: HowWeEstimateBand;
+  }[];
+  readonly build: HowWeEstimateBand;
+}
+
+/** One "Data sources" card on How it works (#827). */
+export interface HowWeEstimateSourceCopy {
+  readonly title: string;
+  readonly body: string;
+  /** Primary-source link text (the URL lives beside it in config). */
+  readonly linkLabel: string;
+  /** Stamp when the date/version is known: "Updated {date}" / "Version {version}". */
+  readonly stampTemplate: string;
+  /** Stamp when it is not (yet) known — an honest, undated line. */
+  readonly stampUnknown: string;
+}
+
 export interface EstimateScopeItem {
   /**
    * Engine line-item key (`hard.<k>`, `soft.<k>`, `contingency`) for
@@ -1011,6 +1048,25 @@ export interface AppConfig {
   estimateScope: {
     includes: readonly EstimateScopeItem[];
     notIncluded: readonly EstimateScopeItem[];
+  };
+  /**
+   * How it works — the transparency page (#827). Every figure here is
+   * GENERATED: the worked example and cost-data version from the cost
+   * engine (estimate-scope.generated.ts), the land use rules date and
+   * bylaw link from the zoning catalogue (zoning-eligibility.generated.ts).
+   * The assessment roll date is live (GET /api/v1/city-data/freshness).
+   */
+  howWeEstimate: {
+    workedExample: HowWeEstimateWorkedExample;
+    /** Cost-data table version every estimate is pinned to. */
+    costDataVersion: string;
+    /** ISO date the land use rules catalogue is as of. */
+    landUseRulesAsOf: string;
+    /** Primary-source URLs cited by the data-source cards. */
+    sourceUrls: {
+      assessment: string;
+      landUse: string;
+    };
   };
   /**
    * Typical custom-infill build timeline by city (#823, owner decision
@@ -1894,6 +1950,58 @@ export interface AppConfig {
         zoningCardTitle: string;
         zoningCardBody: string;
         zoningCardCta: string;
+        /**
+         * #827 transparency sections. Copy only — every figure comes from
+         * `howWeEstimate` (engine/catalogue generated) or the live freshness
+         * endpoint. No accuracy claims (banned-phrase tripwire).
+         */
+        /** Answer-first passage (SEO standard §2.1): how the estimate is built. */
+        answer: string;
+        formulaTitle: string;
+        formulaIntro: string;
+        /** One card per formula term, keyed like the engine's row groups. */
+        formulaGroups: Record<FormulaGroupKey, { title: string; body: string }>;
+        /** Operator glyphs between the terms (visual; hidden from AT). */
+        formulaPlus: string;
+        formulaEquals: string;
+        /** Screen-reader sentence for the whole formula. */
+        formulaSentence: string;
+        formulaResultTitle: string;
+        formulaResultBody: string;
+        /** What each engine line item covers, keyed by engine row key. */
+        lineItemNotes: Record<string, string>;
+        whyRangeTitle: string;
+        whyRangeIntro: string;
+        whyRangeItems: { title: string; body: string }[];
+        sourcesTitle: string;
+        sourcesIntro: string;
+        sources: {
+          assessment: HowWeEstimateSourceCopy;
+          landUse: HowWeEstimateSourceCopy;
+          costData: HowWeEstimateSourceCopy;
+        };
+        exampleTitle: string;
+        /** "{sqft} sq ft home, {tier} finish, on a {lot} sq ft lot" */
+        exampleIntro: string;
+        /** Display names for the example's finish tier key. */
+        exampleTierNames: Record<string, string>;
+        exampleCaption: string;
+        exampleColItem: string;
+        exampleColRange: string;
+        exampleSubtotals: Record<FormulaGroupKey, string>;
+        exampleTotal: string;
+        /** "{low} – {high}" */
+        exampleRangeTemplate: string;
+        exampleNote: string;
+        /** "Priced with cost data {version}." */
+        exampleVersion: string;
+        currentTitle: string;
+        currentItems: string[];
+        nextTitle: string;
+        nextSteps: { title: string; body: string }[];
+        linksTitle: string;
+        /** Related pages. `flag` hides a link while its feature flag is off. */
+        links: { label: string; route: string; flag?: 'sampleReport' }[];
       };
       faq: {
         eyebrow: string;

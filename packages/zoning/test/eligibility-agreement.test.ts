@@ -28,6 +28,11 @@ describe('estimator eligibility is derived from the zoning catalogue (#911)', ()
     expect(readFileSync(WEB_ELIGIBILITY_FILE, 'utf8')).toBe(renderWebEligibility());
   });
 
+  it('carries the catalogue effective date for the How it works freshness stamp (#827)', () => {
+    expect(renderWebEligibility()).toContain(`rulesAsOf: '${CALGARY_2026_08_04.effectiveDate}',`);
+    expect(renderWebEligibility()).toContain(`sourceUrl: '${CALGARY_2026_08_04.sourceUrl}',`);
+  });
+
   it('the web config reads both lists from the generated file, not an inline list', () => {
     const src = readFileSync(WEB_DEFAULTS, 'utf8');
     expect(src).toMatch(/singleFamilyDistricts:\s*\{[\s\S]*?calgary:\s*ZONING_ELIGIBILITY\.calgary\.quotable/);
