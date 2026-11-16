@@ -5,7 +5,8 @@
  * Resolution order: admin session (Entra) first, then builder session
  * (builder magic-link). The result carries:
  * - the user's identity + staff role + memberships,
- * - effective permissions (staff ∪ memberships, via `ROLE_PERMISSIONS`),
+ * - effective permissions (staff role ∪ the ACTIVE org's membership role,
+ *   via `ROLE_PERMISSIONS` — never a union across all memberships, #855),
  * - the active builder tenant — ALWAYS from the session
  *   (`admin_sessions.active_builder_id`, set at sign-in / org switcher),
  *   never from a request param,
@@ -30,11 +31,15 @@ import { ADMIN_SESSION_COOKIE } from '../middleware/admin-guard';
 import { BUILDER_SESSION_COOKIE } from '../middleware/builder-guard';
 import type { AdminAuditStore } from './admin-audit.store';
 import type {
+  AdminSessionRecord,
   AdminSessionStore,
   ViewAsState,
 } from './admin-auth.service';
 import { hashSessionToken } from './admin-auth.service';
-import type { BuilderAuthService } from './builder-auth.service';
+import type {
+  BuilderAuthService,
+  BuilderSession,
+} from './builder-auth.service';
 import type { BuilderService } from './builder.service';
 import type {
   BuilderMembership,
@@ -64,6 +69,13 @@ export interface AuthContext {
   readonly memberships: readonly BuilderMembership[];
   /** Set while view-as is active. */
   readonly viewAs: ViewAsState | null;
+  /**
+   * #730: when the session's user signed in (the session's created_at —
+   * sessions are only minted by a sign-in). Dangerous routes compare it to
+   * SESSION_REAUTH_WINDOW_SECONDS. Absent = unknown → treated as stale
+   * (fail closed).
+   */
+  readonly authenticatedAt?: Date;
   /** The real admin behind a view-as session (null otherwise). */
   readonly realUser: {
     readonly userId: string | null;
@@ -138,6 +150,13 @@ export function createAuthContextService(
       clock(),
     );
     if (!session) return null;
+    const ctx = await resolveAdminContext(session);
+    return ctx ? { ...ctx, authenticatedAt: session.createdAt } : null;
+  }
+
+  async function resolveAdminContext(
+    session: AdminSessionRecord,
+  ): Promise<AuthContext | null> {
 
     // Legacy (pre-user-model) magic-link sessions have no user row: they
     // were issued to allowlisted admins — map to admin, never super_admin.
@@ -249,9 +268,12 @@ export function createAuthContextService(
           email: target.email,
           name: target.name,
           staffRole: target.staffRole,
+          // #855: builder-role permissions come from the role in the org
+          // the view is scoped to only — roles the target holds in other
+          // orgs never widen it.
           permissions: effectivePermissions(
             target.staffRole,
-            targetMemberships.map((m) => m.role),
+            targetBuilder ? [targetBuilder.role] : [],
           ).filter((p) => p !== 'view_as'),
           builderId: targetBuilder?.builderId ?? null,
           builderName: targetBuilderName,
@@ -264,6 +286,14 @@ export function createAuthContextService(
       return closedViewAs;
     }
 
+    // #855: builder-role permissions come from the ACTIVE org's membership
+    // role only (staff-role permissions always apply). A union across every
+    // membership would let an admin of org A manage org B's team and
+    // billing after switching to B, where they are only a member. No
+    // active org → no builder-role permissions.
+    const activeMembership = builderId
+      ? (userMemberships.find((m) => m.builderId === builderId) ?? null)
+      : null;
     return {
       userId: user.id,
       email: user.email,
@@ -271,7 +301,7 @@ export function createAuthContextService(
       staffRole: user.staffRole,
       permissions: effectivePermissions(
         user.staffRole,
-        userMemberships.map((m) => m.role),
+        activeMembership ? [activeMembership.role] : [],
       ),
       builderId,
       builderName,
@@ -286,6 +316,15 @@ export function createAuthContextService(
   ): Promise<AuthContext | null> {
     const session = await builderAuth.validateSession(token);
     if (!session) return null;
+    const ctx = await resolveBuilderContext(session);
+    return ctx && session.createdAt
+      ? { ...ctx, authenticatedAt: session.createdAt }
+      : ctx;
+  }
+
+  async function resolveBuilderContext(
+    session: BuilderSession,
+  ): Promise<AuthContext | null> {
     // auth/04: the tenant comes from the session's server-side builder_id,
     // resolved at sign-in. Legacy sessions (builder_id NULL) fall back to
     // the tenant_key lookup; either way nothing is read from the request.

@@ -1163,6 +1163,12 @@ export const adminSessions = pgTable(
      * real admin's identity is preserved for the audit trail.
      */
     viewAs: jsonb('view_as').$type<{ builderId?: string; userId?: string } | null>(),
+    /**
+     * #730: last time the session validated (throttled by
+     * SESSION_ACTIVITY_TOUCH_INTERVAL_SECONDS). Drives the idle timeout.
+     * Null for rows minted before the column — created_at stands in.
+     */
+    lastSeenAt: timestamp('last_seen_at', { withTimezone: true }),
     /** Null = active. Set on logout/expiry. */
     revokedAt: timestamp('revoked_at', { withTimezone: true }),
     expiresAt: timestamp('expires_at', { withTimezone: true }).notNull(),
@@ -1243,6 +1249,12 @@ export const builderSessions = pgTable(
     userId: uuid('user_id').references(() => users.id, {
       onDelete: 'cascade',
     }),
+    /**
+     * #730: last time the session validated (throttled by
+     * SESSION_ACTIVITY_TOUCH_INTERVAL_SECONDS). Drives the idle timeout.
+     * Null for rows minted before the column — created_at stands in.
+     */
+    lastSeenAt: timestamp('last_seen_at', { withTimezone: true }),
     /** Null = active. Set on logout. */
     revokedAt: timestamp('revoked_at', { withTimezone: true }),
     expiresAt: timestamp('expires_at', { withTimezone: true }).notNull(),
@@ -1688,4 +1700,26 @@ export const simulatedPaymentObjects = pgTable(
       t.deliveredAt,
     ),
   ],
+);
+
+/**
+ * Shared City-data cache (#756).
+ *
+ * One row per (City dataset, lookup key): the assessment-roll record for an
+ * address, or the current land-use district resolved for it. Every instance
+ * and every route reads through `property.service`, so a City record is
+ * fetched once and reused until `expires_at` (per-dataset TTL in config).
+ * `key` is `<dataset_id>:<lookup key>`. Only public City open data is
+ * stored — no visitor data. Expired rows are overwritten on the next fetch.
+ */
+export const cityDataCache = pgTable(
+  'city_data_cache',
+  {
+    key: text('key').primaryKey(),
+    datasetId: text('dataset_id').notNull(),
+    payload: jsonb('payload').notNull(),
+    fetchedAt: timestamp('fetched_at', { withTimezone: true }).notNull().defaultNow(),
+    expiresAt: timestamp('expires_at', { withTimezone: true }).notNull(),
+  },
+  (t) => [index('city_data_cache_expires_at_idx').on(t.expiresAt)],
 );

@@ -685,6 +685,7 @@ ALTER TABLE "users" ADD COLUMN IF NOT EXISTS "updated_at" timestamp with time zo
 ALTER TABLE "admin_sessions" ADD COLUMN IF NOT EXISTS "user_id" uuid REFERENCES "users"("id") ON DELETE CASCADE;
 ALTER TABLE "admin_sessions" ADD COLUMN IF NOT EXISTS "active_builder_id" uuid REFERENCES "builders"("id") ON DELETE SET NULL;
 ALTER TABLE "admin_sessions" ADD COLUMN IF NOT EXISTS "view_as" jsonb;
+ALTER TABLE "admin_sessions" ADD COLUMN IF NOT EXISTS "last_seen_at" timestamp with time zone;
 CREATE TABLE IF NOT EXISTS "builder_memberships" (
 
 	"id" uuid PRIMARY KEY NOT NULL,
@@ -813,6 +814,20 @@ ALTER TABLE "simulated_payment_objects" ADD COLUMN IF NOT EXISTS "created_at" ti
 ALTER TABLE "simulated_payment_objects" ADD COLUMN IF NOT EXISTS "delivered_at" timestamp with time zone;
 CREATE INDEX IF NOT EXISTS "simulated_payment_objects_customer_idx" ON "simulated_payment_objects" USING btree ("customer_id","object_type");
 CREATE INDEX IF NOT EXISTS "simulated_payment_objects_type_delivered_idx" ON "simulated_payment_objects" USING btree ("object_type","delivered_at");
+CREATE TABLE IF NOT EXISTS "city_data_cache" (
+
+	"key" text PRIMARY KEY NOT NULL,
+	"dataset_id" text NOT NULL,
+	"payload" jsonb NOT NULL,
+	"fetched_at" timestamp with time zone DEFAULT now() NOT NULL,
+	"expires_at" timestamp with time zone NOT NULL
+);
+ALTER TABLE "city_data_cache" ADD COLUMN IF NOT EXISTS "key" text PRIMARY KEY NOT NULL;
+ALTER TABLE "city_data_cache" ADD COLUMN IF NOT EXISTS "dataset_id" text NOT NULL;
+ALTER TABLE "city_data_cache" ADD COLUMN IF NOT EXISTS "payload" jsonb NOT NULL;
+ALTER TABLE "city_data_cache" ADD COLUMN IF NOT EXISTS "fetched_at" timestamp with time zone DEFAULT now() NOT NULL;
+ALTER TABLE "city_data_cache" ADD COLUMN IF NOT EXISTS "expires_at" timestamp with time zone NOT NULL;
+CREATE INDEX IF NOT EXISTS "city_data_cache_expires_at_idx" ON "city_data_cache" USING btree ("expires_at");
 CREATE TABLE IF NOT EXISTS "partner_shares" (
 
 	"id" uuid PRIMARY KEY NOT NULL,
@@ -862,6 +877,7 @@ ALTER TABLE "builder_sessions" ADD COLUMN IF NOT EXISTS "created_at" timestamp w
 ALTER TABLE "builder_sessions" ADD COLUMN IF NOT EXISTS "user_id" uuid REFERENCES "users"("id") ON DELETE CASCADE;
 ALTER TABLE "builder_sessions" ADD COLUMN IF NOT EXISTS "builder_id" uuid REFERENCES "builders"("id") ON DELETE SET NULL;
 ALTER TABLE "builder_sessions" ADD COLUMN IF NOT EXISTS "view_as" jsonb;
+ALTER TABLE "builder_sessions" ADD COLUMN IF NOT EXISTS "last_seen_at" timestamp with time zone;
 CREATE TABLE IF NOT EXISTS "embed_relay_codes" (
 
 	"id" uuid PRIMARY KEY NOT NULL,

@@ -1,5 +1,5 @@
 /**
- * Azure Functions v3 trigger adapter — POST /mcp/v1.
+ * Azure Functions v3 trigger adapter — POST /api/mcp/v1.
  *
  * Streamable HTTP transport for the MCP server (api-mcp/06).
  * Thin by design: authenticate via the MCP route (Bearer API key),

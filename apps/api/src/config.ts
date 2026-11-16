@@ -125,6 +125,17 @@ const EnvSchema = z.object({
   SANDBOX_PURGE_RETENTION_DAYS: z.coerce.number().int().positive().default(30),
   SANDBOX_PURGE_DRY_RUN: z.coerce.boolean().default(true),
 
+  // #765 (go-live AC6/AC8): API-key auth posture.
+  // AUTH_CACHE_TTL_SECONDS — per-instance cache of successful key lookups.
+  // Capped at 60 so a revoked key is rejected on every instance within one
+  // minute. 0 (default) = no cache: every request re-reads the key row.
+  // ACCEPTED_MODES — which keys this deployment accepts: `all` (default —
+  // live + sandbox side by side, sandbox writes flagged), `live` (a
+  // production-only deployment rejects sandbox keys) or `sandbox` (a
+  // sandbox-only deployment rejects live keys).
+  API_KEY_AUTH_CACHE_TTL_SECONDS: z.coerce.number().int().min(0).max(60).default(0),
+  API_KEY_ACCEPTED_MODES: z.enum(['all', 'live', 'sandbox']).default('all'),
+
   // #703: one post-report follow-up email ("Questions about your
   // estimate?"), marketing-consent leads only. Off by default — flip per
   // environment once the copy is approved. DELAY_HOURS counts from the
@@ -174,8 +185,24 @@ const EnvSchema = z.object({
   // INTERIM (api-mcp/01): pre-shared key for admin endpoints until
   // admin/01's session auth lands. Unset = admin endpoints fail closed.
   ADMIN_API_KEY: z.string().trim().min(1).optional(),
-  // Admin session lifetime (admin/01, D-02): 7 days, same as the magic links.
-  ADMIN_SESSION_TTL_SECONDS: z.coerce.number().int().positive().default(604_800),
+  // Admin session ABSOLUTE lifetime (#730, owner decision 2026-11-15): 12 h.
+  // Was 7 days (admin/01, D-02). Also caps rows minted under the old value.
+  ADMIN_SESSION_TTL_SECONDS: z.coerce.number().int().positive().default(43_200),
+  // #730: admin IDLE timeout — a session unused for this long stops
+  // validating (1 h, owner decision 2026-11-15).
+  ADMIN_SESSION_IDLE_TIMEOUT_SECONDS: z.coerce.number().int().positive().default(3_600),
+  // #730: builder session absolute lifetime (7 days) and idle timeout (24 h),
+  // owner decision 2026-11-15. Builders previously shared the admin TTL.
+  BUILDER_SESSION_TTL_SECONDS: z.coerce.number().int().positive().default(604_800),
+  BUILDER_SESSION_IDLE_TIMEOUT_SECONDS: z.coerce.number().int().positive().default(86_400),
+  // #730: how often (at most) a validated session's last_seen_at is written.
+  // Bounds the write load of activity tracking; the idle timeout is accurate
+  // to within this interval.
+  SESSION_ACTIVITY_TOUCH_INTERVAL_SECONDS: z.coerce.number().int().positive().default(60),
+  // #730: dangerous actions (view-as, mark-paid, user deactivation, API-key
+  // issuance/rotation) require a sign-in no older than this; otherwise
+  // 401 REAUTH_REQUIRED and the user signs in again.
+  SESSION_REAUTH_WINDOW_SECONDS: z.coerce.number().int().positive().default(1_800),
   // auth/01: invitation lifetime — 7 days, same discipline as the
   // magic links it replaces.
   INVITATION_TTL_SECONDS: z.coerce.number().int().positive().default(604_800),
@@ -321,6 +348,18 @@ const EnvSchema = z.object({
   PROPERTY_HTTP_TIMEOUT_MS: z.coerce.number().int().positive().default(15_000),
   PROPERTY_SEARCH_ROW_LIMIT: z.coerce.number().int().positive().default(50),
   PROPERTY_SUGGESTION_LIMIT: z.coerce.number().int().positive().default(8),
+  // --- Shared City-data cache (#756) ---
+  // Durable (Postgres) cache of City records, shared by every instance and
+  // every route. Per-dataset TTLs follow the City's refresh cadence: the
+  // assessment roll is published yearly (with occasional corrections), the
+  // Land Use Districts map changes on bylaw amendments (dataset updated weekly).
+  PROPERTY_DB_CACHE_TTL_MS: z.coerce.number().int().positive().default(604_800_000),
+  LAND_USE_DB_CACHE_TTL_MS: z.coerce.number().int().positive().default(604_800_000),
+  // Cap on a cache read/write so a slow database never slows a lookup; on
+  // timeout the lookup goes to the City as before.
+  PROPERTY_DB_CACHE_TIMEOUT_MS: z.coerce.number().int().positive().default(1_500),
+  // Browser/HTTP cache lifetime on property GETs (lookup + autocomplete).
+  PROPERTY_HTTP_CACHE_MAX_AGE_S: z.coerce.number().int().nonnegative().default(3_600),
   // --- Current land-use district (#686) ---
   // The assessment roll's land_use_designation is stale after the 2024
   // rezoning repeal (pre-repeal pairs like "R-C2,R-CG"). The current district
@@ -599,8 +638,18 @@ export interface AuthConfig {
    * admin endpoints fail closed.
    */
   readonly adminApiKey: string | undefined;
-  /** Lifetime of an admin session cookie (admin/01, D-02: 7 days). */
+  /** Absolute lifetime of an admin session (#730: 12 h). */
   readonly adminSessionTtlSeconds: number;
+  /** Admin idle timeout (#730: 1 h). */
+  readonly adminSessionIdleTimeoutSeconds: number;
+  /** Absolute lifetime of a builder session (#730: 7 days). */
+  readonly builderSessionTtlSeconds: number;
+  /** Builder idle timeout (#730: 24 h). */
+  readonly builderSessionIdleTimeoutSeconds: number;
+  /** Minimum interval between last_seen_at writes for one session (#730). */
+  readonly sessionActivityTouchIntervalSeconds: number;
+  /** Max age of the sign-in for dangerous actions (#730). */
+  readonly sessionReauthWindowSeconds: number;
   /** Lifetime of an invitation (auth/01: 7 days). */
   readonly invitationTtlSeconds: number;
 }
@@ -760,6 +809,12 @@ export interface PropertyDataConfig {
   readonly searchRowLimit: number;
   /** Max autocomplete suggestions returned. */
   readonly suggestionLimit: number;
+  /** Durable (Postgres) cache TTL for assessment-roll records (#756). */
+  readonly dbCacheTtlMs: number;
+  /** Max wait on a durable-cache read/write before falling through (#756). */
+  readonly dbCacheTimeoutMs: number;
+  /** `Cache-Control: max-age` (seconds) on property GETs (#756). */
+  readonly httpCacheMaxAgeSeconds: number;
 }
 
 /** Which current land-use district source a city uses (#686). */
@@ -779,6 +834,8 @@ export interface LandUseConfig {
   readonly datasetId: string;
   /** How long a resolved district is reused before re-checking. */
   readonly cacheTtlMs: number;
+  /** Durable (Postgres) cache TTL for a resolved district (#756). */
+  readonly dbCacheTtlMs: number;
   /** HTTP timeout for the district request (falls back to the roll value). */
   readonly httpTimeoutMs: number;
 }
@@ -922,6 +979,14 @@ export interface FollowUpEmailConfig {
   readonly enabled: boolean;
   /** Hours after the report is first opened before the follow-up is due. */
   readonly delayHours: number;
+}
+
+/** #765: API-key auth posture (revocation lag + live/sandbox isolation). */
+export interface ApiKeyAuthConfig {
+  /** Per-instance auth cache TTL, seconds (0–60; 0 = no cache). */
+  readonly authCacheTtlSeconds: number;
+  /** Which keys this deployment accepts. */
+  readonly acceptedModes: 'all' | 'live' | 'sandbox';
 }
 
 export interface SandboxPurgeConfig {
@@ -1094,6 +1159,7 @@ export interface ApiConfig {
   /** #753: which payment provider billing talks to. */
   readonly payments: PaymentsConfig;
   readonly sandboxPurge: SandboxPurgeConfig;
+  readonly apiKeyAuth: ApiKeyAuthConfig;
   readonly followUpEmail: FollowUpEmailConfig;
   readonly sheets: SheetsConfig;
   readonly narrative: NarrativeConfig;
@@ -1404,6 +1470,10 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): ApiConfig {
       retentionDays: e.SANDBOX_PURGE_RETENTION_DAYS,
       dryRun: e.SANDBOX_PURGE_DRY_RUN,
     },
+    apiKeyAuth: {
+      authCacheTtlSeconds: e.API_KEY_AUTH_CACHE_TTL_SECONDS,
+      acceptedModes: e.API_KEY_ACCEPTED_MODES,
+    },
     payments: {
       provider: resolvePaymentsProvider(
         e.PAYMENTS_PROVIDER,
@@ -1474,6 +1544,11 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): ApiConfig {
       magicLinkMaxSendsPerHour: e.MAGIC_LINK_MAX_SENDS_PER_HOUR,
       adminApiKey: e.ADMIN_API_KEY,
       adminSessionTtlSeconds: e.ADMIN_SESSION_TTL_SECONDS,
+      adminSessionIdleTimeoutSeconds: e.ADMIN_SESSION_IDLE_TIMEOUT_SECONDS,
+      builderSessionTtlSeconds: e.BUILDER_SESSION_TTL_SECONDS,
+      builderSessionIdleTimeoutSeconds: e.BUILDER_SESSION_IDLE_TIMEOUT_SECONDS,
+      sessionActivityTouchIntervalSeconds: e.SESSION_ACTIVITY_TOUCH_INTERVAL_SECONDS,
+      sessionReauthWindowSeconds: e.SESSION_REAUTH_WINDOW_SECONDS,
       invitationTtlSeconds: e.INVITATION_TTL_SECONDS,
     },
     entra: {
@@ -1529,12 +1604,16 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): ApiConfig {
       httpTimeoutMs: e.PROPERTY_HTTP_TIMEOUT_MS,
       searchRowLimit: e.PROPERTY_SEARCH_ROW_LIMIT,
       suggestionLimit: e.PROPERTY_SUGGESTION_LIMIT,
+      dbCacheTtlMs: e.PROPERTY_DB_CACHE_TTL_MS,
+      dbCacheTimeoutMs: e.PROPERTY_DB_CACHE_TIMEOUT_MS,
+      httpCacheMaxAgeSeconds: e.PROPERTY_HTTP_CACHE_MAX_AGE_S,
     },
     landUse: {
       provider: e.LAND_USE_PROVIDER,
       socrataBaseUrl: e.SOCRATA_BASE_URL,
       datasetId: e.LAND_USE_DATASET_ID,
       cacheTtlMs: e.LAND_USE_CACHE_TTL_MS,
+      dbCacheTtlMs: e.LAND_USE_DB_CACHE_TTL_MS,
       httpTimeoutMs: e.LAND_USE_HTTP_TIMEOUT_MS,
     },
     zoning: {
