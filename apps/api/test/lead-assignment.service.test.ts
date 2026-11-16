@@ -175,7 +175,8 @@ describe('lead assignment (#721)', () => {
           get(qt, qp, qr) {
             if (qp !== 'leads') return Reflect.get(qt, qp, qr);
             return {
-              findFirst: async (args: unknown) => {
+              // eslint-disable-next-line @typescript-eslint/no-explicit-any
+              findFirst: async (args: any) => {
                 const row = await qt.leads.findFirst(args);
                 await testDb.db
                   .update(leads)
