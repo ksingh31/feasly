@@ -22,6 +22,7 @@
                 role="radio"
                 [attr.data-reno-type]="rt.id"
                 [attr.aria-checked]="renoInputs().renoType === rt.id"
+                [attr.tabindex]="renoTypeTabIndex(rt.id)"
                 [class.selected]="renoInputs().renoType === rt.id"
                 (click)="chooseRenoType(rt.id)"
               >
@@ -73,7 +74,12 @@
         <section class="scope-section" aria-labelledby="reno-tier-label">
           <h2 id="reno-tier-label">{{ copy.renoTierLabel }}</h2>
           <p class="hint">{{ copy.renoTierHint }}</p>
-          <div class="tiers" role="radiogroup" [attr.aria-label]="copy.renoTierLabel">
+          <div
+            class="tiers"
+            role="radiogroup"
+            [attr.aria-label]="copy.renoTierLabel"
+            (keydown)="onTierKeydown($event)"
+          >
             @for (tier of copy.scopeTiers; track tier.id) {
               <button
                 class="tier-card"
@@ -81,6 +87,7 @@
                 role="radio"
                 [attr.data-tier]="tier.id"
                 [attr.aria-checked]="renoInputs().tier === tier.id"
+                [attr.tabindex]="tierTabIndex(tier.id)"
                 [class.selected]="renoInputs().tier === tier.id"
                 (click)="chooseTier(tier.id)"
               >

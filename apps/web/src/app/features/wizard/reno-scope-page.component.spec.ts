@@ -264,4 +264,26 @@ describe('RenoScopePageComponent', () => {
     }
     expect(router.url).toBe('/estimate/reno-coming-soon');
   });
+
+  it('reno-type and finish-tier groups are one Tab stop each (#937)', () => {
+    // Nothing chosen yet → the first reno-type card is the Tab stop.
+    expect(renoCard('extensive').getAttribute('tabindex')).toBe('0');
+    expect(renoCard('addition').getAttribute('tabindex')).toBe('-1');
+    renoCard('basement').click();
+    fixture.detectChanges();
+    expect(renoCard('basement').getAttribute('tabindex')).toBe('0');
+    expect(renoCard('extensive').getAttribute('tabindex')).toBe('-1');
+    // Tier defaults to standard.
+    expect(tierButton('standard').getAttribute('tabindex')).toBe('0');
+    expect(tierButton('premium').getAttribute('tabindex')).toBe('-1');
+  });
+
+  it('arrow keys move the finish-tier selection (#937)', () => {
+    renoCard('extensive').click();
+    fixture.detectChanges();
+    tierButton('standard').dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowRight', bubbles: true }));
+    fixture.detectChanges();
+    expect(tierButton('premium').getAttribute('aria-checked')).toBe('true');
+    expect(tierButton('premium').getAttribute('tabindex')).toBe('0');
+  });
 });
