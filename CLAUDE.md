@@ -40,7 +40,8 @@ typecheck: `npx tsc -p tsconfig.app.json --noEmit`. Web tests: `--include='**/*.
 
 ## Traps (each cost the previous team real time)
 - New API endpoint = `function.json` + `apps/api/src/registry/route-registry.ts` + `apps/api/tools/bundle-functions.mjs`, same commit. Then regenerate the route tables (`npm run gen:route-docs` — TECH_PLAN §16 + `docs/security/rate-limits.md` + `docs/security/route-audit.md`; `verify-local.sh` does it too) and commit them; redo after merging `main`.
-- New DB column/table → update `apps/api/tools/repair-sql.mjs` (schema-repair coverage test).
+- New DB column/table → update `apps/api/tools/repair-sql.mjs` (schema-repair coverage test). New repair blocks go in their own order-independent file under `apps/api/tools/repair-sql.d/`, not at the end of the core string.
+- Migration number/journal collision after merging `main` (two branches both add `00NN_*`) → `node tools/renumber-migrations.mjs` renumbers this branch's migrations to the next free numbers and rebuilds `_journal.json` (main's entries + ours appended), resolving the conflict. `verify-local.sh` runs it; commit what it stages. Never hand-renumber an applied migration — the tool refuses.
 - New config property → update full-object expectations in `apps/api/test/config.test.ts`.
 - Migrations: expand → migrate → contract. Never NOT NULL without default in one step.
 - `git fetch` and check `origin/main` before calling code missing or a bug real.
