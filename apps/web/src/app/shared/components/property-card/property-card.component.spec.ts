@@ -30,6 +30,7 @@ describe('PropertyCardComponent freshness line', () => {
   const landHouseNote = 'Includes the current house; teardown value may differ.';
 
   const dataFreshness = DEFAULT_APP_CONFIG.copy.dataFreshness;
+  const discretionaryZoningNote = DEFAULT_APP_CONFIG.copy.propertyCard.discretionaryZoningNote;
 
   let load: ReturnType<typeof vi.fn>;
 
@@ -44,8 +45,13 @@ describe('PropertyCardComponent freshness line', () => {
       get: vi.fn((key: string) => {
         if (key === 'propertyData') return { source };
         if (key === 'copy') {
-          return { propertyCard: { freshnessMock }, report: { landLabel, landHouseNote }, dataFreshness };
+          return {
+            propertyCard: { freshnessMock, discretionaryZoningNote },
+            report: { landLabel, landHouseNote },
+            dataFreshness,
+          };
         }
+        if (key === 'coverage') return DEFAULT_APP_CONFIG.coverage;
         throw new Error(`unexpected config key ${key}`);
       }),
     };
@@ -111,5 +117,22 @@ describe('PropertyCardComponent freshness line', () => {
   it('hides the teardown note when showLandNote is false (renovations)', async () => {
     const fixture = await setup('live', false);
     expect(fixture.nativeElement.querySelector('.pcard-land-note')).toBeNull();
+  });
+
+  // #911: single-detached is discretionary in R-CG/R-Gm/R-2M (catalogue);
+  // quoted, but the card says it needs City approval.
+  it('shows the needs-City-approval note when single-detached is only discretionary', async () => {
+    for (const zoning of ['R-CG', 'R-Gm', 'r-2m']) {
+      const fixture = await setup('live', undefined, undefined, { ...fakeProperty, zoning });
+      const note = fixture.nativeElement.querySelector('.pcard-zoning-note')?.textContent?.trim();
+      expect(note, zoning).toBe('Single-detached is a discretionary use here, so it needs City approval.');
+    }
+  });
+
+  it('omits the note where single-detached is permitted (alone or in a compound designation) or DC', async () => {
+    for (const zoning of ['R-C1', 'R-C1,R-CG', 'DC', 'H-GO', '']) {
+      const fixture = await setup('live', undefined, undefined, { ...fakeProperty, zoning });
+      expect(fixture.nativeElement.querySelector('.pcard-zoning-note'), zoning).toBeNull();
+    }
   });
 });

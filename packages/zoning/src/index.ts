@@ -4,5 +4,6 @@
  * docs/plan/CODING_PATTERNS.md §1 ("packages/zoning").
  */
 export * from './resolver';
+export * from './eligibility';
 export { ZONING_CATALOGUES } from './catalogues';
 export { CALGARY_2026_08_04 } from './data/calgary-2026-08-04';
