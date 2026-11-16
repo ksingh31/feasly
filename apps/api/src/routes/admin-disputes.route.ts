@@ -104,6 +104,15 @@ function toListItemWire(item: ServiceListItem): DisputeListItem {
     contractValueCents: item.evidenceSnapshot.contractValueCents,
     businessDaysRemaining: item.businessDaysRemaining,
     breached: item.breached,
+    source: item.source,
+    stripeDisputeId: item.stripeDisputeId,
+    stripeReason: item.stripeReason,
+    stripeStatus: item.stripeStatus,
+    amountCents: item.amountCents,
+    evidenceDueAt: isoOrNull(item.evidenceDueAt),
+    evidenceDaysRemaining: item.evidenceDaysRemaining,
+    outcome: item.outcome,
+    livemode: item.livemode,
   };
 }
 

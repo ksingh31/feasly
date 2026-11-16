@@ -215,6 +215,10 @@ import {
   type BuilderService,
 } from './services/builder.service';
 import {
+  createLeadAssignmentService,
+  type LeadAssignmentService,
+} from './services/lead-assignment.service';
+import {
   createDrizzleAdminSessionStore,
 } from './services/admin-auth.store';
 import { withSessionPolicy } from './services/session-policy';
@@ -390,9 +394,42 @@ import {
 import { createZoningRoute, type ZoningRoute } from './routes/zoning.route';
 import { createZoningService, type ZoningService } from './services/zoning.service';
 import {
+  createZoningWatchService,
+  type ZoningWatchService,
+} from './services/zoning-watch.service';
+import {
+  createDrizzleZoningWatchStore,
+  type ZoningWatchStore,
+} from './services/zoning-watch.store';
+import { createGitHubIssuesClient } from './services/github-issues.client';
+import {
   createCommunityStatsRefreshRoute,
   type CommunityStatsRefreshRoute,
 } from './routes/community-stats-refresh.route';
+import {
+  createCommunityLivingRoute,
+  type CommunityLivingRoute,
+} from './routes/community-living.route';
+import {
+  createAdminNeighbourhoodDataRoute,
+  type AdminNeighbourhoodDataRoute,
+} from './routes/admin-neighbourhood-data.route';
+import {
+  createNeighbourhoodProviders,
+  type NeighbourhoodProviders,
+} from './services/neighbourhood-data/providers';
+import {
+  createDrizzleNeighbourhoodDataStore,
+  type NeighbourhoodDataStore,
+} from './services/neighbourhood-data/neighbourhood-data.store';
+import {
+  createNeighbourhoodRefreshService,
+  type NeighbourhoodRefreshService,
+} from './services/neighbourhood-data/neighbourhood-refresh.service';
+import {
+  createNeighbourhoodReadService,
+  type NeighbourhoodReadService,
+} from './services/neighbourhood-data/neighbourhood-read.service';
 import {
   createEmbedConfigRoute,
   type EmbedConfigRoute,
@@ -566,6 +603,9 @@ import {
   type InvoiceReviewerService,
 } from './services/billing/invoice-reviewer.service';
 import {
+  createChargebackService,
+} from './services/billing/chargeback.service';
+import {
   createDisputeService,
   type DisputeService,
 } from './services/billing/dispute.service';
@@ -581,6 +621,15 @@ import {
   createBuilderBillingOverviewRoute,
   type BuilderBillingOverviewRoute,
 } from './routes/builder/billing-overview.route';
+import { createDrizzleBuilderNotificationStore } from './services/builder-notification.store';
+import {
+  createBuilderNotificationsService,
+  type BuilderNotificationsService,
+} from './services/builder-notifications.service';
+import {
+  createBuilderNotificationsRoute,
+  type BuilderNotificationsRoute,
+} from './routes/builder/notifications.route';
 import {
   createStripeWebhooksRoute,
   type StripeWebhooksRoute,
@@ -598,7 +647,14 @@ import {
 } from './middleware/shared-rate-limit';
 import { createDrizzleRateLimitStore } from './services/rate-limit.store';
 import {
+  createBotChallengeGate,
+  type BotChallengeGate,
+  type ChallengeVerifier,
+} from './middleware/bot-challenge';
+import { createTurnstileVerifier } from './services/turnstile.service';
+import {
   createDrizzleCityDataCacheStore,
+  type CityDataCacheInvalidator,
   type CityDataCacheStore,
 } from './services/city-data-cache.store';
 import { MAGIC_LINK_SEND_BUDGET_WINDOW_MS } from './services/magic-link.service';
@@ -772,9 +828,18 @@ export interface AppComposition {
   /** #687: zoning rules catalogue (pure data; no I/O). */
   readonly zoningService: ZoningService;
   readonly zoningRoute: ZoningRoute;
+  /** #757: daily City-source watch + catalogue freshness. */
+  readonly zoningWatchService: ZoningWatchService;
   /** Monthly refresh timer + manual admin trigger (neighbourhood/05). */
   readonly communityStatsRefreshService: CommunityStatsRefreshService;
   readonly communityStatsRefreshRoute: CommunityStatsRefreshRoute;
+  /** #773: monthly neighbourhood data refresh (the only provider caller). */
+  readonly neighbourhoodRefreshService: NeighbourhoodRefreshService;
+  /** #773: request-path neighbourhood reads (tables only, no providers). */
+  readonly neighbourhoodReadService: NeighbourhoodReadService;
+  readonly adminNeighbourhoodDataRoute: AdminNeighbourhoodDataRoute;
+  /** #777: public community living-nearby metrics. */
+  readonly communityLivingRoute: CommunityLivingRoute;
   /** Append-only admin audit log (neighbourhood/05; reused by later admin stories). */
   readonly adminAuditStore: AdminAuditStore;
   readonly builderConfigService: BuilderConfigService;
@@ -815,6 +880,10 @@ export interface AppComposition {
   readonly billingOverviewService: BillingOverviewService;
   /** #531: thin route for GET /api/v1/builder/billing/overview. */
   readonly builderBillingOverviewRoute: BuilderBillingOverviewRoute;
+  /** #725: new-lead email, daily digest, preferences, billing recipients. */
+  readonly builderNotificationsService: BuilderNotificationsService;
+  /** #725: thin route for /api/v1/builder/notifications/preferences. */
+  readonly builderNotificationsRoute: BuilderNotificationsRoute;
   /** billing/01 follow-on: dispute console backend (was OPS-009). */
   readonly disputeService: DisputeService;
   /** billing/01 follow-on: thin route for /api/v1/admin/disputes/*. */
@@ -858,8 +927,16 @@ export interface CompositionOptions {
   readonly estimateStore?: EstimateStore;
   /** #729: shared rate-limit counters (default: Postgres via Drizzle). */
   readonly rateLimitStore?: SharedCounterStore;
+  /** #788: Turnstile verifier seam (default: siteverify over HTTPS). */
+  readonly challengeVerifier?: ChallengeVerifier;
   /** #756: shared City-data cache (tests inject an in-memory fake). */
   readonly cityDataCacheStore?: CityDataCacheStore;
+  /** #757: zoning source watch state (default: Drizzle). */
+  readonly zoningWatchStore?: ZoningWatchStore;
+  /** #773: neighbourhood data tables (tests inject PGlite/fakes). */
+  readonly neighbourhoodDataStore?: NeighbourhoodDataStore;
+  /** #773: neighbourhood providers (tests inject fakes; default from config). */
+  readonly neighbourhoodProviders?: NeighbourhoodProviders;
   readonly leadStore?: LeadStore;
   readonly leadStatusChangeStore?: LeadStatusChangeStore;
   /** #703: report-opened + follow-up stamps (default: Drizzle). */
@@ -1015,9 +1092,33 @@ export function createComposition(
         maxTrackedKeys: config.rateLimit.maxTrackedKeys,
       }),
     });
+  // #788 (owner decision on #750): invisible bot challenge, required only
+  // from an IP that tripped the lead or estimate per-IP limiter, for
+  // BOT_CHALLENGE_WINDOW_MS after the trip. Dormant (undefined) until the
+  // Turnstile site key AND secret are configured — then the pipelines
+  // behave exactly as before #788.
+  const botChallenge: BotChallengeGate | undefined = config.botChallenge.enabled
+    ? createBotChallengeGate({
+        siteKey: config.botChallenge.siteKey,
+        trips: createSharedCooldown({
+          store: rateLimitStore,
+          scope: 'bot-challenge:ip',
+          cooldownMs: config.botChallenge.windowMs,
+        }),
+        attempts: sharedLimiter('bot-challenge:verify', config.botChallenge.verifyRateLimit),
+        verifier:
+          options.challengeVerifier ??
+          createTurnstileVerifier({
+            secretKey: config.botChallenge.secretKey,
+            verifyUrl: config.botChallenge.verifyUrl,
+            timeoutMs: config.botChallenge.verifyTimeoutMs,
+          }),
+      })
+    : undefined;
   const leadRateLimiter: AnyRateLimiter = sharedLimiter('lead:ip', config.lead.rateLimit);
   const leadPipeline: RequestPipeline = createRequestPipeline({
     rateLimiter: leadRateLimiter,
+    challenge: botChallenge,
     csrf,
     logger: options.logger,
   });
@@ -1046,6 +1147,7 @@ export function createComposition(
         label: 'tenant',
       },
     ],
+    challenge: botChallenge,
     csrf,
     logger: options.logger,
   });
@@ -1161,6 +1263,12 @@ export function createComposition(
   // sessions, and the embed config lookup. Created before the lead
   // service so embed lead capture can dual-write builder_id in the same
   // insert (the lead is visible in the builder portal immediately).
+  // #721: lead reassignment rules (attribution close/open, invoice block).
+  // (adminAuditStore is defined above, before the auth middleware.)
+  const leadAssignmentService: LeadAssignmentService = createLeadAssignmentService({
+    db: db.db,
+    audit: adminAuditStore,
+  });
   // #716: the Stripe customer re-syncs on a builder profile change. The
   // card service is built later (it needs the payment provider), so the
   // hook binds late.
@@ -1168,6 +1276,10 @@ export function createComposition(
   const builderService: BuilderService = createBuilderService({
     db: db.db,
     audit: adminAuditStore,
+    leadAssignment: leadAssignmentService,
+    // #725: late-bound — the notifications service is built further down
+    // (it needs the builder-leads "Needs you" feed). Never throws.
+    onLeadAssigned: (args) => builderNotificationsService.notifyNewLead(args),
     onBillingProfileChanged: async (builder) => {
       await syncStripeCustomer?.(builder);
     },
@@ -1181,8 +1293,13 @@ export function createComposition(
     appBaseUrl: config.email.appBaseUrl,
     dedupWindowDays: config.lead.dedupWindowDays,
     magicLinkTtlSeconds: config.auth.magicLinkTtlSeconds,
+    minSubmitMs: config.lead.minSubmitMs,
     builderConfigs: builderConfigService,
     builders: builderService,
+    // #725: late-bound (see builderService above).
+    builderNotifier: {
+      notifyNewLead: (args) => builderNotificationsService.notifyNewLead(args),
+    },
     // #738: API-key leads need a consent attestation; quarantined for review.
     apiLeads: {
       leadConsentVersion: config.apiAccess.leadConsentVersion,
@@ -1609,6 +1726,7 @@ export function createComposition(
     estimateStore,
     audit: adminAuditStore,
     maxExportRows: 10000,
+    reassignments: leadAssignmentService,
   });
   const adminLeadsRoute: AdminLeadsRoute = createAdminLeadsRoute({
     adminLeads: adminLeadsService,
@@ -1688,6 +1806,23 @@ export function createComposition(
     waitlist: waitlistStore,
     callbacks: callbackRequestStore,
     blockers: createNoopBlockerChecker(),
+    // #806: email the erase-confirmation link; reuses the magic-link
+    // reissue cooldown setting and SHARES the per-address hourly send
+    // budget ('magic-link:send') with the reissue path.
+    email: emailService,
+    appBaseUrl: config.email.appBaseUrl,
+    confirmLinkTtlSeconds: config.auth.eraseConfirmLinkTtlSeconds,
+    resendCooldownMs: config.auth.magicLinkReissueCooldownMs,
+    maxSendsPerHour: config.auth.magicLinkMaxSendsPerHour,
+    resendCooldown: createSharedCooldown({
+      store: rateLimitStore,
+      scope: 'privacy:erase-confirm:cooldown',
+      cooldownMs: config.auth.magicLinkReissueCooldownMs,
+    }),
+    sendBudget: sharedLimiter('magic-link:send', {
+      windowMs: MAGIC_LINK_SEND_BUDGET_WINDOW_MS,
+      maxRequests: config.auth.magicLinkMaxSendsPerHour,
+    }),
   });
   const privacyRoute: PrivacyRoute = createPrivacyRoute({
     privacy: privacyService,
@@ -1743,7 +1878,6 @@ export function createComposition(
   // Zoning rules catalogue (#687): the configured city's district → forms +
   // key rules table from @feasly/zoning. Pure data, verified values only.
   const zoningService: ZoningService = createZoningService({ config: config.zoning });
-  const zoningRoute: ZoningRoute = createZoningRoute({ zoning: zoningService });
   // Community-stats monthly refresh (neighbourhood/05): recomputes
   // community_stats from fresh Socrata aggregates on a timer; ops can also
   // trigger it manually via POST /api/v1/admin/community-stats/refresh.
@@ -1773,6 +1907,53 @@ export function createComposition(
   const communityStatsRefreshRoute: CommunityStatsRefreshRoute =
     createCommunityStatsRefreshRoute({
       refresh: communityStatsRefreshService,
+      audit: adminAuditStore,
+      adminGuard,
+    });
+  // #773: neighbourhood data. Providers (chosen by config) are handed ONLY
+  // to the refresh service; the read service gets the store alone, so no
+  // request path can reach an outside source. One ops alert after
+  // NEIGHBOURHOOD_ALERT_AFTER_FAILURE_DAYS of failures; telemetry is one JSON
+  // trace per provider run: `traces | where message startswith
+  // '{"event":"neighbourhood_data.'`.
+  // Shared City-data cache (#756) — also reused by neighbourhood reads (#777).
+  const cityDataCacheStore: CityDataCacheStore =
+    options.cityDataCacheStore ?? createDrizzleCityDataCacheStore({ db: db.db });
+  const neighbourhoodDataStore: NeighbourhoodDataStore =
+    options.neighbourhoodDataStore ?? createDrizzleNeighbourhoodDataStore({ db: db.db });
+  const neighbourhoodRefreshService: NeighbourhoodRefreshService =
+    createNeighbourhoodRefreshService({
+      providers:
+        options.neighbourhoodProviders ?? createNeighbourhoodProviders(config.neighbourhoodData),
+      store: neighbourhoodDataStore,
+      refreshDayOfMonth: config.neighbourhoodData.refreshDayOfMonth,
+      alertAfterFailureDays: config.neighbourhoodData.alertAfterFailureDays,
+      onFailing: ({ consecutiveFailures, firstFailureAt }) =>
+        opsAlertsService.notifyFailure('neighbourhood_data_failed', {
+          consecutiveFailures,
+          firstFailureAt,
+        }),
+      onRecovered: () => opsAlertsService.notifyRecovered('neighbourhood_data_failed'),
+      onEvent: (event) =>
+        console.info(JSON.stringify({ ...event, event: `neighbourhood_data.${event.event}` })),
+    });
+  const neighbourhoodReadService: NeighbourhoodReadService = createNeighbourhoodReadService({
+    store: neighbourhoodDataStore,
+    lotRadiusM: config.neighbourhoodData.lotRadiusM,
+    lotMetricsTtlMs: config.neighbourhoodData.lotMetricsTtlMs,
+    amenityCategories: config.neighbourhoodData.amenityCategories,
+    amenitySearchRadiusM: config.neighbourhoodData.amenitySearchRadiusM,
+    amenityCountRadiiM: config.neighbourhoodData.amenityCountRadiiM,
+    treeCoverThresholds: config.neighbourhoodData.treeCoverThresholds,
+    communityCache: cityDataCacheStore,
+    communityMetricsTtlMs: config.neighbourhoodData.communityMetricsTtlMs,
+  });
+  const communityLivingRoute: CommunityLivingRoute = createCommunityLivingRoute({
+    neighbourhood: neighbourhoodReadService,
+  });
+  const adminNeighbourhoodDataRoute: AdminNeighbourhoodDataRoute =
+    createAdminNeighbourhoodDataRoute({
+      refresh: neighbourhoodRefreshService,
       audit: adminAuditStore,
       adminGuard,
     });
@@ -1813,8 +1994,6 @@ export function createComposition(
   // Telemetry: one JSON trace per resolution / City call, queryable in App
   // Insights as `traces | where message startswith '{"event":"property_data.'`
   // (docs/ops/property-data-cache.md).
-  const cityDataCacheStore: CityDataCacheStore =
-    options.cityDataCacheStore ?? createDrizzleCityDataCacheStore({ db: db.db });
   const propertyService: PropertyService = createPropertyService(config.propertyData, {
     cache: cityDataCacheStore,
     onEvent: (event) =>
@@ -1832,6 +2011,39 @@ export function createComposition(
   });
   const propertyRoute: PropertyRoute = createPropertyRoute({
     property: propertyService,
+  });
+
+  // #757: daily zoning source watch. Refreshes cached districts when the
+  // City's Land Use Districts dataset changes, files one "catalogue may be
+  // out of date" issue (GitHub token from Key Vault; none → log only), and
+  // tells GET /zoning/districts whether the catalogue predates a change.
+  const zoningWatchService: ZoningWatchService = createZoningWatchService({
+    config: {
+      ...config.zoning.watch,
+      city: config.zoning.city,
+      freshnessCacheTtlMs: config.zoning.freshnessCacheTtlMs,
+    },
+    zoning: zoningService,
+    store: options.zoningWatchStore ?? createDrizzleZoningWatchStore({ db: db.db }),
+    cityDataCache:
+      'invalidateDataset' in cityDataCacheStore
+        ? (cityDataCacheStore as CityDataCacheStore & CityDataCacheInvalidator)
+        : { invalidateDataset: () => Promise.resolve(0) },
+    ...(config.zoning.watch.githubToken
+      ? {
+          issues: createGitHubIssuesClient({
+            repo: config.zoning.watch.githubRepo,
+            token: config.zoning.watch.githubToken,
+            apiBaseUrl: config.zoning.watch.githubApiUrl,
+            httpTimeoutMs: config.zoning.watch.httpTimeoutMs,
+          }),
+        }
+      : {}),
+    logger: { info: (m) => console.info(m), warn: (m) => console.warn(m) },
+  });
+  const zoningRoute: ZoningRoute = createZoningRoute({
+    zoning: zoningService,
+    watch: zoningWatchService,
   });
   // phase-2 wiring: the five live-API endpoints the web app needs. Same
   // pinned cost data + draft gate as the estimate endpoint, so preview,
@@ -1977,6 +2189,10 @@ export function createComposition(
   });
   const commissionService: CommissionService = createCommissionService({
     db: db.db,
+    // #725: billing emails go to every opted-in active builder admin;
+    // late-bound (see builderService above).
+    billingRecipients: (tenantKey) =>
+      builderNotificationsService.billingRecipients(tenantKey),
     billing: config.billing,
     attribution: attributionService,
     audit: billingAuditService,
@@ -2081,6 +2297,7 @@ export function createComposition(
     email: emailService,
     fallbackAdminInbox: config.email.opsAlertEmail,
     statusChanges: leadStatusChangeStore,
+    reassignments: leadAssignmentService,
     needsYou: {
       staleAfterDays: config.lead.needsYouStaleDays,
       scanLimit: config.lead.needsYouScanLimit,
@@ -2091,6 +2308,23 @@ export function createComposition(
     builderGuard,
     permissionGuard,
   });
+  // #725: builder notifications — new-lead email (send-once outbox), daily
+  // "Needs you" digest, member preferences, billing-email recipients.
+  const builderNotificationsService: BuilderNotificationsService =
+    createBuilderNotificationsService({
+      store: createDrizzleBuilderNotificationStore({ db: db.db }),
+      email: emailService,
+      needsYou: (tenantKey) => builderLeadsService.getNeedsYou(tenantKey),
+      resolveCommunity: async (addressKey) =>
+        (await propertyService.getProperty(addressKey)).community,
+      config: config.builderNotifications,
+      onError: (message) => console.error(message),
+    });
+  const builderNotificationsRoute: BuilderNotificationsRoute =
+    createBuilderNotificationsRoute({
+      notifications: builderNotificationsService,
+      builderGuard,
+    });
   // billing/05 lead comments: one service, two thin routes (builder/admin).
   const builderCommentsService: BuilderCommentsService =
     createBuilderCommentsService({
@@ -2123,6 +2357,13 @@ export function createComposition(
       audit: billingAuditService,
       commission: commissionService,
       flatPlan: flatPlanService,
+      // #719: bank chargebacks + Stripe-dashboard refunds.
+      chargebacks: createChargebackService({
+        db: db.db,
+        audit: billingAuditService,
+        email: emailService,
+        opsInbox: config.email.opsInbox,
+      }),
       commissionCard: commissionCardService,
       email: emailService,
       opsInbox: config.email.opsInbox,
@@ -2305,8 +2546,13 @@ export function createComposition(
     cityDataFreshnessRoute,
     zoningService,
     zoningRoute,
+    zoningWatchService,
     communityStatsRefreshService,
     communityStatsRefreshRoute,
+    neighbourhoodRefreshService,
+    neighbourhoodReadService,
+    adminNeighbourhoodDataRoute,
+    communityLivingRoute,
     adminAuditStore,
     builderConfigService,
     embedConfigRoute,
@@ -2329,6 +2575,8 @@ export function createComposition(
     billingRoute,
     billingOverviewService,
     builderBillingOverviewRoute,
+    builderNotificationsService,
+    builderNotificationsRoute,
     disputeService,
     adminDisputesRoute,
     adminBillingRoute,

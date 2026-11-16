@@ -493,6 +493,41 @@ export interface BuilderCopy {
   cardModalContact: string;
   /** Close button label / × aria-label. */
   cardModalClose: string;
+  /** #791: test-mode (simulated payment provider) card picker + 3DS step. */
+  simulated: BuilderSimulatedPaymentsCopy;
+}
+
+/**
+ * #791 builder copy for the simulated payment provider (dev/test only):
+ * the test-card picker in the card modal and the dev-only 3D Secure step.
+ * The "Test mode — no real charges" banner and the card labels come from
+ * `@feasly/contracts` (SIMULATED_PAYMENTS_NOTICE / SIMULATED_TEST_CARDS).
+ */
+export interface BuilderSimulatedPaymentsCopy {
+  /** Radio-group legend for the test cards. */
+  pickerLegend: string;
+  /** 3DS step heading (dev-only). */
+  challengeHeading: string;
+  /** 3DS step body. */
+  challengeBody: string;
+  /** Complete the challenge (bank approves). */
+  challengeComplete: string;
+  /** Fail the challenge (bank refuses). */
+  challengeFail: string;
+  /** The authenticate call failed — try again. */
+  challengeError: string;
+  /** Card modal: the 3DS check on save failed — card not saved. */
+  setupChallengeFailed: string;
+  /** Invoice drawer section heading for a charge waiting on 3DS. */
+  paymentHeading: string;
+  /** Invoice drawer body for a charge waiting on 3DS. */
+  paymentBody: string;
+  /** confirm-payment failed — retry offered. */
+  paymentLoadError: string;
+  /** Toast: the 3DS check was completed. */
+  paymentCompletedToast: string;
+  /** Toast: the 3DS check failed — the charge did not go through. */
+  paymentFailedToast: string;
 }
 
 /** Builder Leads home copy and display thresholds (#527, builder review §Leads home). */
@@ -2458,6 +2493,9 @@ export interface AppConfig {
       linkSentHeading: string;
       linkSentBody: string;
       pendingEmailBody: string;
+      pendingEmailNotSentBody: string;
+      resendEmailCta: string;
+      resendEmailWorking: string;
       confirmPromptHeading: string;
       confirmPromptBody: string;
       confirmWorking: string;

@@ -28,6 +28,7 @@ import {
   type ApiKeyAuthContext,
 } from './api-key-auth';
 import { quotaExceededProblem, rateLimitedProblem, type ProblemDetails } from './errors';
+import { hasBearerCredential } from './session-token';
 import type { ApiKeyService } from '../services/api-key.service';
 import type { QuotaLimits, UsageService } from '../services/usage.service';
 
@@ -90,12 +91,8 @@ export function createApiKeyRateLimitMiddleware(deps: ApiKeyRateLimitDeps) {
     options: ApiKeyRateLimitOptions,
     handler: (auth: ApiKeyAuthContext | null) => Promise<T>,
   ): Promise<T | ProblemDetails> {
-    const raw = headers['authorization'];
-    const value = Array.isArray(raw) ? raw[0] : raw;
-    const hasBearer =
-      typeof value === 'string' && /^Bearer /i.test(value.trim());
-
-    if (!hasBearer) {
+    // Same predicate as the bot-challenge exemption (#788) — never fork it.
+    if (!hasBearerCredential(headers)) {
       // No API key — first-party traffic, existing pipeline limiting applies.
       return handler(null);
     }

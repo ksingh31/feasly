@@ -364,6 +364,34 @@ describe('admin-leads service (admin/02)', () => {
       );
     });
 
+    it('includes the builder reassignment history (#721)', async () => {
+      const deps = makeDeps();
+      const listForLead = vi.fn(async () => [
+        {
+          fromBuilderId: 'builder-a',
+          toBuilderId: null,
+          actorEmail: ADMIN_EMAIL,
+          reassignedAt: new Date('2026-11-15T12:00:00Z'),
+        },
+      ]);
+      const service = createAdminLeadsService({ ...deps, reassignments: { listForLead } });
+      vi.mocked(deps.store.findByIdWithEstimate).mockResolvedValue(makeLeadRow());
+      vi.mocked(deps.estimateStore.findById).mockResolvedValue(null);
+      vi.mocked(deps.store.getMagicLinkStatus).mockResolvedValue('sent');
+
+      const result = await service.getLead('lead-1', ADMIN_EMAIL);
+
+      expect(listForLead).toHaveBeenCalledWith('lead-1');
+      expect(result.reassignments).toEqual([
+        {
+          fromBuilderId: 'builder-a',
+          toBuilderId: null,
+          changedBy: ADMIN_EMAIL,
+          changedAt: '2026-11-15T12:00:00.000Z',
+        },
+      ]);
+    });
+
     it('reads zero ranges (not $0 display bug) for comparison estimates', async () => {
       const deps = makeDeps();
       const service = createAdminLeadsService(deps);

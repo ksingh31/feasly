@@ -12,6 +12,8 @@ import type {
   MarkInvoicePaidRequest,
   MarkInvoicePaidResponse,
   SetCommissionRateResponse,
+  SimulatedInvoiceEventRequest,
+  SimulatedInvoiceEventResponse,
 } from '@feasly/contracts';
 import { BUILDER_PAYMENT_METHODS } from '../builder/builder-payment-methods';
 import { ConfigService } from '../../core/config/config.service';
@@ -154,6 +156,27 @@ export class AdminBillingApiService {
         this.billingBase + '/invoices/' + encodeURIComponent(invoiceId) +
           '/payment-method',
         { method },
+        { withCredentials: true },
+      ),
+    );
+  }
+
+  /**
+   * POST /api/v1/admin/billing/simulated/invoices/{id}/events (#753/#791)
+   * — the admin dev panel fires a dispute, a dashboard refund (optional
+   * partial `amountCents`) or a delayed failure against the invoice's
+   * simulated PaymentIntent. 404 unless the simulated provider is active;
+   * 409 when the action does not apply to the invoice.
+   */
+  fireSimulatedInvoiceEvent(
+    invoiceId: string,
+    body: SimulatedInvoiceEventRequest,
+  ): Observable<SimulatedInvoiceEventResponse> {
+    return this.call(
+      this.http.post<SimulatedInvoiceEventResponse>(
+        this.billingBase + '/simulated/invoices/' + encodeURIComponent(invoiceId) +
+          '/events',
+        body,
         { withCredentials: true },
       ),
     );

@@ -52,10 +52,12 @@ import { z } from 'zod';
 import type { LeadResponse } from '@feasly/contracts';
 import { API_LEAD_CONSENT_VERSION } from '../lib/legal-copy';
 import { computeLeadScore } from '../lib/lead-score';
+import { isTooFastSubmission } from '../lib/bot-timing';
 import { ErrorCodes, HttpError } from '../middleware/errors';
 import type { BuilderConfigService } from './builder-config.service';
 import type { BuilderService } from './builder.service';
 import type { EmailService } from './email/email.service';
+import type { BuilderNotificationsService } from './builder-notifications.service';
 import { createSandboxSuppressingEmailService } from './email/sandbox-email.service';
 import type { EstimateStore } from './estimate.store';
 import type { LeadRecord, LeadStore } from './lead.store';
@@ -90,6 +92,13 @@ export const LeadRequestSchema = z.object({
   estimateId: z.string().uuid(),
   tenantKey: z.string().trim().min(1).max(120).optional(),
   website: z.string().max(500).optional(),
+  /**
+   * #788: ms the form was on screen before submit (client-measured). Below
+   * the configured minimum → quarantined like the honeypot. Any number is
+   * accepted (a negative/garbled timer quarantines rather than 400s, so a
+   * bot can't probe the check through validation errors).
+   */
+  elapsedMs: z.number().optional(),
 });
 
 export type LeadRequest = z.infer<typeof LeadRequestSchema>;
@@ -170,6 +179,12 @@ export interface LeadServiceDeps {
   readonly dedupWindowDays: number;
   /** Magic-link TTL, seconds — drives the UI's `expiresInDays`. */
   readonly magicLinkTtlSeconds: number;
+  /**
+   * #788: minimum client-reported form time (ms). Faster submissions are
+   * quarantined like the honeypot. From config (`LEAD_MIN_SUBMIT_MS`);
+   * absent or 0 disables the check.
+   */
+  readonly minSubmitMs?: number;
   /** Validates embed tenant keys (EMB-03). Optional — embeds disabled when absent. */
   readonly builderConfigs?: BuilderConfigService;
   /**
@@ -180,6 +195,13 @@ export interface LeadServiceDeps {
    * (the migration backfill covers pre-existing rows).
    */
   readonly builders?: BuilderService;
+  /**
+   * #725: tells the builder's team about a new embed lead (one email per
+   * opted-in member, send-once outbox). Called without awaiting — it never
+   * rejects, and a failed send never affects the lead response; the
+   * builder-notifications timer retries pending sends. Optional.
+   */
+  readonly builderNotifier?: Pick<BuilderNotificationsService, 'notifyNewLead'>;
   /**
    * Agent-API lead policy (#738). Defaults to the canonical consent
    * version with quarantine on — the safe side when unwired.
@@ -590,10 +612,13 @@ export function createLeadService(deps: LeadServiceDeps): LeadService {
       // HRD-03 honeypot: a filled trap field quarantines the row instead of
       // rejecting the request — the response shape is identical to a clean
       // capture so bots can't probe for the trap.
+      // #788: a too-fast submission (form time below LEAD_MIN_SUBMIT_MS)
+      // is quarantined the same way — identical 201, no email, no token.
       // #738: API-key leads go to the same admin quarantine queue for
       // review while the policy is on (invite-only beta default).
       const quarantined =
         (input.website ?? '').trim().length > 0 ||
+        isTooFastSubmission(input.elapsedMs, deps.minSubmitMs ?? 0) ||
         (caller !== undefined && apiLeadPolicy.quarantineLeads);
 
       let inserted;
@@ -694,6 +719,13 @@ export function createLeadService(deps: LeadServiceDeps): LeadService {
         }
       } catch (error) {
         throw new Error('magic link issuance failed', { cause: error });
+      }
+      // #725: new embed lead → notify the builder's team. Quarantined and
+      // sandbox leads never notify; repeat submissions (the dedupe path
+      // above) never reach here, and the outbox dedupes regardless. Not
+      // awaited: the homeowner's response never waits on builder email.
+      if (builderId !== null && !quarantined && !sandbox && deps.builderNotifier) {
+        void deps.builderNotifier.notifyNewLead({ leadId: inserted.id, builderId });
       }
       return {
         leadId: inserted.id,

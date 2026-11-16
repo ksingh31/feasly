@@ -110,6 +110,9 @@ function fakeEmailService(): EmailService & {
     sendCommissionPaymentFailed: async () => ok,
     sendCommissionPaymentActionRequired: async () => ok,
     sendContractNeedsRecording: async () => ok,
+    sendBuilderNewLead: async () => ok,
+    sendBuilderNeedsYouDigest: async () => ok,
+    sendErasureConfirmation: async () => ok,
   };
 }
 
@@ -897,6 +900,69 @@ describe('lead service', () => {
     expect(store.inserted[0].quarantined).toBe(false);
   });
 
+  describe('#788 minimum time-to-submit', () => {
+    it('quarantines a submission faster than minSubmitMs with the normal response shape', async () => {
+      const store = fakeLeadStore();
+      const email = fakeEmailService();
+      const service = createLeadService({ ...DEPS, store, email, minSubmitMs: 3_000 });
+      const clean = await service.submitLead({ ...VALID_BODY, elapsedMs: 12_000 });
+      const fast = await service.submitLead({
+        ...VALID_BODY,
+        email: 'bot@example.com',
+        elapsedMs: 150,
+      });
+      const cleanKeys = Object.keys(clean).filter((k) => k !== 'reportToken').sort();
+      expect(Object.keys(fast).sort()).toEqual(cleanKeys);
+      expect(fast.magicLinkSent).toBe(false);
+      expect('reportToken' in fast).toBe(false);
+      expect(store.inserted.map((l) => l.quarantined)).toEqual([false, true]);
+      // No mail for the quarantined row.
+      expect(email.magicLinkSends).toHaveLength(1);
+    });
+
+    it('treats exactly minSubmitMs as human', async () => {
+      const store = fakeLeadStore();
+      const service = createLeadService({ ...DEPS, store, minSubmitMs: 3_000 });
+      await service.submitLead({ ...VALID_BODY, elapsedMs: 3_000 });
+      expect(store.inserted[0].quarantined).toBe(false);
+    });
+
+    it('quarantines a negative (forged) timer instead of rejecting it', async () => {
+      const store = fakeLeadStore();
+      const service = createLeadService({ ...DEPS, store, minSubmitMs: 3_000 });
+      await service.submitLead({ ...VALID_BODY, elapsedMs: -5 });
+      expect(store.inserted[0].quarantined).toBe(true);
+    });
+
+    it('does not quarantine when elapsedMs is absent (agent API / older web bundles)', async () => {
+      const store = fakeLeadStore();
+      const service = createLeadService({ ...DEPS, store, minSubmitMs: 3_000 });
+      await service.submitLead(VALID_BODY);
+      expect(store.inserted[0].quarantined).toBe(false);
+    });
+
+    it('is disabled when minSubmitMs is 0 or unset', async () => {
+      const store = fakeLeadStore();
+      await createLeadService({ ...DEPS, store, minSubmitMs: 0 }).submitLead({
+        ...VALID_BODY,
+        elapsedMs: 1,
+      });
+      await createLeadService({ ...DEPS, store }).submitLead({
+        ...VALID_BODY,
+        email: 'other@example.com',
+        elapsedMs: 1,
+      });
+      expect(store.inserted.map((l) => l.quarantined)).toEqual([false, false]);
+    });
+
+    it('rejects a non-numeric elapsedMs as a validation error', async () => {
+      const service = createLeadService({ ...DEPS, store: fakeLeadStore(), minSubmitMs: 3_000 });
+      await expect(
+        service.submitLead({ ...VALID_BODY, elapsedMs: 'fast' }),
+      ).rejects.toMatchObject({ status: 400 });
+    });
+  });
+
   it('a rapid double-submit still creates exactly one lead and sends exactly one email (regression)', async () => {
     const store = fakeLeadStore();
     // Second call sees the first call's row via the dedup lookup.
@@ -1368,5 +1434,60 @@ describe('#793 sandbox (feasly_test_ key) writes', () => {
     });
     expect(store.inserted).toHaveLength(0);
     expect(email.magicLinkSends).toHaveLength(0);
+  });
+});
+
+describe('#725 builder new-lead notification hook', () => {
+  const BUILDER_ID = '99999999-9999-4999-8999-999999999999';
+  const builders = {
+    getByTenantKey: async (key: string) => (key === 'elite-craft' ? { id: BUILDER_ID } : null),
+  } as unknown as NonNullable<Parameters<typeof createLeadService>[0]['builders']>;
+
+  function notifier() {
+    const calls: Array<{ leadId: string; builderId: string }> = [];
+    return {
+      calls,
+      notifyNewLead: async (args: { leadId: string; builderId: string }) => {
+        calls.push(args);
+      },
+    };
+  }
+
+  it('notifies the builder once for a new embed lead', async () => {
+    const store = fakeLeadStore();
+    const builderNotifier = notifier();
+    const service = createLeadService({ ...DEPS, store, builders, builderNotifier });
+    const result = await service.submitLead({ ...VALID_BODY, tenantKey: 'elite-craft' });
+    expect(builderNotifier.calls).toEqual([{ leadId: result.leadId, builderId: BUILDER_ID }]);
+  });
+
+  it('a notifier failure never fails lead capture', async () => {
+    const store = fakeLeadStore();
+    const service = createLeadService({
+      ...DEPS,
+      store,
+      builders,
+      builderNotifier: {
+        notifyNewLead: () => new Promise<void>(() => {}), // never settles
+      },
+    });
+    const result = await service.submitLead({ ...VALID_BODY, tenantKey: 'elite-craft' });
+    expect(result.leadId).toBeDefined();
+  });
+
+  it('no notification for direct-site, quarantined, or repeat submissions', async () => {
+    const store = fakeLeadStore();
+    const builderNotifier = notifier();
+    const service = createLeadService({ ...DEPS, store, builders, builderNotifier });
+    await service.submitLead(VALID_BODY);
+    await service.submitLead({
+      ...VALID_BODY,
+      email: 'bot@example.com',
+      tenantKey: 'elite-craft',
+      website: 'http://spam.example',
+    });
+    store.recent = existingLeadFixture({ tenantKey: 'elite-craft', builderId: BUILDER_ID });
+    await service.submitLead({ ...VALID_BODY, tenantKey: 'elite-craft' });
+    expect(builderNotifier.calls).toHaveLength(0);
   });
 });

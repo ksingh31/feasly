@@ -228,12 +228,26 @@ exports[`route registry > exhaustive role x route permission matrix (auth/04 acc
     "builder_admin",
     "builder_member",
   ],
+  "GET /api/v1/builder/notifications/preferences": [
+    "super_admin",
+    "admin",
+    "builder_admin",
+    "builder_member",
+  ],
   "GET /api/v1/builder/users": [
     "super_admin",
     "admin",
     "builder_admin",
   ],
   "GET /api/v1/city-data/freshness": [
+    "super_admin",
+    "admin",
+    "viewer",
+    "builder_admin",
+    "builder_member",
+    "none",
+  ],
+  "GET /api/v1/communities/{slug}/living": [
     "super_admin",
     "admin",
     "viewer",
@@ -481,6 +495,10 @@ exports[`route registry > exhaustive role x route permission matrix (auth/04 acc
     "admin",
   ],
   "POST /api/v1/admin/leads/{leadId}/comments": [
+    "super_admin",
+    "admin",
+  ],
+  "POST /api/v1/admin/neighbourhood-data/{provider}/refresh": [
     "super_admin",
     "admin",
   ],
@@ -757,6 +775,12 @@ exports[`route registry > exhaustive role x route permission matrix (auth/04 acc
     "super_admin",
     "admin",
     "builder_admin",
+  ],
+  "PUT /api/v1/builder/notifications/preferences": [
+    "super_admin",
+    "admin",
+    "builder_admin",
+    "builder_member",
   ],
 }
 `;

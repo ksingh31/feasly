@@ -38,6 +38,7 @@ import {
 import { formatDisplayAddress } from '../lib/display-address';
 import { sanitizeErrorMessage } from '../lib/sanitize-error';
 import type { EmailDelivery, EmailService } from './email/email.service';
+import { createSandboxSuppressingEmailService } from './email/sandbox-email.service';
 import type { LeadStore } from './lead.store';
 import type { UnsubscribeService } from './unsubscribe.service';
 import {
@@ -127,6 +128,8 @@ export interface IssueAndSendMagicLinkArgs {
   readonly magicLinkTtlSeconds: number;
   /** #703: the lead's `address_key` — named in the report email. */
   readonly addressKey?: string;
+  /** #793/#914: flag the link row for the sandbox purge. */
+  readonly sandbox?: boolean;
   readonly clock?: () => Date;
 }
 
@@ -342,9 +345,18 @@ export function createMagicLinkService(
       if (!(await sendBudget.check(lead.email)).allowed) {
         return { sent: false };
       }
+      // #914: a sandbox lead (test API key / test-drive traffic) never
+      // triggers a real send — route through the no-send decorator, as
+      // lead.service and share.service do — and its new link is flagged so
+      // the sandbox-purge timer removes it with the lead.
       const delivery = await issueAndSendMagicLink({
         magicLinks,
-        email,
+        email: lead.sandbox
+          ? createSandboxSuppressingEmailService({
+              inner: email,
+              log: (message) => console.info(message),
+            })
+          : email,
         unsubscribe,
         leadId: lead.id,
         to: lead.email,
@@ -352,6 +364,7 @@ export function createMagicLinkService(
         appBaseUrl,
         magicLinkTtlSeconds,
         addressKey: lead.addressKey,
+        sandbox: lead.sandbox,
         clock,
       });
       // Only a delivered resend starts the cooldown — a failed send leaves

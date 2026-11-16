@@ -33,6 +33,14 @@ export interface ProblemDetails extends ApiError {
     readonly resetEpoch: number;
   };
   /**
+   * #788: present on CHALLENGE_REQUIRED / CHALLENGE_FAILED 403s — the
+   * public Turnstile site key the client runs the invisible challenge with.
+   */
+  readonly challenge?: {
+    readonly provider: 'turnstile';
+    readonly siteKey: string;
+  };
+  /**
    * Quota state (#738), present on 429s from the per-key daily/monthly
    * quota. Surfaced as X-Quota-Period / -Limit / -Remaining / -Reset.
    */
@@ -70,6 +78,12 @@ export const ErrorCodes = {
   /** Lead status lock (2026-09-29): status change on a recorded-contract lead. */
   LEAD_STATUS_LOCKED: 'LEAD_STATUS_LOCKED',
   /**
+   * #721: reassigning a lead that still has a non-void commission invoice
+   * with its current builder. 409; the message names the invoice. Void or
+   * refund it first.
+   */
+  LEAD_HAS_INVOICE: 'LEAD_HAS_INVOICE',
+  /**
    * Commission rate outside the allowed range (billing/08): builder rate
    * must satisfy 0 <= rate <= 10 (percent).
    */
@@ -77,6 +91,13 @@ export const ErrorCodes = {
   /** Analytics ingest without a valid consent_ts (story consumer/01). */
   CONSENT_REQUIRED: 'CONSENT_REQUIRED',
   RATE_LIMITED: 'RATE_LIMITED',
+  /**
+   * #788 — an IP that recently tripped a shared money/mail rate limit must
+   * pass the invisible Turnstile challenge. 403 with `challenge.siteKey`.
+   */
+  CHALLENGE_REQUIRED: 'CHALLENGE_REQUIRED',
+  /** #788 — the challenge token was rejected or could not be verified (fail closed). */
+  CHALLENGE_FAILED: 'CHALLENGE_FAILED',
   /** #738 — an API key used up its daily or monthly quota. */
   QUOTA_EXCEEDED: 'QUOTA_EXCEEDED',
   INVALID_API_KEY: 'INVALID_API_KEY',

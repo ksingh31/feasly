@@ -18,13 +18,18 @@ import type {
   Builder,
   BuilderCreateBody,
   BuilderUpdateBody,
+  LeadAssignBuilderResponse,
 } from '@feasly/contracts';
 import type { AppDb } from '../db/client';
-import { builders, leads, tenants } from '../db/schema';
+import { builders, tenants } from '../db/schema';
 import { ErrorCodes, HttpError } from '../middleware/errors';
 import { isUniqueViolation } from './pg-errors';
 import { readDefaultPaymentMethod } from '../lib/payment-method';
 import type { AdminAuditStore } from './admin-audit.store';
+import {
+  createLeadAssignmentService,
+  type LeadAssignmentService,
+} from './lead-assignment.service';
 
 export interface BuilderService {
   /** All builders, newest first. Admin-only callers. */
@@ -44,13 +49,16 @@ export interface BuilderService {
   /**
    * Assign (or unassign with null) a lead to a builder. Null builderId is
    * the normal state — the lead flow never depends on it. Throws 404 when
-   * the lead (or builder) doesn't exist. Audit-logged.
+   * the lead (or builder) doesn't exist. Moving a lead away from a builder
+   * follows the #721 rules (see lead-assignment.service.ts): 409
+   * LEAD_HAS_INVOICE while a non-void invoice exists, otherwise the old
+   * attribution closes and the new builder is introduced. Audit-logged.
    */
   assignLead(
     leadId: string,
     builderId: string | null,
     adminEmail: string,
-  ): Promise<{ readonly ok: true }>;
+  ): Promise<LeadAssignBuilderResponse>;
   // FUTURE (builder onboarding story): portal-access management hooks in
   // here — list/grant/revoke builder_allowlist emails per builder. The
   // builder_allowlist table and the /builder/login magic-link flow already
@@ -60,6 +68,16 @@ export interface BuilderService {
 export interface BuilderServiceDeps {
   readonly db: AppDb;
   readonly audit: AdminAuditStore;
+  /** #721 reassignment rules. Defaults to one built from db + audit. */
+  readonly leadAssignment?: LeadAssignmentService;
+  /**
+   * #725: called after an admin assigns a lead to a (different) builder —
+   * composition wires the builder-notifications service. Must not throw.
+   */
+  readonly onLeadAssigned?: (args: {
+    readonly leadId: string;
+    readonly builderId: string;
+  }) => Promise<void>;
   /**
    * #716: called after an update that changed the business name or email,
    * so the builder's Stripe customer stays in sync. Best-effort: a failure
@@ -165,6 +183,8 @@ function normalizeOrigins(origins: readonly string[] | undefined): string[] {
 
 export function createBuilderService(deps: BuilderServiceDeps): BuilderService {
   const { db, audit } = deps;
+  const leadAssignment =
+    deps.leadAssignment ?? createLeadAssignmentService({ db, audit });
 
   async function getRowById(id: string): Promise<BuilderRow> {
     const row = await db.query.builders.findFirst({
@@ -387,29 +407,15 @@ export function createBuilderService(deps: BuilderServiceDeps): BuilderService {
       leadId: string,
       builderId: string | null,
       adminEmail: string,
-    ): Promise<{ readonly ok: true }> {
-      const lead = await db.query.leads.findFirst({
-        where: eq(leads.id, leadId),
-      });
-      if (lead === undefined) {
-        throw new HttpError(404, ErrorCodes.NOT_FOUND, 'Lead not found.', false);
+    ): Promise<LeadAssignBuilderResponse> {
+      const result = await leadAssignment.assignLead(leadId, builderId, adminEmail);
+      // #725: a lead newly assigned to a builder notifies that builder's
+      // team once (the outbox dedupes per lead + builder + member). The
+      // hook never throws.
+      if (builderId !== null && result.changed && deps.onLeadAssigned) {
+        await deps.onLeadAssigned({ leadId, builderId });
       }
-      if (builderId !== null) {
-        await getRowById(builderId);
-      }
-      await db
-        .update(leads)
-        .set({ builderId })
-        .where(eq(leads.id, leadId));
-      await audit.log({
-        actorEmail: adminEmail,
-        action:
-          builderId === null
-            ? 'admin_lead_builder_unassigned'
-            : 'admin_lead_builder_assigned',
-        detail: `leadId=${leadId} builderId=${builderId ?? 'null'}`,
-      });
-      return { ok: true as const };
+      return result;
     },
   };
 }

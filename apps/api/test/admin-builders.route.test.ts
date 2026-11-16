@@ -223,6 +223,37 @@ describe('admin-leads assign-builder route', () => {
     ).rejects.toMatchObject({ status: 400 });
   });
 
+  it('assignBuilder returns the service result and propagates 409 LEAD_HAS_INVOICE (#721)', async () => {
+    const { builders, adminGuard } = makeAssignDeps();
+    const response = {
+      ok: true as const,
+      changed: true,
+      fromBuilderId: '123e4567-e89b-12d3-a456-426614174001',
+      toBuilderId: '123e4567-e89b-12d3-a456-426614174000',
+    };
+    builders.assignLead.mockResolvedValueOnce(response as never);
+    builders.assignLead.mockRejectedValueOnce(
+      new HttpError(
+        409,
+        ErrorCodes.LEAD_HAS_INVOICE,
+        'This lead has unpaid invoice INV-0042 (in_review) with its current builder.',
+        false,
+      ),
+    );
+    const route = createAdminLeadsRoute({
+      adminLeads: {} as never,
+      builders: builders as unknown as BuilderService,
+      adminGuard: adminGuard as unknown as AdminGuard,
+    });
+    const headers = { cookie: VALID_SESSION };
+    await expect(
+      route.assignBuilder(headers, LEAD_ID, { builderId: response.toBuilderId }),
+    ).resolves.toEqual(response);
+    await expect(
+      route.assignBuilder(headers, LEAD_ID, { builderId: null }),
+    ).rejects.toMatchObject({ status: 409, code: ErrorCodes.LEAD_HAS_INVOICE });
+  });
+
   it('assignBuilder requires admin auth', async () => {
     const { builders, adminGuard } = makeAssignDeps();
     // createAdminLeadsRoute is imported statically at the top of this file.

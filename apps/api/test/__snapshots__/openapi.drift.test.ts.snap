@@ -854,6 +854,10 @@ exports[`OpenAPI drift > generated spec matches the snapshot 1`] = `
             "description": "Required with an API key: the current attestation wording version (docs/api/developers.md)",
             "type": "string",
           },
+          "elapsedMs": {
+            "description": "Milliseconds the form was on screen before submit (browser clients). Optional for API callers.",
+            "type": "number",
+          },
           "email": {
             "format": "email",
             "type": "string",
@@ -1486,6 +1490,34 @@ exports[`OpenAPI drift > generated spec matches the snapshot 1`] = `
         ],
         "type": "string",
       },
+      "ZoningCatalogueFreshness": {
+        "additionalProperties": false,
+        "properties": {
+          "latestChangeDetectedOn": {
+            "description": "ISO date of the latest City change detected; null when none.",
+            "pattern": "^\\d{4}-\\d{2}-\\d{2}$",
+            "type": [
+              "string",
+              "null",
+            ],
+          },
+          "rulesAsOf": {
+            "description": "ISO date the catalogue's rules are as of (its effectiveDate).",
+            "pattern": "^\\d{4}-\\d{2}-\\d{2}$",
+            "type": "string",
+          },
+          "stale": {
+            "description": "True when the City changed its rules or districts after rulesAsOf — confirm with the City.",
+            "type": "boolean",
+          },
+        },
+        "required": [
+          "rulesAsOf",
+          "stale",
+          "latestChangeDetectedOn",
+        ],
+        "type": "object",
+      },
       "ZoningDistrict": {
         "additionalProperties": false,
         "properties": {
@@ -1703,6 +1735,9 @@ exports[`OpenAPI drift > generated spec matches the snapshot 1`] = `
             "description": "ISO date the rules took effect.",
             "pattern": "^\\d{4}-\\d{2}-\\d{2}$",
             "type": "string",
+          },
+          "freshness": {
+            "$ref": "#/components/schemas/ZoningCatalogueFreshness",
           },
           "sourceUrl": {
             "description": "The City's bylaw page — where to confirm the rules.",

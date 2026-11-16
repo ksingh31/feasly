@@ -3,8 +3,10 @@
  *
  * Endpoints:
  *  - exportMyData: everything Feasly holds about the bearer identity.
- *  - requestErasure: two-step erasure, step 1 — records the request and
- *    returns the (draft) consequences statement. Nothing is deleted here.
+ *  - requestErasure: two-step erasure, step 1 — records the request,
+ *    returns the (draft) consequences statement and emails a confirmation
+ *    link (#806: owner decision on #706 — deletion with email
+ *    confirmation). Nothing is deleted here.
  *  - confirmErasure: step 2 — human-confirmed execution.
  *
  * Identity model (deliberate, documented): until BE-4's session model
@@ -25,6 +27,15 @@
  * PII discipline: the raw email appears only in the export payload (it IS
  * the subject's own data). Audit rows carry leadId + action only. Error
  * messages name fields and reasons, never values.
+ *
+ * Confirmation email (#806): step 1 mints a FRESH owner-purpose magic link
+ * with a short TTL (PRIVACY_ERASE_CONFIRM_LINK_TTL_SECONDS) and emails
+ * `${appBaseUrl}/privacy/confirm/${requestId}#token=${token}`. The token
+ * rides in the URL fragment (never sent to a server). A duplicate request
+ * (one already pending) re-sends at most once per cooldown and inside the
+ * shared hourly magic-link send budget — the same email-bombing guards as
+ * `POST /magic-link/reissue`. Neither the token nor the address is logged
+ * or written to an audit row.
  */
 import { createHash } from 'node:crypto';
 import type {
@@ -33,6 +44,15 @@ import type {
   PrivacyExportResponse,
 } from '@feasly/contracts';
 import { ErrorCodes, HttpError } from '../middleware/errors';
+import { createRateLimiter } from '../middleware/rate-limit';
+import {
+  createInMemoryCooldown,
+  type AnyRateLimiter,
+  type SharedCooldown,
+} from '../middleware/shared-rate-limit';
+import { sanitizeErrorMessage } from '../lib/sanitize-error';
+import type { EmailService } from './email/email.service';
+import { MAGIC_LINK_SEND_BUDGET_WINDOW_MS } from './magic-link.service';
 import {
   ERASURE_CONSEQUENCES_DRAFT,
   EXPORT_RETENTION_NOTICE_DRAFT,
@@ -91,6 +111,28 @@ export interface PrivacyServiceDeps {
   /** #639: callback requests (name/phone) are exported and erased too. */
   readonly callbacks: CallbackRequestStore;
   readonly blockers: ErasureBlockerChecker;
+  /** #806: sends the erase-confirmation link. */
+  readonly email: Pick<EmailService, 'sendErasureConfirmation'>;
+  /** e.g. https://feasly.ca — from config, never hardcoded. */
+  readonly appBaseUrl: string;
+  /** #806: lifetime of the emailed confirm link (short). */
+  readonly confirmLinkTtlSeconds: number;
+  /**
+   * #806: minimum ms between confirmation emails to one address (reuses the
+   * magic-link reissue cooldown setting). Used for the in-memory default
+   * when `resendCooldown` is not wired.
+   */
+  readonly resendCooldownMs: number;
+  /** #806: hourly per-address send cap (reuses MAGIC_LINK_MAX_SENDS_PER_HOUR). */
+  readonly maxSendsPerHour: number;
+  /** Cross-instance cooldown (Postgres-backed in production). */
+  readonly resendCooldown?: SharedCooldown;
+  /**
+   * Cross-instance hourly send budget. Production shares the
+   * 'magic-link:send' scope, so erase emails and reissue emails draw on one
+   * per-address budget.
+   */
+  readonly sendBudget?: AnyRateLimiter;
   /** Injected clock for tests; defaults to wall time. */
   readonly clock?: () => Date;
 }
@@ -103,6 +145,8 @@ export function hashEmail(normalizedEmail: string): string {
 interface AuthContext {
   readonly leadId: string;
   readonly email: string;
+  readonly name: string;
+  readonly sandbox: boolean;
 }
 
 const UUID_RE =
@@ -162,7 +206,78 @@ export function createPrivacyService(deps: PrivacyServiceDeps): PrivacyService {
       await deps.privacy.audit({ leadId: null, action: auditAction });
       throw denied;
     }
-    return { leadId: lead.id, email: lead.email };
+    return {
+      leadId: lead.id,
+      email: lead.email,
+      name: lead.name,
+      sandbox: lead.sandbox,
+    };
+  }
+
+  const resendCooldown: SharedCooldown =
+    deps.resendCooldown ??
+    createInMemoryCooldown(deps.resendCooldownMs, () => clock().getTime());
+  const sendBudget: AnyRateLimiter =
+    deps.sendBudget ??
+    createRateLimiter({
+      windowMs: MAGIC_LINK_SEND_BUDGET_WINDOW_MS,
+      maxRequests: deps.maxSendsPerHour,
+      maxTrackedKeys: 10_000,
+      clock: () => clock().getTime(),
+    });
+
+  /**
+   * #806: mint a fresh short-lived owner link and email the confirm URL.
+   * Never throws — the erasure request is already recorded, so a send
+   * failure answers `confirmationEmailSent: false` and the person can ask
+   * again (the duplicate path re-sends once the cooldown has passed).
+   * Logs carry reason codes only: never the token, URL, or address.
+   */
+  async function sendConfirmation(
+    auth: AuthContext,
+    requestId: string,
+  ): Promise<boolean> {
+    if (await resendCooldown.isActive(auth.email)) return false;
+    if (!(await sendBudget.check(auth.email)).allowed) return false;
+    let token: string;
+    try {
+      const issued = await deps.magicLinks.issue({
+        leadId: auth.leadId,
+        purpose: OWNER_LINK_PURPOSE,
+        ttlSeconds: deps.confirmLinkTtlSeconds,
+        clock,
+        ...(auth.sandbox ? { sandbox: true } : {}),
+      });
+      token = issued.token;
+    } catch (error) {
+      console.error(
+        `privacy: erase confirmation link issue failed (${sanitizeErrorMessage(error)})`,
+      );
+      return false;
+    }
+    let delivery;
+    try {
+      delivery = await deps.email.sendErasureConfirmation({
+        to: auth.email,
+        name: auth.name || undefined,
+        confirmUrl: `${deps.appBaseUrl}/privacy/confirm/${encodeURIComponent(requestId)}#token=${encodeURIComponent(token)}`,
+        expiresInHours: Math.max(1, Math.ceil(deps.confirmLinkTtlSeconds / 3_600)),
+      });
+    } catch (error) {
+      console.error(
+        `privacy: erase confirmation send threw (${sanitizeErrorMessage(error)})`,
+      );
+      return false;
+    }
+    if (delivery.sent) {
+      await resendCooldown.start(auth.email);
+      return true;
+    }
+    // Accepted but unconfirmed: the provider likely has it — start the
+    // cooldown so a retry doesn't duplicate, but report not-sent honestly.
+    if (delivery.acceptedByProvider) await resendCooldown.start(auth.email);
+    console.warn(`privacy: erase confirmation email not sent (${delivery.emailError})`);
+    return false;
   }
 
   return {
@@ -290,17 +405,20 @@ export function createPrivacyService(deps: PrivacyServiceDeps): PrivacyService {
         throw new Error('erasure request lookup failed', { cause: error });
       }
       // Idempotent: a pending request is returned as-is, never duplicated.
+      // #806: re-sends the confirmation at most once per cooldown.
       if (existing && existing.status === 'requested') {
+        const resent = await sendConfirmation(auth, existing.id);
         await deps.privacy.audit({
           leadId: auth.leadId,
           action: 'erase.request',
-          detail: 'duplicate-suppressed',
+          detail: `duplicate-suppressed,confirmation-email:${resent ? 'sent' : 'not-sent'}`,
         });
         return {
           requestId: existing.id,
           status: 'requested',
           consequences: ERASURE_CONSEQUENCES_DRAFT.statements,
           createdAt: existing.createdAt.toISOString(),
+          confirmationEmailSent: resent,
         };
       }
       let created;
@@ -312,15 +430,18 @@ export function createPrivacyService(deps: PrivacyServiceDeps): PrivacyService {
       } catch (error) {
         throw new Error('erasure request insert failed', { cause: error });
       }
+      const sent = await sendConfirmation(auth, created.id);
       await deps.privacy.audit({
         leadId: auth.leadId,
         action: 'erase.request',
+        detail: `confirmation-email:${sent ? 'sent' : 'not-sent'}`,
       });
       return {
         requestId: created.id,
         status: 'requested',
         consequences: ERASURE_CONSEQUENCES_DRAFT.statements,
         createdAt: created.createdAt.toISOString(),
+        confirmationEmailSent: sent,
       };
     },
 

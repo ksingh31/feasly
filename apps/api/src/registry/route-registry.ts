@@ -313,6 +313,18 @@ export const ROUTE_REGISTRY: readonly ApiRouteEntry[] = [
   },
   {
     method: 'GET',
+    path: '/api/v1/communities/{slug}/living',
+    auth: 'none',
+    permissions: [] as const,
+    rateLimit: '100/min per IP',
+    status: 'live',
+    summary:
+      'Living nearby for an established community (#777): nearest + counts ' +
+      'within 500 m / 1 km per amenity category, and public-tree cover. ' +
+      'Served from monthly-refreshed City open data; never calls a provider.',
+  },
+  {
+    method: 'GET',
     path: '/api/v1/city-data/freshness',
     auth: 'none',
     permissions: [] as const,
@@ -746,6 +758,32 @@ export const ROUTE_REGISTRY: readonly ApiRouteEntry[] = [
       '(no status change in LEAD_NEEDS_YOU_STALE_DAYS+ days) and won ' +
       'without a recorded contract, each sorted by score then age, plus ' +
       'status counts for the segmented filter.',
+  },
+  {
+    method: 'GET',
+    path: '/api/v1/builder/notifications/preferences',
+    auth: 'builder-session',
+    permissions: ['builder:leads:read'] as const,
+    rateLimit: '100/min per session',
+    status: 'live',
+    summary:
+      'Signed-in builder member reads their email notification preferences ' +
+      '(#725): new-lead email (default on), daily "Needs you" digest ' +
+      '(default off), billing email (default on, admins only), their org ' +
+      'role, and whether they may turn billing emails off.',
+  },
+  {
+    method: 'PUT',
+    path: '/api/v1/builder/notifications/preferences',
+    auth: 'builder-session',
+    permissions: ['builder:leads:read'] as const,
+    rateLimit: '100/min per session',
+    status: 'live',
+    summary:
+      'Signed-in builder member updates their email notification ' +
+      'preferences (#725, partial body). 409 LAST_ADMIN when the org\'s ' +
+      'last admin receiving billing emails turns them off; 403 while ' +
+      'viewing as a teammate.',
   },
   {
     method: 'PATCH',
@@ -1208,6 +1246,19 @@ export const ROUTE_REGISTRY: readonly ApiRouteEntry[] = [
     status: 'live',
     summary:
       'Manually trigger the community-stats refresh (neighbourhood/05). ' +
+      'Audit-logged.',
+  },
+  {
+    method: 'POST',
+    path: '/api/v1/admin/neighbourhood-data/{provider}/refresh',
+    auth: 'admin',
+    permissions: ['ops:manage'] as const,
+    rateLimit: '10/min per session',
+    status: 'live',
+    summary:
+      'Run one neighbourhood data provider refresh now (#773): ' +
+      'school-directory, school-designation, school-ratings, reviews, ' +
+      'amenities or commute. Keeps the previous data on failure. ' +
       'Audit-logged.',
   },
   {

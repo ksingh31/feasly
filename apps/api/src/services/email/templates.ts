@@ -322,6 +322,41 @@ ${fallbackLink(input.shareUrl)}
   return { subject, html: layout(ctx, 'An estimate was shared with you', body), text };
 }
 
+export interface ErasureConfirmationTemplateInput {
+  readonly name?: string;
+  /**
+   * `${appBaseUrl}/privacy/confirm/${requestId}#token=${token}` — minted by
+   * the privacy service. The token rides in the fragment so it never
+   * reaches a server log.
+   */
+  readonly confirmUrl: string;
+  /** Hours until the confirm link expires — from config, never hardcoded. */
+  readonly expiresInHours: number;
+}
+
+/**
+ * #806: step 2 of self-service erasure (owner decision on #706: deletion
+ * with email confirmation). Transactional — the person asked for it — so
+ * no unsubscribe footer. Nothing is deleted until the link is clicked and
+ * the landing page's button is pressed.
+ */
+export function renderErasureConfirmationEmail(
+  ctx: TemplateContext,
+  input: ErasureConfirmationTemplateInput,
+): RenderedEmail {
+  const greeting = input.name ? `Hi ${esc(input.name)},` : 'Hi there,';
+  const hours = `${input.expiresInHours} hour${input.expiresInHours === 1 ? '' : 's'}`;
+  const subject = `Confirm you want to delete your ${ctx.brandName} data`;
+  const body = `<p>${greeting}</p>
+<p>We got a request to delete the data ${esc(ctx.brandName)} holds about you. Nothing has been deleted yet.</p>
+<p>To go ahead, open this link and confirm. The link expires in ${hours}.</p>
+${ctaButton(input.confirmUrl, 'Review and confirm deletion')}
+${fallbackLink(input.confirmUrl)}
+<p style="font-size:13px;color:#8a8378;">Didn't ask for this? Ignore this email and your data stays as it is.</p>`;
+  const text = `${input.name ? `Hi ${input.name},` : 'Hi there,'}\n\nWe got a request to delete the data ${ctx.brandName} holds about you. Nothing has been deleted yet.\n\nTo go ahead, open this link and confirm (the link expires in ${hours}):\n${input.confirmUrl}\n\nDidn't ask for this? Ignore this email and your data stays as it is.\n\n— ${ctx.brandName}`;
+  return { subject, html: layout(ctx, 'Confirm your data deletion', body), text };
+}
+
 export interface CallbackTeamTemplateInput {
   readonly leadName: string;
   readonly leadEmail: string;
@@ -745,4 +780,136 @@ ${fallbackLink(recordUrl)}`;
     `Only an admin can record the signed contract. Open the lead to record it and close out the deal.\n\n` +
     `Record contract: ${recordUrl}\n\n— ${ctx.brandName}`;
   return { subject, html: layout(ctx, 'Needs recording', body), text };
+}
+
+/* ── Issue #725: builder new-lead email + daily "Needs you" digest ───────
+ *
+ * Transactional org notices to builder team members. Privacy (owner
+ * decision 2026-11-15): the lead's FIRST name, community and project type
+ * plus a deep link to the lead in the portal — never the homeowner's email,
+ * phone or full name, and nothing identifying in the subject line. No
+ * figures. No unsubscribe footer (account notice); the member turns these
+ * off in their notification preferences, which the footer line says.
+ */
+
+const BUILDER_PREFS_NOTE =
+  'You get this email because it is turned on in your notification preferences in the builder portal. You can turn it off there.';
+
+export interface BuilderNewLeadTemplateInput {
+  /** Homeowner first name only. */
+  readonly firstName: string;
+  /** Calgary community name (City-assessed), or "Calgary" when unknown. */
+  readonly community: string;
+  /** Display project type, e.g. "New build" or "Renovation". */
+  readonly projectType: string;
+  /** Builder org display name. */
+  readonly builderName: string;
+  /** Lead id — deep-links the portal's lead drawer. */
+  readonly leadId: string;
+}
+
+/** Portal deep link that opens the lead drawer on this lead. */
+export function builderLeadUrl(ctx: TemplateContext, leadId: string): string {
+  return `${ctx.appBaseUrl}/builder?open=${encodeURIComponent(leadId)}`;
+}
+
+export function renderBuilderNewLeadEmail(
+  ctx: TemplateContext,
+  input: BuilderNewLeadTemplateInput,
+): RenderedEmail {
+  const leadUrl = builderLeadUrl(ctx, input.leadId);
+  // Subject: community only — no name or contact details (privacy).
+  const subject = `New lead in ${input.community}`;
+  const body = `<p>Hi there,</p>
+<p>${esc(input.builderName)} has a new lead: <strong>${esc(input.firstName)}</strong>, ${esc(input.projectType.toLowerCase())} in <strong>${esc(input.community)}</strong>.</p>
+<p>Open the lead in the portal to see their details and get in touch.</p>
+${ctaButton(leadUrl, 'Open lead')}
+${fallbackLink(leadUrl)}
+<p style="font-size:13px;color:#8a8378;">${esc(BUILDER_PREFS_NOTE)}</p>`;
+  const text =
+    `Hi there,\n\n${input.builderName} has a new lead: ${input.firstName}, ` +
+    `${input.projectType.toLowerCase()} in ${input.community}.\n\n` +
+    `Open the lead in the portal to see their details and get in touch.\n\n` +
+    `Open lead: ${leadUrl}\n\n${BUILDER_PREFS_NOTE}\n\n— ${ctx.brandName}`;
+  return { subject, html: layout(ctx, 'New lead', body), text };
+}
+
+export interface BuilderDigestLeadLine {
+  /** Homeowner first name only. */
+  readonly firstName: string;
+  /** Whole days the lead has been waiting in this group. */
+  readonly waitingDays: number;
+  readonly leadId: string;
+}
+
+export interface BuilderNeedsYouDigestTemplateInput {
+  readonly builderName: string;
+  readonly uncontacted: readonly BuilderDigestLeadLine[];
+  readonly stale: readonly BuilderDigestLeadLine[];
+  readonly wonWithoutContract: readonly BuilderDigestLeadLine[];
+  /** The staleness threshold the feed used (server config). */
+  readonly staleAfterDays: number;
+  /** Max lines listed per group; the rest are summarized as "and N more". */
+  readonly maxPerGroup: number;
+}
+
+function waitingLabel(days: number): string {
+  if (days <= 0) return 'today';
+  return days === 1 ? '1 day' : `${days} days`;
+}
+
+export function renderBuilderNeedsYouDigestEmail(
+  ctx: TemplateContext,
+  input: BuilderNeedsYouDigestTemplateInput,
+): RenderedEmail {
+  const portalUrl = `${ctx.appBaseUrl}/builder`;
+  const groups = [
+    { title: 'Not contacted yet', lines: input.uncontacted },
+    {
+      title: `No update in ${input.staleAfterDays}+ days`,
+      lines: input.stale,
+    },
+    { title: 'Won, contract not recorded', lines: input.wonWithoutContract },
+  ].filter((group) => group.lines.length > 0);
+  const total =
+    input.uncontacted.length + input.stale.length + input.wonWithoutContract.length;
+  const subject =
+    total === 1 ? '1 lead needs you today' : `${total} leads need you today`;
+
+  const htmlGroups = groups
+    .map((group) => {
+      const shown = group.lines.slice(0, input.maxPerGroup);
+      const more = group.lines.length - shown.length;
+      const items = shown
+        .map(
+          (line) =>
+            `<li><a href="${esc(builderLeadUrl(ctx, line.leadId))}" style="color:#b08d3e;">${esc(line.firstName)}</a> &middot; waiting ${esc(waitingLabel(line.waitingDays))}</li>`,
+        )
+        .join('');
+      const moreLine = more > 0 ? `<li>and ${more} more</li>` : '';
+      return `<p style="margin:16px 0 4px;"><strong>${esc(group.title)} (${group.lines.length})</strong></p><ul style="margin:0;padding-left:20px;">${items}${moreLine}</ul>`;
+    })
+    .join('\n');
+  const textGroups = groups
+    .map((group) => {
+      const shown = group.lines.slice(0, input.maxPerGroup);
+      const more = group.lines.length - shown.length;
+      const lines = shown.map(
+        (line) => `- ${line.firstName} (waiting ${waitingLabel(line.waitingDays)}): ${builderLeadUrl(ctx, line.leadId)}`,
+      );
+      if (more > 0) lines.push(`- and ${more} more`);
+      return `${group.title} (${group.lines.length})\n${lines.join('\n')}`;
+    })
+    .join('\n\n');
+
+  const body = `<p>Hi there,</p>
+<p>Here are the ${esc(input.builderName)} leads that need you today.</p>
+${htmlGroups}
+${ctaButton(portalUrl, 'Open your leads')}
+${fallbackLink(portalUrl)}
+<p style="font-size:13px;color:#8a8378;">${esc(BUILDER_PREFS_NOTE)}</p>`;
+  const text =
+    `Hi there,\n\nHere are the ${input.builderName} leads that need you today.\n\n` +
+    `${textGroups}\n\nOpen your leads: ${portalUrl}\n\n${BUILDER_PREFS_NOTE}\n\n— ${ctx.brandName}`;
+  return { subject, html: layout(ctx, 'Leads that need you', body), text };
 }

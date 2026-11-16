@@ -24,6 +24,16 @@ describe('loadConfig', () => {
         dedupWindowDays: 90,
         needsYouStaleDays: 7,
         needsYouScanLimit: 500,
+        minSubmitMs: 2_000,
+      },
+      botChallenge: {
+        enabled: false,
+        siteKey: '',
+        secretKey: '',
+        verifyUrl: 'https://challenges.cloudflare.com/turnstile/v0/siteverify',
+        verifyTimeoutMs: 5_000,
+        windowMs: 86_400_000,
+        verifyRateLimit: { windowMs: 3_600_000, maxRequests: 10 },
       },
       estimate: {
         rateLimit: { windowMs: 3_600_000, maxRequests: 20 },
@@ -47,6 +57,8 @@ describe('loadConfig', () => {
         magicLinkReissueCooldownMs: 60_000,
         // P1-6: max magic-link sends per email per hour (default 5).
         magicLinkMaxSendsPerHour: 5,
+        // #806: erase-confirmation link lifetime (default 24 h).
+        eraseConfirmLinkTtlSeconds: 86_400,
         adminApiKey: undefined,
         adminSessionTtlSeconds: 43_200,
         adminSessionIdleTimeoutSeconds: 3_600,
@@ -152,7 +164,23 @@ describe('loadConfig', () => {
         httpTimeoutMs: 3_000,
       },
       // #687: zoning rules catalogue city + public cache lifetime.
-      zoning: { city: 'calgary', cacheMaxAgeSeconds: 3_600 },
+      zoning: {
+        city: 'calgary',
+        cacheMaxAgeSeconds: 3_600,
+        // #757: daily City-source watcher (no token = detect, file no issue).
+        freshnessCacheTtlMs: 300_000,
+        watch: {
+          enabled: true,
+          socrataBaseUrl: 'https://data.calgary.ca',
+          landUseDatasetId: 'qe6k-p9nh',
+          bylawPageUrl:
+            'https://www.calgary.ca/pda/pd/calgary-land-use-bylaw-1p2007/calgary-land-use-bylaw-1p2007.html',
+          httpTimeoutMs: 15_000,
+          githubRepo: 'ksingh31/feasly',
+          githubToken: '',
+          githubApiUrl: 'https://api.github.com',
+        },
+      },
       // #888: builder partner list caches (in-memory TTL + HTTP max-age).
       partners: { cacheTtlMs: 300_000, cacheMaxAgeSeconds: 300 },
       // trust-strip/01: landing "Refreshed <Month Year>" from the Socrata
@@ -207,10 +235,55 @@ describe('loadConfig', () => {
         enabled: false,
         delayHours: 72,
       },
+      builderNotifications: {
+        enabled: true,
+        maxAttempts: 5,
+        retryWindowHours: 24,
+        claimLeaseMinutes: 10,
+        digestLocalHour: 7,
+        digestTimeZone: 'America/Edmonton',
+      },
       communityStatsRefresh: {
         minAssessmentCount: 10,
         alertAfterConsecutiveFailures: 2,
         pruneMinRows: 100,
+      },
+      neighbourhoodData: {
+        providers: {
+          schoolDirectory: 'calgary-open-data',
+          schoolDesignation: 'none',
+          schoolRatings: 'none',
+          reviews: 'none',
+          amenities: 'calgary-open-data',
+          commute: 'straight-line',
+        },
+        socrataBaseUrl: 'https://data.calgary.ca',
+        schoolsDatasetId: 'fd9t-tdn2',
+        amenityCategories: [
+          expect.objectContaining({ key: 'parks', datasetId: 'kami-qbfh' }),
+          expect.objectContaining({ key: 'playgrounds', datasetId: 'bdu9-amk8' }),
+          expect.objectContaining({ key: 'pathways', datasetId: 'qndb-27qm' }),
+          expect.objectContaining({ key: 'rec-centres', datasetId: 'hxfu-6d96' }),
+          expect.objectContaining({ key: 'pools', datasetId: 'hxfu-6d96' }),
+          expect.objectContaining({ key: 'libraries', datasetId: 'x34e-bcjz', where: "type='Library'" }),
+          expect.objectContaining({ key: 'off-leash', datasetId: 'enr4-crti' }),
+        ],
+        publicTreesDatasetId: 'tfs4-3wwa',
+        communityBoundariesDatasetId: 'surr-xmvs',
+        treeCoverThresholds: [11, 16],
+        amenitySearchRadiusM: 3_000,
+        amenityCountRadiiM: [500, 1_000],
+        communityMetricsTtlMs: 86_400_000,
+        communityPointsDatasetId: 'j9ps-fyst',
+        communityClass: 'Residential',
+        communityStructures: ['INNER CITY', '1950s', '1960s/1970s'],
+        commuteDestination: { name: 'Downtown', lat: 51.0453, lng: -114.0581 },
+        httpTimeoutMs: 15_000,
+        maxRows: 50_000,
+        refreshDayOfMonth: 1,
+        alertAfterFailureDays: 3,
+        lotRadiusM: 1_000,
+        lotMetricsTtlMs: 2_592_000_000,
       },
       backupCheck: {
         enabled: false,
@@ -283,6 +356,32 @@ describe('loadConfig', () => {
   it('reads the waitlist consent version from WAITLIST_CONSENT_VERSION (#740)', () => {
     const config = loadConfig({ ...VALID_ENV, WAITLIST_CONSENT_VERSION: ' waitlist-2027-01-01 ' });
     expect(config.waitlist.consentVersion).toBe('waitlist-2027-01-01');
+  });
+
+  it('reads LEAD_MIN_SUBMIT_MS (#788), allows 0 and rejects negatives', () => {
+    expect(loadConfig({ ...VALID_ENV, LEAD_MIN_SUBMIT_MS: '4500' }).lead.minSubmitMs).toBe(4_500);
+    expect(loadConfig({ ...VALID_ENV, LEAD_MIN_SUBMIT_MS: '0' }).lead.minSubmitMs).toBe(0);
+    expect(() => loadConfig({ ...VALID_ENV, LEAD_MIN_SUBMIT_MS: '-1' })).toThrow(/LEAD_MIN_SUBMIT_MS/);
+  });
+
+  it('enables the bot challenge (#788) only when both the Turnstile site key and secret are set', () => {
+    expect(loadConfig({ ...VALID_ENV, TURNSTILE_SITE_KEY: 'site' }).botChallenge.enabled).toBe(false);
+    expect(loadConfig({ ...VALID_ENV, TURNSTILE_SECRET_KEY: 'secret' }).botChallenge.enabled).toBe(false);
+    const config = loadConfig({
+      ...VALID_ENV,
+      TURNSTILE_SITE_KEY: 'site',
+      TURNSTILE_SECRET_KEY: 'secret',
+      BOT_CHALLENGE_WINDOW_MS: '3600000',
+      BOT_CHALLENGE_VERIFY_MAX_ATTEMPTS: '5',
+      BOT_CHALLENGE_VERIFY_WINDOW_MS: '600000',
+    });
+    expect(config.botChallenge).toMatchObject({
+      enabled: true,
+      siteKey: 'site',
+      secretKey: 'secret',
+      windowMs: 3_600_000,
+      verifyRateLimit: { windowMs: 600_000, maxRequests: 5 },
+    });
   });
 
   it('reads the reno draft-data flag from COST_ENGINE_ALLOW_DRAFT', () => {
@@ -410,6 +509,16 @@ describe('loadConfig', () => {
     expect(() =>
       loadConfig({ ...VALID_ENV, BILLING_SETTLEMENT_THRESHOLD_HOURS: '0' }),
     ).toThrow(/BILLING_SETTLEMENT_THRESHOLD_HOURS/);
+  });
+
+  it('#725: BUILDER_DIGEST_TIMEZONE must be a real IANA zone', () => {
+    expect(
+      loadConfig({ ...VALID_ENV, BUILDER_DIGEST_TIMEZONE: 'America/Toronto' })
+        .builderNotifications.digestTimeZone,
+    ).toBe('America/Toronto');
+    expect(() =>
+      loadConfig({ ...VALID_ENV, BUILDER_DIGEST_TIMEZONE: 'America/Edmonon' }),
+    ).toThrow(/BUILDER_DIGEST_TIMEZONE/);
   });
 
   it('reads BILLING_STATEMENT_DESCRIPTOR (#716) and enforces Stripe descriptor rules', () => {

@@ -28,6 +28,14 @@ export interface LeadRequest {
    */
   readonly website?: string;
   /**
+   * Invisible bot protection (#788): milliseconds between the form being
+   * rendered and submitted, measured client-side. The API quarantines
+   * submissions faster than its configured minimum the same way as the
+   * honeypot (normal 201, no signal). The threshold lives in API config,
+   * never in the client. Optional — agent-API callers may omit it.
+   */
+  readonly elapsedMs?: number;
+  /**
    * Agent-API consent attestation (#738). REQUIRED when the request carries
    * an API key (REST Bearer key or MCP `submit_lead`): `true` attests the
    * person asked to be contacted. Ignored for web/embed submissions.
