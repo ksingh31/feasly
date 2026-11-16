@@ -320,6 +320,17 @@ describe('loadConfig', () => {
           models: ['openai/gpt-oss-120b'],
         },
       },
+      communityNarratives: {
+        enabled: true,
+        schedule: '0 0 9 * * *',
+        runDay: 'last',
+        retryDays: 3,
+        models: ['gemini-3.8-flash'],
+        promptVersion: 'community-v1',
+        maxPerRun: 400,
+        adminBudgetMs: 60_000,
+        tickBudgetMs: 1_200_000,
+      },
       embed: {
         relayCodeTtlSeconds: 600,
         relayResendCooldownSeconds: 60,
@@ -810,6 +821,26 @@ describe('parseNarrativeModels (BE-9)', () => {
   it('throws on an empty list so a misconfigured deployment fails fast', () => {
     expect(() => parseNarrativeModels('')).toThrow(/NARRATIVE_MODELS/);
     expect(() => parseNarrativeModels(' , ')).toThrow(/NARRATIVE_MODELS/);
+  });
+
+  it('reads the community-narrative overrides (#759)', () => {
+    const config = loadConfig({
+      ...VALID_ENV,
+      NARRATIVE_MODELS: 'm1',
+      COMMUNITY_NARRATIVE_MODELS: 'c1, c2',
+      COMMUNITY_NARRATIVE_RUN_DAY: '25',
+      COMMUNITY_NARRATIVE_PROMPT_VERSION: 'community-v2',
+      COMMUNITY_NARRATIVE_ENABLED: 'false',
+    });
+    expect(config.communityNarratives).toMatchObject({
+      enabled: false,
+      runDay: 25,
+      models: ['c1', 'c2'],
+      promptVersion: 'community-v2',
+    });
+    // Empty override falls back to NARRATIVE_MODELS.
+    expect(loadConfig({ ...VALID_ENV, NARRATIVE_MODELS: 'm1' }).communityNarratives.models).toEqual(['m1']);
+    expect(() => loadConfig({ ...VALID_ENV, COMMUNITY_NARRATIVE_RUN_DAY: '31' })).toThrow();
   });
 
   it('reads a custom NARRATIVE_MODELS and NARRATIVE_TIMEOUT_MS from env', () => {

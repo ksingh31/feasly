@@ -333,3 +333,95 @@ export function validateNarrative(
   }
   return { ok: violations.length === 0, violations };
 }
+
+// ---------------------------------------------------------------------------
+// Community narratives (#759)
+//
+// Owner decision 2026-11-15: the LLM writes ONE neighbourhood narrative per
+// community per month; every report in that community reuses it. The
+// estimate-specific sentence (this home's size, finish, and range) is a
+// deterministic template filled from engine output — no LLM involved.
+// ---------------------------------------------------------------------------
+
+/**
+ * Build the monthly community-narrative prompt. Same neighbourhood-only
+ * rules as the per-estimate prompt; there is no estimate at all, so the only
+ * $-figure the model ever sees is the published community average.
+ */
+export function buildCommunityNarrativePrompt(
+  communityFacts: CommunityFacts,
+): NarrativePrompt {
+  const cityFacts: CityFacts = {
+    city: 'Calgary',
+    province: 'Alberta',
+    community: communityFacts.community,
+  };
+  const user = [
+    `Project: New home build in ${communityFacts.community}, ${cityFacts.city}`,
+    ...neighbourhoodLines(communityFacts),
+  ].join('\n');
+  return {
+    system: buildSystemPrompt('new_build', cityFacts, communityFacts),
+    user,
+  };
+}
+
+/**
+ * Validate a community narrative: the only $-figure it may contain is the
+ * published community average assessed value (copied exactly). Any other
+ * figure is an invented number and fails validation.
+ */
+export function validateCommunityNarrative(
+  narrative: string,
+  communityFacts: CommunityFacts,
+): NarrativeValidation {
+  const violations: string[] = [];
+  const allowed = new Set<string>();
+  if (communityFacts.avgSingleFamilyAssessedValue != null) {
+    allowed.add(formatCadWhole(communityFacts.avgSingleFamilyAssessedValue));
+  }
+  for (const figure of narrative.match(FIGURE_PATTERN) ?? []) {
+    if (!allowed.has(figure)) {
+      violations.push(`Invented dollar figure not from the community stats: "${figure}"`);
+    }
+  }
+  return { ok: violations.length === 0, violations };
+}
+
+/** Optional scope details the estimate summary template may mention. */
+export interface EstimateSummaryDetails {
+  /** Finished floor area in sqft (new builds). */
+  readonly sqft?: number | null;
+  /** Finish tier label, e.g. "standard". */
+  readonly finishTier?: string | null;
+}
+
+/**
+ * Deterministic estimate-specific sentence for the report narrative (#759).
+ * Every figure is copied from the engine output (so it always passes
+ * `validateNarrative`), formatted the same way as everywhere else.
+ */
+export function buildEstimateSummary(
+  estimate: EstimateOutput,
+  details: EstimateSummaryDetails = {},
+): string {
+  if ('totals' in estimate) {
+    const build = estimate.totals.build;
+    const size =
+      details.sqft != null && details.sqft > 0
+        ? `${formatWhole(details.sqft)} sq ft `
+        : '';
+    const finish = details.finishTier ? ` with a ${details.finishTier} finish` : '';
+    return (
+      `For this ${size}new home${finish}, our cost model puts the build cost ` +
+      `between ${formatCadWhole(build.low)} and ${formatCadWhole(build.high)}, ` +
+      `with a typical figure of ${formatCadWhole(build.base)}.`
+    );
+  }
+  const total = estimate.total;
+  return (
+    `For this renovation, our cost model puts the cost between ` +
+    `${formatCadWhole(total.low)} and ${formatCadWhole(total.high)}, ` +
+    `with a typical figure of ${formatCadWhole(total.base)}.`
+  );
+}

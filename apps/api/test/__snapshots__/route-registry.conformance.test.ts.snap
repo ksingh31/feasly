@@ -76,6 +76,10 @@ exports[`route registry > exhaustive role x route permission matrix (auth/04 acc
     "admin",
     "viewer",
   ],
+  "GET /api/v1/admin/community-narratives": [
+    "super_admin",
+    "admin",
+  ],
   "GET /api/v1/admin/disputes": [
     "super_admin",
     "admin",
@@ -458,6 +462,10 @@ exports[`route registry > exhaustive role x route permission matrix (auth/04 acc
     "admin",
   ],
   "POST /api/v1/admin/builders": [
+    "super_admin",
+    "admin",
+  ],
+  "POST /api/v1/admin/community-narratives/regenerate": [
     "super_admin",
     "admin",
   ],
