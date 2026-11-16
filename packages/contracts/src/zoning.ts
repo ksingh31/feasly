@@ -159,6 +159,23 @@ export interface ZoningDistrict {
   readonly note?: string;
 }
 
+/**
+ * How current the served catalogue is against the City's own sources
+ * (#757). A daily watcher checks the Land Use Districts dataset and the
+ * Land Use Bylaw page; when the City changed something after the
+ * catalogue's `effectiveDate`, `stale` is true and the panel shows a
+ * "rules recently changed — confirm with the City" note until the
+ * catalogue is updated.
+ */
+export interface ZoningCatalogueFreshness {
+  /** ISO date the catalogue's rules are as of (its `effectiveDate`). */
+  readonly rulesAsOf: string;
+  /** True when the City changed its rules or districts after `rulesAsOf`. */
+  readonly stale: boolean;
+  /** ISO date of the latest City change the watcher detected; null when none. */
+  readonly latestChangeDetectedOn: string | null;
+}
+
 /** `GET /api/v1/zoning/districts` — the active catalogue for the city. */
 export interface ZoningDistrictsResponse {
   readonly city: string;
@@ -167,4 +184,9 @@ export interface ZoningDistrictsResponse {
   readonly bylawVersion: string;
   readonly sourceUrl: string;
   readonly districts: readonly ZoningDistrict[];
+  /**
+   * Catalogue freshness (#757). Present on API responses; absent when the
+   * catalogue is projected without the watcher (pure resolver output).
+   */
+  readonly freshness?: ZoningCatalogueFreshness;
 }

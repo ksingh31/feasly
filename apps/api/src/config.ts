@@ -493,6 +493,33 @@ const EnvSchema = z.object({
   ZONING_CITY: z.string().trim().toLowerCase().min(1).default('calgary'),
   // Cache-Control max-age for the catalogue (static per deploy; 1h default).
   ZONING_CACHE_MAX_AGE_S: z.coerce.number().int().nonnegative().default(3_600),
+  // --- Zoning source watch (#757) ---
+  // Daily timer: compares the City's Land Use Districts dataset metadata and
+  // the Land Use Bylaw page with what it last saw; on a change it refreshes
+  // cached districts and files one "Zoning catalogue may be out of date"
+  // issue. Free sources only (City open data + GitHub REST).
+  ZONING_WATCH_ENABLED: z
+    .enum(['true', 'false'])
+    .default('true')
+    .transform((value) => value === 'true'),
+  ZONING_BYLAW_WATCH_URL: z
+    .string()
+    .url()
+    .default(
+      'https://www.calgary.ca/pda/pd/calgary-land-use-bylaw-1p2007/calgary-land-use-bylaw-1p2007.html',
+    ),
+  ZONING_WATCH_HTTP_TIMEOUT_MS: z.coerce.number().int().positive().default(15_000),
+  // How long GET /zoning/districts reuses the watch state before re-reading it.
+  ZONING_FRESHNESS_CACHE_TTL_MS: z.coerce.number().int().nonnegative().default(300_000),
+  // Where the "catalogue may be out of date" issue is filed. The token is a
+  // Key Vault reference app setting (issues:write on this repo only); empty
+  // = detect and record, but file no issue (logged).
+  ZONING_WATCH_GITHUB_REPO: z
+    .string()
+    .regex(/^[\w.-]+\/[\w.-]+$/)
+    .default('ksingh31/feasly'),
+  ZONING_WATCH_GITHUB_TOKEN: z.string().default(''),
+  ZONING_WATCH_GITHUB_API_URL: z.string().url().default('https://api.github.com'),
   // --- Builder partner disclosure (#888) ---
   // In-memory TTL for the public active-partner list (admin writes on the
   // same instance invalidate it at once; other instances within this TTL).
@@ -1020,6 +1047,28 @@ export interface ZoningConfig {
   readonly city: string;
   /** Cache-Control max-age (seconds) on the public catalogue response. */
   readonly cacheMaxAgeSeconds: number;
+  /** In-memory TTL (ms) for the watch state read by the catalogue route. */
+  readonly freshnessCacheTtlMs: number;
+  /** #757: daily City-source watcher. */
+  readonly watch: ZoningWatchConfig;
+}
+
+/** Zoning source watch config (#757). */
+export interface ZoningWatchConfig {
+  readonly enabled: boolean;
+  /** Socrata host of the Land Use Districts dataset. */
+  readonly socrataBaseUrl: string;
+  /** Land Use Districts dataset id (same as landUse.datasetId). */
+  readonly landUseDatasetId: string;
+  /** The City's Land Use Bylaw page, watched for amendments. */
+  readonly bylawPageUrl: string;
+  readonly httpTimeoutMs: number;
+  /** `owner/repo` the out-of-date issue is filed in. */
+  readonly githubRepo: string;
+  /** GitHub token (Key Vault reference); '' = file no issue. */
+  readonly githubToken: string;
+  /** GitHub REST base URL. */
+  readonly githubApiUrl: string;
 }
 
 /**
@@ -1939,6 +1988,17 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): ApiConfig {
     zoning: {
       city: e.ZONING_CITY,
       cacheMaxAgeSeconds: e.ZONING_CACHE_MAX_AGE_S,
+      freshnessCacheTtlMs: e.ZONING_FRESHNESS_CACHE_TTL_MS,
+      watch: {
+        enabled: e.ZONING_WATCH_ENABLED,
+        socrataBaseUrl: e.SOCRATA_BASE_URL,
+        landUseDatasetId: e.LAND_USE_DATASET_ID,
+        bylawPageUrl: e.ZONING_BYLAW_WATCH_URL,
+        httpTimeoutMs: e.ZONING_WATCH_HTTP_TIMEOUT_MS,
+        githubRepo: e.ZONING_WATCH_GITHUB_REPO,
+        githubToken: e.ZONING_WATCH_GITHUB_TOKEN,
+        githubApiUrl: e.ZONING_WATCH_GITHUB_API_URL,
+      },
     },
     partners: {
       cacheTtlMs: e.PARTNERS_CACHE_TTL_MS,
