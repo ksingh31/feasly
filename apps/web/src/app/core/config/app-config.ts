@@ -327,6 +327,8 @@ export interface BuilderCopy {
   /** Builder shell v2 (#502, portal UI kit §4). */
   shellNavLabel: string;
   shellTabsLabel: string;
+  /** #864: screen-reader text for the Leads unread badge. {count} = leads. */
+  shellLeadsUnreadLabel: string;
   shellNavMoney: string;
   shellMoneyNavLabel: string;
   shellAccountMenuLabel: string;
@@ -518,6 +520,8 @@ export interface BuilderSettingsCopy {
   tabProfile: string;
   tabEmbed: string;
   tabHelp: string;
+  /** #864: Notifications tab. */
+  tabNotifications: string;
   /** Profile tab. */
   profileLoading: string;
   profileLoadError: string;
@@ -596,6 +600,24 @@ export interface BuilderSettingsCopy {
   helpResponseTime: string;
   helpLinksHeading: string;
   helpLinks: BuilderHelpLink[];
+  /** Notifications tab (#864). */
+  notificationsHeading: string;
+  notificationsIntro: string;
+  notificationsLoading: string;
+  notificationsLoadError: string;
+  notificationsViewAsNote: string;
+  notifyNewLeadLabel: string;
+  notifyNewLeadHint: string;
+  notifyDigestLabel: string;
+  notifyDigestHint: string;
+  notifyBillingLabel: string;
+  notifyBillingHint: string;
+  /** Shown to members in place of the billing toggle. */
+  notifyBillingMemberNote: string;
+  /** Shown when the last billing admin can't turn billing emails off. */
+  notifyBillingLockedNote: string;
+  notificationsSavedToast: string;
+  notificationsSaveError: string;
 }
 
 /**

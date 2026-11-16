@@ -4,6 +4,8 @@ import { catchError, timeout } from 'rxjs';
 import type { Observable } from 'rxjs';
 import type {
   BuilderEmbedResponse,
+  BuilderNotificationPreferencesResponse,
+  BuilderNotificationPreferencesUpdateBody,
   BuilderOriginRequestBody,
   BuilderOriginRequestResponse,
   BuilderProfileResponse,
@@ -19,6 +21,9 @@ import { toApiError } from '../../core/api/api-error';
  * - `GET /api/v1/builder/embed` — install snippet, read-only allowed
  *   origins with a per-origin install check.
  * - `POST /api/v1/builder/embed/origin-requests` — "Request a change".
+ * - `GET/PUT /api/v1/builder/notifications/preferences` — the signed-in
+ *   member's email preferences (#864; API in #725). `PUT` → 409
+ *   LAST_ADMIN for the last billing admin, 403 while viewing as a teammate.
  *
  * Org-scoped server-side (the session's builder); writes are owner-only
  * and refused while viewing as a teammate — the UI mirrors `canEdit`.
@@ -61,6 +66,27 @@ export class BuilderSettingsApiService {
     return this.call(
       this.http.post<BuilderOriginRequestResponse>(
         `${this.base}/embed/origin-requests`,
+        body,
+        { withCredentials: true },
+      ),
+    );
+  }
+
+  getNotificationPreferences(): Observable<BuilderNotificationPreferencesResponse> {
+    return this.call(
+      this.http.get<BuilderNotificationPreferencesResponse>(
+        `${this.base}/notifications/preferences`,
+        { withCredentials: true },
+      ),
+    );
+  }
+
+  updateNotificationPreferences(
+    body: BuilderNotificationPreferencesUpdateBody,
+  ): Observable<BuilderNotificationPreferencesResponse> {
+    return this.call(
+      this.http.put<BuilderNotificationPreferencesResponse>(
+        `${this.base}/notifications/preferences`,
         body,
         { withCredentials: true },
       ),

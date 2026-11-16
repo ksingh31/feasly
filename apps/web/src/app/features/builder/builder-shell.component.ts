@@ -23,9 +23,11 @@ import { BrandMarkComponent } from '../../shared/components/brand-mark';
 import { ViewAsBannerComponent } from '../../shared/view-as-banner';
 import {
   ExitBuilderViewAs,
+  LoadBuilderLeads,
   LoadBuilderMemberships,
   LogoutBuilder,
 } from './builder.actions';
+import { BuilderLeadsSeenState, MarkBuilderLeadsSeen } from './builder-leads-seen.state';
 import { BuilderState } from './builder.state';
 import { BuilderBillingState } from './builder-billing.state';
 import { injectCardModal } from './builder-card-modal.component';
@@ -45,6 +47,12 @@ export function isMoneyUrl(url: string): boolean {
   return MONEY_PATHS.some((p) => path === p || path.startsWith(`${p}/`));
 }
 
+/** Whether a router URL is the Leads home (`/builder`, query/hash ignored). */
+export function isLeadsUrl(url: string): boolean {
+  const path = url.split(/[?#]/)[0].replace(/\/+$/, '');
+  return path === '/builder';
+}
+
 /**
  * Builder shell v2 (#502, docs/design/portal-ui-kit.md §4): layout for the
  * guarded `/builder` route group.
@@ -56,6 +64,9 @@ export function isMoneyUrl(url: string): boolean {
  * - Below 768px the section nav moves to a fixed bottom tab bar.
  * - "Record contract" is not a nav item: it is recorded from a won lead's
  *   drawer (#529); the old page redirects there.
+ * - Leads carries an unread badge (#864): leads that arrived since this
+ *   browser's last visit to Leads for the org. Entering or leaving Leads
+ *   marks everything up to that moment as seen (BuilderLeadsSeenState).
  * - A failed-card danger strip persists across every shell page (admins —
  *   billing is admin-only backend-side) until the failed invoice resolves.
  *
@@ -136,6 +147,20 @@ export class BuilderShellComponent {
   /** Money section is active (top nav, tabs, sub-nav). */
   protected readonly inMoney = computed(() => isMoneyUrl(this.url()));
 
+  /** Leads home is active. */
+  protected readonly inLeads = computed(() => isLeadsUrl(this.url()));
+
+  private readonly activeBuilderId = this.store.selectSignal(BuilderState.activeBuilderId);
+  private readonly leadsUnread = this.store.selectSignal(BuilderLeadsSeenState.unreadCount);
+
+  /** Unread badge count; 0 (hidden) while on Leads. */
+  protected readonly leadsBadge = computed(() => (this.inLeads() ? 0 : this.leadsUnread()));
+
+  /** Screen-reader text for the badge. */
+  protected readonly leadsBadgeLabel = computed(() =>
+    this.copy.shellLeadsUnreadLabel.replace('{count}', String(this.leadsBadge())),
+  );
+
   /** Account menu open state. */
   protected readonly accountOpen = signal(false);
 
@@ -164,9 +189,26 @@ export class BuilderShellComponent {
         takeUntilDestroyed(this.destroyRef),
       )
       .subscribe((event) => {
+        const wasInLeads = this.inLeads();
         this.url.set((event as NavigationEnd).urlAfterRedirects);
         this.accountOpen.set(false);
+        // Entering Leads clears the badge; leaving it marks leads that
+        // arrived during the visit as seen too.
+        if (wasInLeads || this.inLeads()) this.markLeadsSeen();
       });
+    if (this.inLeads()) {
+      this.markLeadsSeen();
+    } else if (
+      this.store.selectSnapshot(BuilderState.leadsStatus) === 'idle' &&
+      this.activeBuilderId()
+    ) {
+      // Badge data off the Leads page (the lead list is memory-only, so
+      // after a reload elsewhere it isn't loaded yet). Leads loads its own.
+      this.store
+        .dispatch(new LoadBuilderLeads())
+        .pipe(takeUntilDestroyed(this.destroyRef))
+        .subscribe();
+    }
     // Current org always visible (AC1): `/me` has no org name, so after a
     // reload resolve it from the memberships list.
     if (!this.activeOrgName() && this.session()?.builderId) {
@@ -182,6 +224,12 @@ export class BuilderShellComponent {
         .pipe(takeUntilDestroyed(this.destroyRef))
         .subscribe();
     }
+  }
+
+  private markLeadsSeen(): void {
+    const builderId = this.activeBuilderId();
+    if (!builderId) return;
+    this.store.dispatch(new MarkBuilderLeadsSeen(builderId, new Date().toISOString()));
   }
 
   protected toggleAccount(): void {

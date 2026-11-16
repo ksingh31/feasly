@@ -18,7 +18,11 @@ import {
 import { ActivatedRoute, Router, RouterLink } from '@angular/router';
 import { Store } from '@ngxs/store';
 import { startWith } from 'rxjs';
-import type { BuilderEmbedOriginStatus, BuilderProfile } from '@feasly/contracts';
+import type {
+  BuilderEmbedOriginStatus,
+  BuilderNotificationPreferences,
+  BuilderProfile,
+} from '@feasly/contracts';
 import {
   ErrorStateComponent,
   KitDatePipe,
@@ -39,7 +43,9 @@ import {
   BuilderSettingsState,
   ClearBuilderSettingsErrors,
   LoadBuilderEmbed,
+  LoadBuilderNotificationPreferences,
   LoadBuilderProfile,
+  SaveBuilderNotificationPreferences,
   SaveBuilderProfile,
 } from './builder-settings.state';
 import {
@@ -48,9 +54,12 @@ import {
   type BuilderOriginRequestModalResult,
 } from './builder-origin-request-modal.component';
 
-export type BuilderSettingsTab = 'profile' | 'embed' | 'help';
+export type BuilderSettingsTab = 'profile' | 'notifications' | 'embed' | 'help';
 
-const TABS: readonly BuilderSettingsTab[] = ['profile', 'embed', 'help'];
+const TABS: readonly BuilderSettingsTab[] = ['profile', 'notifications', 'embed', 'help'];
+
+/** One email preference the member can toggle (#864). */
+export type NotificationPreferenceKey = keyof BuilderNotificationPreferences;
 
 /** `#rrggbb` — the API stores the same shape (lower-cased server-side). */
 const HEX_COLOR_RE = /^#[0-9a-fA-F]{6}$/;
@@ -86,6 +95,10 @@ export function originInstallState(origin: BuilderEmbedOriginStatus): OriginInst
  *   and accent colour with a live preview. Owners edit and save (toast);
  *   members — and owners viewing as a teammate — see the same fields
  *   read-only (`canEdit` from the API, which enforces it too).
+ * - **Notifications** (#864) — new-lead email, daily "Needs you" digest and
+ *   (admins only) billing emails, saved on toggle. Read-only while viewing
+ *   as a teammate (the API answers 403); the last billing admin can't turn
+ *   billing emails off (409 LAST_ADMIN — the API's message is shown).
  * - **Embed** — the install snippet with Copy, allowed websites read-only
  *   with a per-origin install check, open origin-change requests, and
  *   "Request a change" (owners) opening a dialog that files an admin task.
@@ -137,7 +150,34 @@ export class BuilderSettingsComponent {
   protected readonly saveError = this.store.selectSignal(BuilderSettingsState.saveError);
   protected readonly embed = this.store.selectSignal(BuilderSettingsState.embed);
   protected readonly embedStatus = this.store.selectSignal(BuilderSettingsState.embedStatus);
+  protected readonly notifications = this.store.selectSignal(BuilderSettingsState.notifications);
+  protected readonly notificationsStatus = this.store.selectSignal(
+    BuilderSettingsState.notificationsStatus,
+  );
+  protected readonly notificationsSaving = this.store.selectSignal(
+    BuilderSettingsState.notificationsSaving,
+  );
+  protected readonly notificationsError = this.store.selectSignal(
+    BuilderSettingsState.notificationsError,
+  );
   private readonly viewAsBanner = this.store.selectSignal(BuilderState.viewAsBanner);
+
+  /** First load failed (nothing to show yet) — offer retry. */
+  protected readonly notificationsLoadFailed = computed(
+    () => this.notificationsStatus() === 'error' && !this.notifications(),
+  );
+
+  /** Viewing as a teammate: their preferences are read-only (API 403s). */
+  protected readonly notificationsReadOnly = computed(() => this.viewAsBanner() !== null);
+
+  /**
+   * The last billing admin can't turn billing emails off: the toggle is
+   * locked (on) with an explanation instead of failing with a 409.
+   */
+  protected readonly billingLocked = computed(() => {
+    const n = this.notifications();
+    return !!n && n.preferences.billingEmail && !n.canDisableBillingEmail;
+  });
 
   protected readonly tabs = TABS;
   protected readonly tab = signal<BuilderSettingsTab>(this.initialTab());
@@ -203,7 +243,11 @@ export class BuilderSettingsComponent {
 
   constructor() {
     this.store
-      .dispatch([new LoadBuilderProfile(), new LoadBuilderEmbed()])
+      .dispatch([
+        new LoadBuilderProfile(),
+        new LoadBuilderEmbed(),
+        new LoadBuilderNotificationPreferences(),
+      ])
       .pipe(takeUntilDestroyed(this.destroyRef))
       .subscribe();
 
@@ -227,6 +271,7 @@ export class BuilderSettingsComponent {
   }
 
   protected tabLabel(tab: BuilderSettingsTab): string {
+    if (tab === 'notifications') return this.copy.tabNotifications;
     if (tab === 'embed') return this.copy.tabEmbed;
     if (tab === 'help') return this.copy.tabHelp;
     return this.copy.tabProfile;
@@ -271,6 +316,37 @@ export class BuilderSettingsComponent {
       .dispatch(new LoadBuilderEmbed())
       .pipe(takeUntilDestroyed(this.destroyRef))
       .subscribe();
+  }
+
+  protected retryNotifications(): void {
+    this.store
+      .dispatch(new LoadBuilderNotificationPreferences())
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe();
+  }
+
+  /**
+   * Save one toggle. Server state wins: on failure (409/403/network) the
+   * checkbox snaps back to the last saved value and the error shows inline.
+   */
+  protected toggleNotification(key: NotificationPreferenceKey, event: Event): void {
+    const input = event.target as HTMLInputElement;
+    const current = this.notifications();
+    if (!current || this.notificationsReadOnly() || this.notificationsSaving()) {
+      if (current) input.checked = current.preferences[key];
+      return;
+    }
+    const checked = input.checked;
+    this.store
+      .dispatch(new SaveBuilderNotificationPreferences({ [key]: checked }))
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe(() => {
+        const saved = this.store.selectSnapshot(BuilderSettingsState.notifications);
+        if (saved) input.checked = saved.preferences[key];
+        if (this.store.selectSnapshot(BuilderSettingsState.notificationsError) === null) {
+          this.toasts.show({ message: this.copy.notificationsSavedToast });
+        }
+      });
   }
 
   /** Field-level error text (plain language, never validator jargon). */

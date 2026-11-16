@@ -30,6 +30,7 @@ import { BuilderBillingState } from './features/builder/builder-billing.state';
 import { DueInvoiceBannersState } from './features/builder/due-invoice-banners.state';
 import { BuilderReportContractState } from './features/builder/builder-report-contract.state';
 import { BuilderTeamState } from './features/builder/builder-team.state';
+import { BuilderLeadsSeenState } from './features/builder/builder-leads-seen.state';
 import { CommunityProfileState } from './features/communities/community-profile.state';
 import { AnalyticsTrackerService } from './features/consent/analytics-tracker.service';
 import { RouteFocusService } from './core/a11y/route-focus.service';
@@ -150,6 +151,8 @@ export const appConfig: ApplicationConfig = {
         // initial bundle.
         BuilderReportContractState,
         BuilderTeamState,
+        // #864: Leads unread badge — last Leads visit per org (persisted).
+        BuilderLeadsSeenState,
         AdminAuthState,
         // CommunityProfileState is transient (never persisted): the property
         // context is navigation-scoped, and a refresh behaves like a direct
@@ -175,6 +178,9 @@ export const appConfig: ApplicationConfig = {
           ComparisonState,
           AdminAuthState,
           BuilderState,
+          // #864: last Leads visit per org id (org UUID → ISO timestamp, no
+          // PII) so the Leads unread badge survives a reload.
+          BuilderLeadsSeenState,
           // Due-invoice banner UI state (dismissed/open/collapsed): invoice
           // ids are opaque UUIDs (no PII) and dismissal must survive a
           // reload (Karan). The state itself lazy-loads at the dashboard

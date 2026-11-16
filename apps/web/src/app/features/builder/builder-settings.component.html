@@ -164,6 +164,106 @@
     </section>
   }
 
+  @if (tab() === 'notifications') {
+    <section
+      class="settings__panel"
+      role="tabpanel"
+      id="settings-panel-notifications"
+      aria-labelledby="settings-tab-notifications"
+      data-testid="panel-notifications"
+    >
+      @if (notificationsLoadFailed()) {
+        <ui-error-state
+          [heading]="copy.notificationsLoadError"
+          [retryLabel]="retryLabel"
+          (retry)="retryNotifications()"
+        />
+      } @else if (notifications(); as n) {
+        <div class="settings__block">
+          <h2 class="settings__h2" id="notifications-heading">{{ copy.notificationsHeading }}</h2>
+          <p class="settings__muted">{{ copy.notificationsIntro }}</p>
+          @if (notificationsReadOnly()) {
+            <p class="settings__note" role="note" data-testid="notifications-view-as-note">
+              {{ copy.notificationsViewAsNote }}
+            </p>
+          }
+          <ul class="settings__toggles" aria-labelledby="notifications-heading">
+            <li class="settings__toggle">
+              <input
+                type="checkbox"
+                role="switch"
+                class="settings__switch"
+                id="notify-newLeadEmail"
+                data-testid="toggle-newLeadEmail"
+                aria-describedby="notify-newLeadEmail-hint"
+                [checked]="n.preferences.newLeadEmail"
+                [disabled]="notificationsReadOnly() || notificationsSaving()"
+                (change)="toggleNotification('newLeadEmail', $event)"
+              />
+              <span class="settings__toggle-text">
+                <label class="settings__toggle-label" for="notify-newLeadEmail">{{ copy.notifyNewLeadLabel }}</label>
+                <span class="settings__muted" id="notify-newLeadEmail-hint">{{ copy.notifyNewLeadHint }}</span>
+              </span>
+            </li>
+            <li class="settings__toggle">
+              <input
+                type="checkbox"
+                role="switch"
+                class="settings__switch"
+                id="notify-needsYouDigest"
+                data-testid="toggle-needsYouDigest"
+                aria-describedby="notify-needsYouDigest-hint"
+                [checked]="n.preferences.needsYouDigest"
+                [disabled]="notificationsReadOnly() || notificationsSaving()"
+                (change)="toggleNotification('needsYouDigest', $event)"
+              />
+              <span class="settings__toggle-text">
+                <label class="settings__toggle-label" for="notify-needsYouDigest">{{ copy.notifyDigestLabel }}</label>
+                <span class="settings__muted" id="notify-needsYouDigest-hint">{{ copy.notifyDigestHint }}</span>
+              </span>
+            </li>
+            @if (n.role === 'builder_admin') {
+              <li class="settings__toggle">
+                <input
+                  type="checkbox"
+                  role="switch"
+                  class="settings__switch"
+                  id="notify-billingEmail"
+                  data-testid="toggle-billingEmail"
+                  [attr.aria-describedby]="billingLocked() ? 'notify-billingEmail-hint notify-billingEmail-locked' : 'notify-billingEmail-hint'"
+                  [checked]="n.preferences.billingEmail"
+                  [disabled]="notificationsReadOnly() || notificationsSaving() || billingLocked()"
+                  (change)="toggleNotification('billingEmail', $event)"
+                />
+                <span class="settings__toggle-text">
+                  <label class="settings__toggle-label" for="notify-billingEmail">{{ copy.notifyBillingLabel }}</label>
+                  <span class="settings__muted" id="notify-billingEmail-hint">{{ copy.notifyBillingHint }}</span>
+                  @if (billingLocked()) {
+                    <span class="settings__toggle-locked" id="notify-billingEmail-locked" data-testid="billing-locked-note">
+                      {{ copy.notifyBillingLockedNote }}
+                    </span>
+                  }
+                </span>
+              </li>
+            }
+          </ul>
+          @if (n.role === 'builder_member') {
+            <p class="settings__note" role="note" data-testid="billing-member-note">
+              {{ copy.notifyBillingMemberNote }}
+            </p>
+          }
+          @if (notificationsError() !== null) {
+            <p class="settings__alert" role="alert" data-testid="notifications-error">
+              {{ notificationsError() || copy.notificationsSaveError }}
+            </p>
+          }
+        </div>
+      } @else {
+        <ui-skeleton variant="rows" [count]="3" [label]="copy.notificationsLoading" />
+      }
+    </section>
+  }
+
   @if (tab() === 'embed') {
     <section
       class="settings__panel"
