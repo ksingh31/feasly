@@ -43,6 +43,8 @@ export const ROUTE_AUDIT_NOTES: Readonly<Record<RouteKey, string>> = {
     'SSRF surface: outbound calls go only to fixed City of Calgary hosts from config; the address is a query value, never a URL.',
   'GET /api/v1/properties/autocomplete':
     'SSRF surface: same fixed-host rule as lookup.',
+  'GET /api/v1/properties/assessment':
+    'SSRF surface: same fixed-host rule as lookup (current-year + history datasets from config).',
   'POST /api/v1/events':
     'Anonymous analytics; dedicated limiter; schema-validated, no free-text PII fields.',
   'POST /api/v1/privacy/erase-requests/{requestId}/confirm':

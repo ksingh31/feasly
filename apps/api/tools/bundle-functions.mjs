@@ -131,6 +131,10 @@ const targets = [
     out: 'properties-lookup/index.js',
   },
   {
+    entry: 'src/functions/properties-assessment.ts',
+    out: 'properties-assessment/index.js',
+  },
+  {
     entry: 'src/functions/openapi.ts',
     out: 'openapi/index.js',
   },

@@ -24,6 +24,7 @@ export * from './community-stats-refresh.service';
 export * from './admin-audit.store';
 export * from './builder-config.service';
 export * from './property.service';
+export * from './assessment.service';
 export * from './land-use.service';
 export * from './usage.service';
 export * from './usage.store';

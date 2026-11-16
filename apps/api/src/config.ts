@@ -360,6 +360,13 @@ const EnvSchema = z.object({
   PROPERTY_DB_CACHE_TIMEOUT_MS: z.coerce.number().int().positive().default(1_500),
   // Browser/HTTP cache lifetime on property GETs (lookup + autocomplete).
   PROPERTY_HTTP_CACHE_MAX_AGE_S: z.coerce.number().int().nonnegative().default(3_600),
+  // --- Assessment history (#695) ---
+  // City "Historical Property Assessments (Parcel)" dataset: one row per roll
+  // year per parcel. Published yearly, so the durable-cache TTL matches the
+  // roll's; the row cap covers ~20 years for a few parcels sharing an address.
+  SOCRATA_HISTORY_DATASET_ID: z.string().min(1).default('4ur7-wsgc'),
+  PROPERTY_HISTORY_DB_CACHE_TTL_MS: z.coerce.number().int().positive().default(604_800_000),
+  PROPERTY_HISTORY_ROW_LIMIT: z.coerce.number().int().positive().default(500),
   // --- Current land-use district (#686) ---
   // The assessment roll's land_use_designation is stale after the 2024
   // rezoning repeal (pre-repeal pairs like "R-C2,R-CG"). The current district
@@ -831,6 +838,12 @@ export interface PropertyDataConfig {
   readonly dbCacheTimeoutMs: number;
   /** `Cache-Control: max-age` (seconds) on property GETs (#756). */
   readonly httpCacheMaxAgeSeconds: number;
+  /** Historical Property Assessments dataset ID (#695). */
+  readonly historyDatasetId: string;
+  /** Durable (Postgres) cache TTL for an address's assessment history (#695). */
+  readonly historyDbCacheTtlMs: number;
+  /** Max history rows fetched per address (#695). */
+  readonly historyRowLimit: number;
 }
 
 /** Which current land-use district source a city uses (#686). */
@@ -1633,6 +1646,9 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): ApiConfig {
       dbCacheTtlMs: e.PROPERTY_DB_CACHE_TTL_MS,
       dbCacheTimeoutMs: e.PROPERTY_DB_CACHE_TIMEOUT_MS,
       httpCacheMaxAgeSeconds: e.PROPERTY_HTTP_CACHE_MAX_AGE_S,
+      historyDatasetId: e.SOCRATA_HISTORY_DATASET_ID,
+      historyDbCacheTtlMs: e.PROPERTY_HISTORY_DB_CACHE_TTL_MS,
+      historyRowLimit: e.PROPERTY_HISTORY_ROW_LIMIT,
     },
     landUse: {
       provider: e.LAND_USE_PROVIDER,

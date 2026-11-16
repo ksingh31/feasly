@@ -278,6 +278,35 @@ export const PropertyRecordSchema = z
   })
   .openapi('PropertyRecord');
 
+export const AssessmentHistoryPointSchema = z
+  .object({
+    rollYear: z.number().int().describe('Assessment roll year, e.g. 2025'),
+    assessedValue: z
+      .number()
+      .int()
+      .describe('City-assessed value for that roll year, integer CAD'),
+  })
+  .openapi('AssessmentHistoryPoint');
+
+export const PropertyAssessmentResponseSchema = z
+  .object({
+    property: PropertyRecordSchema,
+    cityRecordUpdatedOn: z
+      .string()
+      .nullable()
+      .describe("The City's last-modified date for the current-year record (ISO date); null when the City row has none"),
+    propertyClassLabel: z
+      .string()
+      .describe("Human-readable City assessment class, e.g. 'Residential'"),
+    history: z
+      .array(AssessmentHistoryPointSchema)
+      .describe('Assessed value per roll year, newest first, one entry per year, including the current roll year; empty when historyAvailable is false'),
+    historyAvailable: z
+      .boolean()
+      .describe("False when the City's history dataset was unavailable or has no rows for this address"),
+  })
+  .openapi('PropertyAssessmentResponse');
+
 export const AutocompleteSuggestionSchema = z
   .object({
     addressKey: z.string(),

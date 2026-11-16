@@ -12,6 +12,15 @@ real backend. Changing them has a cost, so:
 - **Never** widen a type to `any` to "unblock" something — the no-`any` lint exists
   precisely to stop that.
 
+## Unreleased — 2026-11-16 (additive)
+
+Assessment detail + history (issue #695):
+
+- **Added** `AssessmentHistoryPoint` (`rollYear`, `assessedValue`) and
+  `PropertyAssessmentResponse` (`property`, `cityRecordUpdatedOn`,
+  `propertyClassLabel`, `history`, `historyAvailable`) for
+  `GET /api/v1/properties/assessment`. `PropertyRecord` is unchanged.
+
 ## Unreleased — 2026-11-15 (additive)
 
 Zoning rules catalogue (issue #687):

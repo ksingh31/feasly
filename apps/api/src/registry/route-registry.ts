@@ -231,6 +231,17 @@ export const ROUTE_REGISTRY: readonly ApiRouteEntry[] = [
       'Property record lookup (assessed value, lot, zoning). Deterministic ' +
       'multi-parcel selection. OUT_OF_COVERAGE for non-Calgary.',
   },
+  {
+    method: 'GET',
+    path: '/api/v1/properties/assessment',
+    auth: 'none',
+    permissions: [] as const,
+    rateLimit: '60/min per IP',
+    status: 'live',
+    summary:
+      'Assessment detail + year-by-year City assessment history (#695). ' +
+      'Same 404s as lookup; a history outage degrades to historyAvailable: false.',
+  },
 
   // ── Public v1: analytics + privacy ────────────────────────────────
   {

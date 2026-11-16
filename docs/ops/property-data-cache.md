@@ -7,8 +7,8 @@ reused:
 
 | Tier | Where | TTL (config) |
 |---|---|---|
-| In-memory | per Function instance | `PROPERTY_CACHE_TTL_MS` (roll, autocomplete), `LAND_USE_CACHE_TTL_MS` (district) |
-| Durable | Postgres `city_data_cache`, shared by every instance | `PROPERTY_DB_CACHE_TTL_MS` (assessment roll, dataset `SOCRATA_DATASET_ID`), `LAND_USE_DB_CACHE_TTL_MS` (Land Use Districts, dataset `LAND_USE_DATASET_ID`) |
+| In-memory | per Function instance | `PROPERTY_CACHE_TTL_MS` (roll, autocomplete, assessment history), `LAND_USE_CACHE_TTL_MS` (district) |
+| Durable | Postgres `city_data_cache`, shared by every instance | `PROPERTY_DB_CACHE_TTL_MS` (assessment roll, dataset `SOCRATA_DATASET_ID`), `LAND_USE_DB_CACHE_TTL_MS` (Land Use Districts, dataset `LAND_USE_DATASET_ID`), `PROPERTY_HISTORY_DB_CACHE_TTL_MS` (assessment history, dataset `SOCRATA_HISTORY_DATASET_ID`, #695) |
 | Browser | `Cache-Control: private, max-age` + `Vary: Origin` + `ETag` / 304 on property GETs | `PROPERTY_HTTP_CACHE_MAX_AGE_S` |
 
 - **Single-flight:** concurrent requests on one instance for the same
@@ -28,7 +28,7 @@ The service writes one JSON trace per event (`console.info`, so it lands in
 App Insights `traces`). Events never contain an address or query.
 
 - `property_data.lookup` — one per resolution:
-  `{ op: property|district|autocomplete, dataset, source: memory|db|inflight|city }`.
+  `{ op: property|district|autocomplete|history, dataset, source: memory|db|inflight|city }`.
   Cache hit = any source other than `city`.
 - `property_data.city_call` — one per upstream City request:
   `{ op, dataset, outcome: ok|error, durationMs }`.

@@ -7,6 +7,9 @@
  *   Short queries (< 3 chars) resolve to an empty suggestion list.
  * - GET /api/v1/properties/lookup?addressKey=… — public, cache-first.
  *   404 NOT_FOUND when the City has no record for the address.
+ * - GET /api/v1/properties/assessment?addressKey=… — public (#695): current
+ *   record + year-by-year history; same 404s as lookup. A history outage
+ *   still answers 200 (`historyAvailable: false`).
  * - 503 DEPENDENCY_UNAVAILABLE (retryable) when the City API is down.
  *
  * The serialized responses are the `@feasly/contracts` PropertyRecord /
@@ -20,13 +23,16 @@
  */
 import type {
   AutocompleteResponse,
+  PropertyAssessmentResponse,
   PropertyRecord,
 } from '@feasly/contracts';
 import { ErrorCodes, HttpError } from '../middleware/errors';
 import type { PropertyService } from '../services/property.service';
+import type { AssessmentService } from '../services/assessment.service';
 
 export interface PropertyRouteDeps {
   readonly property: PropertyService;
+  readonly assessment: AssessmentService;
 }
 
 export interface PropertyRoute {
@@ -37,6 +43,8 @@ export interface PropertyRoute {
    * labels the service's district-fallback warning (#686).
    */
   lookup(addressKey: unknown, correlationId?: string): Promise<PropertyRecord>;
+  /** Assessment detail + year-by-year history for an exact address key (#695). */
+  assessment(addressKey: unknown, correlationId?: string): Promise<PropertyAssessmentResponse>;
 }
 
 /** Addresses are printable, bounded-length strings — never empty. */
@@ -70,6 +78,14 @@ export function createPropertyRoute(deps: PropertyRouteDeps): PropertyRoute {
 
     lookup: async (addressKey: unknown, correlationId?: string): Promise<PropertyRecord> =>
       deps.property.getProperty(requireQueryString(addressKey, 'addressKey'), {
+        correlationId,
+      }),
+
+    assessment: async (
+      addressKey: unknown,
+      correlationId?: string,
+    ): Promise<PropertyAssessmentResponse> =>
+      deps.assessment.getAssessment(requireQueryString(addressKey, 'addressKey'), {
         correlationId,
       }),
   };

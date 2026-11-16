@@ -82,3 +82,37 @@ export interface AutocompleteSuggestion {
 export interface AutocompleteResponse {
   readonly suggestions: readonly AutocompleteSuggestion[];
 }
+
+/** One assessed value from the City's roll for one roll year (#695). */
+export interface AssessmentHistoryPoint {
+  /** Assessment roll year, e.g. 2025. */
+  readonly rollYear: number;
+  /** City-assessed value for that roll year, integer CAD (no cents). */
+  readonly assessedValue: number;
+}
+
+/**
+ * `GET /api/v1/properties/assessment` response (#695): the current property
+ * record plus the City's year-by-year assessment history. Public City data,
+ * free and ungated (owner, 2026-11-15). `PropertyRecord` is unchanged.
+ */
+export interface PropertyAssessmentResponse {
+  readonly property: PropertyRecord;
+  /**
+   * The City's own "last modified" date for the current-year record (ISO
+   * date), or null when the City row carries none.
+   */
+  readonly cityRecordUpdatedOn: string | null;
+  /** Human-readable City assessment class, e.g. 'Residential'. */
+  readonly propertyClassLabel: string;
+  /**
+   * Assessed value per roll year, newest first, one entry per roll year,
+   * including the current roll year. Empty when `historyAvailable` is false.
+   */
+  readonly history: readonly AssessmentHistoryPoint[];
+  /**
+   * False when the City's history dataset was unavailable or has no rows for
+   * this address (e.g. a new subdivision) — `history` is then empty.
+   */
+  readonly historyAvailable: boolean;
+}

@@ -1,0 +1,118 @@
+/**
+ * Azure Functions v3 trigger adapter — GET /api/v1/properties/assessment (#695).
+ *
+ * Thin by design: build the pipeline request from the Functions `req`,
+ * run it through the BE0-003 pipeline (correlation + rate limiting +
+ * RFC 7807 errors), and translate the outcome to `context.res`.
+ *
+ * - Imports only from the package public surface (`../index`), never deep
+ *   paths — see src/index.ts.
+ * - The composition (config, pool, engine) is built once per instance and
+ *   cached module-level; the pg pool stays warm across invocations.
+ * - The correlation ID is derived here and injected into the headers handed
+ *   to the pipeline, so the `x-correlation-id` response header always
+ *   matches the ID in logs and error bodies.
+ * - Bundled by `npm run bundle:functions` into `properties-assessment/index.js`
+ *   (self-contained — the Function App has no node_modules).
+ */
+import { randomUUID } from 'node:crypto';
+import {
+  createComposition,
+  lib,
+  loadConfig,
+  middleware,
+  type AppComposition,
+} from '../index';
+import type { FunctionContext, FunctionRequest } from './estimate';
+import { clientIpFromHeaders } from '../middleware/client-ip';
+
+const CORRELATION_RESPONSE_HEADER = 'x-correlation-id';
+
+let cached: AppComposition | undefined;
+
+function getApp(): AppComposition {
+  if (!cached) cached = createComposition();
+  return cached;
+}
+
+/** #729: right-most (platform-appended) X-Forwarded-For hop — see middleware/client-ip.ts. */
+function clientIpFrom(req: FunctionRequest): string | undefined {
+  return clientIpFromHeaders(req.headers);
+}
+
+export async function propertiesAssessmentHandler(
+  context: FunctionContext,
+  req: FunctionRequest,
+): Promise<void> {
+  // HRD-01: CORS is enforced at the adapter edge. The preflight path uses
+  // config alone — the full composition (DB pool, rate limiters) is never
+  // loaded for an OPTIONS request. Non-allowlisted origins get no
+  // Access-Control-Allow-Origin (fail-closed).
+  const origin = req.headers?.['origin'];
+  const corsHeaders = middleware.resolveCorsHeaders(origin, loadConfig().corsOrigins);
+  if (middleware.isPreflight(req.method, origin)) {
+    context.res = {
+      status: 204,
+      headers: { ...middleware.securityHeaders(), ...corsHeaders, ...middleware.preflightHeaders() },
+    };
+    return;
+  }
+
+  const app = getApp();
+  const headers: Record<string, string | string[] | undefined> = {
+    ...(req.headers ?? {}),
+  };
+  if (!headers[CORRELATION_RESPONSE_HEADER]) {
+    headers[CORRELATION_RESPONSE_HEADER] = randomUUID();
+  }
+  const correlationId = middleware.ensureCorrelationId(headers);
+  const addressKey = req.query?.['addressKey'];
+
+  const result = await app.requestPipeline.run(
+    { headers, clientIp: clientIpFrom(req), method: req.method },
+    // api-mcp/07 — per-key rate limiting + usage metering when a Bearer
+    // API key is present.
+    () =>
+      app.withApiKeyRateLimit(
+        headers,
+        correlationId,
+        { endpoint: '/api/v1/properties/assessment', requiredScope: 'property:read' },
+        () => app.propertyRoute.assessment(addressKey, correlationId),
+      ),
+  );
+
+  if (middleware.isProblemDetails(result)) {
+    context.res = {
+      status: result.status,
+      headers: {
+        ...middleware.securityHeaders(),
+        ...middleware.problemResponseHeaders(result),
+        [CORRELATION_RESPONSE_HEADER]: result.correlationId,
+        ...corsHeaders,
+      },
+      body: result,
+    };
+    return;
+  }
+  // #756: public City data — the browser reuses it for max-age and
+  // revalidates with If-None-Match (304, no body) after that.
+  const cacheable = lib.cacheableResponse(
+    result,
+    req.headers?.['if-none-match'],
+    app.config.propertyData.httpCacheMaxAgeSeconds,
+  );
+  context.res = {
+    status: cacheable.status,
+    headers: {
+      ...middleware.securityHeaders(),
+      'Content-Type': 'application/json',
+      ...cacheable.headers,
+      [CORRELATION_RESPONSE_HEADER]: correlationId,
+      ...corsHeaders,
+    },
+    ...(cacheable.status === 200 ? { body: cacheable.body } : {}),
+  };
+}
+
+// Azure Functions v3 programming model entry point (bundled as CJS).
+module.exports = propertiesAssessmentHandler;

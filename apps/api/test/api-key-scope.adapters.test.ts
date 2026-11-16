@@ -74,6 +74,7 @@ const routes = {
   lead: vi.fn(async () => ({ leadId: 'l1' })),
   autocomplete: vi.fn(async () => ({ suggestions: [] })),
   lookup: vi.fn(async () => ({ addressKey: 'k' })),
+  assessment: vi.fn(async () => ({ property: { addressKey: 'k' }, history: [] })),
 };
 
 const fakeApp = {
@@ -83,7 +84,11 @@ const fakeApp = {
   estimateRoute: { handle: routes.estimate },
   previewRoute: { handle: routes.preview },
   leadRoute: { handle: routes.lead },
-  propertyRoute: { autocomplete: routes.autocomplete, lookup: routes.lookup },
+  propertyRoute: {
+    autocomplete: routes.autocomplete,
+    lookup: routes.lookup,
+    assessment: routes.assessment,
+  },
   config: { propertyData: { httpCacheMaxAgeSeconds: 60 } },
   withApiKeyRateLimit: createApiKeyRateLimitMiddleware({
     apiKeys,
@@ -105,6 +110,7 @@ import { estimatesPreviewHandler } from '../src/functions/estimates-preview';
 import { leadsHandler } from '../src/functions/leads';
 import { propertiesAutocompleteHandler } from '../src/functions/properties-autocomplete';
 import { propertiesLookupHandler } from '../src/functions/properties-lookup';
+import { propertiesAssessmentHandler } from '../src/functions/properties-assessment';
 
 type Handler = (ctx: { res?: unknown; log: () => void }, req: Record<string, unknown>) => Promise<void>;
 
@@ -159,6 +165,15 @@ const CASES: readonly Case[] = [
     name: 'GET /api/v1/properties/lookup',
     handler: propertiesLookupHandler as unknown as Handler,
     route: 'lookup',
+    allowedKey: 'key-property',
+    wrongKeys: ['key-estimate', 'key-lead', 'key-none'],
+    okStatus: 200,
+    req: { method: 'GET', query: { addressKey: 'k' } },
+  },
+  {
+    name: 'GET /api/v1/properties/assessment',
+    handler: propertiesAssessmentHandler as unknown as Handler,
+    route: 'assessment',
     allowedKey: 'key-property',
     wrongKeys: ['key-estimate', 'key-lead', 'key-none'],
     okStatus: 200,

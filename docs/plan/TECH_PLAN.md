@@ -1274,6 +1274,7 @@ absorbed by Flex Consumption scale-out, not by raising limits silently.
 | GET | `/api/v1/shares/verify` | magic-token | — | 100/min per IP | live | Verify a partner-share link token (?token=). Partner-share tokens only — owner tokens answer invalid here. Token IS the credential. |
 | GET | `/api/v1/properties/autocomplete` | none | — | 60/min per IP | live | Calgary address autocomplete (City of Calgary assessment roll). Free by design. |
 | GET | `/api/v1/properties/lookup` | none | — | 60/min per IP | live | Property record lookup (assessed value, lot, zoning). Deterministic multi-parcel selection. OUT_OF_COVERAGE for non-Calgary. |
+| GET | `/api/v1/properties/assessment` | none | — | 60/min per IP | live | Assessment detail + year-by-year City assessment history (#695). Same 404s as lookup; a history outage degrades to historyAvailable: false. |
 | POST | `/api/v1/events` | none | — | 300/min per IP (dedicated analytics limiter) | live | First-party analytics ingest (consent-gated funnel events). Payloads require a valid consent_ts. |
 | GET | `/api/v1/privacy/export` | magic-token | — | 100/min per IP | live | PIPEDA data export for the token holder. |
 | POST | `/api/v1/privacy/erase-requests` | magic-token | — | 10/min per IP | live | Request erasure; returns a requestId for confirmation. |

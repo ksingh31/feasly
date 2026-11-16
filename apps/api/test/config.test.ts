@@ -139,6 +139,10 @@ describe('loadConfig', () => {
         dbCacheTtlMs: 604_800_000,
         dbCacheTimeoutMs: 1_500,
         httpCacheMaxAgeSeconds: 3_600,
+        // #695: assessment history dataset.
+        historyDatasetId: '4ur7-wsgc',
+        historyDbCacheTtlMs: 604_800_000,
+        historyRowLimit: 500,
       },
       // #686: current land-use district from the City's Land Use Districts
       // dataset; falls back to the roll value on timeout/error/no hit.

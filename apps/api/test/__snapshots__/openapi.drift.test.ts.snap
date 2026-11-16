@@ -331,6 +331,23 @@ exports[`OpenAPI drift > generated spec matches the snapshot 1`] = `
         ],
         "type": "string",
       },
+      "AssessmentHistoryPoint": {
+        "properties": {
+          "assessedValue": {
+            "description": "City-assessed value for that roll year, integer CAD",
+            "type": "integer",
+          },
+          "rollYear": {
+            "description": "Assessment roll year, e.g. 2025",
+            "type": "integer",
+          },
+        },
+        "required": [
+          "rollYear",
+          "assessedValue",
+        ],
+        "type": "object",
+      },
       "AutocompleteResponse": {
         "properties": {
           "suggestions": {
@@ -1062,6 +1079,43 @@ exports[`OpenAPI drift > generated spec matches the snapshot 1`] = `
           "status",
           "code",
           "correlationId",
+        ],
+        "type": "object",
+      },
+      "PropertyAssessmentResponse": {
+        "properties": {
+          "cityRecordUpdatedOn": {
+            "description": "The City's last-modified date for the current-year record (ISO date); null when the City row has none",
+            "type": [
+              "string",
+              "null",
+            ],
+          },
+          "history": {
+            "description": "Assessed value per roll year, newest first, one entry per year, including the current roll year; empty when historyAvailable is false",
+            "items": {
+              "$ref": "#/components/schemas/AssessmentHistoryPoint",
+            },
+            "type": "array",
+          },
+          "historyAvailable": {
+            "description": "False when the City's history dataset was unavailable or has no rows for this address",
+            "type": "boolean",
+          },
+          "property": {
+            "$ref": "#/components/schemas/PropertyRecord",
+          },
+          "propertyClassLabel": {
+            "description": "Human-readable City assessment class, e.g. 'Residential'",
+            "type": "string",
+          },
+        },
+        "required": [
+          "property",
+          "cityRecordUpdatedOn",
+          "propertyClassLabel",
+          "history",
+          "historyAvailable",
         ],
         "type": "object",
       },
@@ -3206,6 +3260,118 @@ URL versioning (\`/v1/\`). Breaking changes ship as \`/v2/\` with 6 months notic
           },
         ],
         "summary": "Submit a lead",
+      },
+    },
+    "/v1/properties/assessment": {
+      "get": {
+        "description": "Returns the current City-assessed property record plus the City's year-by-year assessment history (newest first) for an exact address key. Never refuses on property type. If the history dataset is unavailable the current record is still returned with historyAvailable: false. No auth — public by design.",
+        "parameters": [
+          {
+            "description": "Exact address key from an autocomplete suggestion",
+            "in": "query",
+            "name": "addressKey",
+            "required": true,
+            "schema": {
+              "description": "Exact address key from an autocomplete suggestion",
+              "maxLength": 200,
+              "minLength": 1,
+              "type": "string",
+            },
+          },
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PropertyAssessmentResponse",
+                },
+              },
+            },
+            "description": "Assessment detail and history",
+          },
+          "304": {
+            "description": "Not modified: If-None-Match names the current ETag; reuse the cached copy (#756). 200 responses carry ETag and Cache-Control: private, max-age=<PROPERTY_HTTP_CACHE_MAX_AGE_S> and Vary: Origin.",
+          },
+          "400": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails",
+                },
+              },
+            },
+            "description": "Bad request — validation failed",
+          },
+          "404": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails",
+                },
+              },
+            },
+            "description": "No City record: OUT_OF_COVERAGE when the address is explicitly outside Calgary, ADDRESS_NOT_FOUND for Calgary-looking addresses with no record (same contract as lookup)",
+          },
+          "429": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails",
+                },
+              },
+            },
+            "description": "Rate limit exceeded — per-key sliding window (60s) or per-IP fixed window. Body is RFC 7807 problem+json with code RATE_LIMITED. The X-RateLimit-* headers report the key's quota state.",
+            "headers": {
+              "X-RateLimit-Limit": {
+                "description": "Requests allowed per 60-second window for this API key.",
+                "required": true,
+                "schema": {
+                  "description": "Requests allowed per 60-second window for this API key.",
+                  "type": "integer",
+                },
+              },
+              "X-RateLimit-Remaining": {
+                "description": "Requests remaining in the current window.",
+                "required": true,
+                "schema": {
+                  "description": "Requests remaining in the current window.",
+                  "type": "integer",
+                },
+              },
+              "X-RateLimit-Reset": {
+                "description": "Unix epoch seconds when the current window slides past the oldest request.",
+                "required": true,
+                "schema": {
+                  "description": "Unix epoch seconds when the current window slides past the oldest request.",
+                  "type": "integer",
+                },
+              },
+            },
+          },
+          "500": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails",
+                },
+              },
+            },
+            "description": "Internal server error",
+          },
+          "503": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails",
+                },
+              },
+            },
+            "description": "Current-year City data unavailable (retryable). A history outage alone never causes a 503.",
+          },
+        },
+        "security": [],
+        "summary": "Get assessment detail and year-by-year history",
       },
     },
     "/v1/properties/autocomplete": {

@@ -50,6 +50,7 @@ import {
   PrivacyEraseConfirmResponseSchema,
   PrivacyEraseRequestSchema,
   ProblemDetailsSchema,
+  PropertyAssessmentResponseSchema,
   PropertyRecordSchema,
   RenoEstimateInputsSchema,
   ReportSnapshotSchema,
@@ -128,6 +129,7 @@ export function buildOpenApiSpec(options: OpenApiSpecOptions) {
   registry.register('LeadResponse', LeadResponseSchema);
   registry.register('PropertyRecord', PropertyRecordSchema);
   registry.register('AutocompleteResponse', AutocompleteResponseSchema);
+  registry.register('PropertyAssessmentResponse', PropertyAssessmentResponseSchema);
   registry.register('ApiKeyScope', ApiKeyScopeSchema);
   registry.register('ApiKeyIssueRequest', ApiKeyIssueRequestSchema);
   registry.register('ApiKeyIssuedResponse', ApiKeyIssuedResponseSchema);
@@ -570,6 +572,65 @@ export function buildOpenApiSpec(options: OpenApiSpecOptions) {
       },
       '503': {
         description: 'City data source unavailable (retryable)',
+        content: {
+          'application/problem+json': {
+            schema: { $ref: PROBLEM_DETAILS_REF },
+          },
+        },
+      },
+      ...errorResponses(),
+    },
+  });
+
+  // GET /v1/properties/assessment (#695)
+  registry.registerPath({
+    method: 'get',
+    path: '/v1/properties/assessment',
+    summary: 'Get assessment detail and year-by-year history',
+    description:
+      'Returns the current City-assessed property record plus the City\'s ' +
+      'year-by-year assessment history (newest first) for an exact address ' +
+      'key. Never refuses on property type. If the history dataset is ' +
+      'unavailable the current record is still returned with ' +
+      'historyAvailable: false. No auth — public by design.',
+    security: [],
+    request: {
+      query: z.object({
+        addressKey: z
+          .string()
+          .min(1)
+          .max(200)
+          .describe('Exact address key from an autocomplete suggestion'),
+      }),
+    },
+    responses: {
+      '200': {
+        description: 'Assessment detail and history',
+        content: {
+          'application/json': { schema: PropertyAssessmentResponseSchema },
+        },
+      },
+      '304': {
+        description:
+          'Not modified: If-None-Match names the current ETag; reuse the ' +
+          'cached copy (#756). 200 responses carry ETag and ' +
+          'Cache-Control: private, max-age=<PROPERTY_HTTP_CACHE_MAX_AGE_S> and Vary: Origin.',
+      },
+      '404': {
+        description:
+          'No City record: OUT_OF_COVERAGE when the address is explicitly ' +
+          'outside Calgary, ADDRESS_NOT_FOUND for Calgary-looking addresses ' +
+          'with no record (same contract as lookup)',
+        content: {
+          'application/problem+json': {
+            schema: { $ref: PROBLEM_DETAILS_REF },
+          },
+        },
+      },
+      '503': {
+        description:
+          'Current-year City data unavailable (retryable). A history outage ' +
+          'alone never causes a 503.',
         content: {
           'application/problem+json': {
             schema: { $ref: PROBLEM_DETAILS_REF },

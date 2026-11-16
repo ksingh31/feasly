@@ -30,6 +30,9 @@ const PROPERTY_CONFIG: PropertyDataConfig = {
   dbCacheTtlMs: 604_800_000,
   dbCacheTimeoutMs: 1_500,
   httpCacheMaxAgeSeconds: 3_600,
+  historyDatasetId: '4ur7-wsgc',
+  historyDbCacheTtlMs: 604_800_000,
+  historyRowLimit: 500,
 };
 
 const LAND_USE_CONFIG: LandUseConfig = {

@@ -402,8 +402,10 @@ import {
 } from './services/embed-relay.service';
 import {
   createPropertyService,
+  type PropertyDetailReader,
   type PropertyService,
 } from './services/property.service';
+import { createAssessmentService } from './services/assessment.service';
 import { createLandUseProvider } from './services/land-use.service';
 import {
   createPropertyRoute,
@@ -1776,7 +1778,7 @@ export function createComposition(
   // (docs/ops/property-data-cache.md).
   const cityDataCacheStore: CityDataCacheStore =
     options.cityDataCacheStore ?? createDrizzleCityDataCacheStore({ db: db.db });
-  const propertyService: PropertyService = createPropertyService(config.propertyData, {
+  const propertyService: PropertyService & PropertyDetailReader = createPropertyService(config.propertyData, {
     cache: cityDataCacheStore,
     onEvent: (event) =>
       console.info(JSON.stringify({ ...event, event: `property_data.${event.event}` })),
@@ -1791,8 +1793,11 @@ export function createComposition(
         }
       : {}),
   });
+  // #695: assessment detail + year-by-year history, through the same
+  // shared read path (history dataset cached like the roll).
   const propertyRoute: PropertyRoute = createPropertyRoute({
     property: propertyService,
+    assessment: createAssessmentService({ properties: propertyService }),
   });
   // phase-2 wiring: the five live-API endpoints the web app needs. Same
   // pinned cost data + draft gate as the estimate endpoint, so preview,

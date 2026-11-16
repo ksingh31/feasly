@@ -30,6 +30,9 @@
  *   slows the lookup beyond `dbCacheTimeoutMs` — it falls through to the
  *   City. Every resolution and every City call emits a `PropertyDataEvent`
  *   (cache hit rate + City call count in telemetry).
+ * - #695: `getPropertyDetail` (roll number, City last-modified date, class
+ *   label) and `getAssessmentHistory` (dataset `historyDatasetId`) read
+ *   through the same tiers for the assessment service.
  */
 import type {
   AutocompleteResponse,
@@ -58,6 +61,10 @@ interface AssessmentRow {
   readonly land_use_designation?: string;
   readonly land_size_sf?: string | number;
   readonly mod_date?: string;
+  /** City roll number (current-year dataset zero-pads it; history does not). */
+  readonly roll_number?: string | number;
+  readonly property_type?: string;
+  readonly sub_property_use?: string;
   /** Parcel polygon (GeoJSON MultiPolygon). */
   readonly multipolygon?: unknown;
 }
@@ -76,6 +83,9 @@ const DETAIL_FIELDS = [
   'land_use_designation',
   'land_size_sf',
   'mod_date',
+  'roll_number',
+  'property_type',
+  'sub_property_use',
   'multipolygon',
 ];
 
@@ -104,9 +114,95 @@ export interface PropertyService {
   getProperty(addressKey: string, options?: GetPropertyOptions): Promise<PropertyRecord>;
 }
 
+/**
+ * #695: the current-year record plus the City-row details the assessed-value
+ * page needs (roll number, the City's own last-modified date, class label).
+ */
+export interface PropertyDetail {
+  readonly property: PropertyRecord;
+  /** City roll number, leading zeros stripped; null when the row has none. */
+  readonly rollNumber: string | null;
+  /** The City's last-modified date for the row (ISO date), or null. */
+  readonly cityRecordUpdatedOn: string | null;
+  /** Human-readable assessment class, e.g. 'Residential'. */
+  readonly propertyClassLabel: string;
+}
+
+/**
+ * #695: detail read used by the assessment service. Kept off the
+ * `PropertyService` interface so existing consumers and fakes are unchanged.
+ */
+export interface PropertyDetailReader {
+  /** Same errors and caching as `getProperty`. */
+  getPropertyDetail(addressKey: string, options?: GetPropertyOptions): Promise<PropertyDetail>;
+  /**
+   * Raw year-by-year rows for an exact address from the City's history
+   * dataset (#695), through the same memory → durable cache → City path.
+   * Rows without a parseable roll year or value are dropped; no other
+   * shaping (de-duplication and merging live in the assessment service).
+   * An address with no history resolves to [].
+   * @throws HttpError 503 DEPENDENCY_UNAVAILABLE when the City API is down.
+   */
+  getAssessmentHistory(addressKey: string): Promise<readonly AssessmentHistoryRow[]>;
+}
+
+/** One parsed row from the City's history dataset (#695). */
+export interface AssessmentHistoryRow {
+  readonly rollYear: number;
+  /** Roll number, leading zeros stripped; null when the row has none. */
+  readonly rollNumber: string | null;
+  /** Assessed value, integer CAD. */
+  readonly assessedValue: number;
+}
+
 export interface GetPropertyOptions {
   /** Request correlation ID — included in the district-fallback warning. */
   readonly correlationId?: string;
+}
+
+/**
+ * Parses a City dollar amount that may be comma-formatted ("2,630,000", the
+ * history dataset) or decimal ("2770000.0"); null when missing or malformed.
+ */
+export function parseCityAmount(value: string | number | undefined): number | null {
+  if (typeof value === 'string') return toNumber(value.replace(/,/g, ''));
+  return toNumber(value);
+}
+
+/** Columns read from the history dataset (#695). */
+const HISTORY_FIELDS = ['roll_year', 'roll_number', 'address', 'assessed_value'];
+
+/** Shape check for a durable-cache history payload (#695). */
+function isHistoryRows(value: unknown): value is AssessmentHistoryRow[] {
+  return (
+    Array.isArray(value) &&
+    value.every(
+      (row: unknown) =>
+        typeof row === 'object' &&
+        row !== null &&
+        typeof (row as AssessmentHistoryRow).rollYear === 'number' &&
+        typeof (row as AssessmentHistoryRow).assessedValue === 'number',
+    )
+  );
+}
+
+/** Parses history rows for one exact address; unusable rows are dropped. */
+function toHistoryRows(key: string, body: unknown): AssessmentHistoryRow[] {
+  const rows = Array.isArray(body) ? body : [];
+  const parsed: AssessmentHistoryRow[] = [];
+  for (const item of rows) {
+    const row = asRow(item);
+    if (row?.address?.trim() !== key) continue;
+    const rollYear = toNumber(row.roll_year);
+    const value = parseCityAmount(row.assessed_value);
+    if (rollYear === null || !Number.isInteger(rollYear) || value === null || value < 0) continue;
+    parsed.push({
+      rollYear,
+      rollNumber: normalizeRollNumber(row.roll_number),
+      assessedValue: Math.round(value),
+    });
+  }
+  return parsed;
 }
 
 /** Coerces a Socrata numeric-ish value; null when missing or malformed. */
@@ -202,7 +298,7 @@ function fallbackPredicate(houseNumber: string, streetName: string): string {
 }
 
 /** Which property operation a telemetry event belongs to (#756). */
-export type PropertyDataOp = 'property' | 'district' | 'autocomplete';
+export type PropertyDataOp = 'property' | 'district' | 'autocomplete' | 'history';
 
 /**
  * Where a lookup was answered from (#756): `memory` / `db` cache tiers,
@@ -326,10 +422,54 @@ function toPropertyRecord(row: AssessmentRow): PropertyRecord {
   };
 }
 
+/** City-row details carried alongside the record (#695). */
+interface RollDetail {
+  readonly rollNumber: string | null;
+  readonly cityRecordUpdatedOn: string | null;
+  readonly propertyClassLabel: string;
+}
+
 /** Roll record plus the point used for the district lookup (cached together). */
 interface RollEntry {
   readonly record: PropertyRecord;
   readonly point: LonLat | null;
+  /** #695: absent on in-flight payloads from before v2 (treated as unknown). */
+  readonly detail?: RollDetail;
+}
+
+/**
+ * Roll numbers are zero-padded in the current-year dataset ("080196603") but
+ * not in the history dataset ("80196603") — compare them unpadded (#695).
+ */
+export function normalizeRollNumber(value: string | number | undefined): string | null {
+  if (value === undefined) return null;
+  const digits = String(value).trim().replace(/^0+(?=.)/, '');
+  return digits === '' ? null : digits;
+}
+
+/** Fallback labels when the City row has a class code but no description. */
+const CLASS_LABELS: Readonly<Record<string, string>> = {
+  RE: 'Residential',
+  R: 'Residential',
+  NR: 'Non-residential',
+  FL: 'Farm land',
+};
+
+/** Title-cases the City's class description ("RESIDENTIAL" -> "Residential"). */
+function classLabel(row: AssessmentRow): string {
+  const description = row.assessment_class_description?.trim() ?? '';
+  if (description) return description.charAt(0).toUpperCase() + description.slice(1).toLowerCase();
+  const code = row.assessment_class?.trim().toUpperCase() ?? '';
+  return CLASS_LABELS[code] ?? (code || 'Not classified');
+}
+
+function toRollDetail(row: AssessmentRow): RollDetail {
+  const modDate = row.mod_date?.trim().split('T')[0] ?? '';
+  return {
+    rollNumber: normalizeRollNumber(row.roll_number),
+    cityRecordUpdatedOn: modDate || null,
+    propertyClassLabel: classLabel(row),
+  };
 }
 
 /** A district check result: the district, or null for "no polygon hit". */
@@ -344,7 +484,7 @@ interface DistrictCheck {
  * shape (bump this) turns old rows into misses instead of serving
  * stale-shaped payloads until their TTL runs out.
  */
-export const CITY_CACHE_PAYLOAD_VERSION = 'v1';
+export const CITY_CACHE_PAYLOAD_VERSION = 'v2';
 
 /** Shape check for a durable-cache roll payload (#756) — anything else is a miss. */
 function isRollEntry(value: unknown): value is RollEntry {
@@ -393,8 +533,11 @@ function errorClass(error: unknown): string {
 export function createPropertyService(
   config: PropertyDataConfig,
   deps: PropertyServiceDeps = {},
-): PropertyService {
+): PropertyService & PropertyDetailReader {
   const resourceUrl = `${config.socrataBaseUrl}/resource/${config.datasetId}.json`;
+  const historyUrl = `${config.socrataBaseUrl}/resource/${config.historyDatasetId}.json`;
+  const historyCache = new Map<string, CacheEntry<readonly AssessmentHistoryRow[]>>();
+  const historyFlights = createSingleFlight<AssessmentHistoryRow[]>();
   const searchCache = new Map<string, CacheEntry<AutocompleteResponse>>();
   const propertyCache = new Map<string, CacheEntry<RollEntry>>();
   const districtCache = new Map<string, CacheEntry<DistrictCheck>>();
@@ -575,14 +718,14 @@ export function createPropertyService(
   }
 
   function fetchRows(params: URLSearchParams, op: PropertyDataOp): Promise<unknown> {
-    return timedCityCall(op, config.datasetId, () => fetchRowsOnce(params));
+    return timedCityCall(op, config.datasetId, () => fetchRowsOnce(resourceUrl, params));
   }
 
-  async function fetchRowsOnce(params: URLSearchParams): Promise<unknown> {
+  async function fetchRowsOnce(url: string, params: URLSearchParams): Promise<unknown> {
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), config.httpTimeoutMs);
     try {
-      const res = await fetch(`${resourceUrl}?${params.toString()}`, {
+      const res = await fetch(`${url}?${params.toString()}`, {
         signal: controller.signal,
         headers: { Accept: 'application/json' },
       });
@@ -635,7 +778,11 @@ export function createPropertyService(
       }
     }
     if (!best || bestValue < 0) miss(key, key, deps.onLookupMiss);
-    return { record: toPropertyRecord(best), point: parcelInteriorPoint(best.multipolygon) };
+    return {
+      record: toPropertyRecord(best),
+      point: parcelInteriorPoint(best.multipolygon),
+      detail: toRollDetail(best),
+    };
   }
 
   /** City autocomplete for a normalized query (one request, plus the #701 fallback). */
@@ -666,6 +813,39 @@ export function createPropertyService(
       deps.onLookupMiss?.(reason, key);
     }
     return response;
+  }
+
+  /** Validates the key, then memory → durable cache → City for the roll entry. */
+  async function resolveRoll(addressKey: string): Promise<{ key: string; entry: RollEntry }> {
+    const key = addressKey.trim();
+    if (!key) miss(addressKey, '', deps.onLookupMiss);
+    // Reno/05: an explicit out-of-coverage key never hits Socrata.
+    if (detectCoverageSignal(key) === 'out-of-coverage') {
+      miss(key, key, deps.onLookupMiss);
+    }
+    const hit = cached(propertyCache, key);
+    if (hit) {
+      emit({ event: 'lookup', op: 'property', dataset: config.datasetId, source: 'memory' });
+      return { key, entry: withFreshStale(hit) };
+    }
+    const entry = await resolveShared<RollEntry>({
+      op: 'property',
+      dataset: config.datasetId,
+      key,
+      flights: rollFlights,
+      ttlMs: config.dbCacheTtlMs,
+      isPayload: isRollEntry,
+      fetch: async () => {
+        const params = new URLSearchParams({
+          $select: DETAIL_FIELDS.join(','),
+          $where: `address=${soqlString(key)}`,
+          $limit: String(config.searchRowLimit),
+        });
+        return toProperty(key, await fetchRows(params, 'property'));
+      },
+    });
+    store(propertyCache, key, entry);
+    return { key, entry: withFreshStale(entry) };
   }
 
   return {
@@ -710,35 +890,56 @@ export function createPropertyService(
       addressKey: string,
       options: GetPropertyOptions = {},
     ): Promise<PropertyRecord> {
+      const { key, entry } = await resolveRoll(addressKey);
+      return withLandUse(key, entry, options);
+    },
+
+    async getPropertyDetail(
+      addressKey: string,
+      options: GetPropertyOptions = {},
+    ): Promise<PropertyDetail> {
+      const { key, entry } = await resolveRoll(addressKey);
+      const property = await withLandUse(key, entry, options);
+      const detail = entry.detail;
+      return {
+        property,
+        rollNumber: detail?.rollNumber ?? null,
+        cityRecordUpdatedOn: detail?.cityRecordUpdatedOn ?? null,
+        propertyClassLabel: detail?.propertyClassLabel ?? 'Not classified',
+      };
+    },
+
+    async getAssessmentHistory(addressKey: string): Promise<readonly AssessmentHistoryRow[]> {
       const key = addressKey.trim();
-      if (!key) miss(addressKey, '', deps.onLookupMiss);
-      // Reno/05: an explicit out-of-coverage key never hits Socrata.
-      if (detectCoverageSignal(key) === 'out-of-coverage') {
-        miss(key, key, deps.onLookupMiss);
-      }
-      const hit = cached(propertyCache, key);
+      if (!key) return [];
+      const dataset = config.historyDatasetId;
+      const hit = cached(historyCache, key);
       if (hit) {
-        emit({ event: 'lookup', op: 'property', dataset: config.datasetId, source: 'memory' });
-        return withLandUse(key, withFreshStale(hit), options);
+        emit({ event: 'lookup', op: 'history', dataset, source: 'memory' });
+        return hit;
       }
-      const entry = await resolveShared<RollEntry>({
-        op: 'property',
-        dataset: config.datasetId,
+      const rows = await resolveShared<AssessmentHistoryRow[]>({
+        op: 'history',
+        dataset,
         key,
-        flights: rollFlights,
-        ttlMs: config.dbCacheTtlMs,
-        isPayload: isRollEntry,
+        flights: historyFlights,
+        ttlMs: config.historyDbCacheTtlMs,
+        isPayload: isHistoryRows,
         fetch: async () => {
           const params = new URLSearchParams({
-            $select: DETAIL_FIELDS.join(','),
+            $select: HISTORY_FIELDS.join(','),
             $where: `address=${soqlString(key)}`,
-            $limit: String(config.searchRowLimit),
+            $order: 'roll_year DESC',
+            $limit: String(config.historyRowLimit),
           });
-          return toProperty(key, await fetchRows(params, 'property'));
+          const body = await timedCityCall('history', dataset, () =>
+            fetchRowsOnce(historyUrl, params),
+          );
+          return toHistoryRows(key, body);
         },
       });
-      store(propertyCache, key, entry);
-      return withLandUse(key, withFreshStale(entry), options);
+      store(historyCache, key, rows);
+      return rows;
     },
   };
 }

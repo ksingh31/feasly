@@ -27,10 +27,16 @@ const lookup = vi.fn(async (addressKey: unknown) => {
   return RECORD;
 });
 const autocomplete = vi.fn(async () => ({ suggestions: [] }));
+const assessment = vi.fn(async (addressKey: unknown) => {
+  if (addressKey === 'missing') {
+    throw new realMiddleware.HttpError(404, realMiddleware.ErrorCodes.ADDRESS_NOT_FOUND, 'nope', false);
+  }
+  return { property: RECORD, history: [], historyAvailable: false };
+});
 
 const fakeApp = {
   requestPipeline: passthroughPipeline,
-  propertyRoute: { autocomplete, lookup },
+  propertyRoute: { autocomplete, lookup, assessment },
   withApiKeyRateLimit: (_h: unknown, _c: unknown, _o: unknown, fn: () => Promise<unknown>) => fn(),
   config: { propertyData: { httpCacheMaxAgeSeconds: 900 } },
 };
@@ -44,6 +50,7 @@ vi.mock('../src/index', async () => ({
 
 import { propertiesLookupHandler } from '../src/functions/properties-lookup';
 import { propertiesAutocompleteHandler } from '../src/functions/properties-autocomplete';
+import { propertiesAssessmentHandler } from '../src/functions/properties-assessment';
 
 interface Res {
   status: number;
@@ -60,6 +67,11 @@ async function call(handler: Handler, req: Record<string, unknown>): Promise<Res
 
 const CASES: ReadonlyArray<{ name: string; handler: Handler; query: Record<string, string> }> = [
   { name: 'lookup', handler: propertiesLookupHandler as unknown as Handler, query: { addressKey: 'k' } },
+  {
+    name: 'assessment (#695)',
+    handler: propertiesAssessmentHandler as unknown as Handler,
+    query: { addressKey: 'k' },
+  },
   {
     name: 'autocomplete',
     handler: propertiesAutocompleteHandler as unknown as Handler,
@@ -107,6 +119,17 @@ describe('property GET adapters — HTTP caching (#756)', () => {
       headers: {},
     });
     expect(res.status).toBe(404);
+    expect(res.headers['Cache-Control']).toBe('no-store');
+    expect(res.headers['ETag']).toBeUndefined();
+  });
+
+  it('#695: assessment 404 is a problem response (no-store, no ETag)', async () => {
+    const res = await call(propertiesAssessmentHandler as unknown as Handler, {
+      query: { addressKey: 'missing' },
+      headers: {},
+    });
+    expect(res.status).toBe(404);
+    expect((res.body as { code?: string }).code).toBe('ADDRESS_NOT_FOUND');
     expect(res.headers['Cache-Control']).toBe('no-store');
     expect(res.headers['ETag']).toBeUndefined();
   });
