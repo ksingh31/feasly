@@ -66,10 +66,25 @@
       <section class="invoice-drawer__section" aria-labelledby="invoice-drawer-amounts">
         <h3 class="invoice-drawer__heading" id="invoice-drawer-amounts">Amounts</h3>
         <dl class="invoice-drawer__list">
-          <div>
-            <dt>Commission</dt>
-            <dd class="invoice-drawer__num invoice-drawer__num--lead">{{ inv.commissionCents | kitMoney }}</dd>
-          </div>
+          @if (tax(); as t) {
+            <div data-testid="invoice-total">
+              <dt>Total</dt>
+              <dd class="invoice-drawer__num invoice-drawer__num--lead">{{ t.total }}</dd>
+            </div>
+            <div data-testid="invoice-subtotal">
+              <dt>Commission subtotal</dt>
+              <dd class="invoice-drawer__num">{{ t.subtotal }}</dd>
+            </div>
+            <div data-testid="invoice-tax">
+              <dt>{{ t.line }}</dt>
+              <dd class="invoice-drawer__num">{{ t.amount }}</dd>
+            </div>
+          } @else {
+            <div>
+              <dt>Commission</dt>
+              <dd class="invoice-drawer__num invoice-drawer__num--lead">{{ inv.commissionCents | kitMoney }}</dd>
+            </div>
+          }
           <div>
             <dt>Contract value (excl. land)</dt>
             <dd class="invoice-drawer__num">{{ inv.contractValueCents | kitMoney }}</dd>
