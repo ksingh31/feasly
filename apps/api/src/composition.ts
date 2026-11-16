@@ -818,7 +818,7 @@ export interface AppComposition {
   /** Tight limiter + pipeline for the Stripe webhook receiver. */
   readonly webhookRateLimiter: RateLimiter;
   readonly webhookPipeline: RequestPipeline;
-  /** MCP server (api-mcp/06): Streamable HTTP at POST /mcp/v1. */
+  /** MCP server (api-mcp/06): Streamable HTTP at POST /api/mcp/v1. */
   readonly mcpRoute: McpRoute;
 }
 
@@ -1606,6 +1606,8 @@ export function createComposition(
     keys: options.apiKeyStore ?? createDrizzleApiKeyStore({ db: db.db }),
     audit:
       options.apiKeyAuditStore ?? createDrizzleApiKeyAuditStore({ db: db.db }),
+    authCacheTtlSeconds: config.apiKeyAuth.authCacheTtlSeconds,
+    acceptedModes: config.apiKeyAuth.acceptedModes,
   });
   const apiKeyRoute: ApiKeyRoute = createApiKeyRoute({
     apiKeys: apiKeyService,
@@ -2100,7 +2102,7 @@ export function createComposition(
     csrf,
     logger: options.logger,
   });
-  // MCP server (api-mcp/06): Streamable HTTP at POST /mcp/v1.
+  // MCP server (api-mcp/06): Streamable HTTP at POST /api/mcp/v1.
   // Thin wrapper over the shared services — the MCP package owns the
   // protocol, this route owns the wiring (auth + services).
   const mcpRoute: McpRoute = createMcpRoute({
