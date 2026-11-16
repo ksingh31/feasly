@@ -492,6 +492,7 @@ ALTER TABLE "commission_invoices" ADD COLUMN IF NOT EXISTS "total_cents" integer
 UPDATE "commission_invoices" SET "total_cents" = "commission_cents" + "tax_cents" WHERE "total_cents" IS NULL;
 -- #719 chargeback flag + cumulative refunded amount.
 ALTER TABLE "commission_invoices" ADD COLUMN IF NOT EXISTS "chargeback_status" text;
+-- #715 refunds: running refunded total (rows in billing_refunds).
 ALTER TABLE "commission_invoices" ADD COLUMN IF NOT EXISTS "refunded_cents" integer DEFAULT 0 NOT NULL;
 -- billing/12 safety net: rows created while migration 0046 was missing get
 -- human-readable invoice numbers (INV-0001… in created_at order), then the

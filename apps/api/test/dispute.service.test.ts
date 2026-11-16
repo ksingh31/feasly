@@ -52,6 +52,7 @@ import type { BillingConfig } from '../src/config';
 import {
   billingDisputes,
   billingEvents,
+  billingRefunds,
   commissionInvoices,
   estimates,
   leads,
@@ -84,7 +85,7 @@ function nextId(): string {
 }
 
 /** Fake Stripe: records calls, never touches the network. */
-function fakeStripe(): StripeService & { calls: unknown[] } {
+function fakeStripe(piId = 'pi_test_1'): StripeService & { calls: unknown[] } {
   const calls: unknown[] = [];
   const service: StripeService = {
     isConfigured: true,
@@ -103,14 +104,14 @@ function fakeStripe(): StripeService & { calls: unknown[] } {
     listPaymentMethods: async () => [],
     createOffSessionPaymentIntent: async (input, idempotencyKey) => {
       calls.push({ op: 'createOffSessionPaymentIntent', input, idempotencyKey });
-      return { id: 'pi_test_1', status: 'requires_capture' };
+      return { id: piId, status: 'requires_capture' };
     },
     createSubscription: async () => ({ id: 'sub_test_123', status: 'active' }),
     cancelSubscription: async (subscriptionId) => ({ id: subscriptionId }),
     retrievePaymentIntent: async (id: string) => ({ id, status: 'processing' }),
     getPaymentIntentConfirmation: async (id: string) => ({ id, status: 'requires_action', clientSecret: `${id}_secret_test` }),
-    refundPaymentIntent: async (paymentIntentId, idempotencyKey) => {
-      calls.push({ op: 'refundPaymentIntent', paymentIntentId, idempotencyKey });
+    refundPaymentIntent: async (paymentIntentId, idempotencyKey, amountCents) => {
+      calls.push({ op: 'refundPaymentIntent', paymentIntentId, idempotencyKey, amountCents });
       return { id: 're_test_1', status: 'succeeded' };
     },
     verifyWebhook: () => {
@@ -163,8 +164,9 @@ interface Fixtures {
 function newFixtures(
   testDb: TestDb,
   now: Date,
+  piId = 'pi_test_1',
 ): Fixtures {
-  const stripe = fakeStripe();
+  const stripe = fakeStripe(piId);
   const email = fakeEmail();
   const opsAlerts = fakeOpsAlerts();
   const audit = createBillingAuditService({ db: testDb.db, newId: nextId });
@@ -496,6 +498,97 @@ describe('dispute service', () => {
           'stripe_refund',
     );
     expect(creditNote).toBeDefined();
+  });
+
+  it('acceptDispute on a partly refunded invoice refunds only the remainder (no double refund) and reconciles the ledger', async () => {
+    const tenantKey = 'dispute-accept-partial';
+    await seedTenant(testDb, tenantKey);
+    const f = newFixtures(testDb, FIXED_NOW, 'pi_test_partial');
+    const invoice = await seedReviewedInvoice(testDb, f, tenantKey);
+    await f.commission.finalizeInvoice(invoice.id);
+    const paid = await f.commission.markPaidByPaymentIntent('pi_test_partial');
+    const partial = 100_000;
+    await f.commission.refundInvoice(invoice.id, {
+      amountCents: partial,
+      reason: 'goodwill',
+      idempotencyKey: 'admin-partial-1',
+      adminEmail: 'admin@feasly.test',
+    });
+    const before = await f.commission.getById(invoice.id);
+    expect(before.refundedCents).toBe(partial);
+
+    const dispute = await f.disputes.recordOpenedDispute(before);
+    await f.disputes.acceptDispute(dispute.id, { adminEmail: 'admin@feasly.test' });
+
+    const remainder = paid.totalCents - partial;
+    const disputeRefund = f.stripe.calls.filter(
+      (c) =>
+        (c as { op: string }).op === 'refundPaymentIntent' &&
+        (c as { idempotencyKey: string }).idempotencyKey ===
+          `feasly:billing_disputes:${dispute.id}:refund`,
+    );
+    expect(disputeRefund).toHaveLength(1);
+    expect((disputeRefund[0] as { amountCents?: number }).amountCents).toBe(remainder);
+
+    const after = await f.commission.getById(invoice.id);
+    expect(after.status).toBe('void');
+    // Ledger total equals the invoice total: nothing refunded twice.
+    expect(after.refundedCents).toBe(paid.totalCents);
+    const ledger = await testDb.db
+      .select()
+      .from(billingRefunds)
+      .where(eq(billingRefunds.invoiceId, invoice.id));
+    expect(ledger.reduce((sum, r) => sum + r.amountCents, 0)).toBe(paid.totalCents);
+  });
+
+  it('acceptDispute is refused (409) while an admin card refund is still pending', async () => {
+    const tenantKey = 'dispute-accept-pending-refund';
+    await seedTenant(testDb, tenantKey);
+    const f = newFixtures(testDb, FIXED_NOW, 'pi_test_pending');
+    const invoice = await seedReviewedInvoice(testDb, f, tenantKey);
+    await f.commission.finalizeInvoice(invoice.id);
+    await f.commission.markPaidByPaymentIntent('pi_test_pending');
+    await testDb.db.insert(billingRefunds).values({
+      id: randomUUID(),
+      invoiceId: invoice.id,
+      tenantKey,
+      amountCents: 1_000,
+      reason: 'goodwill',
+      method: 'stripe',
+      status: 'pending',
+      idempotencyKey: `pending-${randomUUID()}`,
+    });
+    const dispute = await f.disputes.recordOpenedDispute(await f.commission.getById(invoice.id));
+    await expect(
+      f.disputes.acceptDispute(dispute.id, { adminEmail: 'admin@feasly.test' }),
+    ).rejects.toMatchObject({ status: 409 });
+    expect((await f.commission.getById(invoice.id)).status).toBe('paid');
+  });
+
+  it('acceptDispute on a fully refunded invoice issues no further provider refund', async () => {
+    const tenantKey = 'dispute-accept-fully-refunded';
+    await seedTenant(testDb, tenantKey);
+    const f = newFixtures(testDb, FIXED_NOW, 'pi_test_full');
+    const invoice = await seedReviewedInvoice(testDb, f, tenantKey);
+    await f.commission.finalizeInvoice(invoice.id);
+    const paid = await f.commission.markPaidByPaymentIntent('pi_test_full');
+    await f.commission.refundInvoice(invoice.id, {
+      reason: 'billing_error',
+      idempotencyKey: 'admin-full-1',
+      adminEmail: 'admin@feasly.test',
+    });
+    const refundedInvoice = await f.commission.getById(invoice.id);
+    expect(refundedInvoice.refundedCents).toBe(paid.totalCents);
+    const callsBefore = f.stripe.calls.length;
+
+    const dispute = await f.disputes.recordOpenedDispute(refundedInvoice);
+    const resolved = await f.disputes.acceptDispute(dispute.id, { adminEmail: 'admin@feasly.test' });
+
+    expect(resolved.status).toBe('accepted');
+    expect(f.stripe.calls.length).toBe(callsBefore);
+    const after = await f.commission.getById(invoice.id);
+    expect(after.status).toBe('void');
+    expect(after.refundedCents).toBe(paid.totalCents);
   });
 
   it('rejectDispute returns the invoice to review with a fresh 7-day window', async () => {

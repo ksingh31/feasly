@@ -544,6 +544,24 @@ const targets = [
     entry: 'src/functions/admin-billing-invoice-payment-method.ts',
     out: 'admin-billing-invoice-payment-method/index.js',
   },
+  // Admin refunds / void / contract correction / payment reversal (#715,
+  // admin, billing:manage).
+  {
+    entry: 'src/functions/admin-billing-refund.ts',
+    out: 'admin-billing-refund/index.js',
+  },
+  {
+    entry: 'src/functions/admin-billing-void.ts',
+    out: 'admin-billing-void/index.js',
+  },
+  {
+    entry: 'src/functions/admin-billing-correct-contract.ts',
+    out: 'admin-billing-correct-contract/index.js',
+  },
+  {
+    entry: 'src/functions/admin-billing-reverse-payment.ts',
+    out: 'admin-billing-reverse-payment/index.js',
+  },
   {
     entry: 'src/functions/admin-sheets-status.ts',
     out: 'admin-sheets-status/index.js',

@@ -1419,6 +1419,65 @@ export const ROUTE_REGISTRY: readonly ApiRouteEntry[] = [
   },
   {
     method: 'POST',
+    path: '/api/v1/admin/billing/invoices/{id}/refund',
+    auth: 'admin',
+    permissions: ['billing:manage'] as const,
+    rateLimit: '300/min per session',
+    status: 'live',
+    summary:
+      'Admin refunds a paid commission invoice in full or in part (#715). ' +
+      'Card-paid invoices are refunded on the payment provider (idempotency ' +
+      'key feasly:commission_invoices:{id}:refund:{idempotencyKey}); ' +
+      'manually paid invoices record an off-Stripe refund with a reference. ' +
+      'Same idempotencyKey = same refund, never a second one. 409 unless ' +
+      'paid; 422 past the amount left to refund. The invoice stays paid ' +
+      '(refundState partially_refunded / refunded). Audited with the admin ' +
+      'identity.',
+  },
+  {
+    method: 'POST',
+    path: '/api/v1/admin/billing/invoices/{id}/void',
+    auth: 'admin',
+    permissions: ['billing:manage'] as const,
+    rateLimit: '300/min per session',
+    status: 'live',
+    summary:
+      'Admin voids a commission invoice that must not be charged (#715). ' +
+      'Allowed from draft, in_review and failed; 409 from finalized ' +
+      '(charge in flight), paid (refund instead), disputed (dispute ' +
+      'console) and void. The review clock is cleared, so the reviewer ' +
+      'timer never charges it. Audited with the admin identity.',
+  },
+  {
+    method: 'POST',
+    path: '/api/v1/admin/billing/invoices/{id}/correct-contract',
+    auth: 'admin',
+    permissions: ['billing:manage'] as const,
+    rateLimit: '300/min per session',
+    status: 'live',
+    summary:
+      'Admin corrects the reported contract (value excl. land, signed ' +
+      'date, mandatory note) on a draft or in_review invoice (#715; 409 ' +
+      'otherwise). Commission and tax are recalculated at the invoice\'s ' +
+      'own rate and tax snapshot; an in_review invoice restarts its 7-day ' +
+      'review window and the builder is emailed. Original values stay in ' +
+      'the audit trail.',
+  },
+  {
+    method: 'POST',
+    path: '/api/v1/admin/billing/invoices/{id}/reverse-payment',
+    auth: 'admin',
+    permissions: ['billing:manage'] as const,
+    rateLimit: '300/min per session',
+    status: 'live',
+    summary:
+      'Admin reverses a manual mark-paid (bounced cheque) with a mandatory ' +
+      'reason (#715): paid → failed. Manually paid invoices with no ' +
+      'refunds only (409 otherwise); the planned payment method is kept, ' +
+      'so nothing is auto-charged. Audited with the admin identity.',
+  },
+  {
+    method: 'POST',
     path: '/api/v1/admin/billing/invoices',
     auth: 'admin',
     permissions: ['billing:manage'] as const,

@@ -497,6 +497,10 @@ exports[`route registry > exhaustive role x route permission matrix (auth/04 acc
     "super_admin",
     "admin",
   ],
+  "POST /api/v1/admin/billing/invoices/{id}/correct-contract": [
+    "super_admin",
+    "admin",
+  ],
   "POST /api/v1/admin/billing/invoices/{id}/dunning": [
     "super_admin",
     "admin",
@@ -505,7 +509,19 @@ exports[`route registry > exhaustive role x route permission matrix (auth/04 acc
     "super_admin",
     "admin",
   ],
+  "POST /api/v1/admin/billing/invoices/{id}/refund": [
+    "super_admin",
+    "admin",
+  ],
   "POST /api/v1/admin/billing/invoices/{id}/retry": [
+    "super_admin",
+    "admin",
+  ],
+  "POST /api/v1/admin/billing/invoices/{id}/reverse-payment": [
+    "super_admin",
+    "admin",
+  ],
+  "POST /api/v1/admin/billing/invoices/{id}/void": [
     "super_admin",
     "admin",
   ],

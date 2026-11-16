@@ -93,6 +93,18 @@ Community lot inventory, phase 1 (issue #691):
 
 ## Unreleased — 2026-11-16 (additive)
 
+Admin refunds, void, contract correction, manual-payment reversal (issue #715):
+
+- **Added** optional `CommissionInvoice.refundedCents`, `refundState`
+  (`InvoiceRefundState`: `none` | `partially_refunded` | `refunded` — derived,
+  not a status) and `refunds` (`InvoiceRefund[]`, single-invoice reads only).
+- **Added** `InvoiceRefund`, `InvoiceRefundReason`, `InvoiceRefundMethod`,
+  `InvoiceRefundStatus`; request/response pairs `RefundInvoiceRequest` /
+  `RefundInvoiceResponse`, `VoidInvoiceRequest` / `VoidInvoiceResponse`
+  (+ `VoidInvoiceReason`), `CorrectContractRequest` /
+  `CorrectContractResponse`, `ReverseManualPaymentRequest` /
+  `ReverseManualPaymentResponse` for the four new admin billing endpoints.
+
 Project-type steer by home age (issue #755):
 
 - **Added** optional `PropertyRecord.steer` (`PropertySteer`:
