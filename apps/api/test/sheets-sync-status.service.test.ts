@@ -20,6 +20,7 @@ import type {
 import type { LeadStore } from '../src/services/lead.store';
 import type { SheetsSyncService } from '../src/services/sheets-sync.service';
 import { ErrorCodes } from '../src/middleware/errors';
+import { SEED_ADMIN_EMAIL } from '../src/config';
 
 const NOW = new Date('2026-09-26T01:00:00.000Z');
 const MIN = 60_000;
@@ -209,7 +210,7 @@ describe('sheets sync status service', () => {
     );
 
     await expect(
-      createSheetsSyncStatusService(deps).triggerManualRun('karanbirsingh667@gmail.com'),
+      createSheetsSyncStatusService(deps).triggerManualRun(SEED_ADMIN_EMAIL),
     ).rejects.toThrow(
       expect.objectContaining({ status: 409, code: ErrorCodes.CONFLICT }),
     );
@@ -219,11 +220,11 @@ describe('sheets sync status service', () => {
   it("triggerManualRun delegates to the worker with trigger 'manual' (AC3)", async () => {
     const { deps } = makeDeps();
     const r = await createSheetsSyncStatusService(deps).triggerManualRun(
-      'karanbirsingh667@gmail.com',
+      SEED_ADMIN_EMAIL,
     );
     expect(deps.sheets.runSyncCycle).toHaveBeenCalledWith({
       trigger: 'manual',
-      actorEmail: 'karanbirsingh667@gmail.com',
+      actorEmail: SEED_ADMIN_EMAIL,
     });
     expect(r.synced).toBe(3);
     expect(r.triggered_at).toBe(NOW.toISOString());

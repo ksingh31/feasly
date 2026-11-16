@@ -73,6 +73,7 @@ function makeDeps(expectedGatePerms: readonly Permission[]) {
     requirePermissions: vi.fn(),
     getAuthContext: vi.fn(),
     requireBuilderId: vi.fn(),
+    requireRecentAuth: vi.fn(),
   };
   const deps = { userService, permissionGuard, builders } as unknown as AdminUsersRouteDeps;
   return { deps, ctx, userService, builders, permissionGuard };
@@ -542,6 +543,59 @@ describe('admin-users route (auth/03)', () => {
       'r@example.com',
       expect.objectContaining({ actorEmail: 'admin@example.com' }),
     );
+  });
+
+  it('update: builder admin cannot patch a user outside their orgs (403, #731 tenant isolation)', async () => {
+    const { deps, userService } = makeBuilderAdminDeps(INVITE_GATE);
+    vi.mocked(userService.findById).mockResolvedValue({
+      id: '823e4567-e89b-12d3-a456-426614174000',
+      email: 'o@example.com',
+      name: 'O',
+      staffRole: null,
+      memberships: [
+        {
+          builderId: '22222222-2222-4222-8222-222222222222',
+          role: 'builder_member',
+          createdAt: new Date(),
+        },
+      ],
+      status: 'active',
+      isProtected: false,
+      createdAt: new Date(),
+      updatedAt: new Date(),
+    } as never);
+    const route = createAdminUsersRoute(deps);
+    await expect(
+      route.update(ADMIN_HEADERS, '823e4567-e89b-12d3-a456-426614174000', { name: 'Hijacked' }),
+    ).rejects.toThrow(expect.objectContaining({ status: 403 }));
+    expect(userService.renameUser).not.toHaveBeenCalled();
+    expect(userService.disableUser).not.toHaveBeenCalled();
+  });
+
+  it('resendInvite: builder admin cannot resend for a user outside their orgs (403, #731 tenant isolation)', async () => {
+    const { deps, userService } = makeBuilderAdminDeps(INVITE_GATE);
+    vi.mocked(userService.findById).mockResolvedValue({
+      id: '923e4567-e89b-12d3-a456-426614174000',
+      email: 'p@example.com',
+      name: 'P',
+      staffRole: null,
+      memberships: [
+        {
+          builderId: '22222222-2222-4222-8222-222222222222',
+          role: 'builder_member',
+          createdAt: new Date(),
+        },
+      ],
+      status: 'invited',
+      isProtected: false,
+      createdAt: new Date(),
+      updatedAt: new Date(),
+    } as never);
+    const route = createAdminUsersRoute(deps);
+    await expect(
+      route.resendInvite(ADMIN_HEADERS, '923e4567-e89b-12d3-a456-426614174000'),
+    ).rejects.toThrow(expect.objectContaining({ status: 403 }));
+    expect(userService.resendInvite).not.toHaveBeenCalled();
   });
 
   it('validation: bad UUID and bad email are rejected before the service', async () => {

@@ -9,6 +9,8 @@
  * PLACEHOLDER: no outbound email/SMS is sent yet. The team works callback
  * requests from the future inbox flow; the confirmation email send is
  * tracked as follow-up work for when the outbound sender (ACS) is live.
+ * #840: when that send lands, a sandbox lead (`lead.sandbox`) must route
+ * it through `createSandboxSuppressingEmailService`, as share.service does.
  */
 import { randomUUID } from 'node:crypto';
 import { z } from 'zod';

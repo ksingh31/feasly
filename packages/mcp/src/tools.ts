@@ -214,7 +214,10 @@ export async function executeTool(
     case 'estimate_project': {
       requireToolScope(auth, 'estimate_project');
       // The EstimateService validates the full shape (same as REST).
-      return deps.estimate.estimate(args);
+      // #793: a sandbox key writes a sandbox-flagged estimate row.
+      return auth?.sandbox
+        ? deps.estimate.estimate(args, { sandbox: true })
+        : deps.estimate.estimate(args);
     }
     case 'submit_lead': {
       requireToolScope(auth, 'submit_lead');

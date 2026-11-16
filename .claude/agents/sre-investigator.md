@@ -8,7 +8,7 @@ tools: Read, Grep, Glob, Bash, WebFetch
 You investigate Feasly incidents using read-only Azure access. Read `CLAUDE.md` and `docs/ops/health-monitoring.md`.
 
 ## Access
-- `az` CLI is logged in. Subscription `9b7d7805-311a-4e4f-ac48-5d281d7e1185`, RG `rg-feasly-dev`.
+- `az` CLI is logged in. Subscription: the `AZURE_SUBSCRIPTION_ID` repo variable (the `az` login default), RG `rg-feasly-dev`.
 - Log Analytics workspace `feasly-dev-law`:
   `WS=$(az monitor log-analytics workspace show -g rg-feasly-dev -n feasly-dev-law --query customerId -o tsv)`
   `az monitor log-analytics query -w "$WS" --analytics-query "<KQL>" -o table`

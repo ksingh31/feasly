@@ -88,6 +88,14 @@ param stripeSecretKeySecretUri string = ''
 @description('Key Vault secret URI (versionless) for the Stripe webhook signing secret. Empty = webhook verification fails closed. Karan provisions the secret in Key Vault himself — Bicep only references it, never writes it.')
 param stripeWebhookSecretUri string = ''
 
+@description('Payment provider (#753): `simulated` (Stripe-shaped test mode, no real money) or `stripe`. Empty = the app setting is omitted and the app defaults to `stripe` (fail closed). Set to `simulated` for dev only in main.bicep.')
+@allowed([
+  ''
+  'simulated'
+  'stripe'
+])
+param paymentsProvider string = ''
+
 @description('Model slug(s) for the fallback narrative provider (e.g. openai/gpt-oss-120b). Empty = the app config default.')
 param narrativeFallbackModels string = ''
 
@@ -398,6 +406,17 @@ resource app 'Microsoft.Web/sites@2024-04-01' = {
               {
                 name: 'STRIPE_WEBHOOK_SECRET'
                 value: '@Microsoft.KeyVault(SecretUri=${stripeWebhookSecretUri})'
+              }
+            ],
+        // #753: payment provider. Set to `simulated` for dev only (main.bicep);
+        // empty = omitted, and the app defaults to `stripe` (fail closed), so
+        // staging/prod can never run the simulated provider by accident.
+        empty(paymentsProvider)
+          ? []
+          : [
+              {
+                name: 'PAYMENTS_PROVIDER'
+                value: paymentsProvider
               }
             ],
         // Microsoft Entra External ID sign-in (admin/builder). Values are

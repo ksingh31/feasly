@@ -23,6 +23,7 @@ import { describe, expect, it, beforeAll, afterAll } from 'vitest';
 import { createTestDb, type TestDb } from './pglite-db';
 // @ts-expect-error: plain .mjs module without type declarations
 import { REPAIR_SQL } from '../tools/repair-sql.mjs';
+import { SEED_ADMIN_EMAIL } from '../src/config';
 
 const TENANT_KEY = 'elite-craft-builders';
 const BUILDER_ID = 'a506cc36-ffd1-42db-993c-999bfbb0f1d2';
@@ -62,7 +63,7 @@ describe('builder tenants seed repair guard', () => {
     // from builder-entra-callback.service.ts) — this raised
     // builder_sessions_tenant_key_fkey before the tenants seed.
     const users = await testDb.rows<{ id: string; email: string }>(
-      `SELECT id, email FROM users WHERE email = 'karanbirsingh667@gmail.com'`,
+      `SELECT id, email FROM users WHERE email = '${SEED_ADMIN_EMAIL}'`,
     );
     expect(users).toHaveLength(1);
     await testDb.rows(

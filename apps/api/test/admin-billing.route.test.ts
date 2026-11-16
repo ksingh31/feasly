@@ -15,6 +15,7 @@ import {
 import { ErrorCodes, HttpError } from '../src/middleware/errors';
 import type { BillingHealthService } from '../src/services/billing/billing-health.service';
 import type { BillingHealthResponse } from '@feasly/contracts';
+import { SEED_ADMIN_EMAIL } from '../src/config';
 
 const ADMIN_HEADERS = { cookie: 'feasly_admin_session=valid-test-session' };
 
@@ -72,7 +73,7 @@ function makeDeps(): AdminBillingRouteDeps {
         }
       },
       async getAdminEmail() {
-        return 'karanbirsingh667@gmail.com';
+        return SEED_ADMIN_EMAIL;
       },
     },
     commission: {
@@ -345,7 +346,7 @@ describe('admin-billing route markPaid', () => {
       paymentMethod: 'cheque',
       reference: 'CHQ-1234',
       paidAt: new Date('2026-09-29T18:00:00.000Z'),
-      adminEmail: 'karanbirsingh667@gmail.com',
+      adminEmail: SEED_ADMIN_EMAIL,
     });
   });
 
@@ -460,7 +461,7 @@ describe('admin-billing route setCommissionRate', () => {
     expect(setCommissionRate).toHaveBeenCalledWith(
       INVOICE_ID,
       1.5,
-      'karanbirsingh667@gmail.com',
+      SEED_ADMIN_EMAIL,
     );
   });
 

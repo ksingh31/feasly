@@ -1,0 +1,14 @@
+{
+  "$comment": "Every indexable, parameter-free public page (docs/seo-page-standard.md). One entry per non-noindex pattern in seo-routes.ts; scripts/indexable-pages.spec.ts fails when the two drift. Read by scripts/build-seo-artifacts.ts (sitemap), scripts/build-llms-txt.ts (llms.txt; the one-line summary is the page's own meta description from copy.seo) and tools/check-prerender-seo.mjs (prerender SEO check). jsonLd names the structured data the prerender check validates: 'faq' = FAQPage, 'guide' = @graph with Article + FAQPage. Community pages (/communities/{slug}/) are data-driven and come from community-aggregates.json instead.",
+  "pages": [
+    { "pattern": "", "label": "Home: Calgary build-cost estimator", "section": "pages", "changefreq": "weekly", "priority": "1.0", "jsonLd": null },
+    { "pattern": "how-it-works", "label": "How it works", "section": "pages", "changefreq": "monthly", "priority": "0.8", "jsonLd": null },
+    { "pattern": "faq", "label": "Frequently asked questions", "section": "pages", "changefreq": "monthly", "priority": "0.8", "jsonLd": "faq" },
+    { "pattern": "guides/cost-to-build-a-house-calgary", "label": "How much does it cost to build a house in Calgary?", "section": "guides", "changefreq": "monthly", "priority": "0.9", "jsonLd": "guide" },
+    { "pattern": "guides/calgary-zoning-explained", "label": "Calgary zoning explained", "section": "guides", "changefreq": "monthly", "priority": "0.9", "jsonLd": "guide" },
+    { "pattern": "communities", "label": "Calgary community guides (index)", "section": "pages", "changefreq": "weekly", "priority": "0.9", "jsonLd": null },
+    { "pattern": "developers", "label": "Developers: API docs", "section": "pages", "changefreq": "monthly", "priority": "0.5", "jsonLd": null },
+    { "pattern": "privacy", "label": "Privacy policy", "section": "pages", "changefreq": "yearly", "priority": "0.3", "jsonLd": null },
+    { "pattern": "terms", "label": "Terms of use", "section": "pages", "changefreq": "yearly", "priority": "0.3", "jsonLd": null }
+  ]
+}

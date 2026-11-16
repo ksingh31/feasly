@@ -115,11 +115,11 @@ export interface LeadStore {
     readonly since: Date;
     readonly tenantKey: string | null;
     /**
-     * #738: sandbox scope. Real submissions only match real rows and
-     * sandbox-key submissions only match sandbox rows, so a real lead can
-     * never dedupe onto a test row (which the sandbox purge later deletes).
+     * #793: sandbox isolation. When set, only rows with the same sandbox
+     * flag match — test-key traffic never rewrites a real lead (and vice
+     * versa). Omitted → no filter (legacy callers).
      */
-    readonly sandbox: boolean;
+    readonly sandbox?: boolean;
   }): Promise<LeadRecord | null>;
   insert(lead: NewLead): Promise<LeadRecord>;
   /**
@@ -204,7 +204,8 @@ export interface LeadStore {
   /**
    * embed/09 — tenant-scoped lead listing for the builder portal.
    * Returns only leads with the given tenant_key, newest first.
-   * Quarantined rows are EXCLUDED (spam never reaches the builder).
+   * Quarantined and sandbox rows are EXCLUDED (spam and test data never
+   * reach the builder; #840).
    */
   listByTenantKey(args: {
     readonly tenantKey: string;
@@ -212,8 +213,8 @@ export interface LeadStore {
   }): Promise<LeadRecord[]>;
   /**
    * Returns only leads assigned to the given builder, newest first.
-   * Quarantined rows are EXCLUDED (spam never reaches the builder).
-   * This is the builder-portal scoping query (builders table migration).
+   * Quarantined and sandbox rows are EXCLUDED (spam and test data never
+   * reach the builder; #840). This is the builder-portal scoping query (builders table migration).
    */
   listByBuilderId(args: {
     readonly builderId: string;
@@ -394,8 +395,9 @@ export function createDrizzleLeadStore(deps: DrizzleLeadStoreDeps): LeadStore {
             args.tenantKey === null
               ? isNull(leads.tenantKey)
               : eq(leads.tenantKey, args.tenantKey),
-            // #738: never match across the sandbox boundary either.
-            eq(leads.sandbox, args.sandbox),
+            args.sandbox === undefined
+              ? undefined
+              : eq(leads.sandbox, args.sandbox),
           ),
         )
         .orderBy(desc(leads.createdAt))
@@ -452,7 +454,13 @@ export function createDrizzleLeadStore(deps: DrizzleLeadStoreDeps): LeadStore {
         .select()
         .from(leads)
         .where(
-          and(eq(leads.tenantKey, args.tenantKey), eq(leads.quarantined, false)),
+          and(
+            eq(leads.tenantKey, args.tenantKey),
+            eq(leads.quarantined, false),
+            // #840: sandbox (feasly_test_) leads never reach a builder's
+            // lists — they can't be worked, won, or billed.
+            eq(leads.sandbox, false),
+          ),
         )
         .orderBy(desc(leads.createdAt))
         .limit(args.limit ?? 100);
@@ -463,7 +471,13 @@ export function createDrizzleLeadStore(deps: DrizzleLeadStoreDeps): LeadStore {
         .select()
         .from(leads)
         .where(
-          and(eq(leads.builderId, args.builderId), eq(leads.quarantined, false)),
+          and(
+            eq(leads.builderId, args.builderId),
+            eq(leads.quarantined, false),
+            // #840: sandbox (feasly_test_) leads never reach a builder's
+            // lists — they can't be worked, won, or billed.
+            eq(leads.sandbox, false),
+          ),
         )
         .orderBy(desc(leads.createdAt))
         .limit(args.limit ?? 100);
@@ -600,6 +614,8 @@ export function createDrizzleLeadStore(deps: DrizzleLeadStoreDeps): LeadStore {
             // nor calls/messages-opted-out leads are nudge candidates.
             isNull(leads.unsubscribedAt),
             isNull(leads.contactOptOutAt),
+            // #793: sandbox (feasly_test_) leads never receive real email.
+            eq(leads.sandbox, false),
           ),
         )
         .orderBy(leads.createdAt)

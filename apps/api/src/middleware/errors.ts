@@ -50,6 +50,12 @@ export const ErrorCodes = {
   VALIDATION_FAILED: 'VALIDATION_FAILED',
   UNAUTHENTICATED: 'UNAUTHENTICATED',
   SESSION_EXPIRED: 'SESSION_EXPIRED',
+  /**
+   * #730 — the session is valid but its sign-in is older than
+   * SESSION_REAUTH_WINDOW_SECONDS and the route is a dangerous action
+   * (registry `recentAuth`). 401: the client sends the user to sign in again.
+   */
+  REAUTH_REQUIRED: 'REAUTH_REQUIRED',
   FORBIDDEN: 'FORBIDDEN',
   NOT_FOUND: 'NOT_FOUND',
   COMMUNITY_NOT_FOUND: 'COMMUNITY_NOT_FOUND',

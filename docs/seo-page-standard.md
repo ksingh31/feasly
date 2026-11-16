@@ -15,9 +15,9 @@ This complements the DoD in `docs/epics-ui/README.md`, the SEO epic `docs/plan/e
 | 5 | Self-referencing **canonical** with a trailing slash | `SeoService` |
 | 6 | OG + Twitter tags (`og:title/description/url/image/type`, `summary_large_image`) | `SeoService` |
 | 7 | **JSON-LD** matching the page type (`Article`, `FAQPage`, `Dataset`, `BreadcrumbList`, `Organization`/`WebSite` on home). Every FAQ question and answer must also appear **verbatim in the visible page** | `core/seo/jsonld-schemas.ts` |
-| 8 | Listed in **`sitemap.xml`** with sensible `changefreq` / `priority` | `apps/web/scripts/build-seo-artifacts.ts` |
-| 9 | Listed in **`llms.txt`**: one line with the URL and a one-sentence factual summary (guides, community pages, how-it-works, FAQ, developers) | `apps/web/scripts/build-llms-txt.ts` |
-| 10 | Covered by the **prerender SEO CI check**: full tag set, canonical, not noindexed, JSON-LD valid and mirroring the visible copy | `apps/web/tools/check-prerender-seo.mjs` |
+| 8 | Listed in **`sitemap.xml`** with sensible `changefreq` / `priority` | `apps/web/src/app/core/seo/indexable-pages.json` (read by `apps/web/scripts/build-seo-artifacts.ts`) |
+| 9 | Listed in **`llms.txt`**: one line with the URL and a one-sentence factual summary (guides, community pages, how-it-works, FAQ, developers) | `apps/web/scripts/build-llms-txt.ts` (static pages and guides from `indexable-pages.json`; the summary is the page's meta description) |
+| 10 | Covered by the **prerender SEO CI check**: full tag set, canonical, not noindexed, JSON-LD valid and mirroring the visible copy | `apps/web/tools/check-prerender-seo.mjs` (route list from `indexable-pages.json`, which `scripts/indexable-pages.spec.ts` keeps equal to the indexable patterns in `seo-routes.ts`; also asserts every indexable page is in the sitemap and llms.txt) |
 | 11 | **Lighthouse SEO = 100**, Performance ≥ 90, Accessibility ≥ 95 on the route | `lighthouse.yml` |
 | 12 | Exactly **one `<h1>`**; logical `h2`/`h3` outline; descriptive link text (never "click here"); `alt` on meaningful images | component template |
 | 13 | **Internal links:** linked from at least one indexable page (index, hub or nav), and links out to ≥ 2 related pages (guide ↔ community ↔ estimator) | component template |
@@ -53,15 +53,12 @@ Answer engines lift short, self-contained, well-sourced passages. Write so that 
 ## 5. Review gates
 
 - **architect:** every story that adds or changes a public page lists the checklist rows it touches in its acceptance criteria.
-- **frontend-dev:** a PR adding a public route updates the SEO table, sitemap, llms.txt and the prerender check in the same PR.
+- **frontend-dev:** a PR adding a public route adds it to the SEO table (`seo-routes.ts`) and to `indexable-pages.json` in the same PR (the parity spec fails otherwise); the sitemap, llms.txt and the prerender check follow from the manifest.
 - **pr-reviewer / ux-reviewer:** flag any public route missing a §1 row, or content that misses §2 items 1–5.
 
 ## Known gaps (2026-11-15)
 
 Found while writing this standard; to be fixed in follow-up stories:
 
-1. `check-prerender-seo.mjs` keeps a **hand-written route list**, and `/guides/calgary-zoning-explained/` is not on it, although it is in the SEO table and the sitemap. Derive the list from `seo-routes.ts` (all non-`noindex` patterns without params) so new pages can't skip the check.
-2. `llms.txt` does not list the guides (`/guides/cost-to-build-a-house-calgary/`, `/guides/calgary-zoning-explained/`).
-3. Community pages cover the top 40 communities by record count, which are mostly suburban. None of the established infill communities (Altadore, South Calgary/Marda Loop, Killarney-Glengarry, Mount Pleasant, …) has a page. See marketing plan §3.
-4. Community aggregates include non-residential parcels, which produces outliers such as Downtown Commercial Core at ~$5.4M average assessed. Restrict them to residential parcels.
-5. The cost-data version string reads `unclibrated`, a typo for "uncalibrated", in llms.txt.
+1. Community pages cover the top 40 communities by record count, which are mostly suburban. None of the established infill communities (Altadore, South Calgary/Marda Loop, Killarney-Glengarry, Mount Pleasant, …) has a page. See marketing plan §3.
+2. Community aggregates include non-residential parcels, which produces outliers such as Downtown Commercial Core at ~$5.4M average assessed. Restrict them to residential parcels.

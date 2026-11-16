@@ -3,7 +3,10 @@
  * Placeholder sweep (HRD-05, acceptance criterion 4).
  *
  * Fails (exit 1) when production paths reference unfinished placeholders:
- *   PLACEHOLDER | TODO(launch) | FIXME(launch) | karanbirsingh667@gmail.com
+ *   PLACEHOLDER | TODO(launch) | FIXME(launch)
+ *
+ * The CLI also runs the personal-identifier guard (tools/check-personal-ids.mjs,
+ * #758) so CI's existing `node tools/check-placeholders.mjs` step enforces it.
  *
  * Known placeholders are allowlisted in tools/placeholder-allowlist.txt —
  * each entry carries the reason and the unblock condition. The sweep catches
@@ -11,8 +14,7 @@
  * (cost-data calibration, tenant domain, site URL, ops inbox — all blocked
  * on Karan's decisions, all tracked in docs/launch-checklist.md).
  *
- * Test/spec/seed files are always excluded — the standing test email lives
- * there by design.
+ * Test/spec/seed files are always excluded.
  *
  * Proven to bite by apps/web/tools/check-placeholders.spec.ts (vitest).
  *
@@ -22,6 +24,7 @@
 import { readFileSync, readdirSync, statSync, existsSync } from 'node:fs';
 import { dirname, join, relative, extname } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { runCli as runPersonalIdGuard } from './check-personal-ids.mjs';
 
 const TOOLS_DIR = dirname(fileURLToPath(import.meta.url));
 const ROOT = join(TOOLS_DIR, '..'); // repo root
@@ -30,7 +33,6 @@ export const PLACEHOLDER_PATTERNS = [
   { name: 'PLACEHOLDER', re: /PLACEHOLDER/ },
   { name: 'TODO(launch)', re: /TODO\(launch\)/ },
   { name: 'FIXME(launch)', re: /FIXME\(launch\)/ },
-  { name: 'test email', re: /karanbirsingh667@gmail\.com/ },
 ];
 
 /** Extensions scanned (code, templates, config, docs that ship). */
@@ -110,6 +112,7 @@ export function checkPlaceholders(root = ROOT) {
 
 const isCli = process.argv[1] === fileURLToPath(import.meta.url);
 if (isCli) {
+  const personalIdExit = runPersonalIdGuard(ROOT);
   const failures = checkPlaceholders();
   if (failures.length > 0) {
     console.error('');
@@ -124,4 +127,5 @@ if (isCli) {
     process.exit(1);
   }
   console.log('Placeholder sweep: no unallowlisted placeholders. OK.');
+  if (personalIdExit !== 0) process.exit(personalIdExit);
 }
