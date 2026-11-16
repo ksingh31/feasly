@@ -38,6 +38,16 @@ function csvToList(raw: string): string[] {
     .filter((part) => part.length > 0);
 }
 
+/** True when the runtime's Intl knows `zone` (rejects typos like "America/Edmonon"). */
+function isIanaTimeZone(zone: string): boolean {
+  try {
+    new Intl.DateTimeFormat('en-CA', { timeZone: zone });
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 const EnvSchema = z.object({
   NODE_ENV: z.enum(['development', 'test', 'staging', 'production']).default('development'),
 
@@ -70,6 +80,28 @@ const EnvSchema = z.object({
   // gets its own deliberately tight limiter — separate from the general one.
   LEAD_RATE_LIMIT_WINDOW_MS: z.coerce.number().int().positive().default(60_000),
   LEAD_RATE_LIMIT_MAX_REQUESTS: z.coerce.number().int().positive().default(10),
+  // #788 invisible bot protection: the lead gate sends how long the form
+  // was on screen (`elapsedMs`). A submission faster than this is
+  // quarantined exactly like the honeypot (201, no email, no signal).
+  // 0 disables the check. The threshold lives here — never in the web app.
+  LEAD_MIN_SUBMIT_MS: z.coerce.number().int().nonnegative().default(2_000),
+
+  // #788: Cloudflare Turnstile (managed/invisible) — required only from an
+  // IP that tripped a shared money/mail rate limit, for BOT_CHALLENGE_WINDOW_MS
+  // after the trip. Dormant until BOTH the site key (plain config) and the
+  // secret (Key Vault reference) are set. Verification fails closed.
+  TURNSTILE_SITE_KEY: z.string().trim().default(''),
+  TURNSTILE_SECRET_KEY: z.string().trim().default(''),
+  TURNSTILE_VERIFY_URL: z
+    .string()
+    .url()
+    .default('https://challenges.cloudflare.com/turnstile/v0/siteverify'),
+  TURNSTILE_VERIFY_TIMEOUT_MS: z.coerce.number().int().positive().default(5_000),
+  BOT_CHALLENGE_WINDOW_MS: z.coerce.number().int().positive().default(86_400_000),
+  // Cap on outbound Turnstile verifications per tripped IP (#788 review):
+  // junk tokens past this budget are denied without a siteverify call.
+  BOT_CHALLENGE_VERIFY_MAX_ATTEMPTS: z.coerce.number().int().positive().default(10),
+  BOT_CHALLENGE_VERIFY_WINDOW_MS: z.coerce.number().int().positive().default(3_600_000),
 
   // Estimates are the most expensive endpoint to leave unthrottled. These
   // defaults are the FROZEN limits from the canonical API registry
@@ -146,6 +178,26 @@ const EnvSchema = z.object({
     .transform((value) => value === 'true'),
   FOLLOW_UP_EMAIL_DELAY_HOURS: z.coerce.number().int().positive().default(72),
 
+  // #725: builder notifications — one new-lead email per opted-in member
+  // (send-once outbox, retried by the builder-notifications timer) and the
+  // opt-in daily "Needs you" digest. ENABLED is the kill switch (default on:
+  // owner decision 2026-11-15, new-lead email on for every member). The
+  // digest goes out on the first timer tick at/after DIGEST_LOCAL_HOUR in
+  // DIGEST_TIMEZONE (once per local day, deduped).
+  BUILDER_NOTIFICATIONS_ENABLED: z
+    .enum(['true', 'false'])
+    .default('true')
+    .transform((value) => value === 'true'),
+  BUILDER_NOTIFICATION_MAX_ATTEMPTS: z.coerce.number().int().min(1).max(20).default(5),
+  BUILDER_NOTIFICATION_RETRY_WINDOW_HOURS: z.coerce.number().int().positive().default(24),
+  BUILDER_NOTIFICATION_CLAIM_LEASE_MINUTES: z.coerce.number().int().positive().default(10),
+  BUILDER_DIGEST_LOCAL_HOUR: z.coerce.number().int().min(0).max(23).default(7),
+  BUILDER_DIGEST_TIMEZONE: z
+    .string()
+    .min(1)
+    .refine(isIanaTimeZone, 'must be an IANA time zone, e.g. America/Edmonton')
+    .default('America/Edmonton'),
+
   // neighbourhood/05: monthly community-stats refresh timer. Communities
   // with fewer fresh assessment records than this are skipped (logged, never
   // zero-filled). ALERT_AFTER_FAILURES consecutive timer failures fire the
@@ -153,6 +205,41 @@ const EnvSchema = z.object({
   COMMUNITY_STATS_MIN_ASSESSMENTS: z.coerce.number().int().positive().default(10),
   COMMUNITY_STATS_ALERT_AFTER_FAILURES: z.coerce.number().int().positive().default(2),
   COMMUNITY_STATS_PRUNE_MIN_ROWS: z.coerce.number().int().positive().default(100),
+
+  // #773: neighbourhood data (Community Match epic). Each outside source is
+  // a provider interface; these pick the implementation (free now, paid
+  // later — config-only switch). 'none' writes nothing and calls nothing.
+  NEIGHBOURHOOD_SCHOOL_DIRECTORY_PROVIDER: z.enum(['calgary-open-data', 'none']).default('calgary-open-data'),
+  NEIGHBOURHOOD_SCHOOL_DESIGNATION_PROVIDER: z.enum(['none']).default('none'),
+  NEIGHBOURHOOD_SCHOOL_RATINGS_PROVIDER: z.enum(['none']).default('none'),
+  NEIGHBOURHOOD_REVIEWS_PROVIDER: z.enum(['none']).default('none'),
+  NEIGHBOURHOOD_AMENITIES_PROVIDER: z.enum(['calgary-open-data', 'none']).default('calgary-open-data'),
+  NEIGHBOURHOOD_COMMUTE_PROVIDER: z.enum(['straight-line', 'none']).default('straight-line'),
+  // City of Calgary open-data datasets behind the free implementations:
+  // Schools, Community Services, Community Points.
+  NEIGHBOURHOOD_SCHOOLS_DATASET_ID: z.string().min(1).default('fd9t-tdn2'),
+  NEIGHBOURHOOD_AMENITIES_DATASET_ID: z.string().min(1).default('x34e-bcjz'),
+  NEIGHBOURHOOD_COMMUNITY_POINTS_DATASET_ID: z.string().min(1).default('j9ps-fyst'),
+  // Established infill communities only (#690 rule): residential
+  // communities whose City "community structure" is one of these.
+  NEIGHBOURHOOD_COMMUNITY_CLASS: z.string().min(1).default('Residential'),
+  NEIGHBOURHOOD_COMMUNITY_STRUCTURES: z.string().min(1).default('INNER CITY,1950s,1960s/1970s'),
+  // Straight-line commute reference point (downtown core, City Hall).
+  NEIGHBOURHOOD_COMMUTE_DESTINATION_NAME: z.string().min(1).default('Downtown'),
+  NEIGHBOURHOOD_COMMUTE_DESTINATION_LAT: z.coerce.number().min(-90).max(90).default(51.0453),
+  NEIGHBOURHOOD_COMMUTE_DESTINATION_LNG: z.coerce.number().min(-180).max(180).default(-114.0581),
+  NEIGHBOURHOOD_HTTP_TIMEOUT_MS: z.coerce.number().int().positive().default(15_000),
+  // Upper bound on rows fetched per dataset in one refresh.
+  NEIGHBOURHOOD_MAX_ROWS: z.coerce.number().int().positive().default(50_000),
+  // Monthly schedule: a provider is due once its last success predates
+  // 00:00 UTC on this day of the current month. The timer ticks daily so a
+  // failed or interrupted run resumes the next day.
+  NEIGHBOURHOOD_REFRESH_DAY_OF_MONTH: z.coerce.number().int().min(1).max(28).default(1),
+  // One ops alert once a provider has been failing this many days.
+  NEIGHBOURHOOD_ALERT_AFTER_FAILURE_DAYS: z.coerce.number().int().positive().default(3),
+  // Per-address metrics: search radius, and how long a computed row is reused.
+  NEIGHBOURHOOD_LOT_RADIUS_M: z.coerce.number().int().positive().default(1_000),
+  NEIGHBOURHOOD_LOT_METRICS_TTL_MS: z.coerce.number().int().positive().default(2_592_000_000),
 
   // JWT session lifetime is provisional — Karan has not confirmed magic-link-only V1
   // or the session lifetime. Revisit when the login ADR lands (BE-4).
@@ -170,6 +257,10 @@ const EnvSchema = z.object({
   // an email-bombing vector against any known address. This caps actual
   // magic-link *sends* per normalized email per rolling hour on both paths.
   MAGIC_LINK_MAX_SENDS_PER_HOUR: z.coerce.number().int().positive().default(5),
+  // #806: lifetime of the owner link minted for the erase-confirmation email
+  // (POST /privacy/erase-requests). Short on purpose — it only has to survive
+  // the trip to the inbox and one click. Default 24 h.
+  PRIVACY_ERASE_CONFIRM_LINK_TTL_SECONDS: z.coerce.number().int().positive().default(86_400),
   // EMB-06: relay-code lifetime (10 minutes per story) and the session-token
   // lifetime it exchanges into (12 hours per story). Both from env so tests
   // and staging can shorten them without code changes.
@@ -382,6 +473,12 @@ const EnvSchema = z.object({
   ZONING_CITY: z.string().trim().toLowerCase().min(1).default('calgary'),
   // Cache-Control max-age for the catalogue (static per deploy; 1h default).
   ZONING_CACHE_MAX_AGE_S: z.coerce.number().int().nonnegative().default(3_600),
+  // --- Builder partner disclosure (#888) ---
+  // In-memory TTL for the public active-partner list (admin writes on the
+  // same instance invalidate it at once; other instances within this TTL).
+  PARTNERS_CACHE_TTL_MS: z.coerce.number().int().nonnegative().default(300_000),
+  // Cache-Control max-age on GET /api/v1/partners (5 min default).
+  PARTNERS_CACHE_MAX_AGE_S: z.coerce.number().int().nonnegative().default(300),
   // --- City-data freshness (landing trust strip) ---
   // Shares the SOCRATA_* source with propertyData; its own TTL because the
   // metadata changes at most monthly (24h default, successful fetches only).
@@ -599,6 +696,30 @@ export interface LeadConfig {
   readonly needsYouStaleDays: number;
   /** "Needs you" feed: max builder leads scanned (newest first). */
   readonly needsYouScanLimit: number;
+  /**
+   * #788: submissions whose client-reported form time is below this many
+   * ms are quarantined like the honeypot. 0 disables the check.
+   */
+  readonly minSubmitMs: number;
+}
+
+/**
+ * #788: invisible bot challenge (Cloudflare Turnstile), required only from
+ * an IP that tripped a shared money/mail rate limit.
+ */
+export interface BotChallengeConfig {
+  /** True only when both the site key and the secret are set. */
+  readonly enabled: boolean;
+  /** Public site key — returned to the client in the challenge problem. */
+  readonly siteKey: string;
+  /** Server-side secret (Key Vault reference). Never logged or serialized. */
+  readonly secretKey: string;
+  readonly verifyUrl: string;
+  readonly verifyTimeoutMs: number;
+  /** How long after a limit trip the IP must pass the challenge. */
+  readonly windowMs: number;
+  /** Per-IP cap on verifier calls (every attempt counts). */
+  readonly verifyRateLimit: Omit<RateLimitConfig, 'maxTrackedKeys'>;
 }
 
 export interface EstimateConfig {
@@ -652,6 +773,11 @@ export interface AuthConfig {
    * never a 429 — so the budget can't become a send oracle.
    */
   readonly magicLinkMaxSendsPerHour: number;
+  /**
+   * #806: lifetime of the fresh owner link emailed for erase confirmation
+   * (from PRIVACY_ERASE_CONFIRM_LINK_TTL_SECONDS, default 24 h).
+   */
+  readonly eraseConfirmLinkTtlSeconds: number;
   /**
    * INTERIM (api-mcp/01): pre-shared key for the admin endpoints, from
    * ADMIN_API_KEY. admin/01 replaces this with session auth. Undefined =
@@ -877,6 +1003,17 @@ export interface ZoningConfig {
 }
 
 /**
+ * Builder partner disclosure config (#888). The partner list itself is
+ * data (`builder_partners`); config only sets the cache lifetimes.
+ */
+export interface PartnersConfig {
+  /** In-memory TTL (ms) for the public active-partner list; 0 = no cache. */
+  readonly cacheTtlMs: number;
+  /** Cache-Control max-age (seconds) on the public partner response. */
+  readonly cacheMaxAgeSeconds: number;
+}
+
+/**
  * City-data freshness config (trust-strip/01).
  *
  * The landing trust strip reads "Refreshed <Month Year>" from the
@@ -1010,6 +1147,22 @@ export interface BillingTaxConfig {
 }
 
 /** #703: post-report follow-up email (hourly timer, flag default off). */
+/** #725: builder new-lead email + daily "Needs you" digest. */
+export interface BuilderNotificationsConfig {
+  /** Kill switch — false = no enqueue, no sends (default true). */
+  readonly enabled: boolean;
+  /** Delivery attempts per notification (initial + timer retries). */
+  readonly maxAttempts: number;
+  /** Pending rows older than this are no longer retried. */
+  readonly retryWindowHours: number;
+  /** A claimed row is not re-claimed for this long (no double send). */
+  readonly claimLeaseMinutes: number;
+  /** Local hour (0–23) the daily digest becomes due. */
+  readonly digestLocalHour: number;
+  /** IANA zone for the digest hour and the digest's day key. */
+  readonly digestTimeZone: string;
+}
+
 export interface FollowUpEmailConfig {
   readonly enabled: boolean;
   /** Hours after the report is first opened before the follow-up is due. */
@@ -1049,6 +1202,51 @@ export interface CommunityStatsRefreshConfig {
    * Socrata response can never wipe the table (#468).
    */
   readonly pruneMinRows: number;
+}
+
+/** #773: neighbourhood provider implementation names (config-selected). */
+export type SchoolDirectoryImpl = 'calgary-open-data' | 'none';
+export type SchoolDesignationImpl = 'none';
+export type SchoolRatingsImpl = 'none';
+export type ReviewsImpl = 'none';
+export type AmenitiesImpl = 'calgary-open-data' | 'none';
+export type CommuteImpl = 'straight-line' | 'none';
+
+/**
+ * Neighbourhood data (#773). Outside sources sit behind provider interfaces
+ * chosen here; a monthly refresh writes them to our tables and request
+ * paths only ever read those tables.
+ */
+export interface NeighbourhoodDataConfig {
+  readonly providers: {
+    readonly schoolDirectory: SchoolDirectoryImpl;
+    readonly schoolDesignation: SchoolDesignationImpl;
+    readonly schoolRatings: SchoolRatingsImpl;
+    readonly reviews: ReviewsImpl;
+    readonly amenities: AmenitiesImpl;
+    readonly commute: CommuteImpl;
+  };
+  /** City open-data endpoint (shared with property data). */
+  readonly socrataBaseUrl: string;
+  readonly schoolsDatasetId: string;
+  readonly amenitiesDatasetId: string;
+  readonly communityPointsDatasetId: string;
+  /** #690: residential class + established community structures. */
+  readonly communityClass: string;
+  readonly communityStructures: readonly string[];
+  readonly commuteDestination: {
+    readonly name: string;
+    readonly lat: number;
+    readonly lng: number;
+  };
+  readonly httpTimeoutMs: number;
+  readonly maxRows: number;
+  /** Day of the month (UTC) each provider becomes due. */
+  readonly refreshDayOfMonth: number;
+  /** Days of continuous failure before the one ops alert. */
+  readonly alertAfterFailureDays: number;
+  readonly lotRadiusM: number;
+  readonly lotMetricsTtlMs: number;
 }
 
 /**
@@ -1165,6 +1363,7 @@ export interface ApiConfig {
   readonly rateLimit: RateLimitConfig;
   readonly sharedRateLimit: SharedRateLimitConfig;
   readonly lead: LeadConfig;
+  readonly botChallenge: BotChallengeConfig;
   readonly estimate: EstimateConfig;
   readonly analytics: AnalyticsConfig;
   readonly adminSearch: AdminSearchConfig;
@@ -1189,6 +1388,7 @@ export interface ApiConfig {
   readonly propertyData: PropertyDataConfig;
   readonly landUse: LandUseConfig;
   readonly zoning: ZoningConfig;
+  readonly partners: PartnersConfig;
   readonly cityDataFreshness: CityDataFreshnessConfig;
   readonly billing: BillingConfig;
   /** #753: which payment provider billing talks to. */
@@ -1196,9 +1396,11 @@ export interface ApiConfig {
   readonly sandboxPurge: SandboxPurgeConfig;
   readonly apiKeyAuth: ApiKeyAuthConfig;
   readonly followUpEmail: FollowUpEmailConfig;
+  readonly builderNotifications: BuilderNotificationsConfig;
   readonly sheets: SheetsConfig;
   readonly narrative: NarrativeConfig;
   readonly communityStatsRefresh: CommunityStatsRefreshConfig;
+  readonly neighbourhoodData: NeighbourhoodDataConfig;
   readonly backupCheck: BackupCheckConfig;
   readonly embed: EmbedConfig;
   readonly waitlist: WaitlistConfig;
@@ -1500,6 +1702,19 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): ApiConfig {
       dedupWindowDays: e.LEAD_DEDUP_WINDOW_DAYS,
       needsYouStaleDays: e.LEAD_NEEDS_YOU_STALE_DAYS,
       needsYouScanLimit: e.LEAD_NEEDS_YOU_SCAN_LIMIT,
+      minSubmitMs: e.LEAD_MIN_SUBMIT_MS,
+    },
+    botChallenge: {
+      enabled: e.TURNSTILE_SITE_KEY !== '' && e.TURNSTILE_SECRET_KEY !== '',
+      siteKey: e.TURNSTILE_SITE_KEY,
+      secretKey: e.TURNSTILE_SECRET_KEY,
+      verifyUrl: e.TURNSTILE_VERIFY_URL,
+      verifyTimeoutMs: e.TURNSTILE_VERIFY_TIMEOUT_MS,
+      windowMs: e.BOT_CHALLENGE_WINDOW_MS,
+      verifyRateLimit: {
+        windowMs: e.BOT_CHALLENGE_VERIFY_WINDOW_MS,
+        maxRequests: e.BOT_CHALLENGE_VERIFY_MAX_ATTEMPTS,
+      },
     },
     sandboxPurge: {
       retentionDays: e.SANDBOX_PURGE_RETENTION_DAYS,
@@ -1522,10 +1737,45 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): ApiConfig {
       enabled: e.FOLLOW_UP_EMAIL_ENABLED,
       delayHours: e.FOLLOW_UP_EMAIL_DELAY_HOURS,
     },
+    builderNotifications: {
+      enabled: e.BUILDER_NOTIFICATIONS_ENABLED,
+      maxAttempts: e.BUILDER_NOTIFICATION_MAX_ATTEMPTS,
+      retryWindowHours: e.BUILDER_NOTIFICATION_RETRY_WINDOW_HOURS,
+      claimLeaseMinutes: e.BUILDER_NOTIFICATION_CLAIM_LEASE_MINUTES,
+      digestLocalHour: e.BUILDER_DIGEST_LOCAL_HOUR,
+      digestTimeZone: e.BUILDER_DIGEST_TIMEZONE,
+    },
     communityStatsRefresh: {
       minAssessmentCount: e.COMMUNITY_STATS_MIN_ASSESSMENTS,
       alertAfterConsecutiveFailures: e.COMMUNITY_STATS_ALERT_AFTER_FAILURES,
       pruneMinRows: e.COMMUNITY_STATS_PRUNE_MIN_ROWS,
+    },
+    neighbourhoodData: {
+      providers: {
+        schoolDirectory: e.NEIGHBOURHOOD_SCHOOL_DIRECTORY_PROVIDER,
+        schoolDesignation: e.NEIGHBOURHOOD_SCHOOL_DESIGNATION_PROVIDER,
+        schoolRatings: e.NEIGHBOURHOOD_SCHOOL_RATINGS_PROVIDER,
+        reviews: e.NEIGHBOURHOOD_REVIEWS_PROVIDER,
+        amenities: e.NEIGHBOURHOOD_AMENITIES_PROVIDER,
+        commute: e.NEIGHBOURHOOD_COMMUTE_PROVIDER,
+      },
+      socrataBaseUrl: e.SOCRATA_BASE_URL,
+      schoolsDatasetId: e.NEIGHBOURHOOD_SCHOOLS_DATASET_ID,
+      amenitiesDatasetId: e.NEIGHBOURHOOD_AMENITIES_DATASET_ID,
+      communityPointsDatasetId: e.NEIGHBOURHOOD_COMMUNITY_POINTS_DATASET_ID,
+      communityClass: e.NEIGHBOURHOOD_COMMUNITY_CLASS,
+      communityStructures: csvToList(e.NEIGHBOURHOOD_COMMUNITY_STRUCTURES),
+      commuteDestination: {
+        name: e.NEIGHBOURHOOD_COMMUTE_DESTINATION_NAME,
+        lat: e.NEIGHBOURHOOD_COMMUTE_DESTINATION_LAT,
+        lng: e.NEIGHBOURHOOD_COMMUTE_DESTINATION_LNG,
+      },
+      httpTimeoutMs: e.NEIGHBOURHOOD_HTTP_TIMEOUT_MS,
+      maxRows: e.NEIGHBOURHOOD_MAX_ROWS,
+      refreshDayOfMonth: e.NEIGHBOURHOOD_REFRESH_DAY_OF_MONTH,
+      alertAfterFailureDays: e.NEIGHBOURHOOD_ALERT_AFTER_FAILURE_DAYS,
+      lotRadiusM: e.NEIGHBOURHOOD_LOT_RADIUS_M,
+      lotMetricsTtlMs: e.NEIGHBOURHOOD_LOT_METRICS_TTL_MS,
     },
     backupCheck: {
       enabled: e.BACKUP_CHECK_ENABLED,
@@ -1577,6 +1827,7 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): ApiConfig {
       magicLinkTtlSeconds: e.MAGIC_LINK_TTL_SECONDS,
       magicLinkReissueCooldownMs: e.MAGIC_LINK_REISSUE_COOLDOWN_MS,
       magicLinkMaxSendsPerHour: e.MAGIC_LINK_MAX_SENDS_PER_HOUR,
+      eraseConfirmLinkTtlSeconds: e.PRIVACY_ERASE_CONFIRM_LINK_TTL_SECONDS,
       adminApiKey: e.ADMIN_API_KEY,
       adminSessionTtlSeconds: e.ADMIN_SESSION_TTL_SECONDS,
       adminSessionIdleTimeoutSeconds: e.ADMIN_SESSION_IDLE_TIMEOUT_SECONDS,
@@ -1655,6 +1906,10 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): ApiConfig {
     zoning: {
       city: e.ZONING_CITY,
       cacheMaxAgeSeconds: e.ZONING_CACHE_MAX_AGE_S,
+    },
+    partners: {
+      cacheTtlMs: e.PARTNERS_CACHE_TTL_MS,
+      cacheMaxAgeSeconds: e.PARTNERS_CACHE_MAX_AGE_S,
     },
     cityDataFreshness: {
       socrataBaseUrl: e.SOCRATA_BASE_URL,

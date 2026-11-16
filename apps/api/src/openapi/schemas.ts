@@ -202,6 +202,12 @@ export const LeadRequestSchema = z
       .string()
       .optional()
       .describe('Honeypot anti-spam field — leave empty'),
+    elapsedMs: z
+      .number()
+      .optional()
+      .describe(
+        'Milliseconds the form was on screen before submit (browser clients). Optional for API callers.',
+      ),
   })
   .openapi('LeadRequest');
 
@@ -449,6 +455,29 @@ export const CityDataFreshnessResponseSchema = z
       ),
   })
   .openapi('CityDataFreshnessResponse');
+
+// ── Builder partners (#888) ─────────────────────────────────────────────
+
+export const BuilderPartnerSchema = z
+  .object({
+    id: z.string().uuid(),
+    name: z.string().describe('Builder company name (never an individual)'),
+    logoUrl: z.string().nullable().describe('Hosted logo URL, or null'),
+    websiteUrl: z.string().nullable().describe('Company website (https), or null'),
+    description: z
+      .string()
+      .nullable()
+      .describe('Short description / community focus, or null'),
+  })
+  .openapi('BuilderPartner');
+
+export const BuilderPartnerListResponseSchema = z
+  .object({
+    partners: z
+      .array(BuilderPartnerSchema)
+      .describe('Active builder partners in display order'),
+  })
+  .openapi('BuilderPartnerListResponse');
 
 // ── Zoning rules catalogue (#687) ───────────────────────────────────────
 

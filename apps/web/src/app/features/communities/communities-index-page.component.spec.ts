@@ -3,6 +3,7 @@ import { RouterTestingModule } from '@angular/router/testing';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { CommunitiesIndexPageComponent } from './communities-index-page.component';
 import { ConfigService } from '../../core/config';
+import { DEFAULT_APP_CONFIG } from '../../core/config/app-config.defaults';
 import { SeoService } from '../../core/seo';
 import indexData from '../../../content/data/community-index.json';
 
@@ -22,6 +23,12 @@ describe('CommunitiesIndexPageComponent', () => {
     const configMock = {
       get: vi.fn().mockReturnValue({
         seo: {},
+        // #783: the nav search reads these (one object serves every key here).
+        search: DEFAULT_APP_CONFIG.copy.search,
+        cityWaitlist: false,
+        debounceMs: DEFAULT_APP_CONFIG.timings.debounceMs,
+        autocompleteSuggestionLimit: DEFAULT_APP_CONFIG.limits.autocompleteSuggestionLimit,
+        communitySuggestionLimit: DEFAULT_APP_CONFIG.limits.communitySuggestionLimit,
         marketing: {
           communities: {
             landingTitle: 'Browse community guides',

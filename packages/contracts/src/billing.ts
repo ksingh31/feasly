@@ -6,15 +6,55 @@
  * route's wire shape.
  */
 
-/** Commission invoice lifecycle — see TECH_PLAN §2.4. */
+/**
+ * Commission invoice lifecycle — see TECH_PLAN §2.4.
+ *
+ * `action_required` (#712): the off-session charge needs the builder to
+ * confirm it with their bank (3-D Secure / SCA). The invoice waits for the
+ * builder (POST /api/v1/billing/invoices/{id}/confirm-payment); it is not a
+ * failure and does not count as a dunning retry.
+ */
 export type CommissionInvoiceStatus =
   | 'draft'
   | 'in_review'
   | 'finalized'
+  | 'action_required'
   | 'paid'
   | 'failed'
   | 'disputed'
   | 'void';
+
+/**
+ * Normalised result of one off-session charge attempt (#712), whichever
+ * payment provider ran it:
+ * - `succeeded`: money moved (the webhook settles the invoice `paid`).
+ * - `processing`: still in flight — webhook / reconciliation settles it.
+ * - `requires_action`: the bank wants the cardholder to confirm (3DS).
+ * - `failed`: declined — the invoice moves to `failed` (dunning).
+ */
+export type ChargeOutcome =
+  | 'succeeded'
+  | 'processing'
+  | 'requires_action'
+  | 'failed';
+
+/**
+ * Response of POST /api/v1/billing/invoices/{id}/confirm-payment (#712).
+ * The builder portal confirms the PaymentIntent on-session with it:
+ * `stripe.confirmCardPayment(clientSecret, { payment_method })` for
+ * `provider: 'stripe'`, or POST /billing/simulated/authenticate with
+ * `paymentIntentId` for `provider: 'simulated'`. The webhook then settles
+ * the invoice — the portal never marks it paid itself.
+ */
+export interface ConfirmInvoicePaymentResponse {
+  readonly invoiceId: string;
+  readonly paymentIntentId: string;
+  /** PaymentIntent client secret — usable only with the publishable key. */
+  readonly clientSecret: string;
+  /** Saved card the charge used (`pm_…`); absent when unknown. */
+  readonly paymentMethodId?: string;
+  readonly provider: 'stripe' | 'simulated';
+}
 
 export interface CommissionInvoice {
   readonly id: string;
@@ -100,9 +140,34 @@ export interface CommissionInvoice {
    * payment method at creation; changeable per invoice while unpaid.
    */
   readonly paymentMethod: 'card' | ManualPaymentMethod;
+  /*
+   * Bank chargebacks + dashboard refunds (#719). The API always sends
+   * these; optional only so fixtures written before #719 keep compiling.
+   */
+  /**
+   * Bank chargeback state: null/absent = never disputed with the bank;
+   * 'open' while Stripe's dispute is live (no further charge attempts).
+   * A lost chargeback does not change `status` — ops decides manually
+   * whether the commission is re-collected or written off.
+   */
+  readonly chargebackStatus?: ChargebackStatus | null;
+  /**
+   * Cumulative amount refunded on this invoice's charge, integer cents —
+   * includes refunds issued from the Stripe dashboard. 0 = none.
+   */
+  readonly refundedCents?: number;
   readonly createdAt: string;
   readonly updatedAt: string;
 }
+
+/**
+ * Bank chargeback state on an invoice (#719): 'open' while Stripe's
+ * dispute is live, then the outcome Stripe reported on close.
+ */
+export type ChargebackStatus = 'open' | ChargebackOutcome;
+
+/** How Stripe closed a chargeback (`charge.dispute.closed`). */
+export type ChargebackOutcome = 'won' | 'lost' | 'warning_closed';
 
 /**
  * Manual (off-Stripe) payment methods an admin can record when marking a
@@ -296,8 +361,18 @@ export interface SetupIntentResponse {
  * never the live invoice row, so the evidence can't change under review.
  */
 
-/** Dispute lifecycle: open → accepted | rejected. */
-export type DisputeStatus = 'open' | 'accepted' | 'rejected';
+/**
+ * Dispute lifecycle. Builder disputes: open → accepted | rejected (an admin
+ * decides). Chargebacks (#719): open → closed when Stripe reports the
+ * outcome — they are resolved in the Stripe dashboard, never in Feasly.
+ */
+export type DisputeStatus = 'open' | 'accepted' | 'rejected' | 'closed';
+
+/**
+ * Who raised a dispute (#719): 'builder' = an invoice dispute raised in the
+ * portal; 'chargeback' = a bank dispute of the card charge, from Stripe.
+ */
+export type DisputeSource = 'builder' | 'chargeback';
 
 /** Immutable invoice state captured at dispute-open time. */
 export interface DisputeEvidenceSnapshot {
@@ -311,7 +386,11 @@ export interface DisputeEvidenceSnapshot {
   readonly commissionCents: number;
   readonly currency: string;
   readonly stripePaymentIntentId: string | null;
-  readonly status: 'disputed';
+  /**
+   * Invoice status when the dispute opened: 'disputed' for builder
+   * disputes; usually 'paid' for chargebacks (#719).
+   */
+  readonly status: CommissionInvoiceStatus;
   readonly reviewDueAt: string | null;
   readonly disputeReason: string;
   readonly invoiceCreatedAt: string;
@@ -344,6 +423,31 @@ export interface DisputeListItem {
   readonly businessDaysRemaining: number;
   /** True when now is past slaDueAt. */
   readonly breached: boolean;
+  /*
+   * Chargebacks (#719). The API always sends these; optional only so
+   * fixtures written before #719 keep compiling. Absent = 'builder'.
+   * For a chargeback, slaDueAt is Stripe's evidence deadline.
+   */
+  readonly source?: DisputeSource;
+  /** Stripe dispute id (`dp_…`) — chargebacks only, null otherwise. */
+  readonly stripeDisputeId?: string | null;
+  /** Stripe reason code (e.g. 'fraudulent') — chargebacks only. */
+  readonly stripeReason?: string | null;
+  /** Stripe's raw dispute status (needs_response, under_review, won, …). */
+  readonly stripeStatus?: string | null;
+  /** Disputed amount, integer cents — chargebacks only. */
+  readonly amountCents?: number | null;
+  /** Stripe's evidence deadline (ISO) — chargebacks only. */
+  readonly evidenceDueAt?: string | null;
+  /** Whole calendar days until evidenceDueAt (negative when past). */
+  readonly evidenceDaysRemaining?: number | null;
+  /** Outcome once Stripe closes the chargeback; null while open. */
+  readonly outcome?: ChargebackOutcome | null;
+  /**
+   * True for a Stripe live-mode dispute, false for test mode, null for a
+   * builder dispute. The "View in Stripe" link picks the dashboard from it.
+   */
+  readonly livemode?: boolean | null;
 }
 
 /** GET /api/v1/admin/disputes — open disputes, oldest first. */

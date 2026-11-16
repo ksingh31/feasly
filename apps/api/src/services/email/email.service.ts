@@ -23,14 +23,19 @@ import {
   renderCallbackTeamEmail,
   renderCommissionInvoiceReadyEmail,
   renderCommissionPaymentFailedEmail,
+  renderCommissionPaymentActionRequiredEmail,
   renderCommissionPaymentReceivedEmail,
+  renderBuilderNeedsYouDigestEmail,
+  renderBuilderNewLeadEmail,
   renderContractNeedsRecordingEmail,
+  renderErasureConfirmationEmail,
   renderFollowUpEmail,
   renderInvitationEmail,
   renderMagicLinkEmail,
   renderNudgeEmail,
   renderOpsAlertEmail,
   renderShareEmail,
+  type BuilderDigestLeadLine,
   type CommissionEmailTax,
   type TemplateContext,
 } from './templates';
@@ -172,6 +177,17 @@ export interface CommissionPaymentFailedEmailInput {
   readonly tax?: CommissionEmailTax;
 }
 
+/** #712 input: the bank wants the builder to confirm the charge (3DS). */
+export interface CommissionPaymentActionRequiredEmailInput {
+  readonly to: string;
+  /** Invoice id — deep-links the invoice drawer. */
+  readonly invoiceId: string;
+  readonly invoiceRef: string;
+  readonly commissionCents: number;
+  readonly currency: string;
+  readonly tax?: CommissionEmailTax;
+}
+
 /**
  * Issue #530 input: a teammate marked a lead won; a builder admin is asked
  * to record the signed contract. Transactional org notice — no figures.
@@ -183,6 +199,37 @@ export interface ContractNeedsRecordingEmailInput {
   readonly address: string;
   readonly builderName: string;
   readonly leadId: string;
+}
+
+/** #725: one new-lead notice to a builder team member (no contact details). */
+export interface BuilderNewLeadEmailInput {
+  readonly to: string;
+  readonly firstName: string;
+  readonly community: string;
+  readonly projectType: string;
+  readonly builderName: string;
+  readonly leadId: string;
+}
+
+/** #725: the daily "Needs you" digest to an opted-in builder member. */
+export interface BuilderNeedsYouDigestEmailInput {
+  readonly to: string;
+  readonly builderName: string;
+  readonly uncontacted: readonly BuilderDigestLeadLine[];
+  readonly stale: readonly BuilderDigestLeadLine[];
+  readonly wonWithoutContract: readonly BuilderDigestLeadLine[];
+  readonly staleAfterDays: number;
+  readonly maxPerGroup: number;
+}
+
+/** #806: the erase-confirmation link (privacy self-service step 2). */
+export interface ErasureConfirmationEmailInput {
+  readonly to: string;
+  readonly name?: string;
+  /** `${appBaseUrl}/privacy/confirm/${requestId}#token=${token}`. */
+  readonly confirmUrl: string;
+  /** Hours until the link expires — rendered from config. */
+  readonly expiresInHours: number;
 }
 
 export interface EmailService {
@@ -208,9 +255,23 @@ export interface EmailService {
   sendCommissionPaymentFailed(
     input: CommissionPaymentFailedEmailInput,
   ): Promise<EmailDelivery>;
+  /** #712: off-session charge needs 3DS — "confirm this payment" CTA. */
+  sendCommissionPaymentActionRequired(
+    input: CommissionPaymentActionRequiredEmailInput,
+  ): Promise<EmailDelivery>;
   /** Issue #530: lead marked won — ask an org admin to record the contract. */
   sendContractNeedsRecording(
     input: ContractNeedsRecordingEmailInput,
+  ): Promise<EmailDelivery>;
+  /** #725: new lead assigned to the member's org. */
+  sendBuilderNewLead(input: BuilderNewLeadEmailInput): Promise<EmailDelivery>;
+  /** #725: daily "Needs you" digest (never sent for an empty feed). */
+  sendBuilderNeedsYouDigest(
+    input: BuilderNeedsYouDigestEmailInput,
+  ): Promise<EmailDelivery>;
+  /** #806: "confirm you want to delete your data" link (transactional). */
+  sendErasureConfirmation(
+    input: ErasureConfirmationEmailInput,
   ): Promise<EmailDelivery>;
 }
 
@@ -460,6 +521,19 @@ export function createEmailService(deps: EmailServiceDeps): EmailService {
       return deliver({ ...rendered, to: input.to });
     },
 
+    async sendCommissionPaymentActionRequired(
+      input: CommissionPaymentActionRequiredEmailInput,
+    ): Promise<EmailDelivery> {
+      const rendered = renderCommissionPaymentActionRequiredEmail(ctx, {
+        invoiceId: input.invoiceId,
+        invoiceRef: input.invoiceRef,
+        commissionCents: input.commissionCents,
+        currency: input.currency,
+        ...(input.tax ? { tax: input.tax } : {}),
+      });
+      return deliver({ ...rendered, to: input.to });
+    },
+
     async sendContractNeedsRecording(
       input: ContractNeedsRecordingEmailInput,
     ): Promise<EmailDelivery> {
@@ -469,6 +543,44 @@ export function createEmailService(deps: EmailServiceDeps): EmailService {
         address: input.address,
         builderName: input.builderName,
         leadId: input.leadId,
+      });
+      return deliver({ ...rendered, to: input.to });
+    },
+
+    async sendBuilderNewLead(
+      input: BuilderNewLeadEmailInput,
+    ): Promise<EmailDelivery> {
+      const rendered = renderBuilderNewLeadEmail(ctx, {
+        firstName: input.firstName,
+        community: input.community,
+        projectType: input.projectType,
+        builderName: input.builderName,
+        leadId: input.leadId,
+      });
+      return deliver({ ...rendered, to: input.to });
+    },
+
+    async sendBuilderNeedsYouDigest(
+      input: BuilderNeedsYouDigestEmailInput,
+    ): Promise<EmailDelivery> {
+      const rendered = renderBuilderNeedsYouDigestEmail(ctx, {
+        builderName: input.builderName,
+        uncontacted: input.uncontacted,
+        stale: input.stale,
+        wonWithoutContract: input.wonWithoutContract,
+        staleAfterDays: input.staleAfterDays,
+        maxPerGroup: input.maxPerGroup,
+      });
+      return deliver({ ...rendered, to: input.to });
+    },
+
+    async sendErasureConfirmation(
+      input: ErasureConfirmationEmailInput,
+    ): Promise<EmailDelivery> {
+      const rendered = renderErasureConfirmationEmail(ctx, {
+        name: input.name,
+        confirmUrl: input.confirmUrl,
+        expiresInHours: input.expiresInHours,
       });
       return deliver({ ...rendered, to: input.to });
     },

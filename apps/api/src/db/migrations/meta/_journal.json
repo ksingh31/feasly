@@ -370,7 +370,35 @@
 			"idx": 52,
 			"version": "7",
 			"when": 1795910400000,
-			"tag": "0055_lead_reassignments",
+			"tag": "0055_builder_partners",
+			"breakpoints": true
+		},
+		{
+			"idx": 53,
+			"version": "7",
+			"when": 1795996800000,
+			"tag": "0056_builder_notifications",
+			"breakpoints": true
+		},
+		{
+			"idx": 54,
+			"version": "7",
+			"when": 1796083200000,
+			"tag": "0057_neighbourhood_data",
+			"breakpoints": true
+		},
+		{
+			"idx": 55,
+			"version": "7",
+			"when": 1796169600000,
+			"tag": "0058_chargebacks_and_refunds",
+			"breakpoints": true
+		},
+		{
+			"idx": 56,
+			"version": "7",
+			"when": 1796256000000,
+			"tag": "0059_lead_reassignments",
 			"breakpoints": true
 		}
 	]

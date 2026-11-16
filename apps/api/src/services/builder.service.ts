@@ -71,6 +71,14 @@ export interface BuilderServiceDeps {
   /** #721 reassignment rules. Defaults to one built from db + audit. */
   readonly leadAssignment?: LeadAssignmentService;
   /**
+   * #725: called after an admin assigns a lead to a (different) builder —
+   * composition wires the builder-notifications service. Must not throw.
+   */
+  readonly onLeadAssigned?: (args: {
+    readonly leadId: string;
+    readonly builderId: string;
+  }) => Promise<void>;
+  /**
    * #716: called after an update that changed the business name or email,
    * so the builder's Stripe customer stays in sync. Best-effort: a failure
    * is logged and never fails the admin's update.
@@ -400,7 +408,14 @@ export function createBuilderService(deps: BuilderServiceDeps): BuilderService {
       builderId: string | null,
       adminEmail: string,
     ): Promise<LeadAssignBuilderResponse> {
-      return leadAssignment.assignLead(leadId, builderId, adminEmail);
+      const result = await leadAssignment.assignLead(leadId, builderId, adminEmail);
+      // #725: a lead newly assigned to a builder notifies that builder's
+      // team once (the outbox dedupes per lead + builder + member). The
+      // hook never throws.
+      if (builderId !== null && result.changed && deps.onLeadAssigned) {
+        await deps.onLeadAssigned({ leadId, builderId });
+      }
+      return result;
     },
   };
 }

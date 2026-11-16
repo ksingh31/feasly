@@ -27,6 +27,7 @@ import {
   type EmailService,
 } from '../src/services/email';
 import {
+  renderErasureConfirmationEmail,
   renderFollowUpEmail,
   renderMagicLinkEmail,
   renderShareEmail,
@@ -381,6 +382,46 @@ describe('nudge template (non-transactional)', () => {
   });
 });
 
+describe('#806 erase-confirmation email', () => {
+  const CONFIRM_URL = `${CTX.appBaseUrl}/privacy/confirm/3f9b2c1a-0000-4000-8000-000000000000#token=abc123`;
+
+  it('sends the confirm link to the person, transactional (no unsubscribe headers)', async () => {
+    const { service, provider } = serviceWithFake();
+    const delivery = await service.sendErasureConfirmation({
+      to: 'jane@example.com',
+      name: 'Jane',
+      confirmUrl: CONFIRM_URL,
+      expiresInHours: 24,
+    });
+    expect(delivery.sent).toBe(true);
+    const sent = provider.sent[0]!;
+    expect(sent.to).toBe('jane@example.com');
+    expect(sent.subject).toMatch(/delete/i);
+    expect(sent.text).toContain(CONFIRM_URL);
+    expect(sent.html).toContain('Hi Jane,');
+    expect(sent.text).toContain('24 hours');
+    expect(sent.text).toContain('Nothing has been deleted yet');
+    expect(sent.headers?.['List-Unsubscribe']).toBeUndefined();
+  });
+
+  it('escapes the name and singularises one hour', () => {
+    const r = renderErasureConfirmationEmail(CTX, {
+      name: '<b>x</b>',
+      confirmUrl: CONFIRM_URL,
+      expiresInHours: 1,
+    });
+    expect(r.html).not.toContain('<b>x</b>');
+    expect(r.text).toContain('1 hour)');
+  });
+
+  it('does not claim single use — the link works until it expires (#806 review)', () => {
+    const r = renderErasureConfirmationEmail(CTX, { confirmUrl: CONFIRM_URL, expiresInHours: 24 });
+    expect(r.html).toContain('The link expires in 24 hours.');
+    expect(r.text).toContain('the link expires in 24 hours');
+    expect(`${r.html}${r.text}`).not.toMatch(/works once/i);
+  });
+});
+
 describe('callback + ops-alert paths', () => {
   it('callback confirmation goes to the team inbox with lead details', async () => {
     const { service, provider } = serviceWithFake();
@@ -586,6 +627,11 @@ describe('banned copy patterns (rendered output)', () => {
       }),
       renderMagicLinkEmail(CTX, REPORT_INPUT),
       renderFollowUpEmail(CTX, FOLLOW_UP_INPUT),
+      renderErasureConfirmationEmail(CTX, {
+        name: 'Jane',
+        confirmUrl: `${CTX.appBaseUrl}/privacy/confirm/x#token=y`,
+        expiresInHours: 24,
+      }),
     ].flatMap((r) => [r.subject, r.html, r.text]);
     for (const body of bodies) {
       for (const re of patterns) {

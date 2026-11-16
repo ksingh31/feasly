@@ -64,6 +64,7 @@ export const INVOICE_PDF_COPY = {
     draft: 'Draft',
     in_review: 'In review',
     finalized: 'Finalized',
+    action_required: 'Needs your confirmation',
     paid: 'Paid',
     failed: 'Failed',
     disputed: 'Disputed',

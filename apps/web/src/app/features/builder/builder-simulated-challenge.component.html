@@ -1,0 +1,31 @@
+<section class="sim-challenge" [attr.aria-labelledby]="headingId()" data-testid="simulated-challenge">
+  <p class="sim-challenge__notice" role="note">{{ notice }}</p>
+  <h3 class="sim-challenge__heading" [id]="headingId()">{{ t.challengeHeading }}</h3>
+  <p class="sim-challenge__body">{{ t.challengeBody }}</p>
+  <div class="sim-challenge__actions">
+    <button
+      type="button"
+      ui-button
+      data-testid="simulated-challenge-complete"
+      [loading]="busy() === 'complete'"
+      [disabled]="busy() !== null"
+      (click)="authenticate('complete')"
+    >
+      {{ t.challengeComplete }}
+    </button>
+    <button
+      type="button"
+      ui-button
+      variant="secondary"
+      data-testid="simulated-challenge-fail"
+      [loading]="busy() === 'fail'"
+      [disabled]="busy() !== null"
+      (click)="authenticate('fail')"
+    >
+      {{ t.challengeFail }}
+    </button>
+  </div>
+  @if (error()) {
+    <p class="sim-challenge__error" role="alert">{{ t.challengeError }}</p>
+  }
+</section>

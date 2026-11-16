@@ -34,7 +34,8 @@ import {
 import { createStripeService, type StripeService } from '../src/services/billing/stripe.service';
 import { createStripeWebhooksRoute } from '../src/routes/stripe-webhooks.route';
 import type { EmailService } from '../src/services/email/email.service';
-import { billingEvents, estimates, leads, stripeEvents, tenants } from '../src/db/schema';
+import { billingDisputes, billingEvents, estimates, leads, stripeEvents, tenants } from '../src/db/schema';
+import { createChargebackService } from '../src/services/billing/chargeback.service';
 import { createTestDb, type TestDb } from './pglite-db';
 
 const CARD = {
@@ -63,11 +64,24 @@ let idCounter = 5000;
 const nextId = (): string =>
   `00000000-0000-4000-8000-${(++idCounter).toString(16).padStart(12, '0')}`;
 
-/** Every email method resolves as sent (commission notifies builders/ops). */
-function fakeEmail(): EmailService {
+interface SentEmail {
+  readonly op: string;
+  readonly input: { to?: string; invoiceRef?: string; summary?: string };
+}
+
+/**
+ * Every email method resolves as sent (commission notifies builders/ops)
+ * and is recorded so tests can assert exactly-once sends (#712).
+ */
+function fakeEmail(sent: SentEmail[]): EmailService {
   return new Proxy(
     {},
-    { get: () => async () => ({ sent: true, provider: 'log' as const }) },
+    {
+      get: (_target, op) => async (input: SentEmail['input']) => {
+        sent.push({ op: String(op), input });
+        return { sent: true, provider: 'log' as const };
+      },
+    },
   ) as EmailService;
 }
 
@@ -79,10 +93,11 @@ describe('simulated payments through the production webhook handler', () => {
   let attribution: AttributionService;
   let card: CommissionCardService;
   let devService: SimulatedPaymentsService;
+  const sent: SentEmail[] = [];
 
   beforeAll(async () => {
     testDb = await createTestDb();
-    const email = fakeEmail();
+    const email = fakeEmail(sent);
     const now = () => new Date('2026-09-24T12:00:00.000Z');
     provider = createSimulatedPaymentProvider({
       store: createDrizzleSimulatedPaymentStore(testDb.db),
@@ -124,6 +139,15 @@ describe('simulated payments through the production webhook handler', () => {
       audit,
       commission,
       flatPlan,
+      chargebacks: createChargebackService({
+        db: testDb.db,
+        audit,
+        email,
+        opsInbox: 'ops@example.com',
+        now,
+        newId: nextId,
+        logWarning: () => undefined,
+      }),
       commissionCard: card,
       email,
       opsInbox: 'ops@example.com',
@@ -146,7 +170,19 @@ describe('simulated payments through the production webhook handler', () => {
       displayName: tenantKey,
       accentColor: '#B08D57',
       allowedOrigins: ['https://example.com'],
+      // Builder billing contact — commission emails resolve to it.
+      fallbackEmail: `${tenantKey}@example.com`,
     });
+  }
+
+  /** Emails of one kind sent to a tenant's billing contact. */
+  function emailsTo(tenantKey: string, op: string): SentEmail[] {
+    return sent.filter((e) => e.op === op && e.input.to === `${tenantKey}@example.com`);
+  }
+
+  /** Ops alerts that name an invoice. */
+  function opsAlertsFor(invoiceId: string): SentEmail[] {
+    return sent.filter((e) => e.op === 'sendOpsAlert' && (e.input.summary ?? '').includes(invoiceId));
   }
 
   /** Builder flow: ensure customer → SetupIntent → confirm with a test card. */
@@ -198,11 +234,20 @@ describe('simulated payments through the production webhook handler', () => {
     return commission.submitForReview(draft.id);
   }
 
-  async function chargedInvoice(tenantKey: string, cardNumber: string) {
+  /**
+   * Save a card, then finalize an invoice. #712: the charge step settles a
+   * decline (`failed`) or a 3DS demand (`action_required`) itself; only a
+   * success stays `finalized` until its webhook lands.
+   */
+  async function chargedInvoice(
+    tenantKey: string,
+    cardNumber: string,
+    expectedStatus: 'finalized' | 'failed' | 'action_required' = 'finalized',
+  ) {
     await saveCard(tenantKey, cardNumber);
     const inReview = await seedInReviewInvoice(tenantKey);
     const finalized = await commission.finalizeInvoice(inReview.id);
-    expect(finalized.status).toBe('finalized');
+    expect(finalized.status).toBe(expectedStatus);
     expect(finalized.stripePaymentIntentId).toMatch(/^pi_sim_/);
     return finalized;
   }
@@ -217,6 +262,15 @@ describe('simulated payments through the production webhook handler', () => {
     return rows.filter((r) => r.tenantKey === tenantKey).map((r) => r.eventType);
   }
 
+  /** #719: charge.* event types recorded as webhook.unhandled (must be none). */
+  async function unhandledChargeTypes(): Promise<string[]> {
+    const rows = await testDb.db.select().from(billingEvents);
+    return rows
+      .filter((r) => r.eventType === 'webhook.unhandled')
+      .map((r) => String((r.payload as Record<string, unknown> | null)?.['stripeType']))
+      .filter((t) => t.startsWith('charge.'));
+  }
+
   // ── AC1: end-to-end money lifecycle ──────────────────────────────────
 
   it('saved card + success card → invoice paid via payment_intent.succeeded', async () => {
@@ -229,20 +283,27 @@ describe('simulated payments through the production webhook handler', () => {
   });
 
   it.each([
-    ['sim-declined', CARD.declined, 'Your card was declined.'],
-    ['sim-nofunds', CARD.noFunds, 'Your card has insufficient funds.'],
-  ])('%s → invoice failed via payment_intent.payment_failed', async (tenantKey, cardNumber, reason) => {
-    const inv = await chargedInvoice(tenantKey, cardNumber);
+    ['sim-declined', CARD.declined, 'Your card was declined.', 'generic_decline'],
+    ['sim-nofunds', CARD.noFunds, 'Your card has insufficient funds.', 'insufficient_funds'],
+  ])('%s → invoice failed at finalize; the payment_failed webhook is a no-op (#712 AC1)', async (tenantKey, cardNumber, reason, declineCode) => {
+    const inv = await chargedInvoice(tenantKey, cardNumber, 'failed');
     await provider.deliverPendingEvents();
-    expect((await commission.getById(inv.id)).status).toBe('failed');
-    // The decline reason reaches the billing audit trail (dunning queue).
-    const rows = await testDb.db.select().from(billingEvents);
-    expect(
-      JSON.stringify(rows.filter((r) => r.tenantKey === tenantKey).map((r) => r.payload)),
-    ).toContain(reason);
+    const settled = await commission.getById(inv.id);
+    expect(settled.status).toBe('failed');
+    expect(settled.stripePaymentIntentId).toBe(inv.stripePaymentIntentId);
+    // Exactly one charge_failed row, carrying the decline reason + code.
+    const rows = (await testDb.db.select().from(billingEvents)).filter(
+      (r) => r.tenantKey === tenantKey && r.eventType === 'invoice.charge_failed',
+    );
+    expect(rows).toHaveLength(1);
+    expect(rows[0]!.payload).toMatchObject({ failureReason: reason, declineCode, source: 'charge' });
+    // One builder email, one ops alert — the webhook redelivery sent none.
+    expect(emailsTo(tenantKey, 'sendCommissionPaymentFailed')).toHaveLength(1);
+    expect(opsAlertsFor(inv.id)).toHaveLength(1);
+    expect((await processedEvents('payment_intent.payment_failed')).length).toBeGreaterThan(0);
   });
 
-  it('3DS card → finalized until the challenge, then paid', async () => {
+  it('3DS card → action_required at finalize, builder confirms, webhook settles paid (#712 AC2/AC3)', async () => {
     await seedTenant('sim-3ds');
     await card.ensureCustomer('sim-3ds');
     const si = await card.createSetupIntent('sim-3ds');
@@ -251,21 +312,41 @@ describe('simulated payments through the production webhook handler', () => {
     await devService.authenticate('sim-3ds', si.setupIntentId, 'complete');
     const inReview = await seedInReviewInvoice('sim-3ds');
     const inv = await commission.finalizeInvoice(inReview.id);
+    expect(inv.status).toBe('action_required');
+    // The payment_intent.requires_action webhook finds it already waiting.
     await provider.deliverPendingEvents();
-    expect((await commission.getById(inv.id)).status).toBe('finalized');
-    const done = await devService.authenticate('sim-3ds', inv.stripePaymentIntentId!, 'complete');
+    const waiting = await commission.getById(inv.id);
+    expect(waiting.status).toBe('action_required');
+    expect(waiting.retryCount).toBe(0); // not a dunning retry
+    expect((await processedEvents('payment_intent.requires_action')).length).toBeGreaterThan(0);
+    expect(emailsTo('sim-3ds', 'sendCommissionPaymentActionRequired')).toHaveLength(1);
+    expect(emailsTo('sim-3ds', 'sendCommissionPaymentFailed')).toHaveLength(0);
+    expect(await auditTypes('sim-3ds')).not.toContain('invoice.charge_failed');
+
+    // Builder portal: fetch the confirmation, run the (simulated) 3DS step.
+    const confirmation = await commission.createPaymentConfirmation(inv.id);
+    expect(confirmation).toMatchObject({
+      invoiceId: inv.id,
+      paymentIntentId: inv.stripePaymentIntentId,
+      provider: 'simulated',
+    });
+    expect(confirmation.clientSecret).toMatch(/^pi_sim_.+_secret_/);
+    const done = await devService.authenticate('sim-3ds', confirmation.paymentIntentId, 'complete');
     expect(done.status).toBe('succeeded');
     expect((await commission.getById(inv.id)).status).toBe('paid');
+    expect(emailsTo('sim-3ds', 'sendCommissionPaymentReceived')).toHaveLength(1);
+    // Paid: nothing left to confirm.
+    await expect(commission.createPaymentConfirmation(inv.id)).rejects.toMatchObject({ status: 409 });
   });
 
   it('3DS card + failed challenge → invoice failed', async () => {
-    const inv = await chargedInvoice('sim-3ds-fail', CARD.threeDs);
+    const inv = await chargedInvoice('sim-3ds-fail', CARD.threeDs, 'action_required');
     await devService.authenticate('sim-3ds-fail', inv.stripePaymentIntentId!, 'fail');
     expect((await commission.getById(inv.id)).status).toBe('failed');
   });
 
   it('admin delayed failure on an in-flight charge → invoice failed', async () => {
-    const inv = await chargedInvoice('sim-delayed', CARD.threeDs);
+    const inv = await chargedInvoice('sim-delayed', CARD.threeDs, 'action_required');
     const res = await devService.fireInvoiceEvent(inv.id, 'delayed_failure');
     expect(res).toEqual({
       invoiceId: inv.id,
@@ -278,7 +359,7 @@ describe('simulated payments through the production webhook handler', () => {
   });
 
   it('a retry after a decline charges again under a new idempotency key', async () => {
-    const inv = await chargedInvoice('sim-retry', CARD.declined);
+    const inv = await chargedInvoice('sim-retry', CARD.declined, 'failed');
     await provider.deliverPendingEvents();
     // Builder replaces the card, admin retries.
     const si = await card.createSetupIntent('sim-retry');
@@ -345,6 +426,10 @@ describe('simulated payments through the production webhook handler', () => {
     expect((await processedEvents('payment_intent.payment_failed')).length).toBeGreaterThan(0);
   });
 
+  it('payment_intent.requires_action is processed by the handler (#712)', async () => {
+    expect((await processedEvents('payment_intent.requires_action')).length).toBeGreaterThan(0);
+  });
+
   it('payment_method.attached is processed and audited for the tenant', async () => {
     await saveCard('sim-attach', CARD.ok);
     expect((await processedEvents('payment_method.attached')).length).toBeGreaterThan(0);
@@ -377,6 +462,13 @@ describe('simulated payments through the production webhook handler', () => {
     const res = await devService.fireInvoiceEvent(inv.id, 'refund', 1_000);
     expect(res.eventType).toBe('charge.refunded');
     expect((await processedEvents('charge.refunded')).length).toBe(1);
+    // #719: the dashboard refund is reflected on the invoice.
+    const after = await commission.getById(inv.id);
+    expect(after.refundedCents).toBe(1_000);
+    expect(after.status).toBe('paid');
+    const audits = await auditTypes('sim-refund');
+    expect(audits).toContain('invoice.refunded');
+    expect(await unhandledChargeTypes()).toEqual([]);
   });
 
   it('charge.dispute.created (admin fired dispute) reaches the handler', async () => {
@@ -385,6 +477,46 @@ describe('simulated payments through the production webhook handler', () => {
     const res = await devService.fireInvoiceEvent(inv.id, 'dispute');
     expect(res.eventType).toBe('charge.dispute.created');
     expect((await processedEvents('charge.dispute.created')).length).toBe(1);
+    expect((await processedEvents('charge.dispute.funds_withdrawn')).length).toBe(1);
+    // #719: one chargeback row, the invoice flagged, no unhandled events.
+    expect((await commission.getById(inv.id)).chargebackStatus).toBe('open');
+    const rows = (await testDb.db.select().from(billingDisputes)).filter(
+      (d) => d.invoiceId === inv.id,
+    );
+    expect(rows).toHaveLength(1);
+    expect(rows[0]).toMatchObject({ source: 'chargeback', status: 'open', stripeReason: 'fraudulent' });
+    expect(rows[0]!.evidenceDueAt).toBeInstanceOf(Date);
+    expect(rows[0]!.slaDueAt.getTime()).toBe(rows[0]!.evidenceDueAt!.getTime());
+    const audits = await auditTypes('sim-dispute');
+    expect(audits).toEqual(
+      expect.arrayContaining(['chargeback.opened', 'invoice.chargeback_opened', 'chargeback.funds_withdrawn']),
+    );
+    expect(await unhandledChargeTypes()).toEqual([]);
+  });
+
+  it.each([
+    ['sim-dispute-won', 'dispute_won', 'won'],
+    ['sim-dispute-lost', 'dispute_lost', 'lost'],
+  ] as const)('%s → charge.dispute.closed records the outcome', async (tenantKey, kind, outcome) => {
+    const inv = await chargedInvoice(tenantKey, CARD.ok);
+    await provider.deliverPendingEvents();
+    await devService.fireInvoiceEvent(inv.id, 'dispute');
+    const res = await devService.fireInvoiceEvent(inv.id, kind);
+    expect(res.eventType).toBe('charge.dispute.closed');
+    const after = await commission.getById(inv.id);
+    expect(after.chargebackStatus).toBe(outcome);
+    // The invoice status is not changed by the outcome (lost = manual ops).
+    expect(after.status).toBe('paid');
+    const [row] = (await testDb.db.select().from(billingDisputes)).filter(
+      (d) => d.invoiceId === inv.id,
+    );
+    expect(row).toMatchObject({ status: 'closed', outcome, resolvedBy: 'stripe' });
+    const audits = await auditTypes(tenantKey);
+    expect(audits).toEqual(expect.arrayContaining(['chargeback.closed', 'invoice.chargeback_closed']));
+    if (outcome === 'won') expect(audits).toContain('chargeback.funds_reinstated');
+    expect(await unhandledChargeTypes()).toEqual([]);
+    // Nothing left to close.
+    await expect(devService.fireInvoiceEvent(inv.id, kind)).rejects.toMatchObject({ status: 409 });
   });
 
   it('redelivering a processed simulated event is a duplicate no-op', async () => {

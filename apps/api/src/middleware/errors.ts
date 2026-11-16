@@ -32,6 +32,14 @@ export interface ProblemDetails extends ApiError {
     /** Epoch seconds when the window frees capacity. */
     readonly resetEpoch: number;
   };
+  /**
+   * #788: present on CHALLENGE_REQUIRED / CHALLENGE_FAILED 403s — the
+   * public Turnstile site key the client runs the invisible challenge with.
+   */
+  readonly challenge?: {
+    readonly provider: 'turnstile';
+    readonly siteKey: string;
+  };
 }
 
 /** Machine-readable error codes shared by routes, services and middleware. */
@@ -72,6 +80,13 @@ export const ErrorCodes = {
   /** Analytics ingest without a valid consent_ts (story consumer/01). */
   CONSENT_REQUIRED: 'CONSENT_REQUIRED',
   RATE_LIMITED: 'RATE_LIMITED',
+  /**
+   * #788 — an IP that recently tripped a shared money/mail rate limit must
+   * pass the invisible Turnstile challenge. 403 with `challenge.siteKey`.
+   */
+  CHALLENGE_REQUIRED: 'CHALLENGE_REQUIRED',
+  /** #788 — the challenge token was rejected or could not be verified (fail closed). */
+  CHALLENGE_FAILED: 'CHALLENGE_FAILED',
   INVALID_API_KEY: 'INVALID_API_KEY',
   DEPENDENCY_UNAVAILABLE: 'DEPENDENCY_UNAVAILABLE',
   INTERNAL_ERROR: 'INTERNAL_ERROR',

@@ -35,6 +35,7 @@ import {
   type FlatPlanService,
 } from '../src/services/billing/flat-plan.service';
 import type { StripeService } from '../src/services/billing/stripe.service';
+import { createChargebackService } from '../src/services/billing/chargeback.service';
 import type { EmailService } from '../src/services/email/email.service';
 import {
   billingEvents,
@@ -96,6 +97,7 @@ function fakeStripe(): StripeService {
     cancelSubscription: async (id) => ({ id }),
     refundPaymentIntent: async (paymentIntentId) => ({ id: 're_test', status: 'succeeded' }),
     retrievePaymentIntent: async (id: string) => ({ id, status: 'processing' }),
+    getPaymentIntentConfirmation: async (id: string) => ({ id, status: 'requires_action', clientSecret: `${id}_secret_test` }),
     verifyWebhook: (rawBody: Buffer, signature: string | undefined) => {
       if (!signature) {
         const error = new Error('Missing stripe signature') as Error & {
@@ -122,6 +124,11 @@ function fakeStripe(): StripeService {
         type: payload.type,
         paymentIntentId:
           payload.data?.object?.id ?? payload.data?.object?.payment_intent,
+        commissionInvoiceId:
+          payload.data?.object?.metadata?.feasly_commission_invoice_id,
+        failureMessage: payload.data?.object?.last_payment_error?.message,
+        declineCode: payload.data?.object?.last_payment_error?.decline_code,
+        errorCode: payload.data?.object?.last_payment_error?.code,
       };
     },
     getCustomerId: async () => 'cus_test_123',
@@ -216,6 +223,12 @@ describe('billing webhook service', () => {
       audit,
       commission,
       flatPlan,
+      chargebacks: createChargebackService({
+        db: testDb.db,
+        audit,
+        email,
+        opsInbox: 'ops@example.com',
+      }),
       email,
       opsInbox: 'ops@example.com',
     });
@@ -455,6 +468,12 @@ describe('billing webhook service', () => {
       audit,
       commission: flakyCommission,
       flatPlan,
+      chargebacks: createChargebackService({
+        db: testDb.db,
+        audit,
+        email,
+        opsInbox: 'ops@example.com',
+      }),
       email,
       opsInbox: 'ops@example.com',
     });
@@ -571,6 +590,230 @@ describe('billing webhook service', () => {
     const result = await webhook.handleWebhook(body, signature);
     expect(result.received).toBe(true);
   });
+  // ── #712: requires_action / processing + webhook-before-response ──────
+
+  async function seedInReviewInvoice(tenantKey: string) {
+    await testDb.db.insert(tenants).values({
+      tenantKey,
+      businessName: `${tenantKey} Builder`,
+      displayName: tenantKey,
+      accentColor: '#B08D57',
+      allowedOrigins: ['https://example.com'],
+      stripeCustomerId: 'cus_test_123',
+    });
+    const estimateId = nextId();
+    await testDb.db.insert(estimates).values({
+      id: estimateId,
+      projectType: 'new_build',
+      addressKey: `${tenantKey}-st`,
+      inputs: {},
+      figures: {},
+      rows: [],
+      costDataVersion: 'v0.2.0',
+    });
+    const leadId = nextId();
+    await testDb.db.insert(leads).values({
+      id: leadId,
+      estimateId,
+      addressKey: `${tenantKey}-st`,
+      email: `${tenantKey}@example.com`,
+      name: 'Homeowner',
+      timeline: '6-12 months',
+      consentTs: new Date('2026-03-01T09:00:00.000Z'),
+    });
+    const intro = await attribution.recordIntroduction({
+      leadId,
+      tenantKey,
+      introducedAt: new Date('2026-03-01T10:00:00.000Z'),
+    });
+    const reported = await attribution.reportContract({
+      attributionId: intro.id,
+      contractValueCents: 60_000_000,
+      contractSignedAt: new Date('2026-06-01T10:00:00.000Z'),
+      reportedAt: new Date('2026-06-05T10:00:00.000Z'),
+    });
+    const draft = await commission.createDraftInvoice(reported.id);
+    return commission.submitForReview(draft.id);
+  }
+
+  it('moves a finalized invoice to action_required on payment_intent.requires_action (#712)', async () => {
+    const inReview = await seedInReviewInvoice('webhook-3ds-builder');
+    const finalized = await commission.finalizeInvoice(inReview.id);
+    expect(finalized.status).toBe('finalized');
+    const event = {
+      id: 'evt_3ds_1',
+      type: 'payment_intent.requires_action',
+      data: { object: { id: finalized.stripePaymentIntentId, object: 'payment_intent' } },
+    };
+    const { body, signature } = signPayload(event);
+    await expect(webhook.handleWebhook(body, signature)).resolves.toEqual({ received: true, duplicate: false });
+    expect((await commission.getById(inReview.id)).status).toBe('action_required');
+    // A second requires_action event (new id) for the same intent: unchanged.
+    const second = signPayload({ ...event, id: 'evt_3ds_2' });
+    await webhook.handleWebhook(second.body, second.signature);
+    const rows = (await auditRowsFor(inReview.id)).filter((r) => r.eventType === 'invoice.action_required');
+    expect(rows).toHaveLength(1);
+  });
+
+  // Real Stripe: an off-session 3DS demand arrives as payment_intent.payment_failed
+  // with last_payment_error.code = authentication_required (never requires_action).
+  function authRequiredFailedEvent(eventId: string, piId: string, invoiceId?: string): unknown {
+    return {
+      id: eventId,
+      type: 'payment_intent.payment_failed',
+      data: {
+        object: {
+          id: piId,
+          object: 'payment_intent',
+          status: 'requires_payment_method',
+          ...(invoiceId ? { metadata: { feasly_commission_invoice_id: invoiceId } } : {}),
+          last_payment_error: {
+            code: 'authentication_required',
+            message: 'This payment requires authentication.',
+          },
+        },
+      },
+    };
+  }
+
+  async function chargeFailedRows(invoiceId: string) {
+    return (await auditRowsFor(invoiceId)).filter((r) => r.eventType === 'invoice.charge_failed');
+  }
+
+  it('charge step first: a later authentication_required payment_failed leaves the invoice action_required (#712)', async () => {
+    const inReview = await seedInReviewInvoice('webhook-sca-charge-first');
+    const piId = 'pi_sca_charge_first';
+    const original = stripe.createOffSessionPaymentIntent;
+    stripe.createOffSessionPaymentIntent = async () => ({
+      id: piId,
+      status: 'requires_payment_method',
+      errorCode: 'authentication_required',
+      failureMessage: 'This payment requires authentication.',
+    });
+    try {
+      expect((await commission.finalizeInvoice(inReview.id)).status).toBe('action_required');
+    } finally {
+      stripe.createOffSessionPaymentIntent = original;
+    }
+    const alertsBefore = opsAlerts.length;
+
+    const { body, signature } = signPayload(authRequiredFailedEvent('evt_sca_cf_1', piId, inReview.id));
+    await expect(webhook.handleWebhook(body, signature)).resolves.toEqual({ received: true, duplicate: false });
+
+    expect((await commission.getById(inReview.id)).status).toBe('action_required');
+    expect(await chargeFailedRows(inReview.id)).toHaveLength(0);
+    const actionRows = (await auditRowsFor(inReview.id)).filter((r) => r.eventType === 'invoice.action_required');
+    expect(actionRows).toHaveLength(1);
+    expect(opsAlerts.length - alertsBefore).toBe(0);
+    // Still confirmable on-session.
+    await expect(commission.createPaymentConfirmation(inReview.id)).resolves.toMatchObject({ paymentIntentId: piId });
+  });
+
+  it('webhook first: an authentication_required payment_failed moves a finalized invoice to action_required, not failed (#712)', async () => {
+    const inReview = await seedInReviewInvoice('webhook-sca-webhook-first');
+    // The charge call reported an in-flight status, so the invoice stays finalized.
+    const finalized = await commission.finalizeInvoice(inReview.id);
+    expect(finalized.status).toBe('finalized');
+    const piId = finalized.stripePaymentIntentId!;
+    const alertsBefore = opsAlerts.length;
+
+    const { body, signature } = signPayload(authRequiredFailedEvent('evt_sca_wf_1', piId, inReview.id));
+    await expect(webhook.handleWebhook(body, signature)).resolves.toEqual({ received: true, duplicate: false });
+
+    expect((await commission.getById(inReview.id)).status).toBe('action_required');
+    expect(await chargeFailedRows(inReview.id)).toHaveLength(0);
+    expect(opsAlerts.length - alertsBefore).toBe(0);
+    await expect(commission.createPaymentConfirmation(inReview.id)).resolves.toMatchObject({ paymentIntentId: piId });
+
+    // Another authentication_required event (new id) is a no-op: one audit row.
+    const again = signPayload(authRequiredFailedEvent('evt_sca_wf_2', piId, inReview.id));
+    await webhook.handleWebhook(again.body, again.signature);
+    const actionRows = (await auditRowsFor(inReview.id)).filter((r) => r.eventType === 'invoice.action_required');
+    expect(actionRows).toHaveLength(1);
+
+    // A genuine decline after the builder's on-session attempt still fails it.
+    const declined = signPayload({
+      id: 'evt_sca_wf_3',
+      type: 'payment_intent.payment_failed',
+      data: {
+        object: {
+          id: piId,
+          object: 'payment_intent',
+          last_payment_error: { code: 'card_declined', decline_code: 'insufficient_funds', message: 'Your card has insufficient funds.' },
+        },
+      },
+    });
+    await webhook.handleWebhook(declined.body, declined.signature);
+    expect((await commission.getById(inReview.id)).status).toBe('failed');
+  });
+
+  it('webhook before the charge response: authentication_required payment_failed retries, then settles action_required (#712)', async () => {
+    const inReview = await seedInReviewInvoice('webhook-sca-early');
+    const piId = 'pi_sca_early';
+    const { body, signature } = signPayload(authRequiredFailedEvent('evt_sca_early_1', piId, inReview.id));
+    // The charge call has not returned yet: retryable 409, nothing settled.
+    await expect(webhook.handleWebhook(body, signature)).rejects.toMatchObject({ status: 409 });
+
+    const original = stripe.createOffSessionPaymentIntent;
+    stripe.createOffSessionPaymentIntent = async () => ({
+      id: piId,
+      status: 'requires_payment_method',
+      errorCode: 'authentication_required',
+    });
+    try {
+      await commission.finalizeInvoice(inReview.id);
+    } finally {
+      stripe.createOffSessionPaymentIntent = original;
+    }
+
+    await expect(webhook.handleWebhook(body, signature)).resolves.toEqual({ received: true, duplicate: false });
+    expect((await commission.getById(inReview.id)).status).toBe('action_required');
+    expect(await chargeFailedRows(inReview.id)).toHaveLength(0);
+    const actionRows = (await auditRowsFor(inReview.id)).filter((r) => r.eventType === 'invoice.action_required');
+    expect(actionRows).toHaveLength(1);
+  });
+
+  it('audits payment_intent.processing without moving the invoice (#712)', async () => {
+    const inReview = await seedInReviewInvoice('webhook-processing-builder');
+    const finalized = await commission.finalizeInvoice(inReview.id);
+    const { body, signature } = signPayload({
+      id: 'evt_processing_1',
+      type: 'payment_intent.processing',
+      data: { object: { id: finalized.stripePaymentIntentId, object: 'payment_intent' } },
+    });
+    await webhook.handleWebhook(body, signature);
+    expect((await commission.getById(inReview.id)).status).toBe('finalized');
+    expect((await auditRowsFor('evt_processing_1')).map((r) => r.eventType)).toContain('webhook.payment_processing');
+  });
+
+  it('a webhook that beats the charge response fails retryably, then settles on redelivery (#712 AC6)', async () => {
+    const inReview = await seedInReviewInvoice('webhook-early-builder');
+    const piId = 'pi_early_1';
+    const event = {
+      id: 'evt_early_1',
+      type: 'payment_intent.succeeded',
+      data: {
+        object: { id: piId, object: 'payment_intent', metadata: { feasly_commission_invoice_id: inReview.id } },
+      },
+    };
+    const { body, signature } = signPayload(event);
+    // The charge call has not returned yet: the invoice is still in_review.
+    await expect(webhook.handleWebhook(body, signature)).rejects.toMatchObject({ status: 409 });
+    expect((await auditRowsFor('evt_early_1')).map((r) => r.eventType)).not.toContain('webhook.orphan_payment_intent');
+
+    // The charge call returns and records the PaymentIntent.
+    const original = stripe.createOffSessionPaymentIntent;
+    stripe.createOffSessionPaymentIntent = async () => ({ id: piId, status: 'succeeded' });
+    try {
+      await commission.finalizeInvoice(inReview.id);
+    } finally {
+      stripe.createOffSessionPaymentIntent = original;
+    }
+
+    // Redelivery of the same (unprocessed) event settles it.
+    await expect(webhook.handleWebhook(body, signature)).resolves.toEqual({ received: true, duplicate: false });
+    expect((await commission.getById(inReview.id)).status).toBe('paid');
+  });
 
   it('routes card lifecycle events to the card service (#716), and only those', async () => {
     const handleCardEvent = vi.fn(async () => undefined);
@@ -580,6 +823,12 @@ describe('billing webhook service', () => {
       audit,
       commission,
       flatPlan,
+      chargebacks: createChargebackService({
+        db: testDb.db,
+        audit,
+        email,
+        opsInbox: 'ops@example.com',
+      }),
       commissionCard: { handleCardEvent },
       email,
       opsInbox: 'ops@example.com',
@@ -624,6 +873,12 @@ describe('billing webhook service', () => {
       audit,
       commission,
       flatPlan,
+      chargebacks: createChargebackService({
+        db: testDb.db,
+        audit,
+        email,
+        opsInbox: 'ops@example.com',
+      }),
       commissionCard: {
         handleCardEvent: vi.fn(async () => {
           throw new Error('stripe down');

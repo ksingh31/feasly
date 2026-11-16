@@ -82,6 +82,8 @@ export function invoiceStepperModel(status: string | null | undefined): StepperM
       return { steps: INVOICE_STEPS, current: 'review', tone, currentLabel: label };
     case 'finalized':
       return { steps: INVOICE_STEPS, current: 'charged', tone };
+    case 'action_required':
+      return { steps: INVOICE_STEPS, current: 'charged', tone, currentLabel: label };
     case 'failed':
       return { steps: INVOICE_STEPS, current: 'charged', tone, currentLabel: 'Charge failed' };
     case 'paid':

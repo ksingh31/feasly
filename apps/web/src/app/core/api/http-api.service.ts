@@ -35,6 +35,9 @@ import type {
   TierRevisionRequest,
   TierRevisionResponse,
   UnsubscribePreferencesInput,
+  ErasureConfirmResponse,
+  ErasureRequestResponse,
+  PrivacyExportResponse,
   UnsubscribeResultResponse,
   UnsubscribeStateResponse,
 } from '@feasly/contracts';
@@ -200,6 +203,41 @@ export class HttpApiService implements ApiService {
     const params = new HttpParams().set('token', token);
     return this.call(
       this.http.get<PartnerShareVerifyResponse>(`${this.base}/shares/verify`, { params }),
+    );
+  }
+
+  /** #706: the magic-link token is the privacy endpoints' Bearer credential. */
+  private bearer(reportToken: string): HttpHeaders {
+    return new HttpHeaders().set('Authorization', `Bearer ${reportToken}`);
+  }
+
+  exportPrivacyData(reportToken: string): Observable<PrivacyExportResponse> {
+    return this.call(
+      this.http.get<PrivacyExportResponse>(`${this.base}/privacy/export`, {
+        headers: this.bearer(reportToken),
+      }),
+    );
+  }
+
+  requestErasure(reportToken: string): Observable<ErasureRequestResponse> {
+    return this.call(
+      this.http.post<ErasureRequestResponse>(
+        `${this.base}/privacy/erase-requests`,
+        {},
+        { headers: this.bearer(reportToken) },
+      ),
+    );
+  }
+
+  confirmErasure(reportToken: string, requestId: string): Observable<ErasureConfirmResponse> {
+    const id = encodeURIComponent(requestId);
+    const path = `/privacy/erase-requests/${id}/confirm`;
+    return this.call(
+      this.http.post<ErasureConfirmResponse>(
+        `${this.base}${path}`,
+        {},
+        { headers: this.bearer(reportToken) },
+      ),
     );
   }
 

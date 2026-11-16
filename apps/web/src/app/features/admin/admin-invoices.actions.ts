@@ -61,6 +61,7 @@ export const ADMIN_INVOICE_STATUS_OPTIONS: ReadonlyArray<{
   { value: 'draft', label: 'Draft' },
   { value: 'in_review', label: 'In review' },
   { value: 'finalized', label: 'Finalized' },
+  { value: 'action_required', label: 'Needs confirmation' },
   { value: 'paid', label: 'Paid' },
   { value: 'failed', label: 'Failed' },
   { value: 'disputed', label: 'Disputed' },

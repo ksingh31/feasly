@@ -37,6 +37,18 @@ export function parseBearerToken(headers: HeaderRecord): string | null {
 }
 
 /**
+ * The ONE "is this an API-key (Bearer) request" predicate (#788 review).
+ * The per-key API middleware and the bot-challenge exemption must agree
+ * exactly: if they disagreed (e.g. `Bearer\t<x>`), a request could skip the
+ * challenge as "agent traffic" yet run as first-party traffic with no key
+ * check. Defined by {@link parseBearerToken} so every Bearer reader shares
+ * the same grammar (literal space separator, lowercase header name).
+ */
+export function hasBearerCredential(headers: HeaderRecord): boolean {
+  return parseBearerToken(headers) !== null;
+}
+
+/**
  * Extract a named cookie's value from the `Cookie` header. Returns null
  * when absent or empty.
  */

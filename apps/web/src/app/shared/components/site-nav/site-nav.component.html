@@ -5,6 +5,14 @@
     <span class="nav-wordmark">{{ siteName }}</span>
   </a>
 
+  @if (search()) {
+    <!-- #783: one search box — address or community. Desktop bar; on
+         phones it sits at the top of the menu instead. -->
+    <div class="nav-search">
+      <app-address-autocomplete [compact]="true" [communities]="true" [navigateAddresses]="true" />
+    </div>
+  }
+
   <!-- Desktop inline nav (UX audit 2026-09-28) -->
   <div class="nav-links">
     @for (link of navLinks; track link.path) {
@@ -31,6 +39,11 @@
        as part of the H1; tapping it closes the menu. -->
   <div class="nav-scrim" aria-hidden="true" (click)="closeMenu()"></div>
   <div class="nav-menu" id="site-nav-menu">
+    @if (search()) {
+      <div class="nav-menu-search">
+        <app-address-autocomplete [compact]="true" [communities]="true" [navigateAddresses]="true" />
+      </div>
+    }
     @for (link of menuLinks; track link.label) {
       <a class="nav-menu-link" [href]="href(link)" (click)="go($event, link.path, link.queryParams)">{{
         link.label

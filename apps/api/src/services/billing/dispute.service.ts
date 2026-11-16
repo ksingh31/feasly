@@ -17,6 +17,9 @@
  *   (commission.resolveDispute 'resume').
  * - Every open/resolve/SLA-breach appends one `billing_events` row via the
  *   shared billing-audit service.
+ * - Bank chargebacks (#719, chargeback.service.ts) share the table and the
+ *   open-disputes queue (`source = 'chargeback'`, SLA = Stripe's evidence
+ *   deadline) but are closed by Stripe's webhook, never accepted/rejected.
  *
  * Only services and composition.ts may import from src/db/ — enforced by
  * test/boundaries.test.ts.
@@ -44,9 +47,14 @@ import type {
 } from './commission.service';
 import type { StripeService } from './stripe.service';
 import type { OpsAlertsService } from '../ops-alerts.service';
-import type { DisputeEvidenceSnapshot } from '@feasly/contracts';
+import type {
+  ChargebackOutcome,
+  DisputeEvidenceSnapshot,
+  DisputeSource,
+} from '@feasly/contracts';
 
-export type DisputeStatus = 'open' | 'accepted' | 'rejected';
+/** 'closed' = a chargeback Stripe closed (#719); builder disputes never use it. */
+export type DisputeStatus = 'open' | 'accepted' | 'rejected' | 'closed';
 
 export interface DisputeRecord {
   readonly id: string;
@@ -63,6 +71,16 @@ export interface DisputeRecord {
   readonly resolvedAt: Date | null;
   readonly resolvedBy: string | null;
   readonly resolutionNote: string | null;
+  /** 'builder' (portal dispute) or 'chargeback' (bank dispute, #719). */
+  readonly source: DisputeSource;
+  /** Chargebacks only (#719); null for builder disputes. */
+  readonly stripeDisputeId: string | null;
+  readonly stripeReason: string | null;
+  readonly stripeStatus: string | null;
+  readonly amountCents: number | null;
+  readonly evidenceDueAt: Date | null;
+  readonly outcome: ChargebackOutcome | null;
+  readonly livemode: boolean | null;
   readonly createdAt: Date;
   readonly updatedAt: Date;
 }
@@ -72,6 +90,8 @@ export interface DisputeListItem extends DisputeRecord {
   readonly businessDaysRemaining: number;
   /** True when now is past slaDueAt. */
   readonly breached: boolean;
+  /** Whole calendar days until evidenceDueAt (chargebacks); null otherwise. */
+  readonly evidenceDaysRemaining: number | null;
 }
 
 /** Full console detail: list item + audit trail. */
@@ -166,6 +186,14 @@ function toRecord(
     resolvedAt: row.resolvedAt,
     resolvedBy: row.resolvedBy,
     resolutionNote: row.resolutionNote,
+    source: row.source === 'chargeback' ? 'chargeback' : 'builder',
+    stripeDisputeId: row.stripeDisputeId,
+    stripeReason: row.stripeReason,
+    stripeStatus: row.stripeStatus,
+    amountCents: row.amountCents,
+    evidenceDueAt: row.evidenceDueAt,
+    outcome: row.outcome as ChargebackOutcome | null,
+    livemode: row.livemode,
     createdAt: row.createdAt,
     updatedAt: row.updatedAt,
   };
@@ -221,6 +249,16 @@ export function createDisputeService(
   function requireOpen(
     row: typeof billingDisputes.$inferSelect,
   ): void {
+    if (row.source === 'chargeback') {
+      // #719: a bank chargeback is decided by the bank via Stripe; evidence
+      // goes in the Stripe dashboard. Feasly records the outcome from the
+      // charge.dispute.closed webhook — it is never accepted/rejected here.
+      throw new HttpError(
+        409,
+        ErrorCodes.CONFLICT,
+        `Dispute "${row.id}" is a bank chargeback — respond in the Stripe dashboard; Feasly records the outcome automatically`,
+      );
+    }
     if (row.status !== 'open') {
       throw new HttpError(
         409,
@@ -239,6 +277,10 @@ export function createDisputeService(
         DISPUTE_SLA_TIMEZONE,
       ),
       breached: at.getTime() > row.slaDueAt.getTime(),
+      evidenceDaysRemaining:
+        row.evidenceDueAt === null
+          ? null
+          : Math.ceil((row.evidenceDueAt.getTime() - at.getTime()) / 86_400_000),
     };
   }
 
@@ -315,6 +357,7 @@ export function createDisputeService(
         where: and(
           eq(billingDisputes.invoiceId, invoice.id),
           eq(billingDisputes.status, 'open'),
+          eq(billingDisputes.source, 'builder'),
         ),
       });
       if (existing !== undefined) {
@@ -363,7 +406,10 @@ export function createDisputeService(
       });
       for (const invoiceRow of disputedInvoices) {
         const existing = await db.query.billingDisputes.findFirst({
-          where: eq(billingDisputes.invoiceId, invoiceRow.id),
+          where: and(
+            eq(billingDisputes.invoiceId, invoiceRow.id),
+            eq(billingDisputes.source, 'builder'),
+          ),
         });
         if (existing === undefined) {
           const invoice = await commission.getById(invoiceRow.id);

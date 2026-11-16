@@ -30,6 +30,7 @@ import {
   normalizeStripeEvent,
   type CardSummary,
   type NormalizedStripeEvent,
+  type OffSessionChargeResult,
   type PaymentProvider,
 } from './payment-provider';
 import type { SimulatedObject, SimulatedPaymentStore } from './simulated-payment.store';
@@ -63,6 +64,11 @@ export interface SimulatedPaymentProvider extends PaymentProvider {
   getIntentCustomerId(intentId: string): Promise<string | null>;
   /** Stripe-dashboard style triggers for the admin dev panel. */
   fireDispute(paymentIntentId: string): Promise<{ eventType: string }>;
+  /** Close the PaymentIntent's open dispute as won / lost (#719). */
+  fireDisputeClosed(
+    paymentIntentId: string,
+    outcome: 'won' | 'lost',
+  ): Promise<{ eventType: string }>;
   fireDashboardRefund(
     paymentIntentId: string,
     amountCents?: number,
@@ -119,6 +125,16 @@ function behaviorOf(cardNumber: string): SimulatedCardBehavior | null {
 function str(v: unknown): string | undefined {
   return typeof v === 'string' ? v : undefined;
 }
+
+/** Stripe's evidence window for a new dispute (~21 days), in seconds. */
+const DISPUTE_EVIDENCE_WINDOW_SECONDS = 21 * 86_400;
+
+/** Dispute statuses Stripe treats as closed. */
+const CLOSED_DISPUTE_STATUSES: ReadonlySet<string> = new Set([
+  'won',
+  'lost',
+  'warning_closed',
+]);
 
 function num(v: unknown): number {
   return typeof v === 'number' ? v : 0;
@@ -335,6 +351,21 @@ export function createSimulatedPaymentProvider(
     };
   }
 
+  /** A stored PaymentIntent as an off-session charge result (#712). */
+  function chargeResult(data: Record<string, unknown>): OffSessionChargeResult {
+    const err = data['last_payment_error'] as Record<string, unknown> | null | undefined;
+    const errorCode = err ? str(err['code']) : undefined;
+    const declineCode = err ? str(err['decline_code']) : undefined;
+    const failureMessage = err ? str(err['message']) : undefined;
+    return {
+      id: str(data['id']) ?? '',
+      status: str(data['status']) ?? 'unknown',
+      ...(errorCode ? { errorCode } : {}),
+      ...(declineCode ? { declineCode } : {}),
+      ...(failureMessage ? { failureMessage } : {}),
+    };
+  }
+
   /** Settle a PaymentIntent as succeeded (charge object + event). */
   function succeedPayment(pi: Record<string, unknown>): Record<string, unknown> {
     return {
@@ -485,7 +516,7 @@ export function createSimulatedPaymentProvider(
       const id = keyedId('pi', idempotencyKey);
       const existing = await store.get(id);
       if (existing) {
-        return { id, status: str(existing.data['status']) ?? 'unknown' };
+        return chargeResult(existing.data);
       }
       await requireObject(input.customerId, 'customer');
       const pm = await chargeCard(input.customerId);
@@ -507,6 +538,7 @@ export function createSimulatedPaymentProvider(
         customer: input.customerId,
         payment_method: pm.id,
         description: input.description,
+        metadata: { ...(input.metadata ?? {}) },
         statement_descriptor_suffix: input.statementDescriptorSuffix ?? null,
         off_session: true,
         confirmation_method: 'automatic',
@@ -535,11 +567,24 @@ export function createSimulatedPaymentProvider(
       if (!inserted) {
         // Lost an idempotency race — replay the winner's result.
         const winner = await requireObject(id, 'payment_intent');
-        return { id, status: str(winner.data['status']) ?? 'unknown' };
+        return chargeResult(winner.data);
       }
       await emit(eventType, data);
       deliverLater();
-      return { id, status: str(data['status']) ?? 'unknown' };
+      return chargeResult(data);
+    },
+
+    async getPaymentIntentConfirmation(paymentIntentId) {
+      const pi = await requireObject(paymentIntentId, 'payment_intent');
+      const paymentMethodId = str(pi.data['payment_method']);
+      return {
+        id: paymentIntentId,
+        status: str(pi.data['status']) ?? 'unknown',
+        // Stripe's shape (`pi_…_secret_…`); the simulated confirm step
+        // (POST /billing/simulated/authenticate) takes the intent id.
+        clientSecret: `${paymentIntentId}_secret_sim`,
+        ...(paymentMethodId ? { paymentMethodId } : {}),
+      };
     },
 
     async refundPaymentIntent(paymentIntentId, idempotencyKey, amountCents) {
@@ -598,10 +643,12 @@ export function createSimulatedPaymentProvider(
       const pi = await requireObject(paymentIntentId, 'payment_intent');
       const err = pi.data['last_payment_error'] as Record<string, unknown> | null;
       const message = err ? str(err['message']) : undefined;
+      const code = err ? str(err['code']) : undefined;
       return {
         id: pi.id,
         status: str(pi.data['status']) ?? 'unknown',
         ...(message ? { lastPaymentErrorMessage: message } : {}),
+        ...(code ? { lastPaymentErrorCode: code } : {}),
       };
     },
 
@@ -816,12 +863,51 @@ export function createSimulatedPaymentProvider(
         payment_intent: paymentIntentId,
         reason: 'fraudulent',
         status: 'needs_response',
+        // Stripe gives the merchant about three weeks to respond.
+        evidence_details: {
+          due_by: unix() + DISPUTE_EVIDENCE_WINDOW_SECONDS,
+          has_evidence: false,
+          past_due: false,
+          submission_count: 0,
+        },
+        is_charge_refundable: false,
         livemode: false,
       };
       await put(id, 'dispute', pi.customerId, data);
       await emit('charge.dispute.created', data);
+      // Stripe withdraws the disputed amount right after opening.
+      await emit('charge.dispute.funds_withdrawn', data);
       await deliverDue(true);
       return { eventType: 'charge.dispute.created' };
+    },
+
+    async fireDisputeClosed(paymentIntentId, outcome) {
+      await deliverDue(false);
+      const pi = await requireObject(paymentIntentId, 'payment_intent');
+      const disputes = pi.customerId
+        ? await store.listByCustomer(pi.customerId, 'dispute')
+        : [];
+      const open = disputes.find(
+        (d) =>
+          d.data['payment_intent'] === paymentIntentId &&
+          !CLOSED_DISPUTE_STATUSES.has(str(d.data['status']) ?? ''),
+      );
+      if (!open) {
+        throw new HttpError(
+          409,
+          ErrorCodes.CONFLICT,
+          `PaymentIntent ${paymentIntentId} has no open dispute to close`,
+        );
+      }
+      const data = { ...open.data, status: outcome };
+      await store.update(open.id, { data });
+      if (outcome === 'won') {
+        // A won dispute returns the funds before it closes.
+        await emit('charge.dispute.funds_reinstated', data);
+      }
+      await emit('charge.dispute.closed', data);
+      await deliverDue(true);
+      return { eventType: 'charge.dispute.closed' };
     },
 
     async fireDashboardRefund(paymentIntentId, amountCents) {

@@ -108,6 +108,9 @@ export interface SimulatedAuthenticateRequest {
 /** What the admin dev panel can fire against an invoice's PaymentIntent. */
 export type SimulatedInvoiceEventKind =
   | 'dispute'
+  /** Close the invoice's open chargeback as won / lost (#719). */
+  | 'dispute_won'
+  | 'dispute_lost'
   | 'refund'
   | 'delayed_failure';
 
