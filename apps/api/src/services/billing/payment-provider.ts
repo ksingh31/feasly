@@ -58,9 +58,10 @@ export interface NormalizedStripeEvent {
   readonly invoiceId?: string;
   readonly paymentMethodId?: string;
   /**
-   * payment_intent.payment_failed only: Stripe's `last_payment_error`
-   * message (e.g. "Your card was declined."). BILL-03 surfaces it in the
-   * dunning queue as the last failure reason.
+   * payment_intent.payment_failed: Stripe's `last_payment_error` message
+   * (e.g. "Your card was declined."). BILL-03 surfaces it in the dunning
+   * queue as the last failure reason. setup_intent.setup_failed (#716):
+   * `last_setup_error.message`.
    */
   readonly failureMessage?: string;
   /** charge.dispute.* only (#719): the dispute fields billing records. */
@@ -88,16 +89,43 @@ export interface NormalizedDispute {
   readonly livemode: boolean | null;
 }
 
+/**
+ * #716: Stripe customer details Feasly keeps in sync with the builder
+ * profile — business name, contact email and builder id metadata (receipts,
+ * tax and dispute evidence).
+ */
+export interface CustomerDetails {
+  readonly tenantKey: string;
+  /** Builder business name (Stripe `name`). */
+  readonly name?: string;
+  readonly email?: string;
+  /** Builder row id (`metadata.feasly_builder_id`). */
+  readonly builderId?: string;
+}
+
+/** Input for an off-session charge. */
+export interface OffSessionChargeInput {
+  readonly amountCents: number;
+  readonly currency: string;
+  readonly customerId: string;
+  readonly description: string;
+  /**
+   * #716: text on the builder's bank statement (BILLING_STATEMENT_DESCRIPTOR).
+   * Sent as Stripe's `statement_descriptor_suffix` — Stripe rejects
+   * `statement_descriptor` on card PaymentIntents. Absent = account default.
+   */
+  readonly statementDescriptorSuffix?: string;
+}
+
 export interface PaymentProvider {
   /** Which implementation this is. */
   readonly name: PaymentProviderName;
   createCustomer(
-    input: {
-      tenantKey: string;
-      email?: string;
-    },
+    input: CustomerDetails,
     idempotencyKey: string,
   ): Promise<{ id: string }>;
+  /** #716: update the customer's name/email/builder metadata. */
+  updateCustomer(customerId: string, input: CustomerDetails): Promise<void>;
   createSetupIntent(customerId: string): Promise<{
     id: string;
     clientSecret: string;
@@ -107,19 +135,27 @@ export interface PaymentProvider {
    * display-safe summary is exposed — never the PAN or full details.
    */
   listPaymentMethods(customerId: string): Promise<readonly CardSummary[]>;
+  /**
+   * #716: the customer's `invoice_settings.default_payment_method`, or null
+   * when none is set (or the customer no longer exists).
+   */
+  getDefaultPaymentMethodId(customerId: string): Promise<string | null>;
+  /** #716: make a saved card the customer's default payment method. */
+  setDefaultPaymentMethod(
+    customerId: string,
+    paymentMethodId: string,
+  ): Promise<void>;
   /** Detach (remove) a saved payment method from its customer. */
   detachPaymentMethod(paymentMethodId: string): Promise<{ id: string }>;
   /**
-   * Charge the customer's newest saved card off-session. A decline returns
-   * the PaymentIntent with its status (see the contract above).
+   * Charge the customer off-session. #716: the card charged is the
+   * customer's default payment method, named explicitly on the
+   * PaymentIntent; the newest saved card only when no default is set. A
+   * decline returns the PaymentIntent with its status (see the contract
+   * above).
    */
   createOffSessionPaymentIntent(
-    input: {
-      amountCents: number;
-      currency: string;
-      customerId: string;
-      description: string;
-    },
+    input: OffSessionChargeInput,
     idempotencyKey: string,
   ): Promise<{ id: string; status: string }>;
   /**
@@ -160,18 +196,35 @@ export interface PaymentProvider {
 export function normalizeStripeEvent(event: {
   id: string;
   type: string;
-  data?: { object?: unknown };
+  data?: { object?: unknown; previous_attributes?: unknown };
 }): NormalizedStripeEvent {
   const data = (event.data?.object ?? {}) as Record<string, unknown>;
+  const previous = (
+    typeof event.data?.previous_attributes === 'object' &&
+    event.data.previous_attributes !== null
+      ? event.data.previous_attributes
+      : {}
+  ) as Record<string, unknown>;
+  // #716: customer.created|updated|deleted carry the customer itself.
+  const isCustomerObject =
+    event.type.startsWith('customer.') &&
+    !event.type.startsWith('customer.subscription.');
   const str = (v: unknown): string | undefined =>
     typeof v === 'string' ? v : undefined;
   // payment_intent.payment_failed carries the decline reason under
   // data.object.last_payment_error.message (BILL-03).
+  // #716: setup_intent.setup_failed carries it under last_setup_error.
+  const errorField =
+    event.type === 'payment_intent.payment_failed'
+      ? 'last_payment_error'
+      : event.type === 'setup_intent.setup_failed'
+        ? 'last_setup_error'
+        : null;
   const lastError =
-    event.type === 'payment_intent.payment_failed' &&
-    typeof data['last_payment_error'] === 'object' &&
-    data['last_payment_error'] !== null
-      ? (data['last_payment_error'] as Record<string, unknown>)
+    errorField !== null &&
+    typeof data[errorField] === 'object' &&
+    data[errorField] !== null
+      ? (data[errorField] as Record<string, unknown>)
       : null;
   return {
     id: event.id,
@@ -182,11 +235,15 @@ export function normalizeStripeEvent(event: {
       : event.type.startsWith('charge.')
         ? str(data['payment_intent'])
         : undefined,
-    customerId:
-      str(data['customer']) ??
-      (typeof data['customer'] === 'object' && data['customer'] !== null
-        ? str((data['customer'] as Record<string, unknown>)['id'])
-        : undefined),
+    customerId: isCustomerObject
+      ? str(data['id'])
+      : (str(data['customer']) ??
+        (typeof data['customer'] === 'object' && data['customer'] !== null
+          ? str((data['customer'] as Record<string, unknown>)['id'])
+          : undefined) ??
+        // #716: payment_method.detached clears `customer`; Stripe keeps the
+        // previous owner in data.previous_attributes.customer.
+        str(previous['customer'])),
     subscriptionId: event.type.startsWith('customer.subscription.')
       ? str(data['id'])
       : str(data['subscription']),
@@ -195,7 +252,14 @@ export function normalizeStripeEvent(event: {
       : undefined,
     paymentMethodId: event.type.startsWith('payment_method.')
       ? str(data['id'])
-      : undefined,
+      : event.type.startsWith('setup_intent.')
+        ? // #716: the card a SetupIntent saved (expanded or id).
+          (str(data['payment_method']) ??
+          (typeof data['payment_method'] === 'object' &&
+          data['payment_method'] !== null
+            ? str((data['payment_method'] as Record<string, unknown>)['id'])
+            : undefined))
+        : undefined,
     failureMessage: lastError ? str(lastError['message']) : undefined,
     ...(event.type.startsWith('charge.dispute.') && str(data['id'])
       ? { dispute: normalizeDispute(data) }

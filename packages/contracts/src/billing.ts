@@ -40,17 +40,17 @@ export interface CommissionInvoice {
    * (subtotal = total = commissionCents).
    */
   /** Pre-tax subtotal, integer cents (same value as `commissionCents`). */
-  readonly subtotalCents?: number;
+  readonly subtotalCents: number;
   /** Tax rate snapshotted at invoice creation, in PERCENT (5 = 5%). 0 = no tax. */
-  readonly taxRatePercent?: number;
+  readonly taxRatePercent: number;
   /** True when the commission was priced tax-inclusive. */
-  readonly taxInclusive?: boolean;
+  readonly taxInclusive: boolean;
   /** Tax amount, integer cents. */
-  readonly taxCents?: number;
+  readonly taxCents: number;
   /** subtotal + tax — the amount charged, integer cents. */
-  readonly totalCents?: number;
+  readonly totalCents: number;
   /** Tax label (e.g. "GST") when the invoice carries tax; null otherwise. */
-  readonly taxLabel?: string | null;
+  readonly taxLabel: string | null;
   readonly currency: string;
   /** Off-session PaymentIntent id — set at finalize. Null before. */
   readonly stripePaymentIntentId: string | null;
@@ -292,6 +292,13 @@ export interface CardOnFileStatus {
   readonly last4?: string;
   readonly expMonth?: number;
   readonly expYear?: number;
+  /**
+   * #716: the card's expiry month ends within the configured warning
+   * window (BILLING_CARD_EXPIRY_WARNING_DAYS) — show "expires soon".
+   */
+  readonly expiresSoon?: boolean;
+  /** #716: the card's expiry month has ended — it can no longer be charged. */
+  readonly expired?: boolean;
 }
 
 /** Result of POST /api/v1/billing/setup-intent (billing/02, BILL-02). */
@@ -457,6 +464,10 @@ export interface ManualInvoiceResponse {
   readonly taxCents?: number;
   /** commission + tax (#714), integer cents. */
   readonly totalCents?: number;
+  /** Tax rate snapshotted on the invoice (#764), in PERCENT. 0 = no tax. */
+  readonly taxRatePercent?: number;
+  /** Tax label (e.g. "GST") when the invoice carries tax (#764); null otherwise. */
+  readonly taxLabel?: string | null;
   readonly currency: string;
   /** ISO 8601 — end of the builder's review/dispute window. */
   readonly reviewDueAt: string | null;
@@ -528,4 +539,20 @@ export interface BuilderBillingOverviewResponse {
    * 'flat', where the card lives on the Stripe subscription instead.
    */
   readonly card: CardOnFileStatus | null;
+  /**
+   * Sales tax applied to NEW commission invoices (#764), for the portal's
+   * record-contract preview. Absent when tax is off, under 'flat', or the
+   * configured rate is 0. Display-only: invoices carry their own snapshot.
+   */
+  readonly tax?: BillingTaxPreview;
+}
+
+/** Builder-facing view of the configured sales tax (#764). No supplier details. */
+export interface BillingTaxPreview {
+  /** Tax rate in PERCENT (5 = 5% GST). Always > 0. */
+  readonly ratePercent: number;
+  /** Label shown next to the tax amount, e.g. "GST". */
+  readonly label: string;
+  /** true = the commission already includes tax; false = tax is added on top. */
+  readonly inclusive: boolean;
 }
