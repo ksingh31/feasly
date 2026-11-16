@@ -2308,6 +2308,28 @@ export function createCommissionService(
         if (already !== undefined) return { reopened: false };
         row = current;
       }
+      // #718: a reopened invoice must re-enter the dunning schedule, or the
+      // timer (which only picks rows with a due next_retry_at) never retries
+      // it. Same eligibility as a card decline: active card invoice, retries
+      // left, not already in collections; due one grace period from now.
+      const reopenRetryAt =
+        row.dunningState === 'active' &&
+        row.paymentMethod === 'card' &&
+        row.collectionsAt === null &&
+        !retriesExhausted(row.retryCount, maxRetries)
+          ? retryDueAt(at, effectiveGraceDays(row.retryGraceDays, billing.dunningGraceDays))
+          : null;
+      const [scheduled] = await db
+        .update(commissionInvoices)
+        .set({ lastChargeFailedAt: at, nextRetryAt: reopenRetryAt, updatedAt: at })
+        .where(
+          and(
+            eq(commissionInvoices.id, row.id),
+            eq(commissionInvoices.status, 'failed'),
+          ),
+        )
+        .returning();
+      if (scheduled !== undefined) row = scheduled;
       const record = toRecord(row, await leadNameFor(db, row.leadId), billing.commissionRate, taxLabel, dunningContext());
       // Same event type as a card decline so the dunning queue (BILL-03)
       // lists it with "past due since" = now and this reason.
