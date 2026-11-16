@@ -53,7 +53,10 @@ export interface BuilderLifecycleService {
    * not allowed from the current status; 409 OFFBOARDING_BLOCKED (with the
    * blockers listed) for `complete_offboarding` while an invoice is unpaid
    * or a dispute is open. Re-applying the current status is a no-op
-   * (`changed: false`, no audit row).
+   * (`changed: false`, no audit row) — except `complete_offboarding` on an
+   * already-offboarded builder, which re-runs the idempotent exit cleanup
+   * (revoke, card detach) and audits it, so a retry after a partial failure
+   * finishes the job.
    */
   changeStatus(
     builderId: string,
@@ -173,33 +176,53 @@ export function createBuilderLifecycleService(
       .join('; ');
   }
 
-  /** Revoke every portal session and builder-bound API key. */
+  /**
+   * Revoke every portal session and builder-bound API key. Idempotent; runs
+   * inside the caller's transaction so it commits with the status change.
+   */
   async function revokeAccess(
-    row: typeof builders.$inferSelect,
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    tx: any,
+    row: Pick<typeof builders.$inferSelect, 'id' | 'tenantKey'>,
     at: Date,
   ): Promise<{ sessionsRevoked: number; apiKeysRevoked: number }> {
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    return db.transaction(async (tx: any) => {
-      const sessions = await tx
-        .update(builderSessions)
-        .set({ revokedAt: at })
-        .where(
-          and(
-            or(
-              eq(builderSessions.builderId, row.id),
-              eq(builderSessions.tenantKey, row.tenantKey),
-            ),
-            isNull(builderSessions.revokedAt),
+    const sessions = await tx
+      .update(builderSessions)
+      .set({ revokedAt: at })
+      .where(
+        and(
+          or(
+            eq(builderSessions.builderId, row.id),
+            eq(builderSessions.tenantKey, row.tenantKey),
           ),
-        )
-        .returning({ id: builderSessions.id });
-      const keys = await tx
-        .update(apiKeys)
-        .set({ revokedAt: at })
-        .where(and(eq(apiKeys.tenantId, row.tenantKey), isNull(apiKeys.revokedAt)))
-        .returning({ id: apiKeys.id });
-      return { sessionsRevoked: sessions.length, apiKeysRevoked: keys.length };
-    });
+          isNull(builderSessions.revokedAt),
+        ),
+      )
+      .returning({ id: builderSessions.id });
+    const keys = await tx
+      .update(apiKeys)
+      .set({ revokedAt: at })
+      .where(and(eq(apiKeys.tenantId, row.tenantKey), isNull(apiKeys.revokedAt)))
+      .returning({ id: apiKeys.id });
+    return { sessionsRevoked: sessions.length, apiKeysRevoked: keys.length };
+  }
+
+  function auditDetail(
+    row: Pick<typeof builders.$inferSelect, 'id' | 'tenantKey'>,
+    from: BuilderStatus,
+    to: BuilderStatus,
+    offboarding: BuilderLifecycleResponse['offboarding'],
+    retry: boolean,
+  ): string {
+    // Ids and counts only: the free-text reason may carry PII and is
+    // already stored on the builder row (status_reason).
+    return (
+      `builderId=${row.id} tenantKey=${row.tenantKey} from=${from} to=${to}` +
+      (offboarding
+        ? ` sessionsRevoked=${offboarding.sessionsRevoked} apiKeysRevoked=${offboarding.apiKeysRevoked} cardDetached=${offboarding.cardDetached}`
+        : '') +
+      (retry ? ' retry=true' : '')
+    );
   }
 
   async function detachCard(tenantKey: string, builderId: string): Promise<boolean> {
@@ -234,7 +257,23 @@ export function createBuilderLifecycleService(
       const current = await getRow(builderId);
       const from = normalizeBuilderStatus(current.status) ?? 'suspended';
       if (from === transition.to) {
-        return { builder: toBuilderContract(current), changed: false };
+        if (action !== 'complete_offboarding') {
+          return { builder: toBuilderContract(current), changed: false };
+        }
+        // Retry after a partial failure (e.g. the audit write or card detach
+        // failed after the status committed): redo the idempotent cleanup.
+        const revoked = await db.transaction(
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          (tx: any) => revokeAccess(tx, current, clock()),
+        );
+        const cardDetached = await detachCard(current.tenantKey, current.id);
+        const offboarding = { ...revoked, cardDetached };
+        await audit.log({
+          actorEmail: adminEmail,
+          action: AUDIT_ACTIONS[action],
+          detail: auditDetail(current, from, transition.to, offboarding, true),
+        });
+        return { builder: toBuilderContract(current), changed: false, offboarding };
       }
       if (!transition.from.includes(from)) {
         throw new HttpError(
@@ -256,19 +295,28 @@ export function createBuilderLifecycleService(
         }
       }
       const at = clock();
-      // Compare-and-set on the status read: a concurrent change loses.
-      const [updated] = await db
-        .update(builders)
-        .set({
-          status: transition.to,
-          statusReason: trimmed,
-          statusChangedAt: at,
-          statusChangedBy: adminEmail,
-          updatedAt: at,
-        })
-        .where(and(eq(builders.id, builderId), eq(builders.status, current.status)))
-        .returning();
-      if (!updated) {
+      // Compare-and-set on the status read: a concurrent change loses. For
+      // complete_offboarding the session/key revoke commits atomically with
+      // the status change.
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const result = await db.transaction(async (tx: any) => {
+        const [row] = await tx
+          .update(builders)
+          .set({
+            status: transition.to,
+            statusReason: trimmed,
+            statusChangedAt: at,
+            statusChangedBy: adminEmail,
+            updatedAt: at,
+          })
+          .where(and(eq(builders.id, builderId), eq(builders.status, current.status)))
+          .returning();
+        if (!row) return undefined;
+        const revoked =
+          action === 'complete_offboarding' ? await revokeAccess(tx, row, at) : undefined;
+        return { row: row as typeof builders.$inferSelect, revoked };
+      });
+      if (!result) {
         throw new HttpError(
           409,
           ErrorCodes.CONFLICT,
@@ -276,21 +324,16 @@ export function createBuilderLifecycleService(
           true,
         );
       }
+      const updated = result.row;
       let offboarding: BuilderLifecycleResponse['offboarding'];
-      if (action === 'complete_offboarding') {
-        const revoked = await revokeAccess(updated, at);
+      if (result.revoked) {
         const cardDetached = await detachCard(updated.tenantKey, updated.id);
-        offboarding = { ...revoked, cardDetached };
+        offboarding = { ...result.revoked, cardDetached };
       }
       await audit.log({
         actorEmail: adminEmail,
         action: AUDIT_ACTIONS[action],
-        detail:
-          `builderId=${updated.id} tenantKey=${updated.tenantKey} from=${from} to=${transition.to}` +
-          (offboarding
-            ? ` sessionsRevoked=${offboarding.sessionsRevoked} apiKeysRevoked=${offboarding.apiKeysRevoked} cardDetached=${offboarding.cardDetached}`
-            : '') +
-          ` reason=${JSON.stringify(trimmed)}`,
+        detail: auditDetail(updated, from, transition.to, offboarding, false),
       });
       try {
         deps.onStatusChanged?.({

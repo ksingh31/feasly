@@ -190,6 +190,58 @@ describe('builder lifecycle (PGlite)', () => {
     expect(res.offboarding?.cardDetached).toBe(false);
   });
 
+  it('a failure after the status commit is finished by retrying complete_offboarding', async () => {
+    const C = '8c1f3c2e-8d4a-4f61-9a1b-2c3d4e5f6a04';
+    await testDb.db.insert(builders).values({
+      id: C, tenantKey: 'builder-c', businessName: 'C Ltd.', displayName: 'Builder C',
+    });
+    await testDb.exec(`
+      INSERT INTO tenants (tenant_key, business_name, display_name, accent_color, allowed_origins)
+        VALUES ('builder-c','C Ltd.','Builder C','', '{}');
+      INSERT INTO builder_sessions (id, email, tenant_key, builder_id, session_token_hash, expires_at)
+        VALUES ('55555555-0000-4000-8000-000000000003', 'owner@c.example', 'builder-c', '${C}', 'hash-c1', '2026-12-01T00:00:00Z');
+    `);
+    const flakyAudit = vi.fn(async (entry: { action: string }) => {
+      if (entry.action === 'admin_builder_offboarded' && flakyAudit.mock.calls.length === 2) {
+        throw new Error('db timeout');
+      }
+    });
+    const detach = vi.fn(async () => undefined);
+    const svc = createBuilderLifecycleService({
+      db: testDb.db,
+      audit: { log: flakyAudit } as unknown as AdminAuditStore,
+      detachCard: detach,
+      clock: () => NOW,
+    });
+    await svc.changeStatus(C, 'start_offboarding', 'Closing down', ADMIN);
+    await expect(svc.changeStatus(C, 'complete_offboarding', 'Closing down', ADMIN)).rejects.toThrow(
+      'db timeout',
+    );
+    // Status and revoke committed together.
+    expect((await statusOf(C))['status']).toBe('offboarded');
+    const live = await testDb.rows<{ n: number }>(
+      `select count(*)::int as n from builder_sessions where revoked_at is null and builder_id = '${C}'`,
+    );
+    expect(live[0]?.n).toBe(0);
+
+    const retry = await svc.changeStatus(C, 'complete_offboarding', 'Closing down', ADMIN);
+    expect(retry.changed).toBe(false);
+    expect(retry.offboarding).toEqual({ sessionsRevoked: 0, apiKeysRevoked: 0, cardDetached: true });
+    expect(detach).toHaveBeenCalledTimes(2);
+    expect(flakyAudit).toHaveBeenLastCalledWith(
+      expect.objectContaining({
+        action: 'admin_builder_offboarded',
+        detail: expect.stringContaining('retry=true'),
+      }),
+    );
+  });
+
+  it('keeps the free-text reason out of audit detail', () => {
+    for (const [entry] of auditLog.mock.calls as unknown as [{ detail: string }][]) {
+      expect(entry.detail).not.toContain('reason=');
+    }
+  });
+
   it('exports only that builder\'s leads and invoices as safe CSV', async () => {
     const leadsCsv = await service.exportCsv(A, 'leads', ADMIN);
     expect(leadsCsv.filename).toBe('builder-a-leads-2026-11-16.csv');
