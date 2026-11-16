@@ -2,7 +2,11 @@
 # check-community-stats-freshness.sh — NBH-05 AC4: fail loudly when the
 # monthly community-stats refresh stops running.
 #
-# Read-only: two SELECTs against the Feasly Postgres, nothing else.
+# Database access is read-only: two SELECTs against the Feasly Postgres.
+# Azure access is NOT read-only: the runner-reachability fallback below
+# creates/deletes Postgres firewall rules, so the CI identity needs
+# Microsoft.DBforPostgreSQL/flexibleServers/firewallRules/write + delete.
+# Do not narrow it to Reader.
 # Fails (exit 1) when any community_stats.refreshed_at is older than 45
 # days, or when the table is empty (the seed/refresh never produced rows).
 #
