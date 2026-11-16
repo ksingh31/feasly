@@ -24,6 +24,12 @@
     <p>{{ copy.mathNoteBody }}</p>
   </aside>
 
+  <!-- #824: what every estimate includes (the engine's line items,
+       generated) and what it leaves out (config). Static — prerendered. -->
+  <div class="math-note estimate-scope">
+    <app-estimate-scope [headingLevel]="2" />
+  </div>
+
   <aside class="math-note" [attr.aria-label]="copy.zoningCardTitle">
     <h2>{{ copy.zoningCardTitle }}</h2>
     <p>{{ copy.zoningCardBody }}</p>

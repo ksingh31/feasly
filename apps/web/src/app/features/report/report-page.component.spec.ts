@@ -616,26 +616,28 @@ describe('ReportPageComponent', () => {
         expect(descriptors.luxury).toContain('gym');
       });
 
-      it('frames coverage as builder-grade granularity with the 60+ line-item credibility line', () => {
+      it('frames coverage with the cost-movement note', () => {
         const body = text();
         expect(body).toContain("What your estimate covers");
-        expect(body).toContain('60+ line items');
-        expect(body).toContain('the way a real Calgary builder budgets');
         // Costs move: inflation, material choices, project-specific conditions.
         expect(body).toContain('can move with inflation');
         expect(body).toContain('your material choices');
         expect(body).toContain('project-specific conditions');
       });
 
-      it('lists the honest exclusions — landscaping only, budgeted separately', () => {
+      // #824 (owner decision 2026-11-15): exactly what the estimate includes
+      // (the engine's line items) and what it leaves out (config).
+      it('lists what the estimate includes and what it leaves out', () => {
         const body = text();
-        expect(body).toContain("What's not in this estimate");
-        // Karan's product lock (2026-09-28): the estimate covers the full
-        // build except landscaping — it is the only exclusion.
-        expect(body).toContain('Landscaping');
-        expect(body).toContain('budget it separately with your builder');
-        expect(body).not.toContain('Demolition of any existing home');
-        expect(body).not.toContain('Financing costs');
+        expect(body).toContain('What this estimate includes');
+        for (const item of DEFAULT_APP_CONFIG.estimateScope.includes) {
+          expect(body).toContain(item.label);
+        }
+        expect(body).toContain('Not included');
+        for (const item of DEFAULT_APP_CONFIG.estimateScope.notIncluded) {
+          expect(body).toContain(item.label);
+        }
+        expect(body).not.toContain('60+ line items');
       });
 
       it('renders the planning-ahead card: financing honesty', () => {
@@ -682,7 +684,10 @@ describe('ReportPageComponent', () => {
         expect(li.querySelector('.bucket-amount')?.textContent).toMatch(/^\$\d{1,3}(,\d{3})*$/);
       }
       expect(fixture.nativeElement.querySelectorAll('.buckets-bar .bucket-seg').length).toBe(3);
-      expect(text()).not.toContain('Site preparation & excavation');
+      // No per-row dump in the breakdown. (#824: the line-item NAMES appear,
+      // without figures, in the coverage card's "includes" list.)
+      const breakdown = fixture.nativeElement.querySelector('.bucket-legend')?.closest('section') as HTMLElement;
+      expect(breakdown.textContent).not.toContain('Site preparation & excavation');
     });
 
     it('hides the visual buckets bar from AT (legend carries labels + amounts)', () => {

@@ -39,8 +39,11 @@
   <section aria-labelledby="pillar-included">
     <h2 class="guide-h2" id="pillar-included">{{ copy.includedTitle }}</h2>
     <p class="guide-body">{{ copy.includedBody }}</p>
+    <!-- #824: the engine's line items (generated) / config exclusions. -->
+    <app-estimate-scope part="includes" [showTitles]="false" />
     <h2 class="guide-h2" id="pillar-excluded">{{ copy.excludedTitle }}</h2>
     <p class="guide-body">{{ copy.excludedBody }}</p>
+    <app-estimate-scope part="excluded" [showTitles]="false" />
   </section>
 
   <section aria-labelledby="pillar-infill">
