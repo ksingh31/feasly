@@ -1,5 +1,5 @@
-import { Injectable } from '@angular/core';
-import { Action, Selector, State, StateContext } from '@ngxs/store';
+import { EnvironmentProviders, Injectable } from '@angular/core';
+import { Action, provideStates, Selector, State, StateContext } from '@ngxs/store';
 import type { BuilderLeadListItem } from '@feasly/contracts';
 import { BuilderState } from './builder.state';
 
@@ -64,6 +64,15 @@ export class BuilderLeadsSeenState {
     ctx.patchState({ lastSeenAt: { ...lastSeenAt, [action.builderId]: action.at } });
   }
 }
+
+/**
+ * Lazy provider for the `builder` shell route (app.routes.ts) — keeps the
+ * state out of the initial bundle. Persisted via the storage-plugin string
+ * key 'builderLeadsSeen' in app.config.ts (must match the state name).
+ */
+export const builderLeadsSeenStateProvider: EnvironmentProviders = provideStates([
+  BuilderLeadsSeenState,
+]);
 
 /** Leads created strictly after `lastSeen`; 0 when there was no visit yet. */
 export function countUnread(
