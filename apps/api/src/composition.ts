@@ -288,6 +288,19 @@ import {
   type AdminBuildersRoute,
 } from './routes/admin-builders.route';
 import {
+  createAdminPartnersRoute,
+  type AdminPartnersRoute,
+} from './routes/admin-partners.route';
+import { createPartnersRoute, type PartnersRoute } from './routes/partners.route';
+import {
+  createBuilderPartnersService,
+  type BuilderPartnersService,
+} from './services/builder-partners.service';
+import {
+  createDrizzleBuilderPartnerStore,
+  type BuilderPartnerStore,
+} from './services/builder-partners.store';
+import {
   createAdminCalibrationRoute,
   type AdminCalibrationRoute,
 } from './routes/admin-calibration.route';
@@ -585,6 +598,15 @@ import {
   createBuilderBillingOverviewRoute,
   type BuilderBillingOverviewRoute,
 } from './routes/builder/billing-overview.route';
+import { createDrizzleBuilderNotificationStore } from './services/builder-notification.store';
+import {
+  createBuilderNotificationsService,
+  type BuilderNotificationsService,
+} from './services/builder-notifications.service';
+import {
+  createBuilderNotificationsRoute,
+  type BuilderNotificationsRoute,
+} from './routes/builder/notifications.route';
 import {
   createStripeWebhooksRoute,
   type StripeWebhooksRoute,
@@ -745,6 +767,10 @@ export interface AppComposition {
    */
   readonly builderService: BuilderService;
   readonly adminBuildersRoute: AdminBuildersRoute;
+  /** #888: builder partner disclosure — public list + admin CRUD. */
+  readonly builderPartnersService: BuilderPartnersService;
+  readonly partnersRoute: PartnersRoute;
+  readonly adminPartnersRoute: AdminPartnersRoute;
   /** admin/02: leads explorer (list, detail, notes, status, CSV export). */
   readonly adminLeadsService: AdminLeadsService;
   readonly adminLeadsRoute: AdminLeadsRoute;
@@ -820,6 +846,10 @@ export interface AppComposition {
   readonly billingOverviewService: BillingOverviewService;
   /** #531: thin route for GET /api/v1/builder/billing/overview. */
   readonly builderBillingOverviewRoute: BuilderBillingOverviewRoute;
+  /** #725: new-lead email, daily digest, preferences, billing recipients. */
+  readonly builderNotificationsService: BuilderNotificationsService;
+  /** #725: thin route for /api/v1/builder/notifications/preferences. */
+  readonly builderNotificationsRoute: BuilderNotificationsRoute;
   /** billing/01 follow-on: dispute console backend (was OPS-009). */
   readonly disputeService: DisputeService;
   /** billing/01 follow-on: thin route for /api/v1/admin/disputes/*. */
@@ -880,6 +910,8 @@ export interface CompositionOptions {
   readonly invitationStore?: InvitationStore;
   readonly membershipStore?: MembershipStore;
   readonly adminAuditStore?: AdminAuditStore;
+  /** Builder partner store override (tests, #888). */
+  readonly builderPartnerStore?: BuilderPartnerStore;
   readonly adminLeadsStore?: AdminLeadsStore;
   /** Admin global search store override (tests). */
   readonly adminSearchStore?: AdminSearchStore;
@@ -1171,6 +1203,9 @@ export function createComposition(
   const builderService: BuilderService = createBuilderService({
     db: db.db,
     audit: adminAuditStore,
+    // #725: late-bound — the notifications service is built further down
+    // (it needs the builder-leads "Needs you" feed). Never throws.
+    onLeadAssigned: (args) => builderNotificationsService.notifyNewLead(args),
     onBillingProfileChanged: async (builder) => {
       await syncStripeCustomer?.(builder);
     },
@@ -1186,6 +1221,10 @@ export function createComposition(
     magicLinkTtlSeconds: config.auth.magicLinkTtlSeconds,
     builderConfigs: builderConfigService,
     builders: builderService,
+    // #725: late-bound (see builderService above).
+    builderNotifier: {
+      notifyNewLead: (args) => builderNotificationsService.notifyNewLead(args),
+    },
   });
   const leadRoute: LeadRoute = createLeadRoute({ leads: leadService });
   const magicLinkService: MagicLinkService = createMagicLinkService({
@@ -1619,6 +1658,21 @@ export function createComposition(
     builders: builderService,
     adminGuard,
   });
+  // #888: builder partner disclosure. Public active list (cached) + admin
+  // add/deactivate/reorder, audit-logged.
+  const builderPartnersService: BuilderPartnersService = createBuilderPartnersService({
+    store:
+      options.builderPartnerStore ?? createDrizzleBuilderPartnerStore({ db: db.db }),
+    audit: adminAuditStore,
+    config: config.partners,
+  });
+  const partnersRoute: PartnersRoute = createPartnersRoute({
+    partners: builderPartnersService,
+  });
+  const adminPartnersRoute: AdminPartnersRoute = createAdminPartnersRoute({
+    partners: builderPartnersService,
+    adminGuard,
+  });
   // admin/03 — read-only estimate lookup. Reuses the session guard; no
   // mutation endpoints exist. The route is created after the narrative
   // service (below) so the admin narrative top-up can reuse it.
@@ -1980,6 +2034,10 @@ export function createComposition(
   });
   const commissionService: CommissionService = createCommissionService({
     db: db.db,
+    // #725: billing emails go to every opted-in active builder admin;
+    // late-bound (see builderService above).
+    billingRecipients: (tenantKey) =>
+      builderNotificationsService.billingRecipients(tenantKey),
     billing: config.billing,
     attribution: attributionService,
     audit: billingAuditService,
@@ -2094,6 +2152,23 @@ export function createComposition(
     builderGuard,
     permissionGuard,
   });
+  // #725: builder notifications — new-lead email (send-once outbox), daily
+  // "Needs you" digest, member preferences, billing-email recipients.
+  const builderNotificationsService: BuilderNotificationsService =
+    createBuilderNotificationsService({
+      store: createDrizzleBuilderNotificationStore({ db: db.db }),
+      email: emailService,
+      needsYou: (tenantKey) => builderLeadsService.getNeedsYou(tenantKey),
+      resolveCommunity: async (addressKey) =>
+        (await propertyService.getProperty(addressKey)).community,
+      config: config.builderNotifications,
+      onError: (message) => console.error(message),
+    });
+  const builderNotificationsRoute: BuilderNotificationsRoute =
+    createBuilderNotificationsRoute({
+      notifications: builderNotificationsService,
+      builderGuard,
+    });
   // billing/05 lead comments: one service, two thin routes (builder/admin).
   const builderCommentsService: BuilderCommentsService =
     createBuilderCommentsService({
@@ -2285,6 +2360,9 @@ export function createComposition(
     builderSessionStore,
     builderService,
     adminBuildersRoute,
+    builderPartnersService,
+    partnersRoute,
+    adminPartnersRoute,
     adminLeadsService,
     adminLeadsRoute,
     adminLeadsStore,
@@ -2333,6 +2411,8 @@ export function createComposition(
     billingRoute,
     billingOverviewService,
     builderBillingOverviewRoute,
+    builderNotificationsService,
+    builderNotificationsRoute,
     disputeService,
     adminDisputesRoute,
     adminBillingRoute,

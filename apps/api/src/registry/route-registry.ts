@@ -351,6 +351,18 @@ export const ROUTE_REGISTRY: readonly ApiRouteEntry[] = [
   },
   {
     method: 'GET',
+    path: '/api/v1/partners',
+    auth: 'none',
+    permissions: [] as const,
+    rateLimit: '100/min per IP',
+    status: 'live',
+    summary:
+      'Builder partner disclosure (#888): active builder companies that ' +
+      'receive leads from Feasly\'s own site, in display order (name, logo, ' +
+      'website, description; no contact details). Cached; Cache-Control public.',
+  },
+  {
+    method: 'GET',
     path: '/api/v1/embed/config',
     auth: 'none',
     permissions: [] as const,
@@ -749,6 +761,32 @@ export const ROUTE_REGISTRY: readonly ApiRouteEntry[] = [
       'status counts for the segmented filter.',
   },
   {
+    method: 'GET',
+    path: '/api/v1/builder/notifications/preferences',
+    auth: 'builder-session',
+    permissions: ['builder:leads:read'] as const,
+    rateLimit: '100/min per session',
+    status: 'live',
+    summary:
+      'Signed-in builder member reads their email notification preferences ' +
+      '(#725): new-lead email (default on), daily "Needs you" digest ' +
+      '(default off), billing email (default on, admins only), their org ' +
+      'role, and whether they may turn billing emails off.',
+  },
+  {
+    method: 'PUT',
+    path: '/api/v1/builder/notifications/preferences',
+    auth: 'builder-session',
+    permissions: ['builder:leads:read'] as const,
+    rateLimit: '100/min per session',
+    status: 'live',
+    summary:
+      'Signed-in builder member updates their email notification ' +
+      'preferences (#725, partial body). 409 LAST_ADMIN when the org\'s ' +
+      'last admin receiving billing emails turns them off; 403 while ' +
+      'viewing as a teammate.',
+  },
+  {
     method: 'PATCH',
     path: '/api/v1/builder/leads/{id}',
     auth: 'builder-session',
@@ -1030,6 +1068,37 @@ export const ROUTE_REGISTRY: readonly ApiRouteEntry[] = [
     summary:
       'Update a builder. tenant_key is immutable; 404 when unknown; ' +
       'audit-logged with ids only, no contact PII.',
+  },
+  {
+    method: 'GET',
+    path: '/api/v1/admin/partners',
+    auth: 'admin',
+    permissions: ['builders:read'] as const,
+    rateLimit: '300/min per session',
+    status: 'live',
+    summary: 'List every builder partner (#888), active and inactive, in display order.',
+  },
+  {
+    method: 'POST',
+    path: '/api/v1/admin/partners',
+    auth: 'admin',
+    permissions: ['builders:manage'] as const,
+    rateLimit: '60/min per session',
+    status: 'live',
+    summary:
+      'Add a builder partner (#888): name, https logo/website, description, ' +
+      'optional builder link, display order, active. Audit-logged (ids only).',
+  },
+  {
+    method: 'PATCH',
+    path: '/api/v1/admin/partners/{id}',
+    auth: 'admin',
+    permissions: ['builders:manage'] as const,
+    rateLimit: '60/min per session',
+    status: 'live',
+    summary:
+      'Edit, deactivate (active=false) or reorder (displayOrder) a builder ' +
+      'partner (#888). 404 when unknown; audit-logged (ids + field names).',
   },
   {
     method: 'GET',

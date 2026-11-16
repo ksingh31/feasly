@@ -153,6 +153,8 @@ describe('loadConfig', () => {
       },
       // #687: zoning rules catalogue city + public cache lifetime.
       zoning: { city: 'calgary', cacheMaxAgeSeconds: 3_600 },
+      // #888: builder partner list caches (in-memory TTL + HTTP max-age).
+      partners: { cacheTtlMs: 300_000, cacheMaxAgeSeconds: 300 },
       // trust-strip/01: landing "Refreshed <Month Year>" from the Socrata
       // dataset metadata. Reuses the SOCRATA_* source; 24h cache TTL on
       // successful fetches only.
@@ -204,6 +206,14 @@ describe('loadConfig', () => {
       followUpEmail: {
         enabled: false,
         delayHours: 72,
+      },
+      builderNotifications: {
+        enabled: true,
+        maxAttempts: 5,
+        retryWindowHours: 24,
+        claimLeaseMinutes: 10,
+        digestLocalHour: 7,
+        digestTimeZone: 'America/Edmonton',
       },
       communityStatsRefresh: {
         minAssessmentCount: 10,
@@ -407,6 +417,16 @@ describe('loadConfig', () => {
     expect(() =>
       loadConfig({ ...VALID_ENV, BILLING_SETTLEMENT_THRESHOLD_HOURS: '0' }),
     ).toThrow(/BILLING_SETTLEMENT_THRESHOLD_HOURS/);
+  });
+
+  it('#725: BUILDER_DIGEST_TIMEZONE must be a real IANA zone', () => {
+    expect(
+      loadConfig({ ...VALID_ENV, BUILDER_DIGEST_TIMEZONE: 'America/Toronto' })
+        .builderNotifications.digestTimeZone,
+    ).toBe('America/Toronto');
+    expect(() =>
+      loadConfig({ ...VALID_ENV, BUILDER_DIGEST_TIMEZONE: 'America/Edmonon' }),
+    ).toThrow(/BUILDER_DIGEST_TIMEZONE/);
   });
 
   it('reads BILLING_STATEMENT_DESCRIPTOR (#716) and enforces Stripe descriptor rules', () => {

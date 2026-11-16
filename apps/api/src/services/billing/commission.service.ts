@@ -430,6 +430,12 @@ export interface CommissionServiceDeps {
   readonly reviewWindowDays?: number;
   /** Warning sink for accepted-but-unconfirmed ops alerts. Defaults to console.warn. */
   readonly logWarning?: (message: string) => void;
+  /**
+   * #725: builder admins who get billing emails (opted in, active). When it
+   * returns addresses, every one of them is emailed; when it returns none
+   * (or fails) the single resolved billing contact is used, as before.
+   */
+  readonly billingRecipients?: (tenantKey: string) => Promise<readonly string[]>;
 }
 
 const TERMINAL_STATUSES: ReadonlySet<CommissionInvoiceStatus> = new Set([
@@ -851,7 +857,32 @@ export function createCommissionService(
       | 'payment_failed'
       | 'payment_action_required',
   ): Promise<void> {
-    const to = await resolveBuilderEmail(invoice.tenantKey);
+    let recipients: readonly string[] = [];
+    if (deps.billingRecipients) {
+      try {
+        recipients = await deps.billingRecipients(invoice.tenantKey);
+      } catch {
+        // Fall back to the resolved billing contact below.
+        recipients = [];
+      }
+    }
+    if (recipients.length === 0) {
+      const contact = await resolveBuilderEmail(invoice.tenantKey);
+      recipients = contact === null ? [] : [contact];
+    }
+    for (const to of recipients) {
+      await notifyBuilderRecipient(invoice, kind, to);
+    }
+    if (recipients.length === 0) {
+      await notifyBuilderRecipient(invoice, kind, null);
+    }
+  }
+
+  async function notifyBuilderRecipient(
+    invoice: CommissionInvoiceRecord,
+    kind: 'invoice_ready' | 'payment_received' | 'payment_failed' | 'payment_action_required',
+    to: string | null,
+  ): Promise<void> {
     // Short public reference: first 8 of the uuid (stable, non-sensitive).
     const invoiceRef = invoice.id.slice(0, 8);
     if (to === null) {

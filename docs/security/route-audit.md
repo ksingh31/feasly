@@ -65,6 +65,7 @@ Related: [rate-limits.md](rate-limits.md) · [asvs-l1.md](asvs-l1.md) ·
 | GET | `/api/v1/communities/{slug}/lots` | none | — | 100/min per IP | live |  |
 | GET | `/api/v1/city-data/freshness` | none | — | 100/min per IP | live |  |
 | GET | `/api/v1/zoning/districts` | none | — | 100/min per IP | live |  |
+| GET | `/api/v1/partners` | none | — | 100/min per IP | live |  |
 | GET | `/api/v1/embed/config` | none | — | 120/min per tenant key | live | Public tenant config only; rates/margins never serialized (secret-leak test). |
 | POST | `/api/v1/embed/session` | none | — | 30/min per tenant key | planned | Not live yet. Must get origin-allowlist and tenant-key checks before going live. |
 | POST | `/api/v1/embed/relay/resend` | none | — | 60s per code · 30/min per IP | live |  |
@@ -99,6 +100,8 @@ Related: [rate-limits.md](rate-limits.md) · [asvs-l1.md](asvs-l1.md) ·
 | DELETE | `/api/v1/builder/users/{id}` | builder-session | builder:users:manage | 60/min per session | live |  |
 | GET | `/api/v1/builder/leads` | builder-session | builder:leads:read | 100/min per session | live |  |
 | GET | `/api/v1/builder/leads/needs-you` | builder-session | builder:leads:read | 100/min per session | live |  |
+| GET | `/api/v1/builder/notifications/preferences` | builder-session | builder:leads:read | 100/min per session | live |  |
+| PUT | `/api/v1/builder/notifications/preferences` | builder-session | builder:leads:read | 100/min per session | live |  |
 | PATCH | `/api/v1/builder/leads/{id}` | builder-session | builder:leads:manage | 100/min per session | live |  |
 | POST | `/api/v1/builder/leads/{id}/mark-won` | builder-session | builder:leads:manage | 100/min per session | live |  |
 | GET | `/api/v1/builder/leads/{leadId}/comments` | builder-session | builder:leads:read | 100/min per session | live |  |
@@ -125,6 +128,9 @@ Related: [rate-limits.md](rate-limits.md) · [asvs-l1.md](asvs-l1.md) ·
 | POST | `/api/v1/admin/builders` | admin | builders:manage | 60/min per session | live |  |
 | GET | `/api/v1/admin/builders/{id}` | admin | builders:read | 300/min per session | live |  |
 | PATCH | `/api/v1/admin/builders/{id}` | admin | builders:manage | 60/min per session | live |  |
+| GET | `/api/v1/admin/partners` | admin | builders:read | 300/min per session | live |  |
+| POST | `/api/v1/admin/partners` | admin | builders:manage | 60/min per session | live |  |
+| PATCH | `/api/v1/admin/partners/{id}` | admin | builders:manage | 60/min per session | live |  |
 | GET | `/api/v1/admin/estimates/{id}` | admin | estimates:read | 300/min per session | planned |  |
 | POST | `/api/v1/admin/estimates/{id}/narrative` | admin | estimates:read | 60/min per session | live |  |
 | GET | `/api/v1/admin/funnels` | admin | analytics:read | 300/min per session | live |  |

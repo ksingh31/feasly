@@ -7,6 +7,7 @@
       "Host.Aggregator": "Information",
       "Function": "Warning",
       "Function.backup-check-timer.User": "Information",
+      "Function.builder-notifications-timer.User": "Information",
       "Function.community-lots-refresh-timer.User": "Information",
       "Function.community-stats-refresh-timer.User": "Information",
       "Function.dispute-sla-timer.User": "Information",

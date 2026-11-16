@@ -6,25 +6,50 @@ set -uo pipefail
 
 HERE="$(cd "$(dirname "$0")" && pwd)"
 ROOT="$(cd "$HERE/../../.." && pwd)"
-PORT=18931
 MOCK="$HERE/mock-server.py"
+# #897: parallel runs (several agents on one machine) must not collide. Each
+# run gets its own scratch dir, an OS-assigned free port, and stops only the
+# mock it started (by PID) — never a pattern-based pkill.
+WORK="$(mktemp -d "${TMPDIR:-/tmp}/feasly-health-test.XXXXXX")"
+PORT=""
+MOCK_PID=""
+# Port 1 on loopback: nothing listens there, so "site down" is deterministic
+# (a just-freed ephemeral port could be reused by a parallel run's mock).
+DEAD_URL="http://127.0.0.1:1"
 
 pass=0
 fail=0
 ok()   { pass=$((pass + 1)); echo "ok   - $1"; }
 bad()  { fail=$((fail + 1)); echo "FAIL - $1"; }
 
-mock_up() { # mock_up <mode>
-  pkill -f "mock-server.py $PORT" 2>/dev/null || true
-  python3 "$MOCK" "$PORT" "$1" &>/dev/null &
-  for _ in $(seq 1 50); do
-    curl -s -o /dev/null --max-time 1 "http://127.0.0.1:$PORT/" && return 0
+mock_down() {
+  if [[ -n "$MOCK_PID" ]]; then
+    kill "$MOCK_PID" 2>/dev/null || true
+    wait "$MOCK_PID" 2>/dev/null || true
+    MOCK_PID=""
+  fi
+}
+cleanup() { mock_down; rm -rf "$WORK"; }
+trap cleanup EXIT
+
+mock_up() { # mock_up <mode> — starts the mock on a free port, sets PORT
+  mock_down
+  local port_file="$WORK/mock.port"
+  rm -f "$port_file"
+  python3 "$MOCK" 0 "$1" "$port_file" >"$WORK/mock-$1.log" 2>&1 &
+  MOCK_PID=$!
+  local deadline=$((SECONDS + 10))
+  while (( SECONDS < deadline )); do
+    if [[ -s "$port_file" ]]; then
+      PORT="$(cat "$port_file")"
+      curl -s -o /dev/null --max-time 1 "http://127.0.0.1:$PORT/" && return 0
+    fi
+    kill -0 "$MOCK_PID" 2>/dev/null || break
     sleep 0.1
   done
-  bad "mock server ($1) did not start"
+  bad "mock server ($1) did not start: $(cat "$WORK/mock-$1.log" 2>/dev/null)"
   return 1
 }
-mock_down() { pkill -f "mock-server.py $PORT" 2>/dev/null || true; }
 
 run_checks() { # run_checks <extra env...>
   SITE_URL="http://127.0.0.1:$PORT" \
@@ -69,21 +94,23 @@ echo "$out" | grep -q "CHECK api_health fail" && ok "http500: api_health fail" \
 
 # --- 5. site down -> site checks fail ----------------------------------------
 mock_down
-out="$(SITE_URL="http://127.0.0.1:$PORT" API_URL="http://127.0.0.1:1" \
+out="$(SITE_URL="$DEAD_URL" API_URL="$DEAD_URL" \
   HEALTH_CHECK_CI=false bash "$ROOT/infra/health/checks.sh")"; code=$?
 [[ $code -eq 1 ]] && ok "site-down: exit 1" || bad "site-down: exit $code"
 echo "$out" | grep -q "CHECK site_root fail" && ok "site-down: site_root fail" \
   || bad "site-down: site_root line: $out"
 
 # --- 6. CI check parsing with a fake gh --------------------------------------
-fakebin="$(mktemp -d)"
+fakebin="$WORK/fakebin"; mkdir -p "$fakebin"
 cat > "$fakebin/gh" <<'EOF'
 #!/usr/bin/env bash
 echo "$FAKE_GH_JSON"
 EOF
 chmod +x "$fakebin/gh"
-ci() { # ci <json> -> checks.sh api+site skipped? no: full run, mock healthy
-  mock_up healthy
+# Start the mock here, not inside ci(): ci runs in a $(...) subshell, so a
+# mock started there would escape mock_down's PID tracking and leak.
+mock_up healthy
+ci() { # ci <json> -> full checks.sh run against the healthy mock
   PATH="$fakebin:$PATH" FAKE_GH_JSON="$1" \
     SITE_URL="http://127.0.0.1:$PORT" API_URL="http://127.0.0.1:$PORT" \
     HEALTH_CHECK_CI=true bash "$ROOT/infra/health/checks.sh" \
@@ -101,11 +128,10 @@ echo "$line" | grep -q "ok" && ok "ci: in_progress -> ok (no false alert)" \
 line="$(ci '[]')"
 echo "$line" | grep -q "fail" && ok "ci: empty run list -> fail" \
   || bad "ci: empty: $line"
-rm -rf "$fakebin"
 mock_down
 
 # --- 7. alert.sh: one alert per incident, one all-clear, dedupe -------------
-STATE="$(mktemp -d)/state.json"
+mkdir -p "$WORK/alert"; STATE="$WORK/alert/state.json"
 alert() { # alert <lines...> -> alert.sh output
   printf '%s\n' "$@" | HEALTH_STATE_FILE="$STATE" bash "$ROOT/infra/health/alert.sh"
 }
@@ -132,12 +158,11 @@ out="$(alert "CHECK site_root fail HTTP 0 (expected 200)" "CHECK api_health ok x
 echo "$out" | grep -q "ALERT: site_root failing" \
   && ok "alert: per-check incidents independent" \
   || bad "alert independence: '$out'"
-rm -rf "$(dirname "$STATE")"
 
 # --- 8. check-postgres-backup.sh with a fake az -------------------------------
 # The backup script only shells out to `az`; a fake az in PATH exercises every
 # failure branch without Azure. (CI's backup-config job runs the real thing.)
-fakeaz="$(mktemp -d)"
+fakeaz="$WORK/fakeaz"; mkdir -p "$fakeaz"
 cat > "$fakeaz/az" <<'EOF'
 #!/usr/bin/env bash
 # Fake `az postgres flexible-server` for check-postgres-backup.sh tests.
@@ -211,7 +236,6 @@ echo "$out" | grep -q "OK: PITR-capable" \
   && ok "backup: young server prints OK" \
   || bad "backup within-window line: $out"
 
-rm -rf "$fakeaz"
 
 # --- summary ------------------------------------------------------------------
 echo "---"
