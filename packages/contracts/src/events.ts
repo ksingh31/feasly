@@ -93,4 +93,11 @@ export interface AnalyticsEvent {
    * funnel dashboard filters and groups on `utm_source` / `utm_campaign`.
    */
   readonly source?: AnalyticsSource;
+  /**
+   * #870: the host page origin the embed loaded on (e.g.
+   * `https://www.builder.com`). Only accepted on `embed_loaded` with a
+   * `tenant_key`; backs the builder portal's install check. An origin
+   * only — never a path or query. Optional and additive.
+   */
+  readonly embed_origin?: string;
 }

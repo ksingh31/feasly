@@ -28,6 +28,7 @@ import {
   sourceToColumns,
 } from '../lib/campaign-source';
 import type { AnalyticsStore } from './analytics.store';
+import { EMBED_ORIGIN_MAX_LENGTH, parseEmbedOrigin } from '../lib/embed-origin';
 
 /**
  * The allowlist mirrors the `AnalyticsEventName` contract union. A second
@@ -92,8 +93,19 @@ export const AnalyticsEventSchema = z
     // (see lib/campaign-source.ts) — a bad value is a 400 like any other
     // shape violation.
     source: AnalyticsSourceSchema.optional(),
+    // #870: host page origin on embed_loaded (install check). A bare
+    // origin only — paths/queries are rejected, so no page URL is stored.
+    embed_origin: z
+      .string()
+      .max(EMBED_ORIGIN_MAX_LENGTH)
+      .refine((v) => parseEmbedOrigin(v) !== null, { message: 'must be an https origin' })
+      .optional(),
   })
-  .strict();
+  .strict()
+  .refine(
+    (v) => v.embed_origin === undefined || (v.event === 'embed_loaded' && v.tenant_key !== undefined),
+    { message: 'only allowed on embed_loaded with a tenant_key', path: ['embed_origin'] },
+  );
 
 export type AnalyticsEventRequest = z.infer<typeof AnalyticsEventSchema>;
 
@@ -140,7 +152,7 @@ export function createAnalyticsService(deps: AnalyticsServiceDeps): AnalyticsSer
           `Invalid analytics event at '${where}'.`,
         );
       }
-      const { event, route, ts, consent_ts, tenant_key, source } = parsed.data;
+      const { event, route, ts, consent_ts, tenant_key, source, embed_origin } = parsed.data;
       const consentDate = new Date(consent_ts);
       if (consentDate.getTime() > clock().getTime() + CONSENT_SKEW_ALLOWANCE_MS) {
         throw new HttpError(
@@ -157,6 +169,7 @@ export function createAnalyticsService(deps: AnalyticsServiceDeps): AnalyticsSer
         consentTs: consentDate,
         tenantKey: tenant_key ?? null,
         source: sourceToColumns(source),
+        embedOrigin: embed_origin === undefined ? null : parseEmbedOrigin(embed_origin),
       });
       const storedSource = columnsToSource(record.source);
       return {

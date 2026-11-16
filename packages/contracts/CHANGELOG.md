@@ -12,6 +12,17 @@ real backend. Changing them has a cost, so:
 - **Never** widen a type to `any` to "unblock" something — the no-`any` lint exists
   precisely to stop that.
 
+## Unreleased — 2026-11-16 (additive) — builder settings (#870)
+
+- **Added** builder Settings contracts: `BuilderProfile`,
+  `BuilderSupportContact`, `BuilderProfileResponse`,
+  `BuilderProfileUpdateBody`, `BuilderEmbedOriginStatus`,
+  `BuilderOriginRequestStatus`, `BuilderOriginRequest`,
+  `BuilderEmbedResponse`, `BuilderOriginRequestBody`,
+  `BuilderOriginRequestResponse`.
+- **Added** optional `AnalyticsEvent.embed_origin` (host page origin on
+  `embed_loaded`) for the embed install check.
+
 ## Unreleased — 2026-11-16 — job queue, link-only shares (#838)
 
 - **Added** link-only report share contracts: `ShareLinkCreateRequest`,
