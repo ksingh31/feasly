@@ -351,6 +351,13 @@
 			"when": 1795651200000,
 			"tag": "0052_simulated_payment_objects",
 			"breakpoints": true
+		},
+		{
+			"idx": 50,
+			"version": "7",
+			"when": 1795737600000,
+			"tag": "0053_session_last_seen_at",
+			"breakpoints": true
 		}
 	]
 }

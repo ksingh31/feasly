@@ -77,6 +77,7 @@ function makeDeps() {
   const permissionGuard = {
     requirePermission: vi.fn(async () => ctx),
     requireBuilderId: vi.fn(async () => BUILDER_ID),
+    requireRecentAuth: vi.fn(async () => undefined),
     getAuthContext: vi.fn(),
     requirePermissions: vi.fn(),
   } as unknown as PermissionGuard;
