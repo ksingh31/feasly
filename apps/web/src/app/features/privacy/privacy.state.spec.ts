@@ -69,6 +69,7 @@ describe('PrivacyState (#706)', () => {
 
   it.each([
     ['FORBIDDEN', 'expired'],
+    ['UNAUTHENTICATED', 'expired'],
     ['RATE_LIMITED', 'rate-limited'],
     ['http_500', 'error'],
   ] as const)('DownloadMyData maps %s to %s', (code, status) => {
@@ -114,7 +115,8 @@ describe('PrivacyState (#706)', () => {
     ['CONFLICT', 'This erasure request has already been completed.', 'already-done'],
     ['CONFLICT', 'Erasure is blocked: open invoice', 'blocked'],
     ['NOT_FOUND', 'Unknown erasure request.', 'invalid'],
-    ['FORBIDDEN', 'denied', 'expired'],
+    ['FORBIDDEN', 'This erasure request belongs to a different user.', 'invalid'],
+    ['UNAUTHENTICATED', 'A valid bearer token is required.', 'expired'],
     ['RATE_LIMITED', 'slow down', 'rate-limited'],
     ['timeout', 'timed out', 'error'],
   ] as const)('ConfirmErasure maps %s (%s) to %s and keeps local state', (code, message, status) => {

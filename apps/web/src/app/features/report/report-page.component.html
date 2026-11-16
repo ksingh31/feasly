@@ -311,6 +311,31 @@
               @if (shareStatus() === 'token-error') {
                 <p class="field-error" role="alert">{{ copy.shareTokenError }}</p>
               }
+              <!-- #704: view-only link (address preview, no token) — copy or
+                   native share sheet. The recipient goes through the gate. -->
+              @if (shareLink()) {
+                <div class="share-link">
+                  <p class="hint">{{ returningCopy.shareLinkHint }}</p>
+                  <div class="share-link-btns">
+                    <button class="cta secondary copy-link" type="button" (click)="copyShareLink()">
+                      {{ returningCopy.copyLinkCta }}
+                    </button>
+                    @if (canNativeShare) {
+                      <button class="cta secondary native-share" type="button" (click)="shareNatively()">
+                        {{ returningCopy.nativeShareCta }}
+                      </button>
+                    }
+                  </div>
+                  <p class="link-status" role="status">
+                    @if (linkCopyState() === 'copied') {
+                      {{ returningCopy.copyLinkDone }}
+                    }
+                  </p>
+                  @if (linkCopyState() === 'error') {
+                    <p class="field-error" role="alert">{{ returningCopy.copyLinkError }}</p>
+                  }
+                </div>
+              }
             </section>
           }
           <div class="action-btns">

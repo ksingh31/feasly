@@ -8,8 +8,8 @@
 ## Standing rules
 
 - **Subscription / tenant:** "Azure subscription 1"
-  (`9b7d7805-311a-4e4f-ac48-5d281d7e1185`), tenant Default Directory
-  (`e9b8f029-1138-4a0f-86c4-88c4a84d0d68`). All resources in **canadacentral**
+  (id in the `AZURE_SUBSCRIPTION_ID` repo variable), tenant Default Directory
+  (id in `AZURE_TENANT_ID`). All resources in **canadacentral**
   **except the Static Web App**, which Azure does not offer in Canada Central
   — it deploys to **westus2** (closest available region; `swaLocation` param).
   Data plane (Postgres, Functions, Key Vault, Storage) stays in Canada.
@@ -116,7 +116,7 @@ approval). Each prod deploy needs Karan's approval — no standing auto-promote.
   secrets; it must also hold **Contributor** on the resource group (runbook).
 - **Cost guardrails (#733):** Function App `maximumInstanceCount` = 10
   (`functionMaximumInstanceCount`), Log Analytics daily cap 0.1 GB
-  (`logAnalyticsDailyQuotaGb`) with the `<prefix>-law-daily-cap` alert, and
+  (`logAnalyticsDailyQuotaGb`, no paid alert rule; the nightly ops review checks it), and
   `modules/subscription-budget.bicep` (50/80/100 % actual + 100 % forecast on
   `feasly-monthly-cap`). The budget module is applied once by a subscription
   Owner, not by CD (#637). Expected bill, verification and kill-switch order:

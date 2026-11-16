@@ -490,11 +490,11 @@ export class MockApiService implements ApiService {
     return this.roundTrip({ valid: false, reason: 'invalid' });
   }
 
-  /** #706: the backend answers 403 FORBIDDEN for unknown/expired/revoked tokens. */
+  /** #706: the backend answers 401 UNAUTHENTICATED for unknown/expired/revoked tokens. */
   private privacyDenied(): Observable<never> {
     return this.roundTripError({
-      code: 'FORBIDDEN',
-      message: 'This link is no longer valid.',
+      code: 'UNAUTHENTICATED',
+      message: 'A valid bearer token is required.',
       retryable: false,
     });
   }

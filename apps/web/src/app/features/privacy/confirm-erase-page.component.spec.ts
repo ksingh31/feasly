@@ -106,7 +106,8 @@ describe('ConfirmErasePageComponent', () => {
   });
 
   it.each([
-    ['FORBIDDEN', 'denied', 'expired'],
+    ['FORBIDDEN', 'This erasure request belongs to a different user.', 'invalid'],
+    ['UNAUTHENTICATED', 'A valid bearer token is required.', 'expired'],
     ['CONFLICT', 'This erasure request has already been completed.', 'already-done'],
     ['CONFLICT', 'Erasure is blocked: open invoice', 'blocked'],
     ['NOT_FOUND', 'Unknown erasure request.', 'invalid'],

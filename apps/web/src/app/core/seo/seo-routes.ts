@@ -145,6 +145,14 @@ const ROUTES: SeoRouteConfig[] = [
     descriptionKey: 'magicLink',
     noindex: true,
   },
+  // Find my report (#704): returning users request a fresh link by email.
+  // Private — noindex, and disallowed in robots.txt.
+  {
+    pattern: 'my-report',
+    titleKey: 'myReportTitle',
+    descriptionKey: 'myReport',
+    noindex: true,
+  },
   // Admin console (admin/07): every admin section gets its own title so
   // client-side nav between sections updates the document title — the
   // previous per-component setPage calls drifted (sections without one
@@ -262,4 +270,15 @@ export function findSeoRoute(path: string): SeoRouteConfig {
 /** The noindex route list the story requires, for tests and docs. */
 export function noindexPatterns(): string[] {
   return [...TABLE.filter((entry) => entry.noindex).map((entry) => entry.pattern)];
+}
+
+/**
+ * Indexable, parameter-free patterns — the pages that must appear in the
+ * sitemap, llms.txt and the prerender SEO check. Mirrored by
+ * `indexable-pages.json`; `scripts/indexable-pages.spec.ts` asserts parity.
+ */
+export function indexablePatterns(): string[] {
+  return ROUTES.filter((entry) => !entry.noindex && !entry.pattern.includes(':') && !entry.pattern.includes('*')).map(
+    (entry) => entry.pattern,
+  );
 }

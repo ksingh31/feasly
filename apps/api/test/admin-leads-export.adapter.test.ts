@@ -12,7 +12,7 @@ import { createAdminLeadsRoute } from '../src/routes/admin-leads.route';
 import { createAdminLeadsService } from '../src/services/admin-leads.service';
 import type { AdminLeadRow } from '../src/services/admin-leads.store';
 
-const ADMIN_EMAIL = 'karanbirsingh667@gmail.com';
+const ADMIN_EMAIL = SEED_ADMIN_EMAIL;
 const SESSION_COOKIE = 'feasly_admin_session=valid-test-session';
 
 function makeLeadRow(overrides?: Partial<AdminLeadRow>): AdminLeadRow {
@@ -121,6 +121,7 @@ vi.mock('../src/index', () => ({
 
 // Imported after the mock so the adapter's lazy getApp() sees the stub.
 import { adminLeadsExportHandler } from '../src/functions/admin-leads-export';
+import { SEED_ADMIN_EMAIL } from '../src/config';
 
 function context() {
   return { res: undefined as unknown, log: () => {} };

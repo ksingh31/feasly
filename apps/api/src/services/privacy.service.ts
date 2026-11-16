@@ -40,7 +40,7 @@ import {
 import type { CallbackRequestStore } from './callback-request.store';
 import type { EstimateStore } from './estimate.store';
 import type { LeadStore } from './lead.store';
-import type { MagicLinkStore } from './magic-link.store';
+import { OWNER_LINK_PURPOSE, type MagicLinkStore } from './magic-link.store';
 import type { PrivacyStore } from './privacy.store';
 import type { WaitlistStore } from './waitlist.store';
 
@@ -115,6 +115,11 @@ export function createPrivacyService(deps: PrivacyServiceDeps): PrivacyService {
    * Resolve the bearer token to an identity. Denial reasons are uniform
    * (unknown / expired / revoked / detached all look identical) so the
    * endpoint is not an oracle for token enumeration.
+   *
+   * #805: only OWNER links authenticate. A partner-share link points its
+   * lead_id at the OWNER's lead, so accepting it would let a partner export
+   * or erase the owner's data. Non-owner purposes are denied exactly like an
+   * unknown token (same 401, same denied audit row) — no purpose oracle.
    */
   async function authenticate(
     bearerToken: string | undefined,
@@ -137,7 +142,13 @@ export function createPrivacyService(deps: PrivacyServiceDeps): PrivacyService {
       throw new Error('magic link lookup failed', { cause: error });
     }
     const now = clock();
-    if (!link || !link.leadId || link.revokedAt || link.expiresAt <= now) {
+    if (
+      !link ||
+      !link.leadId ||
+      link.purpose !== OWNER_LINK_PURPOSE ||
+      link.revokedAt ||
+      link.expiresAt <= now
+    ) {
       await deps.privacy.audit({ leadId: null, action: auditAction });
       throw denied;
     }

@@ -59,7 +59,7 @@ export async function sharesVerifyHandler(
 
   // The query is never logged — it carries the bearer token.
   const result = await app.requestPipeline.run(
-    { headers, clientIp: clientIpFrom(req) },
+    { headers, clientIp: clientIpFrom(req), method: req.method },
     () => app.shareRoute.verify(req.query ?? {}),
   );
 

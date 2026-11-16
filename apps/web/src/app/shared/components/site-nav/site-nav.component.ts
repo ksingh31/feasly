@@ -29,7 +29,8 @@ interface NavLink {
   host: { '(document:keydown.escape)': 'onEscape()' },
 })
 export class SiteNavComponent {
-  protected readonly siteName = inject(ConfigService).get('site').name;
+  private readonly config = inject(ConfigService);
+  protected readonly siteName = this.config.get('site').name;
   private readonly router = inject(Router);
 
   /** Header nav links — the cautious-prospect path (UX audit 2026-09-28). */
@@ -49,6 +50,9 @@ export class SiteNavComponent {
     { label: 'Compare neighbourhoods', path: '/estimate/compare', queryParams: { fresh: 1 } },
     { label: 'FAQ', path: '/faq' },
     { label: 'Developers', path: '/developers' },
+    // #704: returning users on another device request their report link.
+    // Optional chaining: page specs stub ConfigService with partial copy.
+    { label: this.config.get('copy')?.returning?.findReportLink ?? '', path: '/my-report' },
   ];
 
   /** Primary action in the mobile menu (S6) — the address search on `/`. */

@@ -61,19 +61,24 @@ function codeOf(err: unknown): string {
   return typeof (err as ApiError | undefined)?.code === 'string' ? (err as ApiError).code : '';
 }
 
-/** Maps an API failure to the shared failure states. Bearer denials (403/401) = expired link. */
+/** Maps an API failure to the shared failure states. Bearer denials (401 UNAUTHENTICATED, or 403) = expired link. */
 export function toPrivacyFailure(err: unknown): PrivacyFailure {
   const code = codeOf(err);
   if (code === 'RATE_LIMITED' || code === 'http_429') return 'rate-limited';
-  if (code === 'FORBIDDEN' || code === 'UNAUTHORIZED' || code === 'http_401' || code === 'http_403') {
+  if (code === 'FORBIDDEN' || code === 'UNAUTHENTICATED' || code === 'http_401' || code === 'http_403') {
     return 'expired';
   }
   return 'error';
 }
 
-/** Confirm-specific mapping: 409 = completed (or blocked), 404 = unknown request id. */
+/**
+ * Confirm-specific mapping: 409 = completed (or blocked), 404 = unknown request id.
+ * 403 here means the request id belongs to another identity (token failures are
+ * 401), so it reads as an invalid link rather than an expired one.
+ */
 export function toConfirmStatus(err: unknown): ConfirmStatus {
   const code = codeOf(err);
+  if (code === 'FORBIDDEN' || code === 'http_403') return 'invalid';
   if (code === 'CONFLICT' || code === 'http_409') {
     // The backend answers 409 for both outcomes; only a blocked erasure says so.
     const message = (err as ApiError | undefined)?.message ?? '';

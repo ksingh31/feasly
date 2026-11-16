@@ -180,3 +180,53 @@ describe('input schemas', () => {
     ).toThrow();
   });
 });
+
+describe('#793 sandbox keys', () => {
+  const estimateBody = {
+    projectType: 'new_build',
+    property: {
+      addressKey: 'x',
+      assessedLandValue: 100000,
+      lotSizeSqft: 5000,
+      zoning: 'R-C1',
+    },
+    scope: { buildSqft: 2000, tier: 'standard' },
+  };
+  const leadBody = {
+    estimateId: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
+    email: 'sam@example.com',
+  };
+  function freshDeps(): McpServerDeps {
+    return {
+      property: {
+        autocomplete: vi.fn().mockResolvedValue({ suggestions: [] }),
+        getProperty: vi.fn().mockResolvedValue({ addressKey: 'x' }),
+      },
+      estimate: { estimate: vi.fn().mockResolvedValue({ estimateId: 'e1' }) },
+      leads: { submitLead: vi.fn().mockResolvedValue({ leadId: 'l1' }) },
+    };
+  }
+  const baseAuth = {
+    keyId: 'k1',
+    scopes: ['property:read', 'estimate', 'lead'],
+    tenantId: null,
+  };
+
+  it('a sandbox key passes sandbox=true to estimate and lead writes', async () => {
+    const deps = freshDeps();
+    const auth = { ...baseAuth, sandbox: true };
+    await executeTool(deps, auth, 'estimate_project', estimateBody);
+    await executeTool(deps, auth, 'submit_lead', leadBody);
+    expect(deps.estimate.estimate).toHaveBeenCalledWith(estimateBody, { sandbox: true });
+    expect(deps.leads.submitLead).toHaveBeenCalledWith(leadBody, { sandbox: true });
+  });
+
+  it('a live key writes normal rows (no sandbox option)', async () => {
+    const deps = freshDeps();
+    const auth = { ...baseAuth, sandbox: false };
+    await executeTool(deps, auth, 'estimate_project', estimateBody);
+    await executeTool(deps, auth, 'submit_lead', leadBody);
+    expect(deps.estimate.estimate).toHaveBeenCalledWith(estimateBody);
+    expect(deps.leads.submitLead).toHaveBeenCalledWith(leadBody);
+  });
+});

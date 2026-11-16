@@ -11,6 +11,7 @@ import type { PreviewCacheEntry } from '../../core/api/preview-cache';
 import { ConfigService } from '../../core/config/config.service';
 import {
   ChooseProjectType,
+  DismissResume,
   GoToStep,
   ResetWizard,
   SelectProperty,
@@ -88,6 +89,13 @@ export interface WizardStateModel {
    * Campaign source on the lead itself is #702; it reads this value.
    */
   entrySource?: string | null;
+  /**
+   * #704: the visitor dismissed the landing page's "Continue your estimate"
+   * chip. Reset when a new estimate starts (a new property is selected or
+   * the wizard resets), so the chip returns for the next estimate.
+   * Optional: absent in state persisted by older versions (treated as false).
+   */
+  resumeDismissed?: boolean;
 }
 
 /**
@@ -122,6 +130,7 @@ export interface WizardStateModel {
     previewKey: null,
     previewTenantKey: null,
     entrySource: null,
+    resumeDismissed: false,
   },
 })
 @Injectable()
@@ -227,9 +236,17 @@ export class WizardState implements NgxsOnInit {
     return state.entrySource ?? null;
   }
 
+  /** #704: true once the landing resume chip was dismissed for this estimate. */
+  @Selector()
+  static resumeDismissed(state: WizardStateModel): boolean {
+    return state.resumeDismissed === true;
+  }
+
   @Action(SelectProperty)
   selectProperty(ctx: StateContext<WizardStateModel>, action: SelectProperty): void {
-    ctx.patchState({ property: action.property });
+    // #704: a newly selected property is a new estimate — the landing
+    // resume chip comes back for it even if the last one was dismissed.
+    ctx.patchState({ property: action.property, resumeDismissed: false });
   }
 
   @Action(ChooseProjectType)
@@ -320,6 +337,13 @@ export class WizardState implements NgxsOnInit {
       previewKey: null,
       previewTenantKey: null,
       entrySource: null,
+      resumeDismissed: false,
     });
+  }
+
+  /** #704: hide the landing resume chip until the next new estimate. */
+  @Action(DismissResume)
+  dismissResume(ctx: StateContext<WizardStateModel>): void {
+    ctx.patchState({ resumeDismissed: true });
   }
 }

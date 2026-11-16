@@ -197,8 +197,9 @@ import { LegalReviewBannerComponent } from '../../shared/components/legal-review
       <p>
         You can download or delete your data yourself on the
         <a routerLink="/privacy/my-data">Your data</a> page, using the link from your estimate
-        email (draft-pending-lawyer).
+        email.
       </p>
+      <!-- Copy status: draft-pending-lawyer (#706 self-service paragraph). -->
       <p>
         To exercise any of these rights, contact <strong>____</strong>. We respond to every
         request.

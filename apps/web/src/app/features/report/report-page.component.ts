@@ -26,6 +26,7 @@ import {
   formatWholeCad,
 } from '../../shared/utils/money';
 import { narrativeDisplayParagraphs } from '../../shared/utils/narrative-display';
+import { parseDeepLinkAddress } from '../../shared/utils/deep-link';
 import { UpdateInputs, WizardState, LeadState, ClearLead, ResetWizard } from '../wizard';
 import { AnalyticsService } from '../consent';
 import { ClearReport, LoadLeadEstimate, LoadPreview, ReviseReport, UnlockReport } from './report.actions';
@@ -98,6 +99,9 @@ function userFacingApiErrorMessage(error: unknown): string | null {
  * exception is the per-sq-ft context line, which divides the server's build
  * base by the server's sqft for display only.
  */
+/** Deep-link `src` for shared report links (#704; on the config allowlist). */
+const SHARE_LINK_SOURCE = 'share';
+
 @Component({
   selector: 'app-report-page',
   standalone: true,
@@ -736,6 +740,68 @@ export class ReportPageComponent implements OnInit {
 
   /** Download-PDF button state: idle → generating → idle, or error with retry. */
   protected readonly pdfState = signal<'idle' | 'generating' | 'error'>('idle');
+
+  /** Returning-user + link-sharing copy (#704). */
+  protected readonly returningCopy = this.config.get('copy').returning;
+  /** Copy-link outcome, announced via role=status / role=alert (#704). */
+  protected readonly linkCopyState = signal<'idle' | 'copied' | 'error'>('idle');
+  /** Native share sheet available (mobile browsers, Safari). */
+  protected readonly canNativeShare =
+    typeof navigator !== 'undefined' && typeof navigator.share === 'function';
+
+  /**
+   * View-only share link (#704; owner decision 2026-11-15: the recipient
+   * sees the blurred pre-gate preview and enters their own email). It is
+   * the estimator deep link for this address — `/?address=…&src=share` —
+   * so it carries NO token at all: never the owner's magic-link / report
+   * token, and nothing that opens the owner's figures. Null (buttons
+   * hidden) when the address would not pass the deep-link parser.
+   */
+  protected readonly shareLink = computed((): string | null => {
+    const property = this.property();
+    if (!property) return null;
+    const deepLink = this.config.get('deepLink');
+    const address = parseDeepLinkAddress(property.address, {
+      minLength: deepLink.addressMinLength,
+      maxLength: deepLink.addressMaxLength,
+    });
+    if (address === null) return null;
+    const url = new URL('/', `${this.seo.getSiteUrl()}/`);
+    url.searchParams.set('address', address);
+    url.searchParams.set('src', SHARE_LINK_SOURCE);
+    return url.toString();
+  });
+
+  /** "Copy link": puts the view-only share link on the clipboard. */
+  async copyShareLink(): Promise<void> {
+    const url = this.shareLink();
+    if (!url) return;
+    try {
+      await navigator.clipboard.writeText(url);
+      this.linkCopyState.set('copied');
+      // Consent-gated inside AnalyticsService; no URL or address in the event.
+      this.analytics.track('report_link_copy');
+    } catch {
+      this.linkCopyState.set('error');
+    }
+  }
+
+  /** Native share sheet with the same view-only link. Cancelling is not an error. */
+  async shareNatively(): Promise<void> {
+    const url = this.shareLink();
+    const property = this.property();
+    if (!url || !property || !this.canNativeShare) return;
+    try {
+      await navigator.share({
+        title: this.returningCopy.shareTitle,
+        text: this.returningCopy.shareText.replace('{address}', property.address),
+        url,
+      });
+      this.analytics.track('report_link_share');
+    } catch {
+      // AbortError (user closed the sheet) or unsupported payload: nothing to show.
+    }
+  }
   /** Last created object URL — revoked before the next download and on destroy. */
   private lastPdfUrl: string | null = null;
 

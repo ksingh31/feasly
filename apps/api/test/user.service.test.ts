@@ -21,6 +21,7 @@ import {
 } from '../src/services/user.service';
 import type { InvitationEmailInput } from '../src/services/email/email.service';
 import type { EntraUserService } from '../src/services/entra-user.service';
+import { SEED_ADMIN_EMAIL } from '../src/config';
 
 interface EntraCall {
   readonly op: 'create' | 'setEnabled' | 'delete';
@@ -292,7 +293,7 @@ function makeHarness(): Harness {
 async function seedProtected(h: Harness): Promise<void> {
   await h.seedUser({
     id: 'protected-1',
-    email: 'karanbirsingh667@gmail.com',
+    email: SEED_ADMIN_EMAIL,
     name: 'Karan',
     status: 'invited',
     staffRole: 'super_admin',
@@ -322,7 +323,7 @@ describe('UserService (Entra)', () => {
       email: 'Ada@Example.com',
       name: 'Ada Admin',
       role: 'admin',
-      actorEmail: 'karanbirsingh667@gmail.com',
+      actorEmail: SEED_ADMIN_EMAIL,
     });
 
     expect(emailSent).toBe(true);
@@ -358,7 +359,7 @@ describe('UserService (Entra)', () => {
       h.auditLog.some(
         (e) =>
           e.action === 'user.invited' &&
-          e.actorEmail === 'karanbirsingh667@gmail.com',
+          e.actorEmail === SEED_ADMIN_EMAIL,
       ),
     ).toBe(true);
   });
@@ -543,7 +544,7 @@ describe('UserService (Entra)', () => {
       name: 'Super Admin',
       role: 'super_admin',
       actorStaffRole: 'super_admin',
-      actorEmail: 'karanbirsingh667@gmail.com',
+      actorEmail: SEED_ADMIN_EMAIL,
     });
     expect(user.staffRole).toBe('super_admin');
     expect(h.invitations[0]!.role).toBe('super_admin');
@@ -611,7 +612,7 @@ describe('UserService (Entra)', () => {
     await seedProtected(h);
     const forbidden = await expectHttpError(
       h.service.invite({
-        email: 'karanbirsingh667@gmail.com',
+        email: SEED_ADMIN_EMAIL,
         name: 'Karan',
         role: 'admin',
       }),
@@ -697,7 +698,7 @@ describe('UserService (Entra)', () => {
 
     await h.service.revokeInvitation(
       'bye@example.com',
-      'karanbirsingh667@gmail.com',
+      SEED_ADMIN_EMAIL,
     );
 
     expect(h.entraCalls.filter((c) => c.op === 'setEnabled')).toEqual([
@@ -713,7 +714,7 @@ describe('UserService (Entra)', () => {
       h.auditLog.some(
         (e) =>
           e.action === 'user.invitation_revoked' &&
-          e.actorEmail === 'karanbirsingh667@gmail.com',
+          e.actorEmail === SEED_ADMIN_EMAIL,
       ),
     ).toBe(true);
 
@@ -750,7 +751,7 @@ describe('UserService (Entra)', () => {
     await h.service.completeInvitation('spare@example.com', 'entra-spare-id');
 
     const disabled = await h.service.disableUser(user.id, {
-      actorEmail: 'karanbirsingh667@gmail.com',
+      actorEmail: SEED_ADMIN_EMAIL,
     });
     expect(disabled.status).toBe('disabled');
     expect(h.entraCalls.filter((c) => c.op === 'setEnabled')).toEqual([
@@ -767,10 +768,10 @@ describe('UserService (Entra)', () => {
     );
 
     await seedProtected(h);
-    const karan = (await h.service.findByEmail('karanbirsingh667@gmail.com'))!;
-    const forbidden = await expectHttpError(h.service.disableUser(karan.id), 403);
+    const seedAdmin = (await h.service.findByEmail(SEED_ADMIN_EMAIL))!;
+    const forbidden = await expectHttpError(h.service.disableUser(seedAdmin.id), 403);
     expect(forbidden.code).toBe('PROTECTED_ACCOUNT');
-    await expectHttpError(h.service.enableUser(karan.id), 403);
+    await expectHttpError(h.service.enableUser(seedAdmin.id), 403);
   });
 
   it('completeInvitation: accepts, links the Entra id, and activates', async () => {
@@ -830,7 +831,7 @@ describe('UserService (Entra)', () => {
     const h = makeHarness();
     await seedProtected(h);
     await expectHttpError(
-      h.service.completeInvitation('karanbirsingh667@gmail.com', 'entra-karan'),
+      h.service.completeInvitation(SEED_ADMIN_EMAIL, 'entra-seed-admin'),
       403,
     );
   });
@@ -966,9 +967,9 @@ describe('UserService (auth/03 — admin user management guards)', () => {
   it('changeStaffRole: protected rows refuse', async () => {
     const h = makeHarness();
     await seedProtected(h);
-    const karan = (await h.service.findByEmail('karanbirsingh667@gmail.com'))!;
+    const seedAdmin = (await h.service.findByEmail(SEED_ADMIN_EMAIL))!;
     const error = await expectHttpError(
-      h.service.changeStaffRole(karan.id, 'viewer', {
+      h.service.changeStaffRole(seedAdmin.id, 'viewer', {
         actorStaffRole: 'super_admin',
       }),
       403,
@@ -991,8 +992,8 @@ describe('UserService (auth/03 — admin user management guards)', () => {
     ).toBe(true);
 
     await seedProtected(h);
-    const karan = (await h.service.findByEmail('karanbirsingh667@gmail.com'))!;
-    await expectHttpError(h.service.renameUser(karan.id, 'Hacker'), 403);
+    const seedAdmin = (await h.service.findByEmail(SEED_ADMIN_EMAIL))!;
+    await expectHttpError(h.service.renameUser(seedAdmin.id, 'Hacker'), 403);
   });
 
   it('setMemberships: replaces the membership set; self + protected blocked', async () => {
@@ -1032,8 +1033,8 @@ describe('UserService (auth/03 — admin user management guards)', () => {
       403,
     );
     await seedProtected(h);
-    const karan = (await h.service.findByEmail('karanbirsingh667@gmail.com'))!;
-    await expectHttpError(h.service.setMemberships(karan.id, []), 403);
+    const seedAdmin = (await h.service.findByEmail(SEED_ADMIN_EMAIL))!;
+    await expectHttpError(h.service.setMemberships(seedAdmin.id, []), 403);
   });
 
   it('deleteUser: hard-deletes a never-accepted user (Graph account first)', async () => {
@@ -1081,8 +1082,8 @@ describe('UserService (auth/03 — admin user management guards)', () => {
     expect(selfError.message).toContain('your own account');
 
     await seedProtected(h);
-    const karan = (await h.service.findByEmail('karanbirsingh667@gmail.com'))!;
-    await expectHttpError(h.service.deleteUser(karan.id), 403);
+    const seedAdmin = (await h.service.findByEmail(SEED_ADMIN_EMAIL))!;
+    await expectHttpError(h.service.deleteUser(seedAdmin.id), 403);
 
     await expectHttpError(h.service.deleteUser('no-such-id'), 404);
   });

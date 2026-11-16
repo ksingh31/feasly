@@ -129,6 +129,8 @@ export function createNudgeService(deps: NudgeServiceDeps): NudgeService {
     // concurrent timer instance could race us. Re-check before sending.
     if (lead.nudgeSentAt) return false;
     if (lead.quarantined) return false;
+    // #793: sandbox (feasly_test_) leads never receive real email.
+    if (lead.sandbox) return false;
     // Proactive outreach respects both opt-outs: email-unsubscribed leads
     // get no nudge, and neither do leads who opted out of calls/messages
     // ("don't contact me about my estimate" covers the nudge too).

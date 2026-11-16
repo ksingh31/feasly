@@ -562,6 +562,40 @@ a.cta.secondary.another-address {
   box-sizing: border-box;
 }
 
+/* #704: view-only share link (copy / native share sheet). Same outline
+   secondary recipe as "Estimate another address". */
+.share-link {
+  margin-top: 16px;
+  padding-top: 16px;
+  border-top: 1px solid var(--border);
+}
+
+.share-link-btns {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+}
+
+button.cta.secondary.copy-link,
+button.cta.secondary.native-share {
+  flex: 1 1 140px;
+  background: transparent;
+  color: var(--accent-text);
+  border: 1px solid var(--accent);
+}
+
+button.cta.secondary.copy-link:not(:disabled):hover,
+button.cta.secondary.native-share:not(:disabled):hover {
+  background: var(--accent-bg);
+}
+
+.link-status {
+  min-height: 1.25em;
+  font-size: 13px;
+  color: var(--text);
+  margin: 8px 0 0;
+}
+
 /* PRINT (browser Ctrl+P) — #509, consumer review B18: branded header
    (mark + name + prepared date), address, always-printed disclaimer, white
    paper, page margins (global @page in styles.scss). Interactive chrome

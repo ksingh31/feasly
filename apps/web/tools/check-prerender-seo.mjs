@@ -69,11 +69,39 @@ function mustCanonical(html, route, expectedPath) {
   }
 }
 
-// --- Indexable routes: full tag set + trailing-slash canonical. ---
-// SEO-010 added /how-it-works and /faq: same bar as the other indexable pages.
-// api-mcp/03 added /developers: same bar.
-// SEO pillar added /guides/cost-to-build-a-house-calgary: same bar.
-for (const route of ['/', '/privacy', '/terms', '/how-it-works', '/faq', '/developers', '/guides/cost-to-build-a-house-calgary', '/404']) {
+// --- Route list: derived, never hand-written. ---
+// Every indexable, parameter-free page comes from the shared manifest
+// (src/app/core/seo/indexable-pages.json) — the same list the sitemap and
+// llms.txt are built from, kept equal to the non-noindex patterns in
+// seo-routes.ts by scripts/indexable-pages.spec.ts. A new public page
+// therefore cannot skip this check.
+const MANIFEST_PATH = join(ROOT, 'src', 'app', 'core', 'seo', 'indexable-pages.json');
+let manifestPages = [];
+try {
+  manifestPages = JSON.parse(readFileSync(MANIFEST_PATH, 'utf8')).pages ?? [];
+} catch {
+  failures.push(`cannot read ${MANIFEST_PATH}`);
+}
+if (manifestPages.length === 0) failures.push('indexable-pages manifest lists no pages');
+/** Route form used for file lookup ('/' or '/guides/x', no trailing slash). */
+const routeOf = (pattern) => (pattern === '' ? '/' : `/${pattern}`);
+const INDEXABLE = manifestPages.map((p) => routeOf(p.pattern));
+const routesWithJsonLd = (kind) => manifestPages.filter((p) => p.jsonLd === kind).map((p) => routeOf(p.pattern));
+notes.push(`indexable routes from manifest: ${INDEXABLE.length} (${INDEXABLE.join(', ')})`);
+
+/** All application/ld+json payloads on a page, parsed (null entries = invalid JSON). */
+function jsonLdBlocks(html) {
+  return [...html.matchAll(/<script[^>]*type="application\/ld\+json"[^>]*>([\s\S]*?)<\/script>/gi)].map((m) => {
+    try {
+      return JSON.parse(m[1]);
+    } catch {
+      return null;
+    }
+  });
+}
+
+// --- Indexable routes (+ the branded 404): full tag set + trailing-slash canonical. ---
+for (const route of [...INDEXABLE, '/404']) {
   const html = htmlFor(route);
   const expectedPath = route === '/' ? '/' : `${route}/`;
   mustCanonical(html, route, expectedPath);
@@ -90,6 +118,25 @@ for (const route of ['/', '/privacy', '/terms', '/how-it-works', '/faq', '/devel
     [['name', 'twitter:card'], ['content', 'summary_large_image']],
     'twitter:card=summary_large_image',
   );
+}
+
+// --- Unique titles and descriptions across indexable pages. ---
+{
+  const seenTitles = new Map();
+  const seenDescriptions = new Map();
+  for (const route of INDEXABLE) {
+    const html = htmlFor(route);
+    if (html === null) continue;
+    const title = html.match(/<title[^>]*>([\s\S]*?)<\/title>/i)?.[1]?.trim() ?? '';
+    const description =
+      (html.match(/<meta[^>]*name="description"[^>]*>/i)?.[0] ?? '').match(/content="([^"]*)"/)?.[1] ?? '';
+    if (seenTitles.has(title)) failures.push(`"${route}" title duplicates "${seenTitles.get(title)}": "${title}"`);
+    if (seenDescriptions.has(description)) {
+      failures.push(`"${route}" meta description duplicates "${seenDescriptions.get(description)}"`);
+    }
+    seenTitles.set(title, route);
+    seenDescriptions.set(description, route);
+  }
 }
 
 // --- Private routes: noindex,nofollow is applied at runtime by robotsGuard
@@ -112,85 +159,90 @@ for (const route of ['/', '/privacy', '/terms', '/how-it-works', '/faq', '/devel
 }
 
 // --- Indexable routes must NOT be noindexed. ---
-for (const route of ['/', '/privacy', '/terms', '/how-it-works', '/faq', '/developers', '/guides/cost-to-build-a-house-calgary']) {
+for (const route of INDEXABLE) {
   const html = htmlFor(route);
   mustNotMeta(html, route, [['name', 'robots'], ['content', 'noindex,nofollow']], 'robots noindex');
 }
 
-// --- FAQ JSON-LD (SEO-010): valid FAQPage schema mirroring the visible Q&A. ---
-{
-  const html = htmlFor('/faq');
-  if (html !== null) {
-    const scripts = [...html.matchAll(/<script[^>]*type="application\/ld\+json"[^>]*>([\s\S]*?)<\/script>/gi)];
-    if (scripts.length === 0) {
-      failures.push('"/faq" missing application/ld+json script');
-    } else {
-      let data = null;
-      try {
-        data = JSON.parse(scripts[0][1]);
-      } catch {
-        failures.push('"/faq" ld+json is not valid JSON');
-      }
-      if (data !== null) {
-        if (data['@type'] !== 'FAQPage') {
-          failures.push(`"/faq" ld+json @type is "${data['@type']}", must be FAQPage`);
-        }
-        const entities = data.mainEntity ?? [];
-        if (!Array.isArray(entities) || entities.length === 0) {
-          failures.push('"/faq" ld+json mainEntity is empty');
-        }
-        for (const entity of entities) {
-          const q = entity?.name ?? '';
-          const a = entity?.acceptedAnswer?.text ?? '';
-          if (!q || !html.includes(q)) {
-            failures.push(`"/faq" ld+json question not found in page text: "${String(q).slice(0, 50)}"`);
-          }
-          if (!a) {
-            failures.push(`"/faq" ld+json answer missing for question: "${String(q).slice(0, 50)}"`);
-          }
-        }
-      }
+// --- FAQ JSON-LD (SEO-010): valid FAQPage schema mirroring the visible Q&A,
+// on every manifest page marked jsonLd: "faq". ---
+for (const route of routesWithJsonLd('faq')) {
+  const html = htmlFor(route);
+  if (html === null) continue;
+  const blocks = jsonLdBlocks(html);
+  if (blocks.length === 0) {
+    failures.push(`"${route}" missing application/ld+json script`);
+    continue;
+  }
+  const data = blocks[0];
+  if (data === null) {
+    failures.push(`"${route}" ld+json is not valid JSON`);
+    continue;
+  }
+  if (data['@type'] !== 'FAQPage') {
+    failures.push(`"${route}" ld+json @type is "${data['@type']}", must be FAQPage`);
+  }
+  const entities = data.mainEntity ?? [];
+  if (!Array.isArray(entities) || entities.length === 0) {
+    failures.push(`"${route}" ld+json mainEntity is empty`);
+  }
+  for (const entity of Array.isArray(entities) ? entities : []) {
+    const q = entity?.name ?? '';
+    const a = entity?.acceptedAnswer?.text ?? '';
+    if (!q || !html.includes(q)) {
+      failures.push(`"${route}" ld+json question not found in page text: "${String(q).slice(0, 50)}"`);
+    }
+    if (!a) {
+      failures.push(`"${route}" ld+json answer missing for question: "${String(q).slice(0, 50)}"`);
     }
   }
 }
 
-// --- Pillar guide JSON-LD (SEO pillar): @graph with Article + FAQPage,
-// questions mirroring the visible FAQ. ---
-{
-  const route = '/guides/cost-to-build-a-house-calgary';
+// --- Guide JSON-LD (SEO pillar + zoning guide): @graph with Article +
+// FAQPage, questions mirroring the visible FAQ, on every manifest page
+// marked jsonLd: "guide". ---
+for (const route of routesWithJsonLd('guide')) {
   const html = htmlFor(route);
-  if (html !== null) {
-    const scripts = [...html.matchAll(/<script[^>]*type="application\/ld\+json"[^>]*>([\s\S]*?)<\/script>/gi)];
-    if (scripts.length === 0) {
-      failures.push(`"${route}" missing application/ld+json script`);
-    } else {
-      let data = null;
-      try {
-        data = JSON.parse(scripts[0][1]);
-      } catch {
-        failures.push(`"${route}" ld+json is not valid JSON`);
+  if (html === null) continue;
+  const blocks = jsonLdBlocks(html);
+  if (blocks.length === 0) {
+    failures.push(`"${route}" missing application/ld+json script`);
+    continue;
+  }
+  const data = blocks[0];
+  if (data === null) {
+    failures.push(`"${route}" ld+json is not valid JSON`);
+    continue;
+  }
+  const graph = Array.isArray(data['@graph']) ? data['@graph'] : [];
+  const article = graph.find((n) => n?.['@type'] === 'Article');
+  if (!article) {
+    failures.push(`"${route}" ld+json @graph missing Article`);
+  } else {
+    const headline = article.headline ?? '';
+    if (!headline || !html.includes(headline)) {
+      failures.push(`"${route}" ld+json Article headline not found in page text: "${String(headline).slice(0, 60)}"`);
+    }
+    const url = article.mainEntityOfPage?.['@id'] ?? article.mainEntityOfPage ?? article.url ?? '';
+    if (typeof url === 'string' && url && !url.endsWith(`${route}/`)) {
+      failures.push(`"${route}" ld+json Article URL "${url}" is not the page's canonical path`);
+    }
+  }
+  const faqNode = graph.find((n) => n?.['@type'] === 'FAQPage');
+  if (!faqNode) {
+    failures.push(`"${route}" ld+json @graph missing FAQPage`);
+  } else {
+    const entities = faqNode.mainEntity ?? [];
+    if (!Array.isArray(entities) || entities.length < 4) {
+      failures.push(`"${route}" ld+json FAQPage mainEntity should have 4+ questions`);
+    }
+    for (const entity of Array.isArray(entities) ? entities : []) {
+      const q = entity?.name ?? '';
+      if (!q || !html.includes(q)) {
+        failures.push(`"${route}" ld+json question not found in page text: "${String(q).slice(0, 50)}"`);
       }
-      if (data !== null) {
-        const graph = data['@graph'] ?? [];
-        const types = graph.map((n) => n?.['@type']);
-        if (!types.includes('Article')) {
-          failures.push(`"${route}" ld+json @graph missing Article`);
-        }
-        const faqNode = graph.find((n) => n?.['@type'] === 'FAQPage');
-        if (!faqNode) {
-          failures.push(`"${route}" ld+json @graph missing FAQPage`);
-        } else {
-          const entities = faqNode.mainEntity ?? [];
-          if (!Array.isArray(entities) || entities.length < 4) {
-            failures.push(`"${route}" ld+json FAQPage mainEntity should have 4+ questions`);
-          }
-          for (const entity of entities) {
-            const q = entity?.name ?? '';
-            if (!q || !html.includes(q)) {
-              failures.push(`"${route}" ld+json question not found in page text: "${String(q).slice(0, 50)}"`);
-            }
-          }
-        }
+      if (!entity?.acceptedAnswer?.text) {
+        failures.push(`"${route}" ld+json answer missing for question: "${String(q).slice(0, 50)}"`);
       }
     }
   }
@@ -233,6 +285,13 @@ for (const route of ['/', '/privacy', '/terms', '/how-it-works', '/faq', '/devel
     mustMeta(html, route, [['name', 'description']], 'meta description');
     mustMeta(html, route, [['property', 'og:title']], 'OG title');
     mustMeta(html, route, [['name', 'feasly:cost-data-version']], 'feasly:cost-data-version');
+    {
+      const tag = html.match(/<meta[^>]*name="feasly:cost-data-version"[^>]*>/i)?.[0] ?? '';
+      const version = tag.match(/content="([^"]*)"/)?.[1] ?? '';
+      if (!/^v\d+\.\d+\.\d+-[a-z0-9-]+$/.test(version) || /unclibrated/.test(version)) {
+        failures.push(`"${route}" feasly:cost-data-version is empty or malformed: "${version}"`);
+      }
+    }
     mustNotMeta(html, route, [['name', 'robots'], ['content', 'noindex,nofollow']], 'robots noindex');
     mustCanonical(html, route, `${route}/`);
     // H1 pattern + unique titles (type-aware).
@@ -288,10 +347,11 @@ for (const route of ['/', '/privacy', '/terms', '/how-it-works', '/faq', '/devel
 }
 
 // --- Marketing copy lint (SEO-010): no accuracy guarantees, no "free
-// forever" claims on the new pages (hardening/05 owns the full sweep later).
+// forever" claims on any indexable marketing page (legal pages excluded:
+// they state what is NOT guaranteed).
 {
   const banned = [/%\s*accurate/i, /guaranteed?\s+(estimate|price|cost)/i, /free\s+forever/i, /always\s+free/i];
-  for (const route of ['/how-it-works', '/faq']) {
+  for (const route of INDEXABLE.filter((r) => !['/privacy', '/terms'].includes(r))) {
     const html = htmlFor(route);
     if (html === null) continue;
     const text = html.replace(/<[^>]*>/g, ' ');
@@ -369,6 +429,39 @@ if (!existsSync(ogPath)) {
       }
     }
     notes.push(`sitemap URLs matched to canonicals: ${locs.length}`);
+    // Every indexable page (manifest + community pages) is in the sitemap
+    // and in llms.txt — docs/seo-page-standard.md.
+    const locPaths = new Set(locs.map((loc) => new URL(loc).pathname));
+    const llmsPath = join(BROWSER, 'llms.txt');
+    const llmsPaths = existsSync(llmsPath)
+      ? new Set(
+          [...readFileSync(llmsPath, 'utf8').matchAll(/https?:\/\/[^\s)]+/g)].map((m) => {
+            try {
+              return new URL(m[0]).pathname;
+            } catch {
+              return '';
+            }
+          }),
+        )
+      : null;
+    if (llmsPaths === null) failures.push('missing llms.txt in build output');
+    let communitySlugs = [];
+    try {
+      communitySlugs = JSON.parse(
+        readFileSync(join(ROOT, 'src', 'content', 'data', 'community-aggregates.json'), 'utf8'),
+      ).communities.map((c) => c.slug);
+    } catch {
+      // Reported by the community block above.
+    }
+    const expected = [
+      ...manifestPages.map((p) => (p.pattern === '' ? '/' : `/${p.pattern}/`)),
+      ...communitySlugs.map((slug) => `/communities/${slug}/`),
+    ];
+    for (const path of expected) {
+      if (!locPaths.has(path)) failures.push(`indexable page "${path}" missing from sitemap.xml`);
+      if (llmsPaths !== null && !llmsPaths.has(path)) failures.push(`indexable page "${path}" missing from llms.txt`);
+    }
+    notes.push(`sitemap + llms.txt cover all ${expected.length} indexable pages`);
   }
   // #690: Static Web Apps rejects a config over 20 KB; every community page
   // adds an exact 301 rule, so the deployed (minified) file is budgeted.

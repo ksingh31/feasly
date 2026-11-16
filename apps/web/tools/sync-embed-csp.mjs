@@ -11,6 +11,12 @@
  * `allowed_origins` array in `config/builders/*.json` (same files the API
  * validates and bundles; see apps/api/tools/generate-builder-configs.ts).
  *
+ * Origins on IANA-reserved placeholder domains (RFC 2606 / RFC 6761:
+ * example.com/.net/.org and the .example, .test, .invalid, .localhost TLDs)
+ * are left out of frame-ancestors (#796, route audit F-3). They can never be
+ * a real tenant page, so they have no business in a shipped CSP — the demo
+ * tenant keeps its placeholder origin in config for API/QA fixtures only.
+ *
  * The embed CSP is the global CSP with only `frame-ancestors` swapped for
  * `'self' <origins…>`, so the two can never drift apart on any other
  * directive. Both the exact `/embed` rule (SWA matches the path without the
@@ -35,10 +41,25 @@ export const EMBED_SHELL_ROUTES = ['/embed/*', '/embed'];
 /** An origin safe to put in frame-ancestors: https, host (+ optional port), no path or wildcard. */
 const ORIGIN_RE = /^https:\/\/[a-z0-9]([a-z0-9-]*[a-z0-9])?(\.[a-z0-9]([a-z0-9-]*[a-z0-9])?)+(:\d{1,5})?$/;
 
+/** RFC 2606 / RFC 6761 reserved second-level domains and TLDs. */
+const RESERVED_DOMAINS = ['example.com', 'example.net', 'example.org'];
+const RESERVED_TLDS = ['example', 'test', 'invalid', 'localhost'];
+
+/** True when `origin` (already normalised) sits on an IANA-reserved placeholder domain. */
+export function isReservedOrigin(origin) {
+  const host = origin.replace(/^https:\/\//, '').replace(/:\d+$/, '');
+  const tld = host.slice(host.lastIndexOf('.') + 1);
+  return (
+    RESERVED_TLDS.includes(tld) ||
+    RESERVED_DOMAINS.some((d) => host === d || host.endsWith(`.${d}`))
+  );
+}
+
 /**
  * Collects the sorted, de-duplicated union of tenant allowed origins.
  * Throws on anything that is not a plain https origin, so a bad tenant file
- * can never open framing to a wildcard or an http page.
+ * can never open framing to a wildcard or an http page. Reserved placeholder
+ * origins (see isReservedOrigin) are validated, then skipped.
  */
 export function collectAllowedOrigins(buildersDir = BUILDERS_DIR) {
   const files = readdirSync(buildersDir)
@@ -56,7 +77,7 @@ export function collectAllowedOrigins(buildersDir = BUILDERS_DIR) {
       if (!ORIGIN_RE.test(origin)) {
         throw new Error(`${file}: allowed origin ${JSON.stringify(raw)} is not an https origin`);
       }
-      origins.add(origin);
+      if (!isReservedOrigin(origin)) origins.add(origin);
     }
   }
   return [...origins].sort();

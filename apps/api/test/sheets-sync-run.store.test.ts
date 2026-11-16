@@ -13,6 +13,7 @@ import {
   type SheetsSyncRunStore,
 } from '../src/services/sheets-sync-run.store';
 import { createTestDb, type TestDb } from './pglite-db';
+import { SEED_ADMIN_EMAIL } from '../src/config';
 
 describe('sheets sync run store', () => {
   let testDb: TestDb;
@@ -40,10 +41,10 @@ describe('sheets sync run store', () => {
   });
 
   it('startRun inserts a running row; finishRun stamps success', async () => {
-    const run = await store.startRun({ trigger: 'manual', actorEmail: 'karanbirsingh667@gmail.com' });
+    const run = await store.startRun({ trigger: 'manual', actorEmail: SEED_ADMIN_EMAIL });
     expect(run.status).toBe('running');
     expect(run.trigger).toBe('manual');
-    expect(run.actorEmail).toBe('karanbirsingh667@gmail.com');
+    expect(run.actorEmail).toBe(SEED_ADMIN_EMAIL);
     expect(run.finishedAt).toBeNull();
 
     await store.finishRun({

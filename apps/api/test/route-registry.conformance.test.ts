@@ -31,6 +31,12 @@ import {
 } from '../src/registry/route-registry';
 import { buildOpenApiSpec } from '../src/openapi/spec';
 import {
+  ROUTE_AUDIT_NOTES,
+  ROUTE_AUDIT_TABLE_BEGIN,
+  ROUTE_AUDIT_TABLE_END,
+  renderRouteAuditTable,
+} from '../src/registry/route-audit';
+import {
   effectivePermissions,
   hasPermission,
   PERMISSIONS,
@@ -513,5 +519,28 @@ describe('route registry', () => {
       'docs/security/rate-limits.md is out of sync with src/registry/route-registry.ts — ' +
         'run `npx tsx tools/insert-rate-limit-table.mts` in apps/api',
     ).toBe(renderRateLimitTable());
+  });
+
+  // #731: every registry route has an audit row; drift fails CI.
+  it('docs/security/route-audit.md generated table matches the registry', () => {
+    const doc = readFileSync(join(REPO_ROOT, 'docs', 'security', 'route-audit.md'), 'utf8');
+    const start = doc.indexOf(ROUTE_AUDIT_TABLE_BEGIN);
+    const end = doc.indexOf(ROUTE_AUDIT_TABLE_END);
+    expect(start, 'generated-table BEGIN marker missing').toBeGreaterThan(-1);
+    expect(end, 'generated-table END marker missing').toBeGreaterThan(start);
+    const actual = doc.slice(start + ROUTE_AUDIT_TABLE_BEGIN.length, end).trim();
+    expect(
+      actual,
+      'docs/security/route-audit.md is out of sync with src/registry/route-registry.ts — ' +
+        'run `npx tsx tools/insert-route-audit-table.mts` in apps/api',
+    ).toBe(renderRouteAuditTable());
+    const rows = actual.split('\n').slice(2);
+    expect(rows).toHaveLength(ROUTE_REGISTRY.length);
+  });
+
+  it('every route-audit note names a registry route', () => {
+    const keys = new Set(ROUTE_REGISTRY.map((e) => `${e.method} ${e.path}`));
+    const orphans = Object.keys(ROUTE_AUDIT_NOTES).filter((k) => !keys.has(k));
+    expect(orphans).toEqual([]);
   });
 });

@@ -15,112 +15,43 @@
  */
 import { eq } from 'drizzle-orm';
 import Stripe from 'stripe';
+import type { PaymentProviderName } from '@feasly/contracts';
 import type { BillingConfig } from '../../config';
 import type { AppDb } from '../../db/client';
 import { tenants } from '../../db/schema';
 import { HttpError, ErrorCodes } from '../../middleware/errors';
+import {
+  normalizeStripeEvent,
+  type CardSummary,
+  type NormalizedStripeEvent,
+  type PaymentIntentStatus,
+  type PaymentProvider,
+} from './payment-provider';
+
+export type {
+  CardSummary,
+  NormalizedStripeEvent,
+  PaymentIntentStatus,
+  PaymentProvider,
+} from './payment-provider';
 
 /**
- * Display-safe summary of a saved card payment method. Brand, last4 and
- * expiry only — the PAN never leaves Stripe.
+ * The Stripe operations billing needs — now the provider-neutral
+ * `PaymentProvider` (#753). Kept as an alias so existing imports and test
+ * fakes keep compiling.
  */
-export interface CardSummary {
-  readonly brand: string;
-  readonly last4: string;
-  readonly expMonth: number;
-  readonly expYear: number;
-}
-
-/**
- * A PaymentIntent's settlement-relevant state (#711 reconciliation).
- * `status` is Stripe's raw status string (`succeeded`, `processing`,
- * `requires_payment_method`, `canceled`, …).
- */
-export interface PaymentIntentStatus {
-  readonly id: string;
-  readonly status: string;
-  /** `last_payment_error.message` when Stripe recorded a decline. */
-  readonly lastPaymentErrorMessage?: string;
-}
-
-/** Normalized Stripe webhook event — the fields billing cares about. */
-export interface NormalizedStripeEvent {  readonly id: string;
-  readonly type: string;
-  readonly paymentIntentId?: string;
-  readonly customerId?: string;
-  readonly subscriptionId?: string;
-  readonly invoiceId?: string;
-  readonly paymentMethodId?: string;
-  /**
-   * payment_intent.payment_failed only: Stripe's `last_payment_error`
-   * message (e.g. "Your card was declined."). BILL-03 surfaces it in the
-   * dunning queue as the last failure reason.
-   */
-  readonly failureMessage?: string;
-}
-
-/**
- * The Stripe operations billing needs. The real implementation wraps the
- * official SDK; tests inject a fake. Deliberately narrow — no direct SDK
- * types leak past this interface.
- */
-export interface StripeClient {
-  createCustomer(
-    input: {
-      tenantKey: string;
-      email?: string;
-    },
-    idempotencyKey: string,
-  ): Promise<{ id: string }>;
-  createSetupIntent(customerId: string): Promise<{
-    id: string;
-    clientSecret: string;
-  }>;
-  /**
-   * Saved card payment methods for a customer, newest first. Only the
-   * display-safe summary is exposed — never the PAN or full details.
-   */
-  listPaymentMethods(customerId: string): Promise<readonly CardSummary[]>;
-  createOffSessionPaymentIntent(
-    input: {
-      amountCents: number;
-      currency: string;
-      customerId: string;
-      description: string;
-    },
-    idempotencyKey: string,
-  ): Promise<{ id: string; status: string }>;
-  /**
-   * Refund a PaymentIntent in full (dispute console: credit note when an
-   * accepted dispute's invoice was already paid). Idempotent via the
-   * idempotency key — timer/retry safe.
-   */
-  refundPaymentIntent(
-    paymentIntentId: string,
-    idempotencyKey: string,
-  ): Promise<{ id: string; status: string }>;
-  /**
-   * Read a PaymentIntent's current status (#711 reconciliation). Read-only —
-   * never confirms, captures, or cancels.
-   */
-  retrievePaymentIntent(paymentIntentId: string): Promise<PaymentIntentStatus>;
-  createSubscription(input: {
-    customerId: string;
-    priceId: string;
-  }): Promise<{ id: string; status: string }>;
-  cancelSubscription(subscriptionId: string): Promise<{ id: string }>;
-  constructWebhookEvent(
-    rawBody: Buffer,
-    signature: string,
-    webhookSecret: string,
-  ): NormalizedStripeEvent;
-}
+export type StripeClient = PaymentProvider;
 
 export interface StripeService {
   /** False when no STRIPE_SECRET_KEY is configured (billing dormant). */
   readonly isConfigured: boolean;
-  /** True when the configured key is a test key (`sk_test_…`). */
+  /**
+   * True when no real money can move: an `sk_test_…` key, or the simulated
+   * provider (#753).
+   */
   readonly testMode: boolean;
+  /** #753: which provider is live (absent on legacy test fakes = stripe). */
+  readonly provider?: PaymentProviderName;
   createCustomer(
     input: {
       tenantKey: string;
@@ -159,6 +90,8 @@ export interface StripeService {
   refundPaymentIntent(
     paymentIntentId: string,
     idempotencyKey: string,
+    /** Partial refund amount in cents; omit for a full refund. */
+    amountCents?: number,
   ): Promise<{ id: string; status: string }>;
   /**
    * Read a PaymentIntent's current status (#711 reconciliation). Read-only —
@@ -181,53 +114,44 @@ export interface StripeService {
 export interface StripeServiceDeps {
   readonly db: AppDb;
   readonly billing: BillingConfig;
-  /** Defaults to the real SDK client; tests inject a fake. */
+  /**
+   * The payment provider. Defaults to the Stripe SDK client when a secret
+   * key is configured; composition passes the simulated provider when
+   * `PAYMENTS_PROVIDER=simulated` (#753); tests inject a fake.
+   */
   readonly client?: StripeClient | null;
+  /**
+   * Webhook signing secret override — the simulated provider's dev secret
+   * (#753). Defaults to `billing.stripeWebhookSecret`.
+   */
+  readonly webhookSecret?: string;
 }
 
-function normalizeEvent(event: Stripe.Event): NormalizedStripeEvent {
-  const data = (event.data?.object ?? {}) as unknown as Record<
-    string,
-    unknown
-  >;
-  const str = (v: unknown): string | undefined =>
-    typeof v === 'string' ? v : undefined;
-  // payment_intent.payment_failed carries the decline reason under
-  // data.object.last_payment_error.message (BILL-03).
-  const lastError =
-    event.type === 'payment_intent.payment_failed' &&
-    typeof data['last_payment_error'] === 'object' &&
-    data['last_payment_error'] !== null
-      ? (data['last_payment_error'] as Record<string, unknown>)
-      : null;
-  return {
-    id: event.id,
-    type: event.type,
-    paymentIntentId: event.type.startsWith('payment_intent.')
-      ? str(data['id'])
-      : undefined,
-    customerId:
-      str(data['customer']) ??
-      (typeof data['customer'] === 'object' && data['customer'] !== null
-        ? str((data['customer'] as Record<string, unknown>)['id'])
-        : undefined),
-    subscriptionId: event.type.startsWith('customer.subscription.')
-      ? str(data['id'])
-      : str(data['subscription']),
-    invoiceId: event.type.startsWith('invoice.')
-      ? str(data['id'])
-      : undefined,
-    paymentMethodId: event.type.startsWith('payment_method.')
-      ? str(data['id'])
-      : undefined,
-    failureMessage: lastError ? str(lastError['message']) : undefined,
-  };
+/**
+ * The PaymentIntent a declined off-session confirm created, read from the
+ * StripeCardError (`error.payment_intent`). Null for any other error.
+ */
+function declinedPaymentIntent(
+  error: unknown,
+): { id: string; status: string } | null {
+  if (typeof error !== 'object' || error === null) return null;
+  const e = error as { type?: unknown; payment_intent?: unknown };
+  if (e.type !== 'StripeCardError') return null;
+  const pi = e.payment_intent as { id?: unknown; status?: unknown } | undefined;
+  if (!pi || typeof pi.id !== 'string' || typeof pi.status !== 'string') {
+    return null;
+  }
+  return { id: pi.id, status: pi.status };
 }
 
-/** The production client — thin wrapper over the official Stripe SDK. */
+/**
+ * The production `PaymentProvider` (StripePaymentProvider) — thin wrapper
+ * over the official Stripe SDK.
+ */
 export function createStripeSdkClient(secretKey: string): StripeClient {
   const stripe = new Stripe(secretKey);
   return {
+    name: 'stripe',
     async createCustomer(input, idempotencyKey) {
       const customer = await stripe.customers.create(
         {
@@ -255,11 +179,16 @@ export function createStripeSdkClient(secretKey: string): StripeClient {
         type: 'card',
       });
       return methods.data.map((pm) => ({
+        id: pm.id,
         brand: pm.card?.brand ?? 'unknown',
         last4: pm.card?.last4 ?? '****',
         expMonth: pm.card?.exp_month ?? 0,
         expYear: pm.card?.exp_year ?? 0,
       }));
+    },
+    async detachPaymentMethod(paymentMethodId) {
+      const pm = await stripe.paymentMethods.detach(paymentMethodId);
+      return { id: pm.id };
     },
     async createOffSessionPaymentIntent(input, idempotencyKey) {
       // Resolve an explicit payment method: a card attached via SetupIntent
@@ -281,19 +210,29 @@ export function createStripeSdkClient(secretKey: string): StripeClient {
           `Tenant customer "${input.customerId}" has no card on file — cannot charge`,
         );
       }
-      const intent = await stripe.paymentIntents.create(
-        {
-          amount: input.amountCents,
-          currency: input.currency.toLowerCase(),
-          customer: input.customerId,
-          payment_method: pm.id,
-          description: input.description,
-          off_session: true,
-          confirm: true,
-        },
-        { idempotencyKey },
-      );
-      return { id: intent.id, status: intent.status };
+      try {
+        const intent = await stripe.paymentIntents.create(
+          {
+            amount: input.amountCents,
+            currency: input.currency.toLowerCase(),
+            customer: input.customerId,
+            payment_method: pm.id,
+            description: input.description,
+            off_session: true,
+            confirm: true,
+          },
+          { idempotencyKey },
+        );
+        return { id: intent.id, status: intent.status };
+      } catch (error) {
+        // #753 provider contract: a declined confirm (StripeCardError) still
+        // created a PaymentIntent. Return it with its status so the invoice
+        // records the id and the payment_intent.payment_failed webhook can
+        // settle it — throwing here left the invoice in review with no PI.
+        const declined = declinedPaymentIntent(error);
+        if (declined) return declined;
+        throw error;
+      }
     },
     async createSubscription(input) {
       const subscription = await stripe.subscriptions.create({
@@ -308,9 +247,12 @@ export function createStripeSdkClient(secretKey: string): StripeClient {
       const subscription = await stripe.subscriptions.cancel(subscriptionId);
       return { id: subscription.id };
     },
-    async refundPaymentIntent(paymentIntentId, idempotencyKey) {
+    async refundPaymentIntent(paymentIntentId, idempotencyKey, amountCents) {
       const refund = await stripe.refunds.create(
-        { payment_intent: paymentIntentId },
+        {
+          payment_intent: paymentIntentId,
+          ...(amountCents !== undefined ? { amount: amountCents } : {}),
+        },
         { idempotencyKey },
       );
       return { id: refund.id, status: refund.status ?? 'unknown' };
@@ -332,7 +274,7 @@ export function createStripeSdkClient(secretKey: string): StripeClient {
         signature,
         webhookSecret,
       );
-      return normalizeEvent(event);
+      return normalizeStripeEvent(event as unknown as Parameters<typeof normalizeStripeEvent>[0]);
     },
   };
 }
@@ -359,7 +301,10 @@ export function createStripeService(deps: StripeServiceDeps): StripeService {
 
   return {
     isConfigured: client !== null,
-    testMode: (billing.stripeSecretKey ?? '').startsWith('sk_test_'),
+    testMode:
+      client?.name === 'simulated' ||
+      (billing.stripeSecretKey ?? '').startsWith('sk_test_'),
+    ...(client ? { provider: client.name } : {}),
 
     createCustomer: (input, idempotencyKey) =>
       requireClient().createCustomer(input, idempotencyKey),
@@ -373,13 +318,17 @@ export function createStripeService(deps: StripeServiceDeps): StripeService {
       requireClient().createSubscription(input),
     cancelSubscription: (subscriptionId) =>
       requireClient().cancelSubscription(subscriptionId),
-    refundPaymentIntent: (paymentIntentId, idempotencyKey) =>
-      requireClient().refundPaymentIntent(paymentIntentId, idempotencyKey),
+    refundPaymentIntent: (paymentIntentId, idempotencyKey, amountCents) =>
+      requireClient().refundPaymentIntent(
+        paymentIntentId,
+        idempotencyKey,
+        amountCents,
+      ),
     retrievePaymentIntent: (paymentIntentId) =>
       requireClient().retrievePaymentIntent(paymentIntentId),
 
     verifyWebhook(rawBody: Buffer, signature: string): NormalizedStripeEvent {
-      const webhookSecret = billing.stripeWebhookSecret;
+      const webhookSecret = deps.webhookSecret ?? billing.stripeWebhookSecret;
       if (!webhookSecret) {
         throw new HttpError(
           503,

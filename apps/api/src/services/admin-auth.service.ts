@@ -45,6 +45,11 @@ export interface AdminSessionRecord {
   readonly expiresAt: Date;
   readonly createdAt: Date;
   /**
+   * #730: last validated use (throttled). Drives the idle timeout; null /
+   * absent for rows minted before the column — createdAt stands in.
+   */
+  readonly lastSeenAt?: Date | null;
+  /**
    * auth/02: the user this session belongs to. Null for magic-link-era
    * sessions; always set for Entra sign-in sessions.
    */
@@ -93,6 +98,12 @@ export interface AdminSessionStore {
    * distinguish "expired" from "invalid" for the expiry copy.
    */
   findByHash(sessionTokenHash: string): Promise<AdminSessionRecord | null>;
+  /**
+   * #730: record activity on the session (sets last_seen_at). Optional so
+   * in-memory test stores need not implement it; the session-policy
+   * decorator skips the write when absent.
+   */
+  touch?(sessionTokenHash: string, at: Date): Promise<void>;
   revokeByHash(sessionTokenHash: string, revokedAt: Date): Promise<void>;
   /** Revoke all sessions for an email (allowlist removal). Returns count. */
   revokeByEmail(email: string, revokedAt: Date): Promise<number>;
@@ -219,8 +230,9 @@ export function createAdminAuthService(
       const active = await sessions.findActiveByHash(hash, clock());
       if (active) return false;
       const record = await sessions.findByHash(hash);
-      if (!record) return false;
-      return record.expiresAt.getTime() <= clock().getTime();
+      // Exists, not revoked, but not active → it timed out: past expires_at,
+      // the absolute cap, or the idle timeout (#730 session policy).
+      return record !== null;
     },
   };
 }

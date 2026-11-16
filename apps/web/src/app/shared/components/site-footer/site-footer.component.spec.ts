@@ -26,6 +26,19 @@ describe('SiteFooterComponent', () => {
 
   it('keeps the legal and guide links', () => {
     const hrefs = [...render().querySelectorAll('footer a')].map((a) => a.getAttribute('href'));
-    expect(hrefs).toEqual(['/privacy', '/terms', '/how-it-works', '/communities', '/faq', '/developers']);
+    expect(hrefs).toEqual([
+      '/privacy',
+      '/terms',
+      '/how-it-works',
+      '/communities',
+      '/faq',
+      '/developers',
+      '/my-report',
+    ]);
+  });
+
+  it('links returning users to /my-report (#704)', () => {
+    const link = render().querySelector('footer a[href="/my-report"]');
+    expect(link?.textContent?.trim()).toBe('Find my report');
   });
 });
