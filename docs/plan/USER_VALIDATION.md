@@ -392,7 +392,7 @@ vs capture in M1 (`PRD-006`, `TECH_PLAN.md` §1.4 table). **P1**, NEEDS-KARAN.
   `WEB-011`) contradicts `CODING_PATTERNS.md` §3 ("no query-string tokens…
   token travels in the URL path by design") and puts bearer tokens in server
   access logs. **P1** — path param or POST body.
-- **MCP transport:** Streamable HTTP `POST /mcp/v1` (epic 07) vs "hosted SSE
+- **MCP transport:** Streamable HTTP `POST /api/mcp/v1` (epic 07) vs "hosted SSE
   deferred" (`TECH_PLAN.md` §15.1 A12). **P2.**
 - **`marketplace_invoices`** (`MKT-001`) duplicates `commission_invoices`
   instead of reusing it with a track discriminator, contradicting epic 08

@@ -48,7 +48,7 @@ without a schema migration).
    `X-RateLimit-Reset` headers.
 7. **MCP transport: stdio + hosted Streamable HTTP.** stdio covers local
    agent tooling and testing with zero infra; the hosted server is a single
-   Streamable HTTP endpoint `POST /mcp/v1` on the same Function App, reusing
+   Streamable HTTP endpoint `POST /api/mcp/v1` on the same Function App, reusing
    the REST auth middleware, scope checks, and rate limiter. Justification:
    the MCP 2025-03 spec made Streamable HTTP the standard remote transport and
    deprecated SSE for new integrations — one HTTP endpoint keeps infra,
@@ -266,12 +266,12 @@ OpenAPI spec and an interactive API reference (Scalar/Redoc).
 `get_property`, `estimate_project`, `submit_lead`. Tool input schemas are the
 same zod schemas as the REST API; each tool calls the same shared services.
 Two transports: stdio entry (`packages/mcp/dist/stdio.js`) for local agent
-tooling, and Streamable HTTP mounted at `POST /mcp/v1` on the Function App
+tooling, and Streamable HTTP mounted at `POST /api/mcp/v1` on the Function App
 with Bearer API-key auth and per-tool scope checks
 (`property:read` / `estimate` / `lead`).
 
 **Acceptance criteria:**
-- MCP Inspector connects to both stdio and `POST /mcp/v1` (with a test key).
+- MCP Inspector connects to both stdio and `POST /api/mcp/v1` (with a test key).
 - Each tool with fixture inputs returns deep-equal results to the
   corresponding REST endpoint (same test fixtures as API-004/005/006).
 - Tool call without the required scope → MCP error (not silent success).
