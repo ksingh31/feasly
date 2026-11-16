@@ -435,13 +435,14 @@ describe('MockApiService', () => {
   });
 
   describe('getFunnel (admin/07)', () => {
-    it('returns the six #814 steps with counts and a null first-step conversion', async () => {
+    it('returns the seven #814/#835 steps with counts and a null first-step conversion', async () => {
       const report = await firstValueFrom(service.getFunnel({ tenant: 'all' }));
       expect(report.steps.map((s) => s.step)).toEqual([
         'landing',
         'address',
         'preview',
         'gate',
+        'submit',
         'convert',
         'report',
       ]);
