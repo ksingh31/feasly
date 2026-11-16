@@ -94,3 +94,67 @@
     margin: 0;
   }
 }
+
+// #791 simulated provider: test-mode banner + test-card picker.
+.card-modal__test-mode {
+  margin: 0 0 var(--space-3);
+  padding: var(--space-2) var(--space-3);
+  font: var(--type-body-sm);
+  font-weight: 600;
+  color: var(--status-warning-fg);
+  background: var(--status-warning-bg);
+  border-radius: var(--radius-sm);
+}
+
+.card-modal__cards {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  margin: 0;
+  padding: 0;
+  border: 0;
+  min-width: 0;
+}
+
+.card-modal__card {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  min-height: 44px;
+  padding: var(--space-2) var(--space-3);
+  font: var(--type-body);
+  color: var(--text);
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+
+  &:has(input:checked) {
+    border-color: var(--accent);
+  }
+
+  &:has(input:focus-visible) {
+    box-shadow: 0 0 0 3px var(--focus-ring);
+  }
+
+  input {
+    flex: none;
+    width: 20px;
+    height: 20px;
+    margin: 0;
+    accent-color: var(--accent);
+  }
+}
+
+.card-modal__card-text {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.card-modal__card-number {
+  font: var(--type-body-sm);
+  font-variant-numeric: tabular-nums;
+  color: var(--muted);
+  overflow-wrap: anywhere;
+}

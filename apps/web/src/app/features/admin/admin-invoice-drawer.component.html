@@ -177,6 +177,12 @@
           }
         </dl>
       </section>
+
+      <app-admin-simulated-panel
+        [invoiceId]="inv.id"
+        [canManage]="canManageBilling()"
+        (fired)="onSimulatedEvent()"
+      />
     }
   </div>
 </ui-drawer>
