@@ -134,6 +134,17 @@ describe('estimate service', () => {
     expect(saved.figures).toEqual(result.figures);
   });
 
+  it('#793: persists sandbox=true only when the API key is a sandbox key', async () => {
+    const store = fakeStore();
+    const service = createEstimateService({ costData: PLACEHOLDER_COST_DATA, store, allowDraftCostData: true,
+    communityStats: mockCommunityStatsService(),});
+    await service.estimate(VALID_BODY, { sandbox: true });
+    await service.estimate(VALID_BODY);
+    // The body can never self-flag a write as sandbox.
+    await service.estimate({ ...VALID_BODY, sandbox: true });
+    expect(store.saved.map((r) => r.sandbox)).toEqual([true, false, false]);
+  });
+
   it('rejects a malformed body with 400 VALIDATION_FAILED', async () => {
     const service = createEstimateService({
       costData: PLACEHOLDER_COST_DATA,

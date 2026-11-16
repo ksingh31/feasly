@@ -11,14 +11,23 @@
  *   purged directly first, so no orphans remain.
  * - `estimates` are deleted last: `leads.estimate_id` has no ON DELETE
  *   action, so leads must go first.
+ * - #793: sandbox leads get a working report token, so the token-gated
+ *   extras can create `report_snapshots`, `callback_requests` and
+ *   `partner_shares` rows. Those carry no sandbox flag and their FKs to
+ *   leads/estimates are RESTRICT, so they're deleted first — scoped to
+ *   the exact sandbox leads/estimates about to be purged. They're not
+ *   counted separately (they're dependents, not sandbox-flagged rows).
  */
-import { and, eq, lt } from 'drizzle-orm';
+import { and, eq, inArray, lt, or } from 'drizzle-orm';
 import type { AppDb } from '../db/client';
 import {
   analyticsEvents,
+  callbackRequests,
   estimates,
   leads,
   magicLinks,
+  partnerShares,
+  reportSnapshots,
 } from '../db/schema';
 import type {
   PurgeCounts,
@@ -50,6 +59,32 @@ export function createDrizzleSandboxPurgeStore(
             lt(analyticsEvents.createdAt, cutoff),
           ),
         );
+      // #793: lead/estimate dependents without a sandbox flag (RESTRICT FKs).
+      const purgeLeadIds = db
+        .select({ id: leads.id })
+        .from(leads)
+        .where(and(eq(leads.sandbox, true), lt(leads.createdAt, cutoff)));
+      const purgeEstimateIds = db
+        .select({ id: estimates.id })
+        .from(estimates)
+        .where(
+          and(eq(estimates.sandbox, true), lt(estimates.createdAt, cutoff)),
+        );
+      await db
+        .delete(reportSnapshots)
+        .where(
+          or(
+            inArray(reportSnapshots.leadId, purgeLeadIds),
+            inArray(reportSnapshots.estimateId, purgeEstimateIds),
+          ),
+        );
+      await db
+        .delete(callbackRequests)
+        .where(inArray(callbackRequests.leadId, purgeLeadIds));
+      await db
+        .delete(partnerShares)
+        .where(inArray(partnerShares.leadId, purgeLeadIds));
+
       const leadsDeleted = await db
         .delete(leads)
         .where(and(eq(leads.sandbox, true), lt(leads.createdAt, cutoff)));

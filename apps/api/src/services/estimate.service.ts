@@ -126,7 +126,19 @@ export interface EstimateService {
    * `ComparisonEstimateResponse` for projectType='comparison'. Persisted
    * before returning.
    */
-  estimate(requestBody: unknown): Promise<EstimateResponse | ComparisonEstimateResponse>;
+  estimate(
+    requestBody: unknown,
+    options?: EstimateOptions,
+  ): Promise<EstimateResponse | ComparisonEstimateResponse>;
+}
+
+/**
+ * Per-request write options (#793). Set from the API-key auth context by
+ * the REST/MCP adapters — never from the request body.
+ */
+export interface EstimateOptions {
+  /** True for `feasly_test_` keys: the row is written with sandbox=true. */
+  readonly sandbox?: boolean;
 }
 
 export interface EstimateServiceDeps {
@@ -297,7 +309,9 @@ export function createEstimateService(deps: EstimateServiceDeps): EstimateServic
   return {
     async estimate(
       requestBody: unknown,
+      options?: EstimateOptions,
     ): Promise<EstimateResponse | ComparisonEstimateResponse> {
+      const sandbox = options?.sandbox === true;
       const parsed = EstimateRequestSchema.safeParse(requestBody);
       if (!parsed.success) {
         // With a matched discriminator the issues carry the inner schema's
@@ -395,6 +409,7 @@ export function createEstimateService(deps: EstimateServiceDeps): EstimateServic
           narrative: null,
           narrativeGeneratedAt: null,
           assumptions: response.assumptions ?? null,
+          sandbox,
         });
         return response;
       }
@@ -462,6 +477,7 @@ export function createEstimateService(deps: EstimateServiceDeps): EstimateServic
           narrative: null,
           narrativeGeneratedAt: null,
           assumptions: null,
+          sandbox,
         });
         return response;
       }
@@ -502,6 +518,7 @@ export function createEstimateService(deps: EstimateServiceDeps): EstimateServic
         narrative: null,
         narrativeGeneratedAt: null,
         assumptions: null,
+        sandbox,
       });
       return response;
     },

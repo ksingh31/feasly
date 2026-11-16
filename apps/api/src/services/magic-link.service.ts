@@ -143,12 +143,15 @@ export async function issueOwnerMagicLinkToken(args: {
   readonly leadId: string;
   readonly magicLinkTtlSeconds: number;
   readonly clock?: () => Date;
+  /** #793: flag the link row for the sandbox purge. */
+  readonly sandbox?: boolean;
 }): Promise<IssuedMagicLink> {
   return args.magicLinks.issue({
     leadId: args.leadId,
     purpose: OWNER_LINK_PURPOSE,
     ttlSeconds: args.magicLinkTtlSeconds,
     clock: args.clock,
+    ...(args.sandbox ? { sandbox: true } : {}),
   });
 }
 
