@@ -404,6 +404,9 @@ export const DEFAULT_APP_CONFIG: AppConfig = {
         'backyard-suite': { name: 'Backyard suite', blurb: 'A small separate home in the backyard.' },
         'multi-residential': { name: 'Apartment building', blurb: 'Several homes in one building.' },
       },
+      steerRenovationReason: 'This home was built in {year}, so renovation is usually the better fit.',
+      steerNewBuildReason: 'This home was built in {year}, so a new build is usually worth a look.',
+      steerOverrideCta: 'Estimate a new build anyway',
       renoScopePendingTitle: 'Renovation scope',
       renoScopePendingBody:
         'Renovation scope inputs arrive in the next build. Your project type is saved — come back soon.',

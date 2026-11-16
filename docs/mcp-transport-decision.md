@@ -10,7 +10,7 @@ Feasly's MCP server uses exactly two transports:
 
 1. **stdio** — local tooling (MCP Inspector, Claude Code local configs,
    developer machines). Entry: `packages/mcp/dist/stdio.js`.
-2. **Streamable HTTP** — remote access, mounted at **`POST /mcp/v1`** on the
+2. **Streamable HTTP** — remote access, mounted at **`POST /api/mcp/v1`** on the
    existing Function App. No new Azure resource.
 
 ## Why Streamable HTTP, not SSE
@@ -50,8 +50,8 @@ etc.) already try Streamable HTTP first.
 SDK `@modelcontextprotocol/sdk@1.30.1` (v1.x production line):
 
 - stdio: Inspector-style client lists tools and calls a test tool → correct result.
-- `POST /mcp/v1` (stateless): client lists tools and calls a test tool → correct result.
-- `POST /mcp/v1` without `Authorization: Bearer` → 401.
+- `POST /api/mcp/v1` (stateless): client lists tools and calls a test tool → correct result.
+- `POST /api/mcp/v1` without `Authorization: Bearer` → 401.
 - Prototype code lives outside the repo (`/tmp`, deleted after the spike);
   only this decision doc is merged.
 

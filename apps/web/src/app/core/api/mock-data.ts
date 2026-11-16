@@ -50,6 +50,14 @@ export function mockProperty(): PropertyRecord {
     assessedValue: 685000,
     assessmentYear: 2025,
     yearBuilt: 1962,
+    // #755: as the API returns it for a 1962 home (redevelopment candidate).
+    steer: {
+      redevelopmentCandidate: true,
+      reason: 'age_at_or_over_threshold',
+      recommendedProjectType: 'new_build',
+      homeAgeYears: 64,
+      thresholdYears: 25,
+    },
     assessmentClass: 'R',
     isNonResidential: false,
     dataAsOf: '2025-07-01',
@@ -99,15 +107,47 @@ function pickFor<T>(addressKey: string, pool: readonly T[]): T {
  */
 const MOCK_PROPERTY_DETAILS: Record<
   string,
-  { lotSqft: number; zoning: string; assessedValue: number; yearBuilt: number }
+  {
+    lotSqft: number;
+    zoning: string;
+    assessedValue: number;
+    yearBuilt: number | null;
+    /** #755: contract-shaped steer as the API would return it (static fixture, no rule here). */
+    steer?: PropertyRecord['steer'];
+  }
 > = {
   'calgary-1410-14-st-nw': { lotSqft: 4800, zoning: 'R-CG', assessedValue: 748500, yearBuilt: 1958 },
   'calgary-222-7-ave-ne': { lotSqft: 5600, zoning: 'R-C2', assessedValue: 915000, yearBuilt: 1983 },
   'calgary-918-16-ave-nw': { lotSqft: 6100, zoning: 'R-C1', assessedValue: 823000, yearBuilt: 1974 },
   'calgary-4708-22-st-nw': { lotSqft: 5200, zoning: 'R-C2', assessedValue: 612400, yearBuilt: 1951 },
   'calgary-3311-33-ave-sw': { lotSqft: 4200, zoning: 'R-CG', assessedValue: 685000, yearBuilt: 1962 },
-  'calgary-101-8-ave-se': { lotSqft: 3900, zoning: 'R-C2', assessedValue: 742000, yearBuilt: 1948 },
-  'calgary-2704-24-st-sw': { lotSqft: 5900, zoning: 'R-C1', assessedValue: 879000, yearBuilt: 1967 },
+  // #755 fixtures: no City year (no steering) and a younger home (steered to renovation).
+  'calgary-101-8-ave-se': {
+    lotSqft: 3900,
+    zoning: 'R-C2',
+    assessedValue: 742000,
+    yearBuilt: null,
+    steer: {
+      redevelopmentCandidate: null,
+      reason: 'year_built_unknown',
+      recommendedProjectType: null,
+      homeAgeYears: null,
+      thresholdYears: 25,
+    },
+  },
+  'calgary-2704-24-st-sw': {
+    lotSqft: 5900,
+    zoning: 'R-C1',
+    assessedValue: 879000,
+    yearBuilt: 2008,
+    steer: {
+      redevelopmentCandidate: false,
+      reason: 'age_under_threshold',
+      recommendedProjectType: 'renovation',
+      homeAgeYears: 18,
+      thresholdYears: 25,
+    },
+  },
 };
 
 export function mockPropertyFor(addressKey: string): PropertyRecord | undefined {
@@ -127,7 +167,8 @@ export function mockPropertyFor(addressKey: string): PropertyRecord | undefined 
     zoning: details?.zoning ?? pickFor(addressKey, MOCK_ZONING),
     assessedValue: details?.assessedValue ?? pickFor(addressKey, MOCK_ASSESSED),
     assessmentYear: 2025,
-    yearBuilt: details?.yearBuilt ?? pickFor(addressKey, MOCK_YEAR_BUILT),
+    yearBuilt: details ? details.yearBuilt : pickFor(addressKey, MOCK_YEAR_BUILT),
+    ...(details?.steer ? { steer: details.steer } : {}),
     assessmentClass: 'R',
     isNonResidential: false,
     dataAsOf: '2025-07-01',

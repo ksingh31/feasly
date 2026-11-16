@@ -26,6 +26,10 @@ const CONFIG: PropertyDataConfig = {
   httpTimeoutMs: TIMEOUT_MS,
   searchRowLimit: 50,
   suggestionLimit: 8,
+  redevelopmentMinAgeYears: 25,
+  dbCacheTtlMs: 604_800_000,
+  dbCacheTimeoutMs: 1_500,
+  httpCacheMaxAgeSeconds: 3_600,
 };
 
 const ROW = {

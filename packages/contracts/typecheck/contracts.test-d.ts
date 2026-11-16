@@ -147,6 +147,10 @@ assertType<
   | 'report_link_request'
   | 'report_link_copy'
   | 'report_link_share'
+  | 'steer_new_build_offered'
+  | 'steer_renovation_offered'
+  | 'steer_none_offered'
+  | 'steer_override_new_build'
 >(event.event);
 const eventKeys = ['event', 'route', 'ts', 'consent_ts'] as const;
 assertType<readonly ['event', 'route', 'ts', 'consent_ts']>(eventKeys);

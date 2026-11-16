@@ -27,7 +27,17 @@ Building-form choice (issue #689):
 - **Added** optional `PrivacyWaitlistSignupExport.buildingForm` /
   `district` / `community`.
 
-## 2026-11-15 (additive)
+Project-type steer by home age (issue #755):
+
+- **Added** optional `PropertyRecord.steer` (`PropertySteer`:
+  `redevelopmentCandidate` (boolean | null), `reason` (`PropertySteerReason`),
+  `recommendedProjectType`, `homeAgeYears`, `thresholdYears`). Computed by the
+  API from the year built and `PROPERTY_REDEVELOPMENT_MIN_AGE_YEARS`; absent
+  means "no steering".
+- **Added** `AnalyticsEventName` values `steer_new_build_offered`,
+  `steer_renovation_offered`, `steer_none_offered`, `steer_override_new_build`.
+
+## Unreleased — 2026-11-15 (additive)
 
 Zoning rules catalogue (issue #687):
 

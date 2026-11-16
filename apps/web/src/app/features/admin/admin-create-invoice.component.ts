@@ -21,6 +21,7 @@ import {
 } from '@app/shared/ui';
 import { ConfigService } from '../../core/config/config.service';
 import { formatRatePercent, percentOfCents } from '../../shared/utils/money';
+import { formatInvoiceTax } from '../../shared/utils/invoice-tax';
 import { todayLocalDateString } from '../../shared/utils/datetime';
 import { AdminBuildersState } from './admin-builders.state';
 import { LoadBuilders } from './admin-builders.actions';
@@ -121,6 +122,11 @@ export class AdminCreateInvoiceComponent implements OnInit, OnDestroy {
   readonly reviewing = signal(false);
   /** Confirmation shown once the created invoice arrives. */
   readonly confirmedInvoice = computed<ManualInvoiceResponse | null>(() => this.createFeedback()?.invoice ?? null);
+  /** #764: the created invoice's subtotal / tax / total; null when untaxed. */
+  readonly confirmedTax = computed(() => {
+    const invoice = this.confirmedInvoice();
+    return invoice ? formatInvoiceTax(invoice, 'Tax') : null;
+  });
   /** Create failure (server copy), shown inline. */
   readonly createError = computed(() => {
     const feedback = this.createFeedback();

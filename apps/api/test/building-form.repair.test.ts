@@ -1,7 +1,7 @@
 /**
  * #689: building-form columns + widened waitlist key, migration and repair.
  *
- * Migration 0054 adds `estimates.building_form` and
+ * Migration 0055 adds `estimates.building_form` and
  * `waitlist_signups.building_form/district/community`, and swaps the
  * waitlist key (email, topic) → (email, topic, COALESCE(form, '')). If
  * drizzle-kit silently skips it, tools/repair-sql.mjs must land the same

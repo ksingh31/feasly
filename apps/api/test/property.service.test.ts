@@ -23,6 +23,10 @@ const CONFIG: PropertyDataConfig = {
   httpTimeoutMs: 5_000,
   searchRowLimit: 50,
   suggestionLimit: 8,
+  redevelopmentMinAgeYears: 25,
+  dbCacheTtlMs: 604_800_000,
+  dbCacheTimeoutMs: 1_500,
+  httpCacheMaxAgeSeconds: 3_600,
 };
 
 const ROW = {
@@ -314,6 +318,14 @@ describe('property service', () => {
         assessmentYear: 2026,
         assessmentYearInferred: false,
         yearBuilt: 1980,
+        // #755: 1980 is well past the 25-year threshold → redevelopment candidate.
+        steer: {
+          redevelopmentCandidate: true,
+          reason: 'age_at_or_over_threshold',
+          recommendedProjectType: 'new_build',
+          homeAgeYears: new Date().getFullYear() - 1980,
+          thresholdYears: 25,
+        },
         assessmentClass: 'R',
         isNonResidential: false,
         dataAsOf: '2026-01-15',
@@ -325,6 +337,54 @@ describe('property service', () => {
           source: 'assessment-roll',
           asOf: '2026-01-15',
         },
+      });
+    });
+
+    // #755: the steer is computed server-side from the year built + market config.
+    describe('steer by home age (#755)', () => {
+      const thisYear = new Date().getFullYear();
+
+      it('steers a 1962 home to new build (redevelopment candidate)', async () => {
+        mockFetchOnce([{ ...ROW, year_of_construction: '1962' }]);
+        const res = await service.getProperty('1600 90 AV SW');
+        expect(res.steer?.redevelopmentCandidate).toBe(true);
+        expect(res.steer?.recommendedProjectType).toBe('new_build');
+      });
+
+      it('steers a home younger than the threshold to renovation', async () => {
+        mockFetchOnce([{ ...ROW, year_of_construction: String(thisYear - 10) }]);
+        const res = await service.getProperty('1600 90 AV SW');
+        expect(res.steer).toEqual({
+          redevelopmentCandidate: false,
+          reason: 'age_under_threshold',
+          recommendedProjectType: 'renovation',
+          homeAgeYears: 10,
+          thresholdYears: 25,
+        });
+      });
+
+      it('does not steer when the City row has no year of construction', async () => {
+        mockFetchOnce([{ ...ROW, year_of_construction: undefined }]);
+        const res = await service.getProperty('1600 90 AV SW');
+        expect(res.yearBuilt).toBeNull();
+        expect(res.steer?.redevelopmentCandidate).toBeNull();
+        expect(res.steer?.recommendedProjectType).toBeNull();
+        expect(res.steer?.reason).toBe('year_built_unknown');
+      });
+
+      it('follows the configured threshold without code changes', async () => {
+        const year = String(thisYear - 30);
+        mockFetchOnce([{ ...ROW, year_of_construction: year }]);
+        const defaults = await createPropertyService(CONFIG).getProperty('1600 90 AV SW');
+        expect(defaults.steer?.recommendedProjectType).toBe('new_build');
+
+        mockFetchOnce([{ ...ROW, year_of_construction: year }]);
+        const stricter = await createPropertyService({
+          ...CONFIG,
+          redevelopmentMinAgeYears: 40,
+        }).getProperty('1600 90 AV SW');
+        expect(stricter.steer?.recommendedProjectType).toBe('renovation');
+        expect(stricter.steer?.thresholdYears).toBe(40);
       });
     });
 
