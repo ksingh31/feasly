@@ -32,6 +32,7 @@ import type { CommissionService } from './commission.service';
 import type { BillingAuditService } from './billing-audit.service';
 import type { StripeService } from './stripe.service';
 import type { AgreementGate } from '../builder-agreement.service';
+import { AUTHENTICATION_REQUIRED_CODE } from '../../lib/charge-outcome';
 
 /** Default hours before a 'finalized' invoice is reconciled (#711). */
 const DEFAULT_SETTLEMENT_THRESHOLD_HOURS = 24;
@@ -53,7 +54,10 @@ export interface InvoiceReviewerResult {
   readonly reconciledPaid: number;
   /** #711: stuck 'finalized' invoices settled failed from Stripe. */
   readonly reconciledFailed: number;
-  /** #711: stuck invoices whose PaymentIntent is still in flight. */
+  /**
+   * #711: stuck invoices whose PaymentIntent is still in flight, or (#712)
+   * now waiting on the builder's 3DS confirmation.
+   */
   readonly stillPending: number;
   readonly errors: ReadonlyArray<{ invoiceId: string; message: string }>;
 }
@@ -115,6 +119,15 @@ export function createInvoiceReviewerService(
             source: 'reconciliation',
           });
           result.reconciledPaid += 1;
+        } else if (intent.lastPaymentErrorCode === AUTHENTICATION_REQUIRED_CODE) {
+          // #712: Stripe leaves an off-session 3DS demand in
+          // requires_payment_method + authentication_required — recoverable
+          // on-session, so the invoice waits on the builder instead of
+          // entering dunning. Still unsettled, so it counts as pending.
+          await commission.markActionRequiredByPaymentIntent(piId, {
+            source: 'reconciliation',
+          });
+          result.stillPending += 1;
         } else if (FAILED_PI_STATUSES.has(intent.status)) {
           await commission.markFailedByPaymentIntent(
             piId,

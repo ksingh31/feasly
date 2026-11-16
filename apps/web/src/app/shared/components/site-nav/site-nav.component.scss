@@ -175,3 +175,35 @@
     display: none;
   }
 }
+
+/* ── #783 site search: address or community ── */
+.nav-search {
+  display: none;
+  flex: 1 1 320px;
+  max-width: 380px;
+  margin-left: 24px;
+}
+.nav-menu-search {
+  padding: 8px 0 12px;
+}
+/* With the search on, the bar needs more room: keep the hamburger layout
+   (search inside the menu) up to 960px, then show the search inline. */
+@media (min-width: 640px) and (max-width: 959.98px) {
+  :host(.nav-has-search) .nav-links {
+    display: none;
+  }
+  :host(.nav-has-search) .nav-menu-btn {
+    display: inline-flex;
+  }
+  :host(.nav-has-search) .nav-menu {
+    display: flex;
+  }
+  :host(.nav-has-search) .nav-scrim {
+    display: block;
+  }
+}
+@media (min-width: 960px) {
+  .nav-search {
+    display: block;
+  }
+}

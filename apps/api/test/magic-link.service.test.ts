@@ -182,6 +182,7 @@ function fakeEmail(): EmailService & { sends: MagicLinkEmailInput[] } {
     sendCommissionInvoiceReady: async () => ok,
     sendCommissionPaymentReceived: async () => ok,
     sendCommissionPaymentFailed: async () => ok,
+    sendCommissionPaymentActionRequired: async () => ok,
     sendContractNeedsRecording: async () => ok,
   };
 }

@@ -3,7 +3,7 @@
  *
  * Pins the aggregation over the tenant's invoice summaries:
  * - outstanding = unpaid, non-disputed invoices (draft, in_review,
- *   finalized, failed); paid/void/disputed excluded.
+ *   finalized, action_required, failed); paid/void/disputed excluded.
  * - next auto-charge = earliest-due in_review CARD invoice (manual
  *   methods never auto-charge), with the card-on-file last4.
  * - failed invoices listed newest first + counted.
@@ -101,11 +101,13 @@ describe('BillingOverviewService.getOverview', () => {
         inv({ id: '5', status: 'paid', commissionCents: 1_600 }),
         inv({ id: '6', status: 'void', commissionCents: 3_200 }),
         inv({ id: '7', status: 'disputed', commissionCents: 6_400 }),
+        // #712: waiting on the builder's bank confirmation — still owed.
+        inv({ id: '8', status: 'action_required', commissionCents: 12_800 }),
       ],
     });
     const result = await service.getOverview(TENANT);
-    expect(result.outstandingCents).toBe(1_500);
-    expect(result.outstandingCount).toBe(4);
+    expect(result.outstandingCents).toBe(14_300);
+    expect(result.outstandingCount).toBe(5);
     expect(result.disputedCount).toBe(1);
   });
 

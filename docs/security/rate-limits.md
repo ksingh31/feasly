@@ -239,6 +239,7 @@ These need owner input and are not implemented yet:
 | GET | `/api/v1/billing/payment-method` | builder-session | 100/min per session | live |
 | PUT | `/api/v1/billing/payment-method` | builder-session | 100/min per session | live |
 | PUT | `/api/v1/billing/invoices/{id}/payment-method` | builder-session | 100/min per session | live |
+| POST | `/api/v1/billing/invoices/{id}/confirm-payment` | builder-session | 100/min per session | live |
 | GET | `/api/v1/billing/invoices/{id}` | builder-session | 100/min per session | live |
 | GET | `/api/v1/billing/invoices/{id}/pdf` | builder-session | 100/min per session | live |
 | GET | `/api/v1/billing/invoices` | builder-session | 100/min per session | live |

@@ -185,6 +185,8 @@ export interface BuilderCopy {
   invoiceStatusDraft: string;
   invoiceStatusInReview: string;
   invoiceStatusFinalized: string;
+  /** #712: the bank wants the builder to confirm the charge (3DS). */
+  invoiceStatusActionRequired: string;
   invoiceStatusPaid: string;
   invoiceStatusFailed: string;
   invoiceStatusDisputed: string;
@@ -908,6 +910,12 @@ export interface AppConfig {
     renovationWaitlist: boolean;
     /** #520 (D-P4): notify-me capture (Toronto/Vancouver) on the out-of-coverage state. */
     cityWaitlist: boolean;
+    /**
+     * #706: run the erasure confirm step on `/privacy/my-data` itself.
+     * True until the API emails the confirmation link (#806); then false and
+     * the page says "check your email" instead.
+     */
+    privacyEraseConfirmInPage: boolean;
   };
   /**
    * Legal review state (legal/01 AC3 — the LEGAL_REVIEW_PENDING mechanism).
@@ -959,6 +967,8 @@ export interface AppConfig {
     communityPageLimit: number;
     /** Max address suggestions shown in autocomplete. */
     autocompleteSuggestionLimit: number;
+    /** Max community suggestions shown in the site search (#783). */
+    communitySuggestionLimit: number;
     /**
      * Estimate input bounds, mirrored from the cost-data file
      * (packages/cost-engine/cost-data inputBounds). The property record
@@ -1012,6 +1022,11 @@ export interface AppConfig {
     addressMaxLength: number;
     /** Allowlisted `src` values kept for attribution; any other value is dropped. */
     sources: readonly string[];
+    /**
+     * #783: `src` the nav site search sends when it opens the estimator with
+     * a picked address. Must be one of `sources`.
+     */
+    siteSearchSource: string;
   };
   /** Analytics consent. */
   analytics: {
@@ -1169,6 +1184,15 @@ export interface AppConfig {
       error: string;
       retryLabel: string;
       searchingLabel: string;
+      /** #783 site search: accessible label for the address-or-community box. */
+      siteSearchLabel: string;
+      /** #783 site search: placeholder for the address-or-community box. */
+      siteSearchPlaceholder: string;
+      /** #783 site search: listbox group headings. */
+      communitiesGroupLabel: string;
+      addressesGroupLabel: string;
+      /** #783 site search: secondary line on a community option. */
+      communityOptionHint: string;
     };
     /**
      * White-label embed shell strings (EMB-01). The unavailableBody copy is
@@ -1763,6 +1787,11 @@ export interface AppConfig {
       notFound: string;
       unsubscribeTitle: string;
       unsubscribe: string;
+      /** #706 privacy self-service pages (noindex). */
+      privacyDataTitle: string;
+      privacyData: string;
+      privacyConfirmTitle: string;
+      privacyConfirm: string;
       magicLinkTitle: string;
       magicLink: string;
       myReportTitle: string;
@@ -2468,6 +2497,64 @@ export interface AppConfig {
       errorHeading: string;
       errorBody: string;
       retryLabel: string;
+      homeCta: string;
+    };
+    /**
+     * Privacy self-service (#706): `/privacy/my-data` + the erase-confirm
+     * landing `/privacy/confirm/:requestId`. Copy status:
+     * draft-pending-lawyer (the erasure consequences come from the API).
+     */
+    privacyData: {
+      entryLinkLabel: string;
+      heading: string;
+      intro: string;
+      draftNotice: string;
+      loadingLabel: string;
+      downloadHeading: string;
+      downloadBody: string;
+      downloadCta: string;
+      downloadWorking: string;
+      downloadDone: string;
+      downloadFileName: string;
+      deleteHeading: string;
+      deleteBody: string;
+      deleteCta: string;
+      deleteWorking: string;
+      pendingHeading: string;
+      pendingBody: string;
+      consequencesHeading: string;
+      confirmCta: string;
+      cancelCta: string;
+      noTokenHeading: string;
+      noTokenBody: string;
+      emailLabel: string;
+      emailInvalid: string;
+      sendLinkCta: string;
+      sendLinkWorking: string;
+      linkSentHeading: string;
+      linkSentBody: string;
+      pendingEmailBody: string;
+      confirmPromptHeading: string;
+      confirmPromptBody: string;
+      confirmWorking: string;
+      confirmDoneHeading: string;
+      confirmDoneBody: string;
+      confirmAlreadyHeading: string;
+      confirmAlreadyBody: string;
+      confirmExpiredHeading: string;
+      confirmExpiredBody: string;
+      confirmBlockedHeading: string;
+      confirmBlockedBody: string;
+      confirmInvalidHeading: string;
+      confirmInvalidBody: string;
+      expiredHeading: string;
+      expiredBody: string;
+      rateLimitedHeading: string;
+      rateLimitedBody: string;
+      errorHeading: string;
+      errorBody: string;
+      retryLabel: string;
+      myDataCta: string;
       homeCta: string;
     };
     /**

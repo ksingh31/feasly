@@ -408,6 +408,11 @@ const targets = [
     entry: 'src/functions/billing-invoice-payment-method.ts',
     out: 'billing-invoice-payment-method/index.js',
   },
+  // #712 — SCA recovery: client secret to confirm a 3DS charge (POST).
+  {
+    entry: 'src/functions/billing-invoice-confirm-payment.ts',
+    out: 'billing-invoice-confirm-payment/index.js',
+  },
   // Dispute console (billing/01 follow-on, was OPS-009).
   {
     entry: 'src/functions/admin-disputes.ts',

@@ -75,6 +75,7 @@ function fakeStripe(world: World, configured = true): StripeService {
       return { id: pm };
     }),
     createOffSessionPaymentIntent: vi.fn(),
+    getPaymentIntentConfirmation: vi.fn(),
     createSubscription: vi.fn(),
     cancelSubscription: vi.fn(),
     refundPaymentIntent: vi.fn(),
