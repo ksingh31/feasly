@@ -398,7 +398,14 @@
 			"idx": 56,
 			"version": "7",
 			"when": 1796256000000,
-			"tag": "0059_community_narratives",
+			"tag": "0059_zoning_source_watch",
+			"breakpoints": true
+		},
+		{
+			"idx": 57,
+			"version": "7",
+			"when": 1796342400000,
+			"tag": "0060_community_narratives",
 			"breakpoints": true
 		}
 	]

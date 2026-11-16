@@ -1,7 +1,7 @@
 /**
  * Monthly community narratives (#759) — the job, admin regenerate, status,
  * and the stored-narrative read, against the real Drizzle store on PGlite
- * (migration 0059 applied).
+ * (migration 0060 applied).
  *
  * AC1: one row per community per period; a re-run creates none.
  * AC3: a failed month keeps serving last month's narrative; a community
