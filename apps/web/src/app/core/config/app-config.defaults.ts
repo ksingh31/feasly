@@ -1668,6 +1668,19 @@ export const DEFAULT_APP_CONFIG: AppConfig = {
           commentsHint: 'Choose per comment whether the builder sees it.',
           noActivity: 'No status changes yet.',
           honeypotBadge: 'Honeypot-flagged',
+          reassignmentsHeading: 'Builder changes',
+          unknownBuilder: 'Removed builder',
+          reassignConfirm: {
+            title: 'Move {lead} to {to}?',
+            body:
+              '{from} will lose access to this lead. Their portal will show it as “Reassigned by Feasly”, with no reason given and no email sent. {to} gets it as a new lead. If {from} has an invoice for this lead that isn’t void, the move is blocked until it is voided or refunded.',
+            verb: 'Move lead',
+            unassignTitle: 'Unassign {lead}?',
+            unassignBody:
+              '{from} will lose access to this lead. Their portal will show it as “Reassigned by Feasly”, with no reason given and no email sent. If {from} has an invoice for this lead that isn’t void, the change is blocked until it is voided or refunded.',
+            unassignVerb: 'Unassign',
+            cancel: 'Cancel',
+          },
         },
       },
       entities: {

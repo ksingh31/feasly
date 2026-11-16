@@ -200,6 +200,7 @@ export const appConfig: ApplicationConfig = {
                       sessionExpired: false,
                       leads: [],
                       summary: { ...EMPTY_SUMMARY },
+                      reassigned: [],
                       leadsStatus: 'idle',
                       updatingLeadId: null,
                       updateError: null,

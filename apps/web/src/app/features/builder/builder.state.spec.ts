@@ -159,7 +159,19 @@ describe('BuilderState (embed/09)', () => {
       lost: 0,
       needsRecording: 0,
     });
+    // An older API without `reassigned` reads as none (#803).
+    expect(s.reassigned).toEqual([]);
     httpMock.verify();
+  });
+
+  it('LoadBuilderLeads stores the reassigned-away leads (#803)', async () => {
+    const reassigned = [{ id: 'r-1', name: 'Liam Chen', reassignedAt: '2026-11-02T10:00:00.000Z' }];
+    const done = store.dispatch(new LoadBuilderLeads());
+    httpMock
+      .expectOne((r) => r.url.endsWith('/api/v1/builder/leads'))
+      .flush({ ...LEADS_RESPONSE, reassigned });
+    await done;
+    expect(snapshot().reassigned).toEqual(reassigned);
   });
 
   it('LoadBuilderNeedsYou stores the feed (#527)', async () => {

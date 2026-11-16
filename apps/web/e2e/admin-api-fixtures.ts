@@ -169,6 +169,13 @@ function leadDetail(item: AdminLeadListItem): AdminLeadDetail {
       { oldStatus: null, newStatus: 'new', changedBy: null, changedAt: item.createdAt },
       { oldStatus: 'new', newStatus: item.status, changedBy: ADMIN_ME.email, changedAt: daysAgo(1) },
     ],
+    // #803: builder moves render in the drawer's Activity section.
+    reassignments: item.tenantKey
+      ? [
+          { fromBuilderId: null, toBuilderId: 'b-2', changedBy: ADMIN_ME.email, changedAt: daysAgo(3) },
+          { fromBuilderId: 'b-2', toBuilderId: 'b-1', changedBy: ADMIN_ME.email, changedAt: daysAgo(2) },
+        ]
+      : [],
   };
 }
 
