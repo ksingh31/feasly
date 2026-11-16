@@ -276,11 +276,12 @@ export const ROUTE_REGISTRY: readonly ApiRouteEntry[] = [
     path: '/api/v1/estimates/{estimateId}/narrative',
     auth: 'magic-token',
     permissions: [] as const,
-    rateLimit: '100/min per IP + 5/day per estimate (cost guard)',
+    rateLimit: '100/min per IP',
     status: 'live',
     summary:
-      'Generate (or return cached) the AI narrative for an estimate. ' +
-      'LLM writes narrative only; figures are deterministic.',
+      'Report narrative for an estimate: the stored monthly community ' +
+      'narrative plus a deterministic estimate sentence (#759). No LLM call ' +
+      'per request; figures are deterministic.',
   },
   {
     method: 'GET',
@@ -1116,10 +1117,9 @@ export const ROUTE_REGISTRY: readonly ApiRouteEntry[] = [
     rateLimit: '60/min per session',
     status: 'live',
     summary:
-      'Generate (or return cached) the AI narrative for an estimate. ' +
-      'Same pipeline as the consumer endpoint, but Entra admin-session-gated ' +
-      '(the consumer endpoint is consumer-magic-link-gated); LLM writes narrative ' +
-      'only, figures are deterministic.',
+      'Report narrative for an estimate (stored community narrative + ' +
+      'deterministic estimate sentence, #759). Same read path as the consumer ' +
+      'endpoint, but Entra admin-session-gated; no LLM call per request.',
   },
   {
     method: 'GET',
@@ -1260,6 +1260,28 @@ export const ROUTE_REGISTRY: readonly ApiRouteEntry[] = [
       'school-directory, school-designation, school-ratings, reviews, ' +
       'amenities or commute. Keeps the previous data on failure. ' +
       'Audit-logged.',
+  },
+  {
+    method: 'GET',
+    path: '/api/v1/admin/community-narratives',
+    auth: 'admin',
+    permissions: ['ops:manage'] as const,
+    rateLimit: '300/min per session',
+    status: 'live',
+    summary:
+      'Monthly community narratives (#759): each community\'s latest period, ' +
+      'status, and generated date.',
+  },
+  {
+    method: 'POST',
+    path: '/api/v1/admin/community-narratives/regenerate',
+    auth: 'admin',
+    permissions: ['ops:manage'] as const,
+    rateLimit: '10/min per session',
+    status: 'live',
+    summary:
+      'Regenerate the community narrative now — one community or all (#759). ' +
+      'Admin-only, audit-logged.',
   },
   {
     method: 'GET',

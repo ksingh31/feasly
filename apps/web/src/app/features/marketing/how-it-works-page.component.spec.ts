@@ -5,7 +5,11 @@ import { Meta } from '@angular/platform-browser';
 import { provideRouter, Router } from '@angular/router';
 import { provideStore, Store } from '@ngxs/store';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { Observable, of, throwError } from 'rxjs';
+import type { BuilderPartnerListResponse } from '@feasly/contracts';
+import { API_SERVICE } from '../../core/api/api.service';
 import { ConfigService } from '../../core/config';
+import { PartnersState } from '../../core/partners';
 import { WizardState } from '../wizard/wizard.state';
 import { HowItWorksPageComponent } from './how-it-works-page.component';
 
@@ -17,6 +21,21 @@ import { HowItWorksPageComponent } from './how-it-works-page.component';
 describe('HowItWorksPageComponent', () => {
   let fixture: ComponentFixture<HowItWorksPageComponent>;
   let httpMock: HttpTestingController;
+  /** #918: the partners response the stub API returns (swap per test). */
+  let partners$: () => Observable<BuilderPartnerListResponse>;
+  const getPartners = vi.fn(() => partners$());
+  const LIST: BuilderPartnerListResponse = {
+    partners: [
+      {
+        id: 'p1',
+        name: 'Elite Craft Builders',
+        logoUrl: null,
+        websiteUrl: 'https://elite.example/',
+        description: 'Custom infill homes.',
+      },
+      { id: 'p2', name: 'North Homes', logoUrl: null, websiteUrl: null, description: null },
+    ],
+  };
 
   const baseConfig = {
     site: { url: 'https://feasly.com', name: 'Feasly', socialImage: '/assets/og/og-default.png' },
@@ -45,7 +64,7 @@ describe('HowItWorksPageComponent', () => {
     },
   };
 
-  beforeEach(async () => {
+  async function mount(): Promise<void> {
     TestBed.resetTestingModule();
     TestBed.configureTestingModule({
       imports: [HowItWorksPageComponent],
@@ -53,7 +72,8 @@ describe('HowItWorksPageComponent', () => {
         provideHttpClient(),
         provideHttpClientTesting(),
         provideRouter([]),
-        provideStore([WizardState]),
+        provideStore([WizardState, PartnersState]),
+        { provide: API_SERVICE, useValue: { getPartners } },
       ],
     });
     httpMock = TestBed.inject(HttpTestingController);
@@ -63,6 +83,41 @@ describe('HowItWorksPageComponent', () => {
     fixture = TestBed.createComponent(HowItWorksPageComponent);
     fixture.detectChanges();
     await fixture.whenStable();
+  }
+
+  beforeEach(async () => {
+    getPartners.mockClear();
+    partners$ = () => of(LIST);
+    await mount();
+  });
+
+  describe('#918: builder partners section', () => {
+    function section(): HTMLElement {
+      fixture.detectChanges();
+      return (fixture.nativeElement as HTMLElement).querySelector('section#partners') as HTMLElement;
+    }
+
+    it('lists the partners from the shared state, linking websites', () => {
+      const el = section();
+      expect(el.querySelector('h2')?.textContent).toContain('Our builder partners');
+      const items = el.querySelectorAll('li.partner');
+      expect(items).toHaveLength(2);
+      const link = items[0].querySelector('a') as HTMLAnchorElement;
+      expect(link.getAttribute('href')).toBe('https://elite.example/');
+      expect(link.getAttribute('rel')).toContain('noopener');
+      expect(items[0].textContent).toContain('Custom infill homes.');
+      expect(items[1].querySelector('a')).toBeNull();
+      expect(items[1].textContent).toContain('North Homes');
+      expect(getPartners).toHaveBeenCalledTimes(1);
+    });
+
+    it('says the list is unavailable when the request fails', async () => {
+      partners$ = () => throwError(() => new Error('down'));
+      await mount();
+      const el = section();
+      expect(el.querySelectorAll('li.partner')).toHaveLength(0);
+      expect(el.querySelector('.partner-unavailable')?.textContent).toContain('isn’t available');
+    });
   });
 
   it('renders all four steps with their titles', () => {

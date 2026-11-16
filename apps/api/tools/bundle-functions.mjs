@@ -516,6 +516,19 @@ const targets = [
     entry: 'src/functions/admin-community-stats-refresh.ts',
     out: 'admin-community-stats-refresh/index.js',
   },
+  // #759: monthly community narratives — timer + admin status/regenerate.
+  {
+    entry: 'src/functions/community-narrative-timer.ts',
+    out: 'community-narrative-timer/index.js',
+  },
+  {
+    entry: 'src/functions/admin-community-narratives.ts',
+    out: 'admin-community-narratives/index.js',
+  },
+  {
+    entry: 'src/functions/admin-community-narratives-regenerate.ts',
+    out: 'admin-community-narratives-regenerate/index.js',
+  },
   // #773: neighbourhood data refresh (daily tick, monthly schedule in config)
   // + admin "refresh now" per provider.
   {

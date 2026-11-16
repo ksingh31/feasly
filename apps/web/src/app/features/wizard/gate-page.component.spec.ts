@@ -18,6 +18,7 @@ import { previewRequestKey } from '../../core/api/preview-cache';
 import { ReportState } from '../report/report.state';
 import { AnalyticsService } from '../consent';
 import { EmbedState } from '../embed/embed.state';
+import { PartnersState } from '../../core/partners';
 import { EmbedConfigLoaded, EmbedConfigFailed, LoadEmbedConfig } from '../embed/embed.actions';
 import { GatePageComponent } from './gate-page.component';
 
@@ -88,7 +89,11 @@ describe('GatePageComponent', () => {
     fixture.detectChanges();
   }
 
-  async function setup(apiProvider: unknown = provideApi(), extraProviders: unknown[] = []): Promise<void> {
+  async function setup(
+    apiProvider: unknown = provideApi(),
+    extraProviders: unknown[] = [],
+    beforeCreate?: () => void,
+  ): Promise<void> {
     TestBed.resetTestingModule();
     TestBed.configureTestingModule({
       imports: [GatePageComponent, BlankComponent],
@@ -104,7 +109,7 @@ describe('GatePageComponent', () => {
           { path: 'estimate/compare', component: BlankComponent },
           { path: 'estimate/analyzing', component: BlankComponent },
         ]),
-        provideStore([WizardState, LeadState, EmbedState, ReportState]),
+        provideStore([WizardState, LeadState, EmbedState, ReportState, PartnersState]),
         // The gate fires a consent-gated analytics event on success; the
         // gate spec owns gate behavior, not analytics internals.
         { provide: AnalyticsService, useValue: { track: vi.fn() } },
@@ -124,6 +129,7 @@ describe('GatePageComponent', () => {
     store = TestBed.inject(Store);
     router = TestBed.inject(Router);
     store.dispatch([new SelectProperty(fakeProperty), new GoToStep(3)]);
+    beforeCreate?.();
     fixture = TestBed.createComponent(GatePageComponent);
     fixture.detectChanges();
   }
@@ -400,6 +406,44 @@ describe('GatePageComponent', () => {
       expect(button.textContent).not.toContain('Sending');
       expect(fixture.nativeElement.querySelector('.form-error .retry')).not.toBeNull();
       expect(router.url).not.toBe('/estimate/analyzing');
+    });
+  });
+
+  describe('#918: partner disclosure', () => {
+    async function pollFor(predicate: () => boolean, what: string): Promise<void> {
+      const deadline = Date.now() + 5000;
+      for (;;) {
+        fixture.detectChanges();
+        if (predicate()) return;
+        if (Date.now() > deadline) throw new Error(`timed out waiting for ${what}`);
+        await new Promise((r) => setTimeout(r, 25));
+      }
+    }
+
+    it('own site: names the builder partner(s) the lead goes to', async () => {
+      await setup();
+      const el = fixture.nativeElement as HTMLElement;
+      expect(el.querySelector('form app-partner-disclosure')).not.toBeNull();
+      expect(el.querySelector('form app-builder-matching-explainer')).not.toBeNull();
+      await pollFor(
+        () => store.selectSnapshot(PartnersState.status) === 'ready',
+        'partners load',
+      );
+      const text = el.querySelector('app-partner-disclosure')?.textContent ?? '';
+      expect(text).toContain('Leads from Feasly’s site go to our builder partner(s):');
+      expect(text).toContain('Elite Craft Builders');
+    });
+
+    it('embed: no partner disclosure and no partners request (the lead goes to that builder)', async () => {
+      let getPartners: ReturnType<typeof vi.spyOn> | undefined;
+      await setup(provideApi(), [], () => {
+        getPartners = vi.spyOn(TestBed.inject(API_SERVICE), 'getPartners');
+        store.dispatch(new LoadEmbedConfig('acme-builders'));
+      });
+      const el = fixture.nativeElement as HTMLElement;
+      expect(el.querySelector('app-partner-disclosure')).toBeNull();
+      expect(el.querySelector('app-builder-matching-explainer')).toBeNull();
+      expect(getPartners).not.toHaveBeenCalled();
     });
   });
 

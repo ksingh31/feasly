@@ -1,0 +1,25 @@
+/* Partner disclosure (#918): help-text weight, same tokens as the
+   builder-matching explainer it sits beside. */
+.partner-disclosure {
+  margin: 0.75rem 0 0;
+  font-size: 0.9rem;
+  line-height: 1.55;
+  color: var(--muted);
+}
+
+.partner-name {
+  font-weight: 600;
+  color: var(--text);
+}
+
+a {
+  font-weight: 600;
+  color: var(--accent-text);
+  overflow-wrap: anywhere;
+}
+
+a:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+  border-radius: 4px;
+}

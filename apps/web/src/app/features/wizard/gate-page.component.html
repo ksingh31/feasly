@@ -142,7 +142,12 @@
         <p class="privacy-note">
           {{ copy.privacyNote }} <a routerLink="/privacy">{{ copy.privacyLinkLabel }}</a>
         </p>
-        <app-builder-matching-explainer />
+        <!-- #918: own-site leads go to Feasly's builder partner(s). Embeds
+             skip both: on a builder's site the lead goes to that builder. -->
+        @if (isOwnSite) {
+          <app-partner-disclosure [partners]="partners()" />
+          <app-builder-matching-explainer />
+        }
       </form>
       }
     </main>

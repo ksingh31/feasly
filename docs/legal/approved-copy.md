@@ -106,6 +106,16 @@ the lead-gate form, in the report's next steps, and in the FAQ answers
 > builders", "hand-pick") are banned by
 > `apps/web/tools/check-banned-phrases.mjs`. Embedded estimators on a
 > builder's own site don't show this explainer: the lead goes to that builder.
+>
+> #918 adds the partner disclosure line at every own-site lead capture point
+> (lead gate, report callback) and a partners section on How it works; same
+> draft status. Source: `copy.partners` in the same defaults file. Partner
+> names come from `GET /api/v1/partners` (data, not copy); embeds don't show it.
+
+```text
+Leads from Feasly’s site go to our builder partner(s): <partner names, linked>
+If you ask to be contacted, leads from Feasly’s own site go to these builder companies. A partner pays Feasly a referral commission only if you sign a contract with them. It never changes your estimate, and you’re never obliged to hire anyone.
+```
 
 ```text
 Feasly is an independent estimator. We don’t build homes. If you ask to be contacted, leads from Feasly’s own site go to our builder partner(s), listed on How it works. A partner pays Feasly a referral commission only if you sign a contract with them. It never changes your estimate, and you’re never obliged to hire anyone. You can opt out anytime.

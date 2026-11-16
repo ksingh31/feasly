@@ -48,7 +48,7 @@ export const ROUTE_AUDIT_NOTES: Readonly<Record<RouteKey, string>> = {
   'POST /api/v1/privacy/erase-requests/{requestId}/confirm':
     'Token must belong to the same identity as the request id: unknown id 404, cross-user id 403 + audit (ids are random UUIDs).',
   'POST /api/v1/estimates/{estimateId}/narrative':
-    'LLM cost surface: per-estimate daily cap; LLM writes narrative only, never dollar figures.',
+    'No LLM call per request (#759): reads the stored monthly community narrative; dollar figures come from the engine only.',
   'GET /api/v1/unsubscribe/{token}':
     'Signed token; GET is read-only (mail scanners prefetch links), POST performs the opt-out.',
   'GET /api/v1/embed/config':
