@@ -7,6 +7,8 @@
  * there is no update, delete, or upsert path, here or anywhere else.
  */
 import type { AppDb } from '../db/client';
+import type { ClickIdType } from '@feasly/contracts';
+import type { CampaignSourceColumns } from '../lib/campaign-source';
 import { analyticsEvents } from '../db/schema';
 
 export interface AnalyticsEventRecord {
@@ -16,6 +18,8 @@ export interface AnalyticsEventRecord {
   readonly ts: Date;
   readonly consentTs: Date;
   readonly tenantKey: string | null;
+  /** #814: campaign attribution (all-null = none). */
+  readonly source: CampaignSourceColumns;
   readonly createdAt: Date;
 }
 
@@ -27,6 +31,8 @@ export interface NewAnalyticsEvent {
   readonly consentTs: Date;
   /** Tenant key for embed-attributed events; null = Feasly-direct. */
   readonly tenantKey: string | null;
+  /** #814: validated campaign attribution (all-null = none). */
+  readonly source: CampaignSourceColumns;
 }
 
 export interface AnalyticsStore {
@@ -52,6 +58,12 @@ export function createDrizzleAnalyticsStore(deps: {
           ts: event.ts,
           consentTs: event.consentTs,
           tenantKey: event.tenantKey,
+          utmSource: event.source.utmSource,
+          utmMedium: event.source.utmMedium,
+          utmCampaign: event.source.utmCampaign,
+          utmTerm: event.source.utmTerm,
+          utmContent: event.source.utmContent,
+          clickIdType: event.source.clickIdType,
         })
         .returning();
       return {
@@ -61,6 +73,15 @@ export function createDrizzleAnalyticsStore(deps: {
         ts: row.ts,
         consentTs: row.consentTs,
         tenantKey: row.tenantKey,
+        source: {
+          utmSource: row.utmSource,
+          utmMedium: row.utmMedium,
+          utmCampaign: row.utmCampaign,
+          utmTerm: row.utmTerm,
+          utmContent: row.utmContent,
+          // Written only from the validated ClickIdType union above.
+          clickIdType: row.clickIdType as ClickIdType | null,
+        },
         createdAt: row.createdAt,
       };
     },

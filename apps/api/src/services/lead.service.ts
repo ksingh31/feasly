@@ -60,6 +60,7 @@ import type { EmailService } from './email/email.service';
 import type { BuilderNotificationsService } from './builder-notifications.service';
 import { createSandboxSuppressingEmailService } from './email/sandbox-email.service';
 import type { EstimateStore } from './estimate.store';
+import { sanitizeLeadSource } from '../lib/campaign-source';
 import type { LeadRecord, LeadStore } from './lead.store';
 import {
   issueOwnerMagicLinkToken,
@@ -99,6 +100,12 @@ export const LeadRequestSchema = z.object({
    * bot can't probe the check through validation errors).
    */
   elapsedMs: z.number().optional(),
+  /**
+   * #814: campaign attribution. Accepted as any value here and sanitized
+   * field by field (`sanitizeLeadSource`) — an invalid UTM tag is stored
+   * as NULL, never a 400, so attribution can't cost a lead.
+   */
+  source: z.unknown().optional(),
 });
 
 export type LeadRequest = z.infer<typeof LeadRequestSchema>;
@@ -639,6 +646,7 @@ export function createLeadService(deps: LeadServiceDeps): LeadService {
           source,
           quarantined,
           sandbox,
+          attribution: sanitizeLeadSource(input.source),
           ...(caller && attestation
             ? {
                 consentAttestation: {

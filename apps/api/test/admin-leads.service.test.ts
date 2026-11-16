@@ -364,6 +364,50 @@ describe('admin-leads service (admin/02)', () => {
       );
     });
 
+    it('returns campaign attribution with only the set fields (#814)', async () => {
+      const deps = makeDeps();
+      const service = createAdminLeadsService(deps);
+      vi.mocked(deps.store.findByIdWithEstimate).mockResolvedValue(
+        makeLeadRow({
+          attribution: {
+            utmSource: 'google',
+            utmMedium: 'cpc',
+            utmCampaign: 'spring-infill',
+            utmTerm: null,
+            utmContent: null,
+            clickIdType: 'gclid',
+          },
+        }),
+      );
+      const result = await service.getLead('lead-1', ADMIN_EMAIL);
+      expect(result.attribution).toEqual({
+        utm_source: 'google',
+        utm_medium: 'cpc',
+        utm_campaign: 'spring-infill',
+        click_id_type: 'gclid',
+      });
+    });
+
+    it('returns null attribution when the lead has none (#814)', async () => {
+      const deps = makeDeps();
+      const service = createAdminLeadsService(deps);
+      vi.mocked(deps.store.findByIdWithEstimate).mockResolvedValue(
+        makeLeadRow({
+          attribution: {
+            utmSource: null,
+            utmMedium: null,
+            utmCampaign: null,
+            utmTerm: null,
+            utmContent: null,
+            clickIdType: null,
+          },
+        }),
+      );
+      expect((await service.getLead('lead-1', ADMIN_EMAIL)).attribution).toBeNull();
+      vi.mocked(deps.store.findByIdWithEstimate).mockResolvedValue(makeLeadRow());
+      expect((await service.getLead('lead-1', ADMIN_EMAIL)).attribution).toBeNull();
+    });
+
     it('includes the builder reassignment history (#721)', async () => {
       const deps = makeDeps();
       const listForLead = vi.fn(async () => [
