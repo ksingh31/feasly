@@ -43,6 +43,7 @@ import { ADMIN_PERMISSIONS, adminCan } from './admin-permissions';
 import { openAdminEntity } from './admin-entity-routes';
 import { LoadBillingHealth } from './billing-health.actions';
 import { BillingHealthState } from './billing-health.state';
+import { injectAdminCopy } from './admin-copy';
 
 export interface AdminDisputeDrawerData {
   readonly disputeId: string;
@@ -97,7 +98,7 @@ export class AdminDisputeDrawerComponent implements OnInit {
   private readonly data = inject<AdminDisputeDrawerData>(DIALOG_DATA);
 
   /** EntityLink + Technical IDs copy (#538). */
-  protected readonly entityCopy = inject(ConfigService).get('copy').admin.entities;
+  protected readonly entityCopy = injectAdminCopy().entities;
   /** #872: Stripe dashboard origin for the "View in Stripe" link. */
   private readonly stripeDashboardBaseUrl = inject(ConfigService).get('billing').stripeDashboardBaseUrl;
 

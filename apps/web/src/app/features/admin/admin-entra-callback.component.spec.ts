@@ -73,7 +73,11 @@ function setup(opts: {
       provideStore([AdminAuthState]),
       { provide: Store, useValue: store },
       { provide: SeoService, useValue: seo },
-      { provide: ConfigService, useValue: { get: () => ({ admin: { auth: copyAuth() } }) } },
+      {
+        provide: ConfigService,
+        // #980: admin copy is lazy — served overrides reach it via getServedCopy.
+        useValue: { get: () => ({ admin: { auth: copyAuth() } }), getServedCopy: () => ({ auth: copyAuth() }) },
+      },
       { provide: AdminAuthApiService, useValue: api },
       { provide: AdminEntraAuthService, useValue: entra },
       { provide: Router, useValue: router },

@@ -35,6 +35,7 @@ import {
 } from './admin-nav';
 import { ADMIN_PERMISSIONS, adminCan } from './admin-permissions';
 import { AdminCommandPaletteComponent } from './admin-command-palette.component';
+import { injectAdminCopy } from './admin-copy';
 
 /** One rendered sidebar link. */
 interface ShellNavItem {
@@ -89,7 +90,7 @@ export class AdminShellComponent {
   private readonly dialog = inject(Dialog);
   private readonly overlay = inject(Overlay);
 
-  protected readonly copy = this.config.get('copy').admin.shell;
+  protected readonly copy = injectAdminCopy().shell;
   protected readonly environmentLabel = this.config.get('admin').environmentLabel;
 
   /** Off-canvas sidebar open (below 1024px). */

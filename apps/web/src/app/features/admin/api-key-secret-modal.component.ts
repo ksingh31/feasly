@@ -2,9 +2,9 @@ import { DialogRef } from '@angular/cdk/dialog';
 import { Component, inject, signal } from '@angular/core';
 import { Store } from '@ngxs/store';
 import { UiButtonComponent, UiModalComponent } from '@app/shared/ui';
-import { ConfigService } from '../../core/config/config.service';
 import { ClearPlaintext } from './api-keys.actions';
 import { ApiKeysState } from './api-keys.state';
+import { injectAdminCopy } from './admin-copy';
 
 /**
  * One-time secret modal (#546, review S13). Shows the plaintext from the
@@ -26,7 +26,7 @@ import { ApiKeysState } from './api-keys.state';
 export class ApiKeySecretModalComponent {
   private readonly store = inject(Store);
   private readonly ref = inject(DialogRef);
-  protected readonly copy = inject(ConfigService).get('copy').admin.apiKeys;
+  protected readonly copy = injectAdminCopy().apiKeys;
 
   protected readonly plaintext = this.store.selectSignal(ApiKeysState.plaintext);
   protected readonly keyName = this.store.selectSignal(ApiKeysState.plaintextKeyName);

@@ -50,6 +50,7 @@ import {
   parseStatus,
   parseView,
 } from './admin-leads-view';
+import { injectAdminCopy } from './admin-copy';
 
 /** Saved-view id → copy key. */
 const VIEW_COPY_KEY: Readonly<Record<AdminLeadsView, 'all' | 'new' | 'unassigned' | 'quotingStale'>> = {
@@ -94,7 +95,7 @@ export class AdminLeadsComponent {
   private readonly drawers = inject(UiDrawerService);
   private readonly injector = inject(Injector);
 
-  protected readonly copy = this.config.get('copy').admin.leads;
+  protected readonly copy = injectAdminCopy().leads;
   protected readonly debounceMs = this.config.get('timings').filterDebounceMs;
   private readonly staleDays = this.config.get('admin').leads.quotingStaleDays;
 

@@ -75,6 +75,21 @@ export class ConfigService {
   }
 
   /**
+   * Deploy-time overrides at `copy.<path>` from app-config.json (#980), if
+   * the served JSON had a plain object there. Lets lazy features merge
+   * deploy overrides over compiled copy defaults that live in their own
+   * chunk (see `mergeLazyCopy`). Null when missing or not an object.
+   */
+  getServedCopy(path: readonly string[]): Record<string, unknown> | null {
+    let node: unknown = this.servedJson?.['copy'];
+    for (const key of path) {
+      if (!isPlainObject(node)) return null;
+      node = (node as Record<string, unknown>)[key];
+    }
+    return isPlainObject(node) ? (node as Record<string, unknown>) : null;
+  }
+
+  /**
    * Deploy-time `copy.marketing.help` overrides (#834), if present. Lets the
    * lazy help-page copy (HELP_COPY) merge deploy overrides over its compiled
    * defaults without those defaults living in the initial bundle.

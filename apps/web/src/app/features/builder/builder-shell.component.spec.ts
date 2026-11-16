@@ -14,7 +14,8 @@ import { Store } from '@ngxs/store';
 import { of } from 'rxjs';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { UiModalService } from '@app/shared/ui';
-import { BuilderShellComponent, isMoneyUrl } from './builder-shell.component';
+import { BuilderShellComponent, isLeadsUrl, isMoneyUrl } from './builder-shell.component';
+import { BuilderLeadsSeenState, MarkBuilderLeadsSeen } from './builder-leads-seen.state';
 import { BuilderCardModalComponent } from './builder-card-modal.component';
 import { BuilderBillingState } from './builder-billing.state';
 import { BuilderState } from './builder.state';
@@ -22,6 +23,7 @@ import { BuilderInvoicesState } from './builder-invoices.state';
 import {
   DismissBuilderAccountPaused,
   ExitBuilderViewAs,
+  LoadBuilderLeads,
   LoadBuilderMemberships,
   LogoutBuilder,
 } from './builder.actions';
@@ -57,6 +59,8 @@ interface SetupOptions {
   invoices?: readonly { id: string; status: string }[];
   url?: string;
   orgName?: string | null;
+  unread?: number;
+  leadsStatus?: string;
   paused?: { message: string | null } | null;
 }
 
@@ -73,8 +77,11 @@ async function setup(opts: SetupOptions = {}) {
 
   const store = {
     dispatch: vi.fn().mockReturnValue(of({})),
-    selectSnapshot: (selector: unknown) =>
-      selector === BuilderBillingState.card ? { hasCard: true, brand: 'visa', last4: '4242' } : null,
+    selectSnapshot: (selector: unknown) => {
+      if (selector === BuilderBillingState.card) return { hasCard: true, brand: 'visa', last4: '4242' };
+      if (selector === BuilderState.leadsStatus) return opts.leadsStatus ?? 'ready';
+      return null;
+    },
     selectSignal: (selector: unknown) => {
       if (selector === BuilderState.session) return signal(SESSION);
       if (selector === BuilderState.activeBuilderName)
@@ -86,6 +93,8 @@ async function setup(opts: SetupOptions = {}) {
         return signal(invoices);
       if (selector === BuilderInvoicesState.actionableStatus)
         return signal('ready');
+      if (selector === BuilderState.activeBuilderId) return signal(SESSION.builderId);
+      if (selector === BuilderLeadsSeenState.unreadCount) return signal(opts.unread ?? 0);
       return signal(null);
     },
   };
@@ -156,6 +165,76 @@ describe('isMoneyUrl', () => {
     ['/builder/invoicesx', false],
   ])('%s → %s', (url, expected) => {
     expect(isMoneyUrl(url)).toBe(expected);
+  });
+});
+
+describe('isLeadsUrl', () => {
+  it.each([
+    ['/builder', true],
+    ['/builder?lead=abc', true],
+    ['/builder/', true],
+    ['/builder/settings', false],
+    ['/builder/money', false],
+  ])('%s → %s', (url, expected) => {
+    expect(isLeadsUrl(url)).toBe(expected);
+  });
+});
+
+describe('BuilderShellComponent unread Leads badge (#864)', () => {
+  beforeEach(() => {
+    TestBed.resetTestingModule();
+  });
+
+  it('shows the count on Leads (top nav + tab bar) away from Leads', async () => {
+    const { fixture } = await setup({ url: '/builder/settings', unread: 3 });
+    expect(q(fixture, '[data-testid="leads-badge"]')?.textContent?.trim()).toBe('3');
+    expect(q(fixture, '[data-testid="leads-badge-tab"]')?.textContent?.trim()).toBe('3');
+    const leadsLink = q(fixture, '.builder-shell__nav a')!;
+    expect(leadsLink.textContent).toContain('3 new since your last visit');
+  });
+
+  it('hides the badge with no unread leads', async () => {
+    const { fixture } = await setup({ url: '/builder/settings', unread: 0 });
+    expect(q(fixture, '[data-testid="leads-badge"]')).toBeNull();
+    expect(q(fixture, '[data-testid="leads-badge-tab"]')).toBeNull();
+  });
+
+  it('clears on visit: no badge on Leads and the visit is recorded', async () => {
+    const { fixture, store } = await setup({ url: '/builder', unread: 3 });
+    expect(q(fixture, '[data-testid="leads-badge"]')).toBeNull();
+    expect(store.dispatch).toHaveBeenCalledWith(expect.any(MarkBuilderLeadsSeen));
+    const mark = store.dispatch.mock.calls
+      .map((c: unknown[]) => c[0])
+      .find((a: unknown) => a instanceof MarkBuilderLeadsSeen) as MarkBuilderLeadsSeen;
+    expect(mark.builderId).toBe('org-1');
+  });
+
+  it('records the visit on entering and leaving Leads', async () => {
+    const { fixture, store } = await setup({ url: '/builder/settings' });
+    const marks = () =>
+      store.dispatch.mock.calls.filter((c: unknown[]) => c[0] instanceof MarkBuilderLeadsSeen)
+        .length;
+    expect(marks()).toBe(0);
+    const router = TestBed.inject(Router);
+    await router.navigateByUrl('/builder');
+    await fixture.whenStable();
+    expect(marks()).toBe(1);
+    await router.navigateByUrl('/builder/team');
+    await fixture.whenStable();
+    expect(marks()).toBe(2);
+    await router.navigateByUrl('/builder/money');
+    await fixture.whenStable();
+    expect(marks()).toBe(2);
+  });
+
+  it('loads leads for the badge when off Leads and not loaded yet', async () => {
+    const { store } = await setup({ url: '/builder/settings', leadsStatus: 'idle' });
+    expect(store.dispatch).toHaveBeenCalledWith(expect.any(LoadBuilderLeads));
+  });
+
+  it('does not reload leads that are already loaded', async () => {
+    const { store } = await setup({ url: '/builder/settings', leadsStatus: 'ready' });
+    expect(store.dispatch).not.toHaveBeenCalledWith(expect.any(LoadBuilderLeads));
   });
 });
 

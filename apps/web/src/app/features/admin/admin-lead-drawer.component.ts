@@ -54,6 +54,7 @@ import { AdminBuildersState } from './admin-builders.state';
 import { AdminLeadCommentsComponent } from './admin-lead-comments.component';
 import { ADMIN_PERMISSIONS, adminCan } from './admin-permissions';
 import { PIPELINE_STATUSES, UNASSIGNED, fill } from './admin-leads-view';
+import { injectAdminCopy } from './admin-copy';
 
 /** Drawer input: the lead to show (mirrored in the URL as `?open=<id>`). */
 export interface AdminLeadDrawerData {
@@ -101,7 +102,7 @@ export class AdminLeadDrawerComponent {
   private readonly data = inject<AdminLeadDrawerData>(DIALOG_DATA);
   protected readonly ref = inject(UiDrawerRef);
 
-  protected readonly pageCopy = inject(ConfigService).get('copy').admin.leads;
+  protected readonly pageCopy = injectAdminCopy().leads;
   protected readonly copy = this.pageCopy.drawer;
   private readonly callbackWindows = inject(ConfigService).get('copy').report.callbackWindows;
 

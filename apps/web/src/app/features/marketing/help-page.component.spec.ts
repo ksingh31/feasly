@@ -8,6 +8,8 @@ import { DEFAULT_APP_CONFIG } from '../../core/config/app-config.defaults';
 import type { HelpAnswerSource } from '../../core/config/app-config';
 import { DEFAULT_HELP_COPY } from './help-copy.defaults';
 import { HelpPageComponent } from './help-page.component';
+import { DEFAULT_ZONING_GUIDE_COPY } from '../../core/config/zoning-guide-copy.defaults';
+import { DEFAULT_PILLAR_GUIDE_COPY } from './pillar-guide-copy.defaults';
 
 /**
  * #834: /help groups reused FAQ answers by topic, filters them client-side
@@ -66,8 +68,8 @@ describe('HelpPageComponent', () => {
     const copy = DEFAULT_APP_CONFIG.copy;
     const sources: Record<HelpAnswerSource, readonly { q: string }[]> = {
       faq: copy.marketing.faq.items,
-      pillarGuide: copy.marketing.pillarGuide.faqs,
-      zoningGuide: copy.marketing.zoningGuide.faqs,
+      pillarGuide: DEFAULT_PILLAR_GUIDE_COPY.faqs,
+      zoningGuide: DEFAULT_ZONING_GUIDE_COPY.faqs,
       communities: copy.communities.faqItems,
     };
     for (const topic of DEFAULT_HELP_COPY.topics) {

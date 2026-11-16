@@ -71,4 +71,33 @@ describe('BuilderSettingsApiService (#871)', () => {
       .flush({ code: 'forbidden', message: 'Nope.' }, { status: 403, statusText: 'Forbidden' });
     expect(message).toBe('Nope.');
   });
+
+  it('GETs the notification preferences (#864)', () => {
+    service.getNotificationPreferences().subscribe();
+    const req = http.expectOne((r) => r.url.endsWith('/api/v1/builder/notifications/preferences'));
+    expect(req.request.method).toBe('GET');
+    expect(req.request.withCredentials).toBe(true);
+    req.flush({});
+  });
+
+  it('PUTs a partial preferences update and surfaces a 409 LAST_ADMIN (#864)', () => {
+    let error: { code: string; message: string } | null = null;
+    service
+      .updateNotificationPreferences({ billingEmail: false })
+      .subscribe({ error: (e: { code: string; message: string }) => (error = e) });
+    const req = http.expectOne((r) => r.url.endsWith('/api/v1/builder/notifications/preferences'));
+    expect(req.request.method).toBe('PUT');
+    expect(req.request.body).toEqual({ billingEmail: false });
+    expect(req.request.withCredentials).toBe(true);
+    req.flush(
+      { code: 'LAST_ADMIN', message: 'Billing emails must reach at least one admin.' },
+      { status: 409, statusText: 'Conflict' },
+    );
+    expect(error).toEqual(
+      expect.objectContaining({
+        code: 'LAST_ADMIN',
+        message: 'Billing emails must reach at least one admin.',
+      }),
+    );
+  });
 });

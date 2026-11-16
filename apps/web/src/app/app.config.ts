@@ -27,7 +27,6 @@ import { ConsentState } from './features/consent/consent.state';
 import { CampaignSourceState } from './features/consent/campaign-source.state';
 import { AdminAuthState } from './features/admin/admin-auth.state';
 import { BuilderState, EMPTY_SUMMARY } from './features/builder/builder.state';
-import { BuilderBillingState } from './features/builder/builder-billing.state';
 import { DueInvoiceBannersState } from './features/builder/due-invoice-banners.state';
 import { BuilderReportContractState } from './features/builder/builder-report-contract.state';
 import { BuilderTeamState } from './features/builder/builder-team.state';
@@ -146,13 +145,18 @@ export const appConfig: ApplicationConfig = {
         // bundle: AdminLeadsState, AdminDisputesState, CalibrationState,
         // SheetsSyncState.
         BuilderState,
-        BuilderBillingState,
+        // BuilderBillingState is NOT here (#980): it lazy-loads at the
+        // `builder` shell route via lazyProvider (app.routes.ts) so the
+        // billing state stays out of the initial bundle.
         // BuilderInvoicesState is NOT here: it lazy-loads at the
         // `builder/invoices` route via lazyProvider (app.routes.ts) so the
         // invoices state — and the builder copy it reads — stays out of the
         // initial bundle.
         BuilderReportContractState,
         BuilderTeamState,
+        // BuilderLeadsSeenState (#864, Leads unread badge) is NOT here: it
+        // lazy-loads at the `builder` shell route via lazyProvider
+        // (app.routes.ts) so it stays out of the initial bundle.
         AdminAuthState,
         // CommunityProfileState is transient (never persisted): the property
         // context is navigation-scoped, and a refresh behaves like a direct
@@ -178,6 +182,11 @@ export const appConfig: ApplicationConfig = {
           ComparisonState,
           AdminAuthState,
           BuilderState,
+          // #864: last Leads visit per org id (org UUID → ISO timestamp, no
+          // PII) so the Leads unread badge survives a reload. A string key
+          // (the state's name) so the lazy-loaded class stays out of the
+          // initial bundle; the plugin rehydrates it on the lazy UpdateState.
+          'builderLeadsSeen',
           // Due-invoice banner UI state (dismissed/open/collapsed): invoice
           // ids are opaque UUIDs (no PII) and dismissal must survive a
           // reload (Karan). The state itself lazy-loads at the dashboard
