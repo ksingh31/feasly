@@ -33,7 +33,7 @@
  * Only services and composition.ts may import from src/db/ — enforced by
  * test/boundaries.test.ts.
  */
-import { and, desc, eq, ilike, inArray, isNotNull, lte, ne, sql } from 'drizzle-orm';
+import { and, desc, eq, ilike, inArray, isNotNull, isNull, lt, lte, ne, sql } from 'drizzle-orm';
 import { randomUUID } from 'node:crypto';
 import type { BillingConfig } from '../../config';
 import type { AppDb } from '../../db/client';
@@ -48,6 +48,17 @@ import {
 import { isReportingOnTime } from '../../lib/billing-deadlines';
 import { classifyChargeOutcome } from '../../lib/charge-outcome';
 import { computeInvoiceTax } from '../../lib/tax-math';
+import {
+  MAX_DUNNING_GRACE_DAYS,
+  MIN_DUNNING_GRACE_DAYS,
+  daysOverdue,
+  effectiveGraceDays,
+  isDunningState,
+  manualDueAt,
+  retriesExhausted,
+  retryDueAt,
+  type DunningState,
+} from '../../lib/dunning-schedule';
 import {
   readDefaultPaymentMethod,
   requireKnownPaymentMethod,
@@ -154,6 +165,25 @@ export interface CommissionInvoiceRecord {
    * per invoice while the invoice is unpaid.
    */
   readonly paymentMethod: BuilderPaymentMethod;
+  /**
+   * #718 dunning: the invoice's grace period in days (admin override, else
+   * BILLING_DUNNING_GRACE_DAYS). Card: days from a failed charge to the
+   * next automatic retry. Manual: days after the review window before the
+   * invoice is overdue.
+   */
+  readonly retryGraceDays: number;
+  /** Automatic retries allowed after the first charge (BILLING_MAX_CHARGE_RETRIES). */
+  readonly maxChargeRetries: number;
+  /** When the daily timer next retries the failed charge; null = none scheduled. */
+  readonly nextRetryAt: Date | null;
+  /** Admin control over automatic retries and reminders. */
+  readonly dunningState: DunningState;
+  /** When the final automatic retry failed (collections); null otherwise. */
+  readonly collectionsAt: Date | null;
+  /** Unpaid manual-method invoice due date (review end + grace); null otherwise. */
+  readonly dueAt: Date | null;
+  /** Whole days past `dueAt`; 0 when not overdue. */
+  readonly overdueDays: number;
   readonly createdAt: Date;
   readonly updatedAt: Date;
 }
@@ -215,6 +245,25 @@ export interface SettlementOptions {
   readonly declineCode?: string;
 }
 
+/** Who started a retry charge (#718) — recorded on the audit row. */
+export type RetryTrigger = 'admin' | 'schedule' | 'builder';
+
+export interface RetryChargeOptions {
+  /**
+   * 'admin' (default): the admin Retry button. 'schedule': the daily
+   * timer — additionally requires the retry to be due on an active
+   * schedule. Builder Pay now goes through `payNow`.
+   */
+  readonly trigger?: Exclude<RetryTrigger, 'builder'>;
+}
+
+/** Admin edit of one invoice's retry schedule (#718). */
+export type DunningUpdate =
+  | { readonly action: 'pause' }
+  | { readonly action: 'resume' }
+  | { readonly action: 'cancel' }
+  | { readonly action: 'set_grace_days'; readonly graceDays: number };
+
 export interface CommissionService {
   /**
    * Won deal → draft invoice. Reads the reported contract from the
@@ -242,7 +291,47 @@ export interface CommissionService {
    * never be retried); capped by BILLING_MAX_CHARGE_RETRIES (422 past the
    * cap). The 7-day review window is NOT reopened on retry.
    */
-  retryCharge(invoiceId: string): Promise<CommissionInvoiceRecord>;
+  retryCharge(
+    invoiceId: string,
+    options?: RetryChargeOptions,
+  ): Promise<CommissionInvoiceRecord>;
+  /**
+   * #718 builder Pay now: re-charge a `failed` card invoice against the
+   * card on file right away. Not capped by BILLING_MAX_CHARGE_RETRIES and
+   * allowed while retries are paused or cancelled (owner: the builder can
+   * always pay now, never change the schedule). Idempotent: an invoice
+   * already `finalized` / `paid` is returned unchanged with no new charge;
+   * concurrent submissions share one PaymentIntent. 409 for any other
+   * status or a manual payment method. Tenant scoping is the caller's job.
+   */
+  payNow(invoiceId: string): Promise<CommissionInvoiceRecord>;
+  /**
+   * #718 admin: pause, resume or cancel automatic retries/reminders, or
+   * set the invoice's grace period (1–90 days; reschedules the next retry
+   * from the last failure). 409 on paid, void or disputed invoices.
+   * Audited with the admin's email.
+   */
+  updateDunning(
+    invoiceId: string,
+    update: DunningUpdate,
+    adminEmail: string | null,
+  ): Promise<CommissionInvoiceRecord>;
+  /**
+   * #718 timer input: failed card invoices whose automatic retry is due —
+   * dunning active, not in collections, retries left.
+   */
+  findDueRetries(now: Date): Promise<CommissionInvoiceRecord[]>;
+  /**
+   * #718 timer input: unpaid manual-method invoices past their due date
+   * (review end + grace) whose overdue reminder has not been sent and
+   * whose dunning is active.
+   */
+  findOverdueManualInvoices(now: Date): Promise<CommissionInvoiceRecord[]>;
+  /**
+   * #718: send a manual invoice's overdue reminder exactly once (claimed
+   * by a conditional UPDATE). Null when already sent or no longer due.
+   */
+  sendOverdueReminder(invoiceId: string): Promise<CommissionInvoiceRecord | null>;
   /** Builder disputes — charge clock FROZEN, ops alerted. */
   disputeInvoice(invoiceId: string, reason: string): Promise<CommissionInvoiceRecord>;
   /** Human resolution of a dispute: back to review or void. */
@@ -552,12 +641,30 @@ function invoiceAmounts(
   };
 }
 
+/** Inputs `toRecord` needs to derive the #718 dunning fields. */
+interface DunningContext {
+  readonly defaultGraceDays: number | undefined;
+  readonly maxRetries: number;
+  readonly now: Date;
+}
+
+/** Statuses that still owe money — a manual invoice in one of these has a due date. */
+const UNPAID_DUE_STATUSES: ReadonlySet<string> = new Set(['in_review', 'failed']);
+
 function toRecord(
   row: typeof commissionInvoices.$inferSelect,
   leadName: string,
   defaultRate: number,
   taxLabel: string | null,
+  dunning: DunningContext,
 ): CommissionInvoiceRecord {
+  const graceDays = effectiveGraceDays(row.retryGraceDays, dunning.defaultGraceDays);
+  const dueAt =
+    row.paymentMethod !== 'card' &&
+    row.reviewDueAt !== null &&
+    UNPAID_DUE_STATUSES.has(row.status)
+      ? manualDueAt(row.reviewDueAt, graceDays)
+      : null;
   return {
     id: row.id,
     tenantKey: row.tenantKey,
@@ -588,6 +695,13 @@ function toRecord(
     paymentReference: row.paymentReference,
     invoiceNumber: row.invoiceNumber,
     paymentMethod: row.paymentMethod as BuilderPaymentMethod,
+    retryGraceDays: graceDays,
+    maxChargeRetries: dunning.maxRetries,
+    nextRetryAt: row.nextRetryAt,
+    dunningState: isDunningState(row.dunningState) ? row.dunningState : 'active',
+    collectionsAt: row.collectionsAt,
+    dueAt,
+    overdueDays: dueAt === null ? 0 : daysOverdue(dueAt, dunning.now),
     createdAt: row.createdAt,
     updatedAt: row.updatedAt,
   };
@@ -690,6 +804,15 @@ export function createCommissionService(
   // are snapshotted on the row, so later config changes never reprice.
   const taxConfig = billing.tax;
   const taxLabel = taxConfig?.label ?? null;
+  // #718: retry cap + grace default for the dunning schedule.
+  const maxRetries = billing.maxChargeRetries ?? 3;
+  function dunningContext(): DunningContext {
+    return {
+      defaultGraceDays: billing.dunningGraceDays,
+      maxRetries,
+      now: now(),
+    };
+  }
 
   function requireCommissionModel(): void {
     if (billing.model !== 'commission') {
@@ -759,7 +882,7 @@ export function createCommissionService(
         `Invoice "${id}" changed concurrently — expected '${from}'`,
       );
     }
-    const record = toRecord(updated, await leadNameFor(db, updated.leadId), billing.commissionRate, taxLabel);
+    const record = toRecord(updated, await leadNameFor(db, updated.leadId), billing.commissionRate, taxLabel, dunningContext());
     await audit.append({
       tenantKey: record.tenantKey,
       eventType,
@@ -849,7 +972,9 @@ export function createCommissionService(
       | 'invoice_ready'
       | 'payment_received'
       | 'payment_failed'
-      | 'payment_action_required',
+      | 'payment_action_required'
+      | 'invoice_overdue',
+    options: { readonly finalNotice?: boolean } = {},
   ): Promise<void> {
     const to = await resolveBuilderEmail(invoice.tenantKey);
     // Short public reference: first 8 of the uuid (stable, non-sensitive).
@@ -896,13 +1021,28 @@ export function createCommissionService(
         currency: invoice.currency,
         ...emailTax(invoice),
       });
+    } else if (kind === 'invoice_overdue') {
+      // #718: manual-method invoice past its due date.
+      if (!invoice.dueAt) return;
+      delivery = await email.sendCommissionInvoiceOverdue({
+        to,
+        invoiceRef,
+        commissionCents: invoice.commissionCents,
+        currency: invoice.currency,
+        dueAt: invoice.dueAt,
+        ...emailTax(invoice),
+      });
     } else {
+      // #718: the email names the next automatic retry, or says this was
+      // the last one (final notice).
       delivery = await email.sendCommissionPaymentFailed({
         to,
         invoiceRef,
         commissionCents: invoice.commissionCents,
         currency: invoice.currency,
-        updateWithinDays: 7,
+        updateWithinDays: invoice.retryGraceDays,
+        nextRetryAt: invoice.nextRetryAt,
+        finalNotice: options.finalNotice === true,
         ...emailTax(invoice),
       });
     }
@@ -915,6 +1055,7 @@ export function createCommissionService(
       entityId: invoice.id,
       payload: {
         kind,
+        ...(options.finalNotice === true ? { finalNotice: true } : {}),
         ...(delivery.sent ? {} : { failureReason: delivery.failureReason }),
       },
     });
@@ -981,7 +1122,7 @@ export function createCommissionService(
   /** Current record for an invoice (after losing a settlement race). */
   async function currentRecord(id: string): Promise<CommissionInvoiceRecord> {
     const row = await requireInvoice(id);
-    return toRecord(row, await leadNameFor(db, row.leadId), billing.commissionRate, taxLabel);
+    return toRecord(row, await leadNameFor(db, row.leadId), billing.commissionRate, taxLabel, dunningContext());
   }
 
   /**
@@ -1000,18 +1141,38 @@ export function createCommissionService(
       readonly source: SettlementSource;
     },
   ): Promise<CommissionInvoiceRecord> {
+    // #718 dunning schedule, set in the same conditional UPDATE as the
+    // move to 'failed': the next automatic retry is one grace period after
+    // this failure. When every retry is used up the invoice is flagged for
+    // collections instead (once — a later Pay now failure keeps the flag).
+    const failedAt = now();
+    const graceDays = effectiveGraceDays(row.retryGraceDays, billing.dunningGraceDays);
+    const exhausted = retriesExhausted(row.retryCount, maxRetries);
+    const enterCollections = exhausted && row.collectionsAt === null;
+    const scheduleRetry =
+      !exhausted &&
+      row.paymentMethod === 'card' &&
+      row.dunningState === 'active';
+    const nextRetryAt = scheduleRetry ? retryDueAt(failedAt, graceDays) : null;
     let invoice: CommissionInvoiceRecord;
     try {
       invoice = await transition(
         row.id,
         row.status as CommissionInvoiceStatus,
         'failed',
-        {},
+        {
+          lastChargeFailedAt: failedAt,
+          nextRetryAt,
+          ...(enterCollections ? { collectionsAt: failedAt } : {}),
+        },
         'invoice.charge_failed',
         // BILL-03: the dunning queue shows the last failure reason.
         {
           paymentIntentId,
           source: details.source,
+          retryCount: row.retryCount,
+          nextRetryAt: nextRetryAt?.toISOString() ?? null,
+          ...(enterCollections ? { collections: true } : {}),
           ...(details.failureReason !== undefined && details.failureReason.length > 0
             ? { failureReason: details.failureReason }
             : {}),
@@ -1024,8 +1185,28 @@ export function createCommissionService(
       if (isConcurrentChange(error)) return currentRecord(row.id);
       throw error;
     }
-    // BILL-04: "card declined — update it" email on failed charge.
-    await notifyBuilder(invoice, 'payment_failed');
+    // BILL-04: "card declined — update it" email on failed charge; #718:
+    // the last automatic attempt sends the final notice instead.
+    await notifyBuilder(invoice, 'payment_failed', { finalNotice: enterCollections });
+    if (enterCollections) {
+      // #718: one collections alert replaces the per-failure alert.
+      await audit.append({
+        tenantKey: invoice.tenantKey,
+        eventType: 'invoice.collections_flagged',
+        entityType: 'commission_invoice',
+        entityId: invoice.id,
+        payload: { retryCount: invoice.retryCount, maxRetries, paymentIntentId },
+      });
+      await alertOps(
+        'Billing invoice flagged for collections',
+        `Invoice ${invoice.invoiceNumber} (${invoice.id}, ` +
+          `$${(invoice.totalCents / 100).toFixed(2)} ${invoice.currency}, ` +
+          `tenant ${invoice.tenantKey}) failed its final automatic retry ` +
+          `(${invoice.retryCount} of ${maxRetries}). Payment intent ${paymentIntentId}. ` +
+          `Contact the builder, record an off-card payment, or wait for their Pay now.`,
+      );
+      return invoice;
+    }
     await alertOps(
       'Billing charge failed — dunning started',
       `Off-session charge for invoice ${invoice.id} ` +
@@ -1082,7 +1263,7 @@ export function createCommissionService(
     const row = await requireInvoice(invoice.id);
     // A webhook that raced ahead may already have settled it.
     if (row.status !== 'finalized' || row.stripePaymentIntentId !== intent.id) {
-      return toRecord(row, await leadNameFor(db, row.leadId), billing.commissionRate, taxLabel);
+      return toRecord(row, await leadNameFor(db, row.leadId), billing.commissionRate, taxLabel, dunningContext());
     }
     if (outcome === 'requires_action') {
       return settleActionRequired(row, intent.id, 'charge');
@@ -1136,7 +1317,67 @@ export function createCommissionService(
         disputeReason: row.disputeReason,
       },
     });
-    return toRecord(row, await leadNameFor(db, row.leadId), billing.commissionRate, taxLabel);
+    return toRecord(row, await leadNameFor(db, row.leadId), billing.commissionRate, taxLabel, dunningContext());
+  }
+
+  /**
+   * Re-charge a failed card invoice (BILL-03 retry, #718 schedule / Pay
+   * now): a NEW off-session PaymentIntent with idempotency key
+   * `feasly:commission_invoices:{id}:retry:{n}` and `failed → finalized`,
+   * settled like the first charge. Every caller for the same attempt uses
+   * the same key, amount, description and metadata, so concurrent callers
+   * (double click, admin + timer) get the same PaymentIntent — one charge.
+   */
+  async function chargeFailedInvoice(
+    row: typeof commissionInvoices.$inferSelect,
+    trigger: RetryTrigger,
+  ): Promise<CommissionInvoiceRecord> {
+    const invoiceId = row.id;
+    // The retry must respect the invoice's current payment method: staff
+    // may have switched a failed invoice to manual (e.g. cheque) — a card
+    // retry here would double-collect.
+    requireCardPaymentMethod(invoiceId, row.paymentMethod);
+    const customerId = await stripe.getCustomerId(row.tenantKey);
+    if (!customerId) {
+      throw new HttpError(
+        422,
+        ErrorCodes.BILLING_NOT_CONFIGURED,
+        `Tenant "${row.tenantKey}" has no card on file — cannot retry charge`,
+      );
+    }
+    const retryNumber = row.retryCount + 1;
+    const intent = await stripe.createOffSessionPaymentIntent(
+      {
+        amountCents: invoiceTotalCents(row),
+        currency: row.currency,
+        customerId,
+        description:
+          `Feasly commission ${formatRatePercent(effectiveRatePercent(row, billing.commissionRate))} — invoice ${invoiceId} ` +
+          `(retry ${retryNumber}, contract excl. land, ` +
+          `attribution ${row.attributionId})`,
+        metadata: {
+          [INVOICE_METADATA_KEY]: invoiceId,
+          [CHARGE_ATTEMPT_METADATA_KEY]: String(retryNumber),
+        },
+      },
+      // Idempotency key: distinct per retry attempt.
+      `feasly:commission_invoices:${invoiceId}:retry:${retryNumber}`,
+    );
+    const outcome = classifyChargeOutcome(intent);
+    const invoice = await transition(
+      invoiceId,
+      'failed',
+      'finalized',
+      {
+        stripePaymentIntentId: intent.id,
+        retryCount: retryNumber,
+        // #718: the attempt is running — nothing left scheduled.
+        nextRetryAt: null,
+      },
+      'invoice.charge_retried',
+      { retryNumber, trigger, ...chargeAuditFields(intent, outcome) },
+    );
+    return settleChargeOutcome(invoice, intent, outcome);
   }
 
   return {
@@ -1177,7 +1418,7 @@ export function createCommissionService(
           entityId: existing.id,
           payload: { attributionId },
         });
-        return toRecord(existing, await leadNameFor(db, existing.leadId), billing.commissionRate, taxLabel);
+        return toRecord(existing, await leadNameFor(db, existing.leadId), billing.commissionRate, taxLabel, dunningContext());
       }
 
       const reportedAt = record.updatedAt;
@@ -1250,7 +1491,7 @@ export function createCommissionService(
           });
           return [winner];
         });
-      const invoice = toRecord(row, await leadNameFor(db, row.leadId), billing.commissionRate, taxLabel);
+      const invoice = toRecord(row, await leadNameFor(db, row.leadId), billing.commissionRate, taxLabel, dunningContext());
       await audit.append({
         tenantKey: invoice.tenantKey,
         eventType: 'invoice.created',
@@ -1379,8 +1620,12 @@ export function createCommissionService(
       return settleChargeOutcome(invoice, intent, outcome);
     },
 
-    async retryCharge(invoiceId: string): Promise<CommissionInvoiceRecord> {
+    async retryCharge(
+      invoiceId: string,
+      options: RetryChargeOptions = {},
+    ): Promise<CommissionInvoiceRecord> {
       requireCommissionModel();
+      const trigger = options.trigger ?? 'admin';
       const row = await requireInvoice(invoiceId);
       if (row.status === 'disputed') {
         throw new HttpError(
@@ -1396,11 +1641,7 @@ export function createCommissionService(
           `Invoice "${invoiceId}" is '${row.status}' — only 'failed' can be retried`,
         );
       }
-      // The retry must respect the invoice's current payment method: staff
-      // may have switched a failed invoice to manual (e.g. cheque) — a card
-      // retry here would double-collect.
       requireCardPaymentMethod(invoiceId, row.paymentMethod);
-      const maxRetries = deps.billing.maxChargeRetries ?? 3;
       if (row.retryCount >= maxRetries) {
         throw new HttpError(
           422,
@@ -1409,45 +1650,223 @@ export function createCommissionService(
             'charge retries — manual handling required',
         );
       }
-      const customerId = await stripe.getCustomerId(row.tenantKey);
-      if (!customerId) {
+      if (trigger === 'schedule') {
+        // #718: the timer only charges what the schedule still says is due —
+        // an admin may have paused or cancelled retries since it listed it.
+        const due =
+          row.dunningState === 'active' &&
+          row.collectionsAt === null &&
+          row.nextRetryAt !== null &&
+          row.nextRetryAt.getTime() <= now().getTime();
+        if (!due) {
+          throw new HttpError(
+            409,
+            ErrorCodes.CONFLICT,
+            `Invoice "${invoiceId}" has no automatic retry due (dunning '${row.dunningState}')`,
+          );
+        }
+      }
+      return chargeFailedInvoice(row, trigger);
+    },
+
+    async payNow(invoiceId: string): Promise<CommissionInvoiceRecord> {
+      requireCommissionModel();
+      const row = await requireInvoice(invoiceId);
+      const status = row.status as CommissionInvoiceStatus;
+      // Double submission: the first click already moved the invoice on —
+      // return it as it is now, never a second charge.
+      if (status === 'finalized' || status === 'paid') {
+        return toRecord(row, await leadNameFor(db, row.leadId), billing.commissionRate, taxLabel, dunningContext());
+      }
+      if (status !== 'failed') {
         throw new HttpError(
-          422,
-          ErrorCodes.BILLING_NOT_CONFIGURED,
-          `Tenant "${row.tenantKey}" has no card on file — cannot retry charge`,
+          409,
+          ErrorCodes.CONFLICT,
+          `Invoice "${invoiceId}" is '${status}' — only an invoice whose card payment failed can be paid now`,
         );
       }
-      const retryNumber = row.retryCount + 1;
-      const intent = await stripe.createOffSessionPaymentIntent(
-        {
-          amountCents: invoiceTotalCents(row),
-          currency: row.currency,
-          customerId,
-          description:
-            `Feasly commission ${formatRatePercent(effectiveRatePercent(row, billing.commissionRate))} — invoice ${invoiceId} ` +
-            `(retry ${retryNumber}, contract excl. land, ` +
-            `attribution ${row.attributionId})`,
-          metadata: {
-            [INVOICE_METADATA_KEY]: invoiceId,
-            [CHARGE_ATTEMPT_METADATA_KEY]: String(retryNumber),
-          },
+      // Owner (2026-11-15): the builder can always pay now — paused,
+      // cancelled or in collections included. The retry cap limits only
+      // automatic and admin retries.
+      try {
+        return await chargeFailedInvoice(row, 'builder');
+      } catch (error) {
+        // A concurrent click (same idempotency key → the same
+        // PaymentIntent) won the conditional move; report its result.
+        if (isConcurrentChange(error)) return currentRecord(invoiceId);
+        throw error;
+      }
+    },
+
+    async updateDunning(
+      invoiceId: string,
+      update: DunningUpdate,
+      adminEmail: string | null,
+    ): Promise<CommissionInvoiceRecord> {
+      requireCommissionModel();
+      const row = await requireInvoice(invoiceId);
+      const status = row.status as CommissionInvoiceStatus;
+      if (status === 'paid' || status === 'void' || status === 'disputed') {
+        throw new HttpError(
+          409,
+          ErrorCodes.CONFLICT,
+          `Invoice "${invoiceId}" is '${status}' — its retry schedule cannot change`,
+        );
+      }
+      let graceOverride = row.retryGraceDays;
+      if (update.action === 'set_grace_days') {
+        if (
+          !Number.isInteger(update.graceDays) ||
+          update.graceDays < MIN_DUNNING_GRACE_DAYS ||
+          update.graceDays > MAX_DUNNING_GRACE_DAYS
+        ) {
+          throw new HttpError(
+            400,
+            ErrorCodes.VALIDATION_FAILED,
+            `graceDays must be a whole number from ${MIN_DUNNING_GRACE_DAYS} to ${MAX_DUNNING_GRACE_DAYS}`,
+          );
+        }
+        graceOverride = update.graceDays;
+      }
+      const dunningState: DunningState =
+        update.action === 'pause'
+          ? 'paused'
+          : update.action === 'cancel'
+            ? 'cancelled'
+            : update.action === 'resume'
+              ? 'active'
+              : (isDunningState(row.dunningState) ? row.dunningState : 'active');
+      const graceDays = effectiveGraceDays(graceOverride, billing.dunningGraceDays);
+      // A retry is scheduled only for an active, failed card invoice that
+      // still has retries left; it runs one grace period after the last
+      // failure (or from now for a legacy row without one).
+      const retryable =
+        dunningState === 'active' &&
+        status === 'failed' &&
+        row.paymentMethod === 'card' &&
+        row.collectionsAt === null &&
+        !retriesExhausted(row.retryCount, maxRetries);
+      const nextRetryAt = retryable
+        ? retryDueAt(row.lastChargeFailedAt ?? now(), graceDays)
+        : null;
+      const [updated] = await db
+        .update(commissionInvoices)
+        .set({
+          dunningState,
+          retryGraceDays: graceOverride,
+          nextRetryAt,
+          updatedAt: now(),
+        })
+        .where(
+          and(
+            eq(commissionInvoices.id, invoiceId),
+            eq(commissionInvoices.status, status),
+          ),
+        )
+        .returning();
+      if (updated === undefined) {
+        throw new HttpError(
+          409,
+          ErrorCodes.CONFLICT,
+          `Invoice "${invoiceId}" changed concurrently — expected '${status}'`,
+        );
+      }
+      const record = toRecord(updated, await leadNameFor(db, updated.leadId), billing.commissionRate, taxLabel, dunningContext());
+      await audit.append({
+        tenantKey: record.tenantKey,
+        eventType: 'invoice.dunning_updated',
+        entityType: 'commission_invoice',
+        entityId: record.id,
+        payload: {
+          action: update.action,
+          fromState: row.dunningState,
+          toState: dunningState,
+          fromGraceDays: row.retryGraceDays,
+          toGraceDays: graceOverride,
+          nextRetryAt: nextRetryAt?.toISOString() ?? null,
+          adminEmail,
         },
-        // Idempotency key: distinct per retry attempt.
-        `feasly:commission_invoices:${invoiceId}:retry:${retryNumber}`,
+      });
+      return record;
+    },
+
+    async findDueRetries(reviewNow: Date): Promise<CommissionInvoiceRecord[]> {
+      requireCommissionModel();
+      const rows = await db.query.commissionInvoices.findMany({
+        where: and(
+          eq(commissionInvoices.status, 'failed'),
+          eq(commissionInvoices.paymentMethod, 'card'),
+          eq(commissionInvoices.dunningState, 'active'),
+          isNull(commissionInvoices.collectionsAt),
+          lte(commissionInvoices.nextRetryAt, reviewNow),
+          lt(commissionInvoices.retryCount, maxRetries),
+        ),
+      });
+      const names = await leadNamesById(db, rows.map((row) => row.leadId));
+      return rows.map((row) => toRecord(row, names.get(row.leadId) ?? '', billing.commissionRate, taxLabel, dunningContext()));
+    },
+
+    async findOverdueManualInvoices(
+      reviewNow: Date,
+    ): Promise<CommissionInvoiceRecord[]> {
+      requireCommissionModel();
+      // Every grace period is at least a day, so "review window closed" is
+      // a superset; the per-invoice due date is checked below.
+      const rows = await db.query.commissionInvoices.findMany({
+        where: and(
+          eq(commissionInvoices.status, 'in_review'),
+          ne(commissionInvoices.paymentMethod, 'card'),
+          eq(commissionInvoices.dunningState, 'active'),
+          isNull(commissionInvoices.overdueRemindedAt),
+          lte(commissionInvoices.reviewDueAt, reviewNow),
+        ),
+      });
+      const overdue = rows.filter(
+        (row) =>
+          row.reviewDueAt !== null &&
+          manualDueAt(
+            row.reviewDueAt,
+            effectiveGraceDays(row.retryGraceDays, billing.dunningGraceDays),
+          ).getTime() <= reviewNow.getTime(),
       );
-      const outcome = classifyChargeOutcome(intent);
-      const invoice = await transition(
-        invoiceId,
-        'failed',
-        'finalized',
-        {
-          stripePaymentIntentId: intent.id,
-          retryCount: retryNumber,
+      const names = await leadNamesById(db, overdue.map((row) => row.leadId));
+      return overdue.map((row) => toRecord(row, names.get(row.leadId) ?? '', billing.commissionRate, taxLabel, dunningContext()));
+    },
+
+    async sendOverdueReminder(
+      invoiceId: string,
+    ): Promise<CommissionInvoiceRecord | null> {
+      requireCommissionModel();
+      // Claim the reminder first (conditional on it not being sent yet):
+      // a second timer run, or a concurrent one, finds nothing to claim.
+      const [claimed] = await db
+        .update(commissionInvoices)
+        .set({ overdueRemindedAt: now() })
+        .where(
+          and(
+            eq(commissionInvoices.id, invoiceId),
+            eq(commissionInvoices.status, 'in_review'),
+            ne(commissionInvoices.paymentMethod, 'card'),
+            eq(commissionInvoices.dunningState, 'active'),
+            isNull(commissionInvoices.overdueRemindedAt),
+          ),
+        )
+        .returning();
+      if (claimed === undefined) return null;
+      const invoice = toRecord(claimed, await leadNameFor(db, claimed.leadId), billing.commissionRate, taxLabel, dunningContext());
+      await audit.append({
+        tenantKey: invoice.tenantKey,
+        eventType: 'invoice.overdue_reminder',
+        entityType: 'commission_invoice',
+        entityId: invoice.id,
+        payload: {
+          paymentMethod: invoice.paymentMethod,
+          dueAt: invoice.dueAt?.toISOString() ?? null,
+          overdueDays: invoice.overdueDays,
         },
-        'invoice.charge_retried',
-        { retryNumber, ...chargeAuditFields(intent, outcome) },
-      );
-      return settleChargeOutcome(invoice, intent, outcome);
+      });
+      await notifyBuilder(invoice, 'invoice_overdue');
+      return invoice;
     },
 
     async disputeInvoice(
@@ -1545,7 +1964,7 @@ export function createCommissionService(
       if (TERMINAL_STATUSES.has(row.status as CommissionInvoiceStatus)) {
         // Webhook redelivery for an already-settled invoice: no-op, no
         // duplicate audit row.
-        return toRecord(row, await leadNameFor(db, row.leadId), billing.commissionRate, taxLabel);
+        return toRecord(row, await leadNameFor(db, row.leadId), billing.commissionRate, taxLabel, dunningContext());
       }
       const invoice = await transition(
         row.id,
@@ -1629,6 +2048,8 @@ export function createCommissionService(
           paymentReference: reference,
           paidAt,
           reviewDueAt: null,
+          // #718: settled — no retry left scheduled.
+          nextRetryAt: null,
         },
         'invoice.paid_manually',
         {
@@ -1726,7 +2147,7 @@ export function createCommissionService(
           `Invoice "${invoiceId}" changed concurrently — expected '${status}'`,
         );
       }
-      const record = toRecord(updated, await leadNameFor(db, updated.leadId), billing.commissionRate, taxLabel);
+      const record = toRecord(updated, await leadNameFor(db, updated.leadId), billing.commissionRate, taxLabel, dunningContext());
       await audit.append({
         tenantKey: record.tenantKey,
         eventType: 'invoice.commission_rate_changed',
@@ -1767,7 +2188,7 @@ export function createCommissionService(
       const frozenFailed = await frozenDispute(row, paymentIntentId, 'failed');
       if (frozenFailed !== null) return frozenFailed;
       if (TERMINAL_STATUSES.has(row.status as CommissionInvoiceStatus)) {
-        return toRecord(row, await leadNameFor(db, row.leadId), billing.commissionRate, taxLabel);
+        return toRecord(row, await leadNameFor(db, row.leadId), billing.commissionRate, taxLabel, dunningContext());
       }
       return settleFailed(row, paymentIntentId, {
         failureReason,
@@ -1790,7 +2211,7 @@ export function createCommissionService(
       // action_required (redelivery / the charge step got there first),
       // settled, or disputed → unchanged, nothing sent.
       if (row.status !== 'finalized') {
-        return toRecord(row, await leadNameFor(db, row.leadId), billing.commissionRate, taxLabel);
+        return toRecord(row, await leadNameFor(db, row.leadId), billing.commissionRate, taxLabel, dunningContext());
       }
       return settleActionRequired(
         row,
@@ -1868,7 +2289,7 @@ export function createCommissionService(
         db,
         rows.map((row) => row.leadId),
       );
-      return rows.map((row) => toRecord(row, names.get(row.leadId) ?? '', billing.commissionRate, taxLabel));
+      return rows.map((row) => toRecord(row, names.get(row.leadId) ?? '', billing.commissionRate, taxLabel, dunningContext()));
     },
 
     async findAwaitingSettlement(
@@ -1888,7 +2309,7 @@ export function createCommissionService(
         db,
         rows.map((row) => row.leadId),
       );
-      return rows.map((row) => toRecord(row, names.get(row.leadId) ?? '', billing.commissionRate, taxLabel));
+      return rows.map((row) => toRecord(row, names.get(row.leadId) ?? '', billing.commissionRate, taxLabel, dunningContext()));
     },
 
     async countSkippedManualReviews(reviewNow: Date): Promise<number> {
@@ -1914,7 +2335,7 @@ export function createCommissionService(
       if (row === undefined) {
         return null;
       }
-      return toRecord(row, await leadNameFor(db, row.leadId), billing.commissionRate, taxLabel);
+      return toRecord(row, await leadNameFor(db, row.leadId), billing.commissionRate, taxLabel, dunningContext());
     },
 
     async findByLead(leadId: string): Promise<CommissionInvoiceRecord | null> {
@@ -1925,12 +2346,12 @@ export function createCommissionService(
       if (row === undefined) {
         return null;
       }
-      return toRecord(row, await leadNameFor(db, row.leadId), billing.commissionRate, taxLabel);
+      return toRecord(row, await leadNameFor(db, row.leadId), billing.commissionRate, taxLabel, dunningContext());
     },
 
     async getById(invoiceId: string): Promise<CommissionInvoiceRecord> {
       const invoiceRow = await requireInvoice(invoiceId);
-      return toRecord(invoiceRow, await leadNameFor(db, invoiceRow.leadId), billing.commissionRate, taxLabel);
+      return toRecord(invoiceRow, await leadNameFor(db, invoiceRow.leadId), billing.commissionRate, taxLabel, dunningContext());
     },
 
     async getCommissionRatePercent(tenantKey: string): Promise<number> {
@@ -2023,7 +2444,7 @@ export function createCommissionService(
       const from = row.paymentMethod as BuilderPaymentMethod;
       if (from === validated) {
         // Idempotent: same method is a no-op (still returns the record).
-        return toRecord(row, await leadNameFor(db, row.leadId), billing.commissionRate, taxLabel);
+        return toRecord(row, await leadNameFor(db, row.leadId), billing.commissionRate, taxLabel, dunningContext());
       }
       // Conditional update on the current status — a concurrent
       // transition (e.g. the timer finalizing this invoice) surfaces as
@@ -2045,7 +2466,7 @@ export function createCommissionService(
           `Invoice "${invoiceId}" changed concurrently — expected '${status}'`,
         );
       }
-      const record = toRecord(updated, await leadNameFor(db, updated.leadId), billing.commissionRate, taxLabel);
+      const record = toRecord(updated, await leadNameFor(db, updated.leadId), billing.commissionRate, taxLabel, dunningContext());
       await audit.append({
         tenantKey: record.tenantKey,
         eventType: 'invoice.payment_method_changed',
@@ -2105,7 +2526,7 @@ export function createCommissionService(
         db,
         rows.map((row) => row.leadId),
       );
-      return rows.map((row) => toRecord(row, names.get(row.leadId) ?? '', billing.commissionRate, taxLabel));
+      return rows.map((row) => toRecord(row, names.get(row.leadId) ?? '', billing.commissionRate, taxLabel, dunningContext()));
     },
   };
 }

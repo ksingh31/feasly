@@ -400,6 +400,11 @@ const targets = [
     entry: 'src/functions/billing-invoice-confirm-payment.ts',
     out: 'billing-invoice-confirm-payment/index.js',
   },
+  // #718 — builder Pay now for a failed card invoice (POST).
+  {
+    entry: 'src/functions/billing-invoice-pay.ts',
+    out: 'billing-invoice-pay/index.js',
+  },
   // Dispute console (billing/01 follow-on, was OPS-009).
   {
     entry: 'src/functions/admin-disputes.ts',
@@ -430,6 +435,11 @@ const targets = [
   {
     entry: 'src/functions/admin-billing-retry.ts',
     out: 'admin-billing-retry/index.js',
+  },
+  // #718: edit one invoice's retry schedule (admin, billing:manage).
+  {
+    entry: 'src/functions/admin-billing-dunning.ts',
+    out: 'admin-billing-dunning/index.js',
   },
   // #753: simulated payment provider dev actions (404 unless
   // PAYMENTS_PROVIDER=simulated).

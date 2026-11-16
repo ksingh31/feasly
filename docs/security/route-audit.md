@@ -129,6 +129,7 @@ Related: [rate-limits.md](rate-limits.md) · [asvs-l1.md](asvs-l1.md) ·
 | GET | `/api/v1/admin/funnels` | admin | analytics:read | 300/min per session | live |  |
 | GET | `/api/v1/admin/billing` | admin | billing:read | 300/min per session | live |  |
 | POST | `/api/v1/admin/billing/invoices/{id}/retry` | admin | billing:manage | 300/min per session | live |  |
+| POST | `/api/v1/admin/billing/invoices/{id}/dunning` | admin | billing:manage | 300/min per session | live |  |
 | POST | `/api/v1/admin/billing/simulated/invoices/{id}/events` | admin | billing:manage | 300/min per session | live |  |
 | POST | `/api/v1/admin/billing/invoices/{id}/mark-paid` | admin | billing:manage | 300/min per session | live |  |
 | POST | `/api/v1/admin/billing/invoices/{id}/commission-rate` | admin | billing:manage | 300/min per session | live |  |
@@ -155,6 +156,7 @@ Related: [rate-limits.md](rate-limits.md) · [asvs-l1.md](asvs-l1.md) ·
 | PUT | `/api/v1/billing/payment-method` | builder-session | builder:billing | 100/min per session | live |  |
 | PUT | `/api/v1/billing/invoices/{id}/payment-method` | builder-session | builder:billing | 100/min per session | live |  |
 | POST | `/api/v1/billing/invoices/{id}/confirm-payment` | builder-session | builder:billing | 100/min per session | live |  |
+| POST | `/api/v1/billing/invoices/{id}/pay` | builder-session | builder:billing | 100/min per session | live |  |
 | GET | `/api/v1/billing/invoices/{id}` | builder-session | builder:billing | 100/min per session | live |  |
 | GET | `/api/v1/billing/invoices/{id}/pdf` | builder-session | builder:billing | 100/min per session | live |  |
 | GET | `/api/v1/billing/invoices` | builder-session | builder:billing | 100/min per session | live |  |

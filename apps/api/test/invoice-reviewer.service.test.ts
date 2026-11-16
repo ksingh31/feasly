@@ -356,6 +356,8 @@ describe('invoice reviewer timer', () => {
       reconciledPaid: 0,
       reconciledFailed: 0,
       stillPending: 0,
+      retried: 0,
+      overdueReminded: 0,
       errors: [],
     });
   });

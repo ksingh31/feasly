@@ -115,6 +115,7 @@ describe('lead route', () => {
         sendCommissionPaymentReceived: async () => ({ sent: true as const, provider: 'log' as const }),
         sendCommissionPaymentFailed: async () => ({ sent: true as const, provider: 'log' as const }),
         sendCommissionPaymentActionRequired: async () => ({ sent: true as const, provider: 'log' as const }),
+        sendCommissionInvoiceOverdue: async () => ({ sent: true as const, provider: 'log' as const }),
         sendContractNeedsRecording: async () => ({ sent: true as const, provider: 'log' as const }),
       },
       unsubscribe: createUnsubscribeService({

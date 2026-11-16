@@ -176,6 +176,7 @@ describe('loadConfig', () => {
         isProduction: false,
         maxChargeRetries: 3,
         settlementThresholdHours: 24,
+        dunningGraceDays: 7,
         cardExpiryWarningDays: 30,
         tax: {
           enabled: false,
@@ -333,6 +334,7 @@ describe('loadConfig', () => {
       isProduction: false,
       maxChargeRetries: 3,
       settlementThresholdHours: 24,
+      dunningGraceDays: 7,
       cardExpiryWarningDays: 30,
       tax: {
         enabled: false,

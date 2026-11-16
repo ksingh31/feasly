@@ -21,6 +21,7 @@ import { EmailProviderError, type EmailFailureCode } from './email.types';
 import { sanitizeErrorMessage } from '../../lib/sanitize-error';
 import {
   renderCallbackTeamEmail,
+  renderCommissionInvoiceOverdueEmail,
   renderCommissionInvoiceReadyEmail,
   renderCommissionPaymentFailedEmail,
   renderCommissionPaymentActionRequiredEmail,
@@ -170,6 +171,20 @@ export interface CommissionPaymentFailedEmailInput {
   readonly currency: string;
   /** Days the builder has to update the card before collection steps. */
   readonly updateWithinDays: number;
+  /** #718: next automatic retry; null = none scheduled; omitted = legacy copy. */
+  readonly nextRetryAt?: Date | null;
+  /** #718: the last automatic attempt failed — final notice copy. */
+  readonly finalNotice?: boolean;
+  readonly tax?: CommissionEmailTax;
+}
+
+/** #718 input: a manual-method invoice is past its due date. */
+export interface CommissionInvoiceOverdueEmailInput {
+  readonly to: string;
+  readonly invoiceRef: string;
+  readonly commissionCents: number;
+  readonly currency: string;
+  readonly dueAt: Date;
   readonly tax?: CommissionEmailTax;
 }
 
@@ -223,6 +238,10 @@ export interface EmailService {
   /** #712: off-session charge needs 3DS — "confirm this payment" CTA. */
   sendCommissionPaymentActionRequired(
     input: CommissionPaymentActionRequiredEmailInput,
+  ): Promise<EmailDelivery>;
+  /** #718: manual-method invoice past its due date (sent once). */
+  sendCommissionInvoiceOverdue(
+    input: CommissionInvoiceOverdueEmailInput,
   ): Promise<EmailDelivery>;
   /** Issue #530: lead marked won — ask an org admin to record the contract. */
   sendContractNeedsRecording(
@@ -471,6 +490,21 @@ export function createEmailService(deps: EmailServiceDeps): EmailService {
         commissionCents: input.commissionCents,
         currency: input.currency,
         updateWithinDays: input.updateWithinDays,
+        ...(input.nextRetryAt !== undefined ? { nextRetryAt: input.nextRetryAt } : {}),
+        ...(input.finalNotice === true ? { finalNotice: true } : {}),
+        ...(input.tax ? { tax: input.tax } : {}),
+      });
+      return deliver({ ...rendered, to: input.to });
+    },
+
+    async sendCommissionInvoiceOverdue(
+      input: CommissionInvoiceOverdueEmailInput,
+    ): Promise<EmailDelivery> {
+      const rendered = renderCommissionInvoiceOverdueEmail(ctx, {
+        invoiceRef: input.invoiceRef,
+        commissionCents: input.commissionCents,
+        currency: input.currency,
+        dueAt: input.dueAt,
         ...(input.tax ? { tax: input.tax } : {}),
       });
       return deliver({ ...rendered, to: input.to });

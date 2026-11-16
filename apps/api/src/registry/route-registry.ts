@@ -1081,6 +1081,19 @@ export const ROUTE_REGISTRY: readonly ApiRouteEntry[] = [
   },
   {
     method: 'POST',
+    path: '/api/v1/admin/billing/invoices/{id}/dunning',
+    auth: 'admin',
+    permissions: ['billing:manage'] as const,
+    rateLimit: '300/min per session',
+    status: 'live',
+    summary:
+      'Edit one invoice\'s retry schedule (#718): pause, resume or cancel ' +
+      'automatic retries and reminders, or set the grace period (1–90 ' +
+      'days; the next retry is rescheduled from the last failure). 409 on ' +
+      'paid, void or disputed invoices. Audited with the admin email.',
+  },
+  {
+    method: 'POST',
     path: '/api/v1/admin/billing/simulated/invoices/{id}/events',
     auth: 'admin',
     permissions: ['billing:manage'] as const,
@@ -1409,6 +1422,21 @@ export const ROUTE_REGISTRY: readonly ApiRouteEntry[] = [
       'the builder confirms the payment on-session; the webhook settles ' +
       'the invoice. 409 unless action_required; 403 for another tenant\'s ' +
       'invoice.',
+  },
+  {
+    method: 'POST',
+    path: '/api/v1/billing/invoices/{id}/pay',
+    auth: 'builder-session',
+    permissions: ['builder:billing'] as const,
+    rateLimit: '100/min per session',
+    status: 'live',
+    summary:
+      'Pay now (#718): charge a commission invoice whose card payment ' +
+      'failed against the card on file right away (new PaymentIntent, ' +
+      'idempotency key feasly:commission_invoices:{id}:retry:{n}). Allowed ' +
+      'while retries are paused, cancelled or in collections; never changes ' +
+      'the schedule. Double submission returns the invoice unchanged — one ' +
+      'charge. 409 unless failed; 403 for another tenant\'s invoice.',
   },
   {
     method: 'GET',
