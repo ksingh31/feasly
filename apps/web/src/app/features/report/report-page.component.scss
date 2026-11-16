@@ -222,7 +222,7 @@
 
 /* Mobile: keep the disclosure marker on the same line as the heading — the
    block-level h2 inside the summary used to drop below the native marker. */
-@media (max-width:639px){.ref summary{display:flex;align-items:baseline;gap:8px;list-style:none}.ref summary::-webkit-details-marker{display:none}.ref summary::before{content:'▶';flex:none;font-size:12px;transform:translateY(-1px)}.ref details[open]>summary::before{transform:translateY(-1px) rotate(90deg)}.ref summary h2{margin:0}}
+@media (max-width:639px){.ref summary{display:flex;align-items:baseline;gap:8px;list-style:none}.ref summary::-webkit-details-marker{display:none}.ref summary::before{content:'▶';content:'▶' / '';flex:none;font-size:12px;transform:translateY(-1px)}.ref details[open]>summary::before{transform:translateY(-1px) rotate(90deg)}.ref summary h2{margin:0}}
 
 .per-sqft {
   font-size: 13px;
