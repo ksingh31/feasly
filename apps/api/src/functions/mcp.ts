@@ -23,7 +23,7 @@ import {
 } from '../index';
 import type { FunctionContext, FunctionRequest } from './estimate';
 import { clientIpFromHeaders } from '../middleware/client-ip';
-import { isMeteredMcpBody } from '../middleware/mcp-metering';
+import { hasMultipleToolCalls, isMeteredMcpBody } from '../middleware/mcp-metering';
 
 const CORRELATION_RESPONSE_HEADER = 'x-correlation-id';
 
@@ -71,6 +71,28 @@ export async function mcpHandler(
         error: {
           code: -32600,
           message: 'Only POST is supported for the MCP endpoint.',
+        },
+      },
+    };
+    return;
+  }
+
+  // #738: a batch of several tools/call would count as one metered request
+  // and so multiply the key's quota; reject it before any pipeline work.
+  if (hasMultipleToolCalls(req.body)) {
+    context.res = {
+      status: 400,
+      headers: {
+        ...middleware.securityHeaders(),
+        'Content-Type': 'application/json',
+        ...corsHeaders,
+      },
+      body: {
+        jsonrpc: '2.0',
+        id: null,
+        error: {
+          code: -32600,
+          message: 'Batches with more than one tools/call are not supported. Send one call per request.',
         },
       },
     };

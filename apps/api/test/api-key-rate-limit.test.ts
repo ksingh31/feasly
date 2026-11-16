@@ -4,9 +4,10 @@
  * Covers: no-Bearer passthrough, limit breach → 429 with headers,
  * per-key isolation, and no usage writes on 429s.
  */
-import { describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import { createApiKeyRateLimitMiddleware } from '../src/middleware/api-key-rate-limit';
-import { isMeteredMcpBody } from '../src/middleware/mcp-metering';
+import { mcpHandler } from '../src/functions/mcp';
+import { hasMultipleToolCalls, isMeteredMcpBody } from '../src/middleware/mcp-metering';
 import {
   HttpError,
   ErrorCodes,
@@ -450,5 +451,36 @@ describe('isMeteredMcpBody (#738 review)', () => {
     expect(isMeteredMcpBody([])).toBe(true);
     expect(isMeteredMcpBody(null)).toBe(true);
     expect(isMeteredMcpBody(42)).toBe(true);
+  });
+});
+
+describe('hasMultipleToolCalls (#738 review: batches cannot multiply the quota)', () => {
+  const call = { jsonrpc: '2.0', id: 1, method: 'tools/call', params: { name: 'estimate_project' } };
+  it('flags a batch with more than one tools/call, parsed or as a string', () => {
+    expect(hasMultipleToolCalls([call, { ...call, id: 2 }])).toBe(true);
+    expect(hasMultipleToolCalls(JSON.stringify([call, call, call]))).toBe(true);
+  });
+  it('allows single calls, housekeeping batches and a batch with one call', () => {
+    expect(hasMultipleToolCalls(call)).toBe(false);
+    expect(hasMultipleToolCalls([call])).toBe(false);
+    expect(hasMultipleToolCalls([{ jsonrpc: '2.0', method: 'notifications/initialized' }, call])).toBe(false);
+    expect(hasMultipleToolCalls('not json')).toBe(false);
+    expect(hasMultipleToolCalls(null)).toBe(false);
+  });
+});
+
+describe('mcpHandler rejects tool-call batches before metering (#738 review)', () => {
+  afterEach(() => vi.unstubAllEnvs());
+  it('answers 400 with JSON-RPC -32600 and never loads the composition', async () => {
+    // loadConfig() needs a database URL to be set; nothing connects to it.
+    vi.stubEnv('DATABASE_URL', 'postgres://localhost:5432/unused');
+    const call = { jsonrpc: '2.0', id: 1, method: 'tools/call', params: { name: 'submit_lead' } };
+    const context = {} as { res?: { status: number; body: { error: { code: number } } } };
+    await mcpHandler(
+      context as never,
+      { method: 'POST', headers: {}, body: [call, { ...call, id: 2 }] } as never,
+    );
+    expect(context.res?.status).toBe(400);
+    expect(context.res?.body.error.code).toBe(-32600);
   });
 });
