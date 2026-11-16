@@ -42,7 +42,7 @@ export interface HelpTopic {
   standalone: true,
   imports: [SiteFooterComponent, SiteNavComponent, RouterLink],
   templateUrl: './help-page.component.html',
-  styleUrl: './marketing.scss',
+  styleUrls: ['./marketing.scss', './help-page.component.scss'],
   // Help copy is provided here (lazy chunk), not in the root config, to keep
   // it out of the initial bundle.
   providers: [provideHelpCopy()],
