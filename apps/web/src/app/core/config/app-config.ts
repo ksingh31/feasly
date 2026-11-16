@@ -865,6 +865,8 @@ export interface AppConfig {
     communityPageLimit: number;
     /** Max address suggestions shown in autocomplete. */
     autocompleteSuggestionLimit: number;
+    /** Max community suggestions shown in the site search (#783). */
+    communitySuggestionLimit: number;
     /**
      * Estimate input bounds, mirrored from the cost-data file
      * (packages/cost-engine/cost-data inputBounds). The property record
@@ -1075,6 +1077,15 @@ export interface AppConfig {
       error: string;
       retryLabel: string;
       searchingLabel: string;
+      /** #783 site search: accessible label for the address-or-community box. */
+      siteSearchLabel: string;
+      /** #783 site search: placeholder for the address-or-community box. */
+      siteSearchPlaceholder: string;
+      /** #783 site search: listbox group headings. */
+      communitiesGroupLabel: string;
+      addressesGroupLabel: string;
+      /** #783 site search: secondary line on a community option. */
+      communityOptionHint: string;
     };
     /**
      * White-label embed shell strings (EMB-01). The unavailableBody copy is

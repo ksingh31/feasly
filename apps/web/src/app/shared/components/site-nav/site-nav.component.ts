@@ -1,6 +1,7 @@
-import { Component, ElementRef, inject, signal, viewChild } from '@angular/core';
+import { Component, ElementRef, inject, input, signal, viewChild } from '@angular/core';
 import { Router } from '@angular/router';
 import { ConfigService } from '../../../core/config/config.service';
+import { AddressAutocompleteComponent } from '../address-autocomplete';
 import { BrandMarkComponent } from '../brand-mark';
 
 /**
@@ -23,15 +24,22 @@ interface NavLink {
 @Component({
   selector: 'app-site-nav',
   standalone: true,
-  imports: [BrandMarkComponent],
+  imports: [AddressAutocompleteComponent, BrandMarkComponent],
   templateUrl: './site-nav.component.html',
   styleUrl: './site-nav.component.scss',
-  host: { '(document:keydown.escape)': 'onEscape()' },
+  host: { '(document:keydown.escape)': 'onEscape()', '[class.nav-has-search]': 'search()' },
 })
 export class SiteNavComponent {
   private readonly config = inject(ConfigService);
   protected readonly siteName = this.config.get('site').name;
   private readonly router = inject(Router);
+
+  /**
+   * #783: show the address-or-community search in the nav (guides and
+   * other content pages). Off on the landing page, whose hero already has
+   * the same search.
+   */
+  readonly search = input(false);
 
   /** Header nav links — the cautious-prospect path (UX audit 2026-09-28). */
   protected readonly navLinks = [

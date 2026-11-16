@@ -113,8 +113,11 @@ describe('CommunityPageComponent', () => {
 
   const baseConfig = {
     site: { url: 'https://feasly.com', name: 'Feasly', socialImage: '/assets/og/og-default.png' },
-    copy: { seo: {}, communities: communitiesCopy },
+    copy: { seo: {}, communities: communitiesCopy, search: DEFAULT_APP_CONFIG.copy.search },
     limits: DEFAULT_APP_CONFIG.limits,
+    // #783: the nav search reads these.
+    features: DEFAULT_APP_CONFIG.features,
+    timings: DEFAULT_APP_CONFIG.timings,
   };
 
   /**
