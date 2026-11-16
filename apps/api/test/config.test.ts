@@ -43,6 +43,10 @@ describe('loadConfig', () => {
         rateLimit: { windowMs: 60_000, maxRequests: 300 },
         funnelSourceGroupLimit: 25,
       },
+      webTelemetry: {
+        rateLimit: { windowMs: 60_000, maxRequests: 10 },
+        maxTracesPerMinute: 60,
+      },
       adminSearch: {
         ipRateLimit: { windowMs: 60_000, maxRequests: 300 },
         rateLimit: { windowMs: 60_000, maxRequests: 60 },

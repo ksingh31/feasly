@@ -206,6 +206,15 @@ export const DEFAULT_APP_CONFIG: AppConfig = {
     enabled: false,
     optInWording: 'Allow anonymous usage analytics to help improve Feasly.',
   },
+  // #830: 25% of page loads report vitals + JS errors (free-tier volume
+  // estimate: docs/ops/web-telemetry.md). maxBatchItems mirrors the API cap.
+  telemetry: {
+    enabled: true,
+    sampleRate: 0.25,
+    maxErrorsPerSession: 10,
+    maxMessageLength: 300,
+    maxBatchItems: 25,
+  },
   admin: {
     defaultRateLimit: 60,
     rateLimitMax: 10000,

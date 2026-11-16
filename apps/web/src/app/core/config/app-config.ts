@@ -1130,6 +1130,22 @@ export interface AppConfig {
     /** Exact opt-in wording shown to the user. */
     optInWording: string;
   };
+  /**
+   * Real-user monitoring (#830): sampled Core Web Vitals + uncaught JS
+   * errors, beaconed to POST /api/v1/telemetry. No PII, no identifiers.
+   * Off in mock-API mode (there is no backend to receive it).
+   */
+  telemetry: {
+    enabled: boolean;
+    /** Fraction of page loads (sessions) that report, 0..1. */
+    sampleRate: number;
+    /** Most error items reported per page load (stops error storms). */
+    maxErrorsPerSession: number;
+    /** Error message characters kept before sending. */
+    maxMessageLength: number;
+    /** Most items per beacon (mirrors the API's batch cap). */
+    maxBatchItems: number;
+  };
   /** User-facing copy, namespaced by area. Extended by FE1-001. */
   admin: {
     /** Default per-minute rate limit prefilled in the issue form. */

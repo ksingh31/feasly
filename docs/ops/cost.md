@@ -44,6 +44,8 @@ Confirm with `AppTraces | summarize count() by SeverityLevel, tostring(Propertie
 - Sampling on (5 items/s) for dependencies and events only; `Request`,
   `Exception` and `Trace` are **never** sampled, so error lines, correlation IDs
   (carried on the pipeline's warn/error lines) and alert counts stay exact.
+- `Function.telemetry.User: Information` keeps the real-user monitoring
+  traces (#830); volume estimate in `docs/ops/web-telemetry.md`.
 
 Expected: per-1,000-request `AppTraces` drops from ~2+ lines per request to only
 warn/error lines. Measure after deploy:
