@@ -52,8 +52,8 @@ describe('establishedCommunities (#690 rule)', () => {
 });
 
 describe('CommunitySearchService', () => {
-  it('finds Altadore in the bundled community index', () => {
-    const results = new CommunitySearchService().search('alta', 4);
+  it('finds Altadore in the lazily loaded community index', async () => {
+    const results = await new CommunitySearchService().search('alta', 4);
     expect(results[0]).toEqual({ slug: 'altadore', name: 'Altadore' });
     expect(results.every((c) => c.slug !== 'mahogany')).toBe(true);
   });

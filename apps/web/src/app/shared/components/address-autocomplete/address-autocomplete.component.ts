@@ -1,4 +1,4 @@
-import { Component, DestroyRef, computed, inject, input, output, signal } from '@angular/core';
+import { Component, DestroyRef, OnInit, computed, inject, input, output, signal } from '@angular/core';
 import { NgTemplateOutlet } from '@angular/common';
 import { FormControl, ReactiveFormsModule } from '@angular/forms';
 import { catchError, debounceTime, distinctUntilChanged, filter, map, of, switchMap, tap } from 'rxjs';
@@ -9,6 +9,7 @@ import { API_SERVICE } from '../../../core/api';
 import { CommunitySearchService } from '../../../core/community/community-search';
 import type { CommunitySuggestion } from '../../../core/community/community-search';
 import { ConfigService } from '../../../core/config';
+import { DEEP_LINK_ADDRESS_PARAM, DEEP_LINK_SOURCE_PARAM } from '../../utils/deep-link';
 import { WaitlistSignupComponent } from '../waitlist-signup';
 import { noResultsHintKind } from './address-query-hint';
 
@@ -25,10 +26,6 @@ export type SearchOption =
   | { readonly kind: 'community'; readonly index: number; readonly community: CommunitySuggestion }
   | { readonly kind: 'address'; readonly index: number; readonly suggestion: AutocompleteSuggestion };
 
-/** Estimator deep-link parameters (#692) used by `navigateAddresses`. */
-const DEEP_LINK_ADDRESS_PARAM = 'address';
-const DEEP_LINK_SOURCE_PARAM = 'src';
-const SITE_SEARCH_SOURCE = 'site-search';
 
 /**
  * Backend error codes the address step distinguishes (reno/05). Anything
@@ -61,7 +58,7 @@ const ADDRESS_NOT_FOUND = 'ADDRESS_NOT_FOUND';
   templateUrl: './address-autocomplete.component.html',
   styleUrl: './address-autocomplete.component.scss',
 })
-export class AddressAutocompleteComponent {
+export class AddressAutocompleteComponent implements OnInit {
   private readonly api = inject(API_SERVICE);
   private readonly config = inject(ConfigService);
   private readonly destroyRef = inject(DestroyRef);
@@ -245,15 +242,29 @@ export class AddressAutocompleteComponent {
   }
 
   /**
-   * #783: community matches come from the bundled index, so they show at
-   * once — before the address request answers, and even if it fails.
+   * #783: start loading the community index as soon as a community-enabled
+   * box renders, so matches are ready by the first search. Boxes without
+   * `communities` (the builder embed, the wizard) never load it.
+   */
+  ngOnInit(): void {
+    if (this.communities()) void this.communitySearch.load().catch(() => undefined);
+  }
+
+  /**
+   * #783: community matches come from the static community index (no API
+   * request), so they show without waiting for the address request — and
+   * even if it fails. A late answer for an older query is dropped.
    */
   private showCommunityMatches(query: string): void {
     if (!this.communities()) return;
-    const matches = this.communitySearch.search(query, this.config.get('limits').communitySuggestionLimit);
-    this.communityMatches.set(matches);
-    this.activeIndex.set(-1);
-    if (matches.length > 0) this.open.set(true);
+    void this.communitySearch
+      .search(query, this.config.get('limits').communitySuggestionLimit)
+      .then((matches) => {
+        if (this.lastQuery() !== query || this.query.value.trim() !== query) return;
+        this.communityMatches.set(matches);
+        this.activeIndex.set(-1);
+        if (matches.length > 0) this.open.set(true);
+      });
   }
 
   /** Fires one autocomplete request immediately, skipping the debounce. */
@@ -531,7 +542,10 @@ export class AddressAutocompleteComponent {
       // Nav search (#783): hand the address to the estimator page, which
       // looks it up through the same deep link as any other entry (#692).
       void this.router.navigate(['/'], {
-        queryParams: { [DEEP_LINK_ADDRESS_PARAM]: suggestion.address, [DEEP_LINK_SOURCE_PARAM]: SITE_SEARCH_SOURCE },
+        queryParams: {
+          [DEEP_LINK_ADDRESS_PARAM]: suggestion.address,
+          [DEEP_LINK_SOURCE_PARAM]: this.config.get('deepLink').siteSearchSource,
+        },
       });
       return;
     }

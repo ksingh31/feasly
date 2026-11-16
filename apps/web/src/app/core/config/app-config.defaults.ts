@@ -148,6 +148,7 @@ export const DEFAULT_APP_CONFIG: AppConfig = {
     addressMinLength: 3,
     addressMaxLength: 120,
     sources: ['community-lots', 'community-profile', 'guide', 'email', 'paid-search', 'share', 'site-search'],
+    siteSearchSource: 'site-search',
   },
   analytics: {
     enabled: false,

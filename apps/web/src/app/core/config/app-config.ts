@@ -920,6 +920,11 @@ export interface AppConfig {
     addressMaxLength: number;
     /** Allowlisted `src` values kept for attribution; any other value is dropped. */
     sources: readonly string[];
+    /**
+     * #783: `src` the nav site search sends when it opens the estimator with
+     * a picked address. Must be one of `sources`.
+     */
+    siteSearchSource: string;
   };
   /** Analytics consent. */
   analytics: {

@@ -1,5 +1,7 @@
 import { Component, ElementRef, inject, input, signal, viewChild } from '@angular/core';
-import { Router } from '@angular/router';
+import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
+import { NavigationEnd, Router } from '@angular/router';
+import { filter } from 'rxjs';
 import { ConfigService } from '../../../core/config/config.service';
 import { AddressAutocompleteComponent } from '../address-autocomplete';
 import { BrandMarkComponent } from '../brand-mark';
@@ -70,6 +72,18 @@ export class SiteNavComponent {
 
   /** Mobile menu open/closed. Desktop renders links inline (CSS). */
   protected readonly menuOpen = signal(false);
+
+  constructor() {
+    // #783: the nav search navigates on its own (community or address pick),
+    // and a same-route navigation keeps this nav mounted — so close the
+    // mobile menu on every completed navigation, not only on link taps.
+    this.router.events
+      .pipe(
+        filter((event) => event instanceof NavigationEnd),
+        takeUntilDestroyed(),
+      )
+      .subscribe(() => this.menuOpen.set(false));
+  }
 
   /**
    * Brand home navigation. QA 2026-09-27 reported header navigation as

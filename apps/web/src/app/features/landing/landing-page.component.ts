@@ -15,13 +15,15 @@ import { ClearReport } from '../report/report.actions';
 import { ReportState } from '../report/report.state';
 import { AnalyticsService } from '../consent/analytics.service';
 import { AddressAutocompleteComponent, SiteFooterComponent, SiteNavComponent } from '../../shared/components';
-import { parseDeepLinkAddress, parseDeepLinkSource } from '../../shared/utils/deep-link';
+import {
+  DEEP_LINK_ADDRESS_PARAM,
+  DEEP_LINK_SOURCE_PARAM,
+  parseDeepLinkAddress,
+  parseDeepLinkSource,
+} from '../../shared/utils/deep-link';
 import { CommunityService } from '../../core/community/community.service';
 import { SetProfilePropertyContext } from '../communities/community-profile.actions';
 
-/** Estimator deep-link query parameters (#692). */
-const DEEP_LINK_ADDRESS_PARAM = 'address';
-const DEEP_LINK_SOURCE_PARAM = 'src';
 
 /** Stable key of the trust item rewritten into the shared freshness line. */
 const CITY_DATA_FRESHNESS_KEY = 'city-data-freshness';

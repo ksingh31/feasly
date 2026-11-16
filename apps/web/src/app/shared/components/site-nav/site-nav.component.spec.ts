@@ -1,4 +1,5 @@
 import { provideHttpClient } from '@angular/common/http';
+import { Component } from '@angular/core';
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { provideRouter, Router } from '@angular/router';
 import { describe, expect, it, vi } from 'vitest';
@@ -12,8 +13,27 @@ import { SiteNavComponent } from './site-nav.component';
  * FAQ) — inline on desktop, hamburger on mobile — same programmatic
  * navigation pattern as the brand.
  */
+@Component({ standalone: true, template: '' })
+class BlankPageComponent {}
+
 describe('SiteNavComponent', () => {
   let fixture: ComponentFixture<SiteNavComponent>;
+
+  it('closes the open mobile menu when any navigation completes (#783 nav search)', async () => {
+    TestBed.resetTestingModule();
+    TestBed.configureTestingModule({
+      imports: [SiteNavComponent],
+      providers: [provideHttpClient(), provideRouter([{ path: '**', component: BlankPageComponent }])],
+    });
+    fixture = TestBed.createComponent(SiteNavComponent);
+    fixture.detectChanges();
+    const nav = fixture.componentInstance as unknown as { menuOpen: () => boolean };
+    fixture.componentInstance.toggleMenu();
+    expect(nav.menuOpen()).toBe(true);
+    // A nav-search pick navigates without going through go()/goHome().
+    await TestBed.inject(Router).navigateByUrl('/communities/sunalta');
+    expect(nav.menuOpen()).toBe(false);
+  });
 
   function setup(): void {
     TestBed.resetTestingModule();

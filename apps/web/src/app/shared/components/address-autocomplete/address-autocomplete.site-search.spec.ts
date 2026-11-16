@@ -6,6 +6,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { of, throwError } from 'rxjs';
 import type { AutocompleteResponse, PropertyRecord } from '@feasly/contracts';
 import { API_SERVICE } from '../../../core/api';
+import { CommunitySearchService } from '../../../core/community/community-search';
 import { ConfigService } from '../../../core/config';
 import { AddressAutocompleteComponent } from './address-autocomplete.component';
 
@@ -42,6 +43,8 @@ describe('AddressAutocompleteComponent site search (#783)', () => {
     const pending = TestBed.inject(ConfigService).load();
     http.expectOne('/assets/config/app-config.json').flush({ timings: { debounceMs: 1 } });
     await pending;
+    // The community index is a lazy chunk; warm it so matches land with the search.
+    await TestBed.inject(CommunitySearchService).load();
     // No route table here: every navigation is observed, never performed.
     navigate = vi.spyOn(TestBed.inject(Router), 'navigate').mockResolvedValue(true);
   });
@@ -95,6 +98,11 @@ describe('AddressAutocompleteComponent site search (#783)', () => {
     expect(communityNames[0]).toBe('Altadore');
     expect(addresses!.querySelectorAll('[role="option"]').length).toBe(2);
     expect(addresses!.textContent).toContain('3204 ALTA VISTA RD SW');
+  });
+
+  it('sends a site-search source the landing page deep-link parser accepts', () => {
+    const deepLink = TestBed.inject(ConfigService).get('deepLink');
+    expect(deepLink.sources).toContain(deepLink.siteSearchSource);
   });
 
   it('labels the box for addresses or communities', () => {

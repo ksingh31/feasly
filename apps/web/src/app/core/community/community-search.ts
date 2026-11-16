@@ -1,7 +1,6 @@
 import { Injectable } from '@angular/core';
 import type { CommunityIndexEntry, CommunityIndexFile } from '@feasly/contracts';
 import { toDisplayName } from '../../shared/utils/community-name';
-import indexData from '../../../content/data/community-index.json';
 
 /** One community suggestion in the site search (#783). */
 export interface CommunitySuggestion {
@@ -53,16 +52,39 @@ export function establishedCommunities(entries: readonly CommunityIndexEntry[]):
 }
 
 /**
- * Community side of the site search (#783). Reads the community index that
- * is bundled at build time (the same file the communities hub renders), so
- * suggesting a community never makes a network call.
+ * Community side of the site search (#783). The community index (the same
+ * file the communities hub renders) is loaded with a dynamic import the
+ * first time it is needed, so it stays out of the initial bundle and out of
+ * the builder embed, which never turns community search on. Vite emits it
+ * as its own static chunk — no API call.
  */
 @Injectable({ providedIn: 'root' })
 export class CommunitySearchService {
-  private readonly communities = establishedCommunities((indexData as CommunityIndexFile).communities);
+  private communities: Promise<CommunitySuggestion[]> | null = null;
 
-  /** Up to `limit` established communities matching `query`, best first. */
-  search(query: string, limit: number): CommunitySuggestion[] {
-    return matchCommunities(query, this.communities, limit);
+  /** Loads (once) and caches the established-community list. */
+  load(): Promise<CommunitySuggestion[]> {
+    this.communities ??= import('../../../content/data/community-index.json').then(
+      (mod) => establishedCommunities(((mod.default ?? mod) as CommunityIndexFile).communities),
+      (error: unknown) => {
+        // Let a later search retry the chunk (e.g. after a flaky network).
+        this.communities = null;
+        throw error;
+      },
+    );
+    return this.communities;
+  }
+
+  /**
+   * Up to `limit` established communities matching `query`, best first.
+   * Resolves to no matches when the index cannot be loaded — the address
+   * side of the search keeps working.
+   */
+  async search(query: string, limit: number): Promise<CommunitySuggestion[]> {
+    try {
+      return matchCommunities(query, await this.load(), limit);
+    } catch {
+      return [];
+    }
   }
 }
