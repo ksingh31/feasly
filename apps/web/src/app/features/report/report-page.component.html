@@ -458,9 +458,7 @@
   }
   <!-- #706: privacy self-service entry — owner token sessions only. -->
   @if (reportToken() && !partnerView()) {
-    <p class="privacy-data-link no-print">
-      <a routerLink="/privacy/my-data">{{ privacyDataLinkLabel }}</a>
-    </p>
+    <app-privacy-data-link class="no-print" />
   }
 </main>
 <app-site-footer />

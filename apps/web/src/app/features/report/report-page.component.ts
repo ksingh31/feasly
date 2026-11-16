@@ -14,6 +14,7 @@ import {
   SiteNavComponent,
   BuilderMatchingExplainerComponent,
   OptionSelectorComponent,
+  PrivacyDataLinkComponent,
 } from '../../shared/components';
 import type { TierOption } from '../../shared/components';
 import { aggregateCostBuckets, type CostBucket } from '../../shared/cost-buckets';
@@ -111,6 +112,7 @@ const SHARE_LINK_SOURCE = 'share';
     BrandMarkComponent,
     BuilderMatchingExplainerComponent,
     OptionSelectorComponent,
+    PrivacyDataLinkComponent,
     SiteFooterComponent,
     SiteNavComponent,
   ],
@@ -129,8 +131,6 @@ export class ReportPageComponent implements OnInit {
 
   /** Report copy (config-owned). */
   protected readonly copy = this.config.get('copy').report;
-  /** #706: footer entry to the privacy self-service page. */
-  protected readonly privacyDataLinkLabel = this.config.get('copy').privacyData.entryLinkLabel;
   /** Print-only brand header (#509): the site name beside the brand mark. */
   protected readonly siteName = this.config.get('site').name;
   /**
