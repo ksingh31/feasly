@@ -834,6 +834,12 @@ export interface AppConfig {
     renovationWaitlist: boolean;
     /** #520 (D-P4): notify-me capture (Toronto/Vancouver) on the out-of-coverage state. */
     cityWaitlist: boolean;
+    /**
+     * #706: run the erasure confirm step on `/privacy/my-data` itself.
+     * True until the API emails the confirmation link (#806); then false and
+     * the page says "check your email" instead.
+     */
+    privacyEraseConfirmInPage: boolean;
   };
   /**
    * Legal review state (legal/01 AC3 — the LEGAL_REVIEW_PENDING mechanism).
@@ -1705,6 +1711,11 @@ export interface AppConfig {
       notFound: string;
       unsubscribeTitle: string;
       unsubscribe: string;
+      /** #706 privacy self-service pages (noindex). */
+      privacyDataTitle: string;
+      privacyData: string;
+      privacyConfirmTitle: string;
+      privacyConfirm: string;
       magicLinkTitle: string;
       magicLink: string;
       myReportTitle: string;
@@ -2410,6 +2421,64 @@ export interface AppConfig {
       errorHeading: string;
       errorBody: string;
       retryLabel: string;
+      homeCta: string;
+    };
+    /**
+     * Privacy self-service (#706): `/privacy/my-data` + the erase-confirm
+     * landing `/privacy/confirm/:requestId`. Copy status:
+     * draft-pending-lawyer (the erasure consequences come from the API).
+     */
+    privacyData: {
+      entryLinkLabel: string;
+      heading: string;
+      intro: string;
+      draftNotice: string;
+      loadingLabel: string;
+      downloadHeading: string;
+      downloadBody: string;
+      downloadCta: string;
+      downloadWorking: string;
+      downloadDone: string;
+      downloadFileName: string;
+      deleteHeading: string;
+      deleteBody: string;
+      deleteCta: string;
+      deleteWorking: string;
+      pendingHeading: string;
+      pendingBody: string;
+      consequencesHeading: string;
+      confirmCta: string;
+      cancelCta: string;
+      noTokenHeading: string;
+      noTokenBody: string;
+      emailLabel: string;
+      emailInvalid: string;
+      sendLinkCta: string;
+      sendLinkWorking: string;
+      linkSentHeading: string;
+      linkSentBody: string;
+      pendingEmailBody: string;
+      confirmPromptHeading: string;
+      confirmPromptBody: string;
+      confirmWorking: string;
+      confirmDoneHeading: string;
+      confirmDoneBody: string;
+      confirmAlreadyHeading: string;
+      confirmAlreadyBody: string;
+      confirmExpiredHeading: string;
+      confirmExpiredBody: string;
+      confirmBlockedHeading: string;
+      confirmBlockedBody: string;
+      confirmInvalidHeading: string;
+      confirmInvalidBody: string;
+      expiredHeading: string;
+      expiredBody: string;
+      rateLimitedHeading: string;
+      rateLimitedBody: string;
+      errorHeading: string;
+      errorBody: string;
+      retryLabel: string;
+      myDataCta: string;
       homeCta: string;
     };
     /**
