@@ -100,12 +100,15 @@ export function parseDistrictCodes(body: unknown): string[] | null {
 }
 
 /**
- * Normalised page text for change detection: scripts/styles/tags removed,
- * whitespace collapsed — so a rotating script nonce or markup tweak doesn't
- * read as an amendment, while any change to the words does.
+ * Normalised page text for change detection: only the page's `<main>`
+ * content (whole page when there is none), scripts/styles/tags removed,
+ * whitespace collapsed — so a site-wide header/footer/alert banner, a
+ * rotating script nonce or a markup tweak doesn't read as an amendment,
+ * while any change to the words of the page body does.
  */
 export function normalisePageText(html: string): string {
-  return html
+  const main = /<main\b[^>]*>([\s\S]*)<\/main>/i.exec(html);
+  return (main ? main[1]! : html)
     .replace(/<script[\s\S]*?<\/script>/gi, ' ')
     .replace(/<style[\s\S]*?<\/style>/gi, ' ')
     .replace(/<!--[\s\S]*?-->/g, ' ')

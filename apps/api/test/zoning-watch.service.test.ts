@@ -192,6 +192,18 @@ describe('zoning watch helpers', () => {
     expect(normalisePageText('<p>Rules B</p>')).not.toBe(a);
   });
 
+  it('normalised page text hashes only <main>: header/footer/banner changes are ignored', () => {
+    const page = (banner: string, body: string): string =>
+      `<html><header><div class="alert">${banner}</div></header>` +
+      `<main id="content"><h1>Land Use Bylaw</h1><p>${body}</p></main>` +
+      `<footer>© ${banner}</footer></html>`;
+    const a = normalisePageText(page('Road closure today', 'Rules A'));
+    expect(normalisePageText(page('Service alert 2027', 'Rules A'))).toBe(a);
+    expect(normalisePageText(page('Road closure today', 'Rules B'))).not.toBe(a);
+    // No <main>: falls back to the whole page.
+    expect(normalisePageText('<div>Banner</div><p>Rules A</p>')).toBe('Banner Rules A');
+  });
+
   it('stale only for a bylaw change after effectiveDate or unknown codes', () => {
     expect(isCatalogueStale(EFFECTIVE, undefined)).toBe(false);
     expect(isCatalogueStale(EFFECTIVE, { bylawChangedAt: null, unknownDistrictCodes: [] })).toBe(false);
