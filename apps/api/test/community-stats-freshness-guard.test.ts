@@ -49,7 +49,7 @@ describe('community-lots staleness threshold parity (#691)', () => {
       /LOTS_STALE_AFTER_DAYS="\$\{LOTS_STALE_AFTER_DAYS:-(\d+)\}"/,
     );
     expect(match).not.toBeNull();
-    const config = loadConfig({ DATABASE_URL: 'postgresql://u:p@localhost:5432/feasly' });
+    const config = loadConfig({ DATABASE_URL: 'postgresql://test:test@localhost:5432/feasly' });
     expect(Number(match?.[1])).toBe(config.communityLots.staleAfterDays);
   });
 
