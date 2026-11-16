@@ -1,0 +1,19 @@
+{
+  "name": "@feasly/zoning",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Per-city, versioned zoning rules catalogue + pure resolver (issue #687). Zero I/O, no dollar figures.",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "scripts": {
+    "build": "tsc -b",
+    "test": "vitest run",
+    "typecheck": "tsc --noEmit -p tsconfig.test.json"
+  },
+  "dependencies": {
+    "@feasly/contracts": "^0.3.0"
+  },
+  "devDependencies": {
+    "vitest": "^5.0.2"
+  }
+}

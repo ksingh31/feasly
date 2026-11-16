@@ -25,6 +25,7 @@
     "prebuild": "tsx tools/generate-builder-configs.ts",
     "pretest": "tsx tools/generate-builder-configs.ts",
     "prebundle:functions": "tsx tools/generate-builder-configs.ts",
+    "gen:route-docs": "tsx tools/insert-registry-table.mts && tsx tools/insert-rate-limit-table.mts && tsx tools/insert-route-audit-table.mts",
     "openapi:emit": "tsx tools/emit-openapi.ts",
     "openapi:lint": "tsx tools/emit-openapi.ts /tmp/feasly-openapi.json && redocly lint /tmp/feasly-openapi.json"
   },
@@ -35,6 +36,7 @@
     "@feasly/contracts": "^0.3.0",
     "@feasly/cost-engine": "^0.1.0",
     "@feasly/mcp": "^0.1.0",
+    "@feasly/zoning": "^0.1.0",
     "drizzle-orm": "^0.45.4",
     "googleapis": "^182.0.0",
     "pg": "^8.23.0",

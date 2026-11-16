@@ -98,3 +98,11 @@ export class UpdateComparison {
 export class ClearComparison {
   static readonly type = '[Wizard] Clear comparison';
 }
+
+/**
+ * NGXS action (#704): the visitor dismissed the landing page's "Continue
+ * your estimate" chip. It stays hidden until the next new estimate.
+ */
+export class DismissResume {
+  static readonly type = '[Wizard] Dismiss resume chip';
+}

@@ -46,6 +46,89 @@
   opacity: 0.5;
 }
 
+/* ── Returning users (#704) ───────────────── */
+
+.resume-chip {
+  display: inline-flex;
+  align-items: center;
+  max-width: 640px;
+  margin: 0 auto 24px;
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: 999px;
+}
+
+.resume-link {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  min-height: 44px;
+  min-width: 0;
+  padding: 0 var(--space-2) 0 var(--space-5);
+  color: var(--text);
+  font-weight: 600;
+  text-decoration: none;
+}
+
+.resume-text {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.resume-link:hover .resume-text {
+  text-decoration: underline;
+}
+
+.resume-dismiss {
+  flex: none;
+  width: 44px;
+  height: 44px;
+  border: none;
+  border-radius: 999px;
+  background: none;
+  color: var(--muted);
+  font-size: 1.25rem;
+  cursor: pointer;
+}
+
+.resume-link:focus-visible,
+.resume-dismiss:focus-visible,
+.find-report a:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+.find-report {
+  margin: var(--space-3) 0 0;
+  color: var(--muted);
+}
+
+.find-report a {
+  display: inline-flex;
+  align-items: center;
+  min-height: 44px;
+  color: var(--accent-text);
+  font-weight: 600;
+}
+
+/* Narrow screens: wrap the address instead of cutting it off. */
+@media (max-width: 639px) {
+  .resume-chip {
+    max-width: 100%;
+    border-radius: 16px;
+  }
+
+  .resume-link {
+    padding-block: var(--space-2);
+    text-align: left;
+  }
+
+  .resume-text {
+    white-space: normal;
+  }
+}
+
 /* Under ~640px the centered hero eyebrow wraps and the decorative side-rules
    float detached — hide them there (QA audit P2). */
 @media (max-width: 639px) {

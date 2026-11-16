@@ -27,6 +27,16 @@ Platform agreement + builder onboarding (issue #722):
 - **Added** `AdminBuilderDetail` (`Builder` + `agreement`) — the response of
   `GET /api/v1/admin/builders/{id}`. Additive: every `Builder` field is kept.
 
+Zoning rules catalogue (issue #687):
+
+- **Added** `zoning.ts`: `BuildingForm` (+ `BUILDING_FORMS`),
+  `ZoningDistrictCategory`, `ZoningCoverage`, `FormPermission`; source
+  shapes `ZoningRulesVersion` / `ZoningDistrictSource` / `ZoningFormSource` /
+  `ZoningRuleSource` (each value carries a bylaw `section` and `verified`);
+  public verified-only shapes `ZoningDistrict` / `ZoningForm` / `ZoningRule` /
+  `ZoningKeyRules` and `ZoningDistrictsResponse` for
+  `GET /api/v1/zoning/districts`.
+
 Current land-use district (issue #686):
 
 - **Added** optional `PropertyRecord.landUse` (`PropertyLandUse`: `district`,

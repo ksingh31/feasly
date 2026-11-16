@@ -187,7 +187,9 @@ async function main(): Promise<void> {
     if (rangesParsed.success && aggParsed.success) {
       const rangesTime = new Date(rangesParsed.data.generatedAt).getTime();
       const aggTime = new Date(aggParsed.data.generatedAt).getTime();
-      if (rangesTime >= aggTime && rangesParsed.data.buildSqft === buildSqft) {
+      // An engine version change (new cost-data table) always recomputes.
+      const sameEngine = rangesParsed.data.costDataVersion === PLACEHOLDER_COST_DATA.version;
+      if (rangesTime >= aggTime && rangesParsed.data.buildSqft === buildSqft && sameEngine) {
         console.log('build-community-ranges: ranges are fresh relative to aggregates — skipping (use --force to override)');
         refreshPrerenderRoutes(rangesParsed.data.communities.map((c) => c.slug));
         return;

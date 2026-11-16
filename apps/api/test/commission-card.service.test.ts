@@ -109,6 +109,33 @@ describe('commission card-on-file (BILL-02)', () => {
     await expect(service.getCard('elite-craft')).resolves.toEqual({ hasCard: false });
   });
 
+  it('the simulated payment provider (#753) is agreement-gated too (#722)', async () => {
+    const blocked = makeDeps({
+      agreements: blockedAgreements(),
+      customers: new Map([['elite-craft', 'cus_elite-craft']]),
+    });
+    (blocked.stripe as { provider?: 'stripe' | 'simulated' }).provider = 'simulated';
+    await expect(blocked.service.ensureCustomer('elite-craft')).rejects.toMatchObject({
+      status: 409,
+      code: 'AGREEMENT_REQUIRED',
+    });
+    await expect(blocked.service.createSetupIntent('elite-craft')).rejects.toMatchObject({
+      status: 409,
+      code: 'AGREEMENT_REQUIRED',
+    });
+    expect(blocked.stripe.createCustomer).not.toHaveBeenCalled();
+    expect(blocked.stripe.createSetupIntent).not.toHaveBeenCalled();
+
+    // Once accepted, the simulated path proceeds and reports its provider.
+    const accepted = makeDeps({
+      customers: new Map([['elite-craft', 'cus_elite-craft']]),
+    });
+    (accepted.stripe as { provider?: 'stripe' | 'simulated' }).provider = 'simulated';
+    await expect(accepted.service.createSetupIntent('elite-craft')).resolves.toMatchObject({
+      provider: 'simulated',
+    });
+  });
+
   it('ensureCustomer creates and persists a Stripe customer, idempotently', async () => {
     const { service, state, audit, stripe } = makeDeps();
     const first = await service.ensureCustomer('elite-craft', 'b@x.com');

@@ -860,9 +860,11 @@ export interface AppConfig {
   propertyData: {
     /**
      * Which property backend serves autocomplete + property records:
-     * - 'live': City of Calgary open-data Socrata API (free, no key).
+     * - 'backend': our own /api/v1 property routes (served default, #752).
      * - 'mock': FE0-003 fixture harness (offline dev / CI).
-     * - 'backend': our own /api/v1 property routes (BE-3+, when they exist).
+     * - 'live': City of Calgary Socrata API from the browser (local dev only;
+     *   misses the API's address normalisation and current district).
+     * `baseUrl`/`datasetId`/`searchRowLimit`/`cacheTtlMs` apply to 'live' only.
      * Independent from `api.useMockApi`, which still switches the estimate /
      * lead / magic-link contracts.
      */
@@ -942,7 +944,7 @@ export interface AppConfig {
     /**
      * Estimate input bounds, mirrored from the cost-data file
      * (packages/cost-engine/cost-data inputBounds). The property record
-     * arrives direct from Socrata (propertyData.source 'live'), so the
+     * carries no eligibility verdict (on every propertyData.source), so the
      * client needs the assessed-value bounds for the early coverage guard.
      * `minLotSizeSqft`/`maxLotSizeSqft` are RESERVED for future bigger-lot
      * calibration (Karan, 2026-09-28) — NOT enforced anywhere; the
@@ -1736,6 +1738,8 @@ export interface AppConfig {
       unsubscribe: string;
       magicLinkTitle: string;
       magicLink: string;
+      myReportTitle: string;
+      myReport: string;
       errorTitle: string;
       error: string;
       /** Admin console (admin/07): per-section titles for client-side nav. All noindexed. */
@@ -2465,6 +2469,54 @@ export interface AppConfig {
       resendDoneHeading: string;
       resendDoneBody: string;
       resendErrorBody: string;
+    };
+    /**
+     * `/my-report` (#704): returning users ask for a fresh report link by
+     * email. Reuses POST /api/v1/magic-link/reissue; the sent state is the
+     * same whether or not the email is known (no address oracle).
+     */
+    myReport: {
+      heading: string;
+      body: string;
+      emailLabel: string;
+      emailPlaceholder: string;
+      emailError: string;
+      cta: string;
+      sendingLabel: string;
+      sentHeading: string;
+      /** Neutral: identical for known and unknown emails. */
+      sentBody: string;
+      /** HTTP 429 from the reissue endpoint. */
+      rateLimitedBody: string;
+      errorBody: string;
+      homeCta: string;
+    };
+    /**
+     * Returning-user entry points, same-device resume chip and link sharing
+     * on the report (#704).
+     */
+    returning: {
+      /** Lead-in under the landing address box. */
+      findReportPrompt: string;
+      /** Link text to `/my-report` (landing, mobile nav, footer). */
+      findReportLink: string;
+      /** Resume chip: `{address}` is replaced with the stored address. */
+      resumeLabel: string;
+      /** Accessible name of the chip's dismiss button. */
+      resumeDismissLabel: string;
+      /** Report action row: copy the share link. */
+      copyLinkCta: string;
+      /** Announced (role=status) after a successful copy. */
+      copyLinkDone: string;
+      copyLinkError: string;
+      /** Native share sheet button (shown only where navigator.share exists). */
+      nativeShareCta: string;
+      /** What the shared link opens (an address preview, never the owner link). */
+      shareLinkHint: string;
+      /** navigator.share title. */
+      shareTitle: string;
+      /** navigator.share text: `{address}` is replaced. */
+      shareText: string;
     };
   };
 }

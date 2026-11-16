@@ -127,6 +127,18 @@ export const routes: Routes = [
     canActivate: [robotsGuard],
     data: { noindex: true },
   },
+  // Find my report (#704): returning users request a fresh report link by
+  // email (reuses the magic-link reissue endpoint). Private: noindex and
+  // disallowed in robots.txt; never prerendered. Lazy-loaded (budget).
+  {
+    path: 'my-report',
+    loadComponent: () =>
+      import('./features/magic-link/my-report-page.component').then(
+        (m) => m.MyReportPageComponent,
+      ),
+    canActivate: [robotsGuard],
+    data: { noindex: true },
+  },
   // Marketing pages (SEO-010): indexable — no `noindex` data, so the SEO
   // table + check-prerender-seo.mjs treat them as crawlable like privacy/terms.
   { path: 'how-it-works', component: HowItWorksPageComponent, canActivate: [robotsGuard] },

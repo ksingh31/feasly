@@ -13,6 +13,7 @@ import {
 } from '../src/routes/api-key.route';
 import { ErrorCodes, HttpError } from '../src/middleware/errors';
 import type { ApiKeyRecord } from '../src/services/api-key.service';
+import { SEED_ADMIN_EMAIL } from '../src/config';
 
 const ADMIN_HEADERS = { cookie: 'feasly_admin_session=valid-test-session' };
 
@@ -78,7 +79,7 @@ function makeDeps(
         const cookie = headers['cookie'];
         const value = Array.isArray(cookie) ? cookie[0] : cookie;
         return value === 'feasly_admin_session=valid-test-session'
-          ? 'karanbirsingh667@gmail.com'
+          ? SEED_ADMIN_EMAIL
           : null;
       },
     },

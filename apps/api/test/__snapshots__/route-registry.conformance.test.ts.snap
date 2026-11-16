@@ -323,6 +323,14 @@ exports[`route registry > exhaustive role x route permission matrix (auth/04 acc
     "builder_member",
     "none",
   ],
+  "GET /api/v1/zoning/districts": [
+    "super_admin",
+    "admin",
+    "viewer",
+    "builder_admin",
+    "builder_member",
+    "none",
+  ],
   "PATCH /api/v1/admin/api-keys/{id}": [
     "super_admin",
     "admin",
@@ -421,6 +429,10 @@ exports[`route registry > exhaustive role x route permission matrix (auth/04 acc
     "super_admin",
     "admin",
   ],
+  "POST /api/v1/admin/billing/simulated/invoices/{id}/events": [
+    "super_admin",
+    "admin",
+  ],
   "POST /api/v1/admin/builders": [
     "super_admin",
     "admin",
@@ -496,6 +508,16 @@ exports[`route registry > exhaustive role x route permission matrix (auth/04 acc
     "builder_admin",
   ],
   "POST /api/v1/billing/setup-intent": [
+    "super_admin",
+    "admin",
+    "builder_admin",
+  ],
+  "POST /api/v1/billing/simulated/authenticate": [
+    "super_admin",
+    "admin",
+    "builder_admin",
+  ],
+  "POST /api/v1/billing/simulated/confirm-setup": [
     "super_admin",
     "admin",
     "builder_admin",

@@ -12,6 +12,25 @@
     <h1 class="hero-title">{{ copy.heroTitle }}</h1>
     <p class="hero-sub">{{ copy.heroSub }}</p>
 
+    @if (resume(); as chip) {
+      <!-- #704: same-device resume. Browser-only (rendered after hydration
+           from rehydrated NGXS state), so the prerendered HTML never has it. -->
+      <div class="resume-chip">
+        <a class="resume-link" [routerLink]="chip.path" (click)="onResume()">
+          <span class="resume-text">{{ chip.label }}</span>
+          <span aria-hidden="true">→</span>
+        </a>
+        <button
+          type="button"
+          class="resume-dismiss"
+          [attr.aria-label]="returningCopy.resumeDismissLabel"
+          (click)="dismissResume()"
+        >
+          <span aria-hidden="true">×</span>
+        </button>
+      </div>
+    }
+
     <form class="hero-form" (ngSubmit)="onSubmit()" aria-label="Address search">
       <app-address-autocomplete
         class="hero-search"
@@ -21,6 +40,11 @@
       />
       <button class="hero-cta" type="submit">{{ searchCopy.submitLabel }}</button>
     </form>
+    <!-- #704: returning users on any device request their report link. -->
+    <p class="find-report">
+      {{ returningCopy.findReportPrompt }}
+      <a routerLink="/my-report">{{ returningCopy.findReportLink }}</a>
+    </p>
     @if (coverageBlock(); as block) {
       <!-- Early coverage guard: the picked property can't be priced (assessed
            value outside the cost-data range). The funnel stops here,

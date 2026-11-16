@@ -216,6 +216,7 @@ import {
 import {
   createDrizzleAdminSessionStore,
 } from './services/admin-auth.store';
+import { withSessionPolicy } from './services/session-policy';
 import {
   createEntraTokenValidator,
   type EntraTokenValidator,
@@ -372,6 +373,8 @@ import {
   createCityDataFreshnessService,
   type CityDataFreshnessService,
 } from './services/city-data-freshness.service';
+import { createZoningRoute, type ZoningRoute } from './routes/zoning.route';
+import { createZoningService, type ZoningService } from './services/zoning.service';
 import {
   createCommunityStatsRefreshRoute,
   type CommunityStatsRefreshRoute,
@@ -516,6 +519,19 @@ import {
   type CommissionService,
 } from './services/billing/commission.service';
 import {
+  createSimulatedPaymentProvider,
+  type SimulatedPaymentProvider,
+} from './services/billing/simulated-payment.provider';
+import { createDrizzleSimulatedPaymentStore } from './services/billing/simulated-payment.store';
+import {
+  createSimulatedPaymentsService,
+  type SimulatedPaymentsService,
+} from './services/billing/simulated-payments.service';
+import {
+  createSimulatedPaymentsRoute,
+  type SimulatedPaymentsRoute,
+} from './routes/simulated-payments.route';
+import {
   createFlatPlanService,
   type FlatPlanService,
 } from './services/billing/flat-plan.service';
@@ -591,6 +607,7 @@ import {
   createRequestPipeline,
   type LogEntry,
   type RequestPipeline,
+  type RequestPipelineDeps,
 } from './middleware/pipeline';
 
 export interface AppComposition {
@@ -749,6 +766,9 @@ export interface AppComposition {
   /** City-data freshness for the landing trust strip (trust-strip/01): fetch-only, no db. */
   readonly cityDataFreshnessService: CityDataFreshnessService;
   readonly cityDataFreshnessRoute: CityDataFreshnessRoute;
+  /** #687: zoning rules catalogue (pure data; no I/O). */
+  readonly zoningService: ZoningService;
+  readonly zoningRoute: ZoningRoute;
   /** Monthly refresh timer + manual admin trigger (neighbourhood/05). */
   readonly communityStatsRefreshService: CommunityStatsRefreshService;
   readonly communityStatsRefreshRoute: CommunityStatsRefreshRoute;
@@ -817,6 +837,9 @@ export interface AppComposition {
   /** billing/02: daily review-window finalizer. */
   readonly invoiceReviewerService: InvoiceReviewerService;
   readonly stripeWebhooksRoute: StripeWebhooksRoute;
+  /** #753: simulated-provider dev actions (404 unless PAYMENTS_PROVIDER=simulated). */
+  readonly simulatedPaymentsService: SimulatedPaymentsService;
+  readonly simulatedPaymentsRoute: SimulatedPaymentsRoute;
   /** Tight limiter + pipeline for the Stripe webhook receiver. */
   readonly webhookRateLimiter: RateLimiter;
   readonly webhookPipeline: RequestPipeline;
@@ -949,8 +972,25 @@ export function createComposition(
     maxRequests: config.rateLimit.maxRequests,
     maxTrackedKeys: config.rateLimit.maxTrackedKeys,
   });
+  // Created before the pipelines: the #794 CSRF origin check audit-logs
+  // every denial here.
+  const adminAuditStore: AdminAuditStore =
+    options.adminAuditStore ?? createDrizzleAdminAuditStore({ db: db.db });
+  // #794 (#731 F-6): every pipeline refuses state-changing requests that
+  // authenticate with an admin/builder session COOKIE unless Origin (or
+  // Referer) is in CORS_ORIGINS. Bearer-header auth is unaffected.
+  const csrf: RequestPipelineDeps['csrf'] = {
+    allowlist: config.corsOrigins,
+    onDenied: (denial) =>
+      adminAuditStore.log({
+        actorEmail: null,
+        action: 'csrf.denied',
+        detail: `method=${denial.method} cookie=${denial.cookie} reason=${denial.reason} correlation=${denial.correlationId}`,
+      }),
+  };
   const requestPipeline: RequestPipeline = createRequestPipeline({
     rateLimiter,
+    csrf,
     logger: options.logger,
   });
   // The lead gate is public by design, so it gets its own deliberately
@@ -980,6 +1020,7 @@ export function createComposition(
   const leadRateLimiter: AnyRateLimiter = sharedLimiter('lead:ip', config.lead.rateLimit);
   const leadPipeline: RequestPipeline = createRequestPipeline({
     rateLimiter: leadRateLimiter,
+    csrf,
     logger: options.logger,
   });
   // consumer/03 — estimates are the most expensive endpoint to leave
@@ -1007,6 +1048,7 @@ export function createComposition(
         label: 'tenant',
       },
     ],
+    csrf,
     logger: options.logger,
   });
   // HRD-06: the health endpoint reports real dependency state. A sick
@@ -1026,6 +1068,7 @@ export function createComposition(
   });
   const analyticsPipeline: RequestPipeline = createRequestPipeline({
     rateLimiter: analyticsRateLimiter,
+    csrf,
     logger: options.logger,
   });
   // auth/02 — the Entra callback is public by design (it IS the sign-in),
@@ -1039,6 +1082,7 @@ export function createComposition(
   });
   const entraCallbackPipeline: RequestPipeline = createRequestPipeline({
     rateLimiter: entraCallbackRateLimiter,
+    csrf,
     logger: options.logger,
   });
   const healthRoute: HealthRoute = createHealthRoute({ health: healthService });
@@ -1119,8 +1163,6 @@ export function createComposition(
   // sessions, and the embed config lookup. Created before the lead
   // service so embed lead capture can dual-write builder_id in the same
   // insert (the lead is visible in the builder portal immediately).
-  const adminAuditStore: AdminAuditStore =
-    options.adminAuditStore ?? createDrizzleAdminAuditStore({ db: db.db });
   const builderService: BuilderService = createBuilderService({
     db: db.db,
     audit: adminAuditStore,
@@ -1287,9 +1329,16 @@ export function createComposition(
   // auth/02 — admin session auth (Entra sign-in mints the sessions).
   // The session guard replaces the interim pre-shared-key guard; routes
   // are untouched (they depend on the AdminGuard interface).
-  const adminSessionStore: AdminSessionStore =
-    options.adminSessionStore ??
-    createDrizzleAdminSessionStore({ db: db.db });
+  // #730: absolute + idle timeouts and activity tracking wrap the store, so
+  // every session reader (guards, AuthContextService, view-as) enforces them.
+  const adminSessionStore: AdminSessionStore = withSessionPolicy(
+    options.adminSessionStore ?? createDrizzleAdminSessionStore({ db: db.db }),
+    {
+      absoluteTtlSeconds: config.auth.adminSessionTtlSeconds,
+      idleTimeoutSeconds: config.auth.adminSessionIdleTimeoutSeconds,
+      touchIntervalSeconds: config.auth.sessionActivityTouchIntervalSeconds,
+    },
+  );
   // (adminAuditStore is defined above with the builders-table setup.)
   const adminAuthService: AdminAuthService = createAdminAuthService({
     sessions: adminSessionStore,
@@ -1328,9 +1377,15 @@ export function createComposition(
   // auth/05 hardening: created here (ahead of the builder-auth block) so
   // UserService can revoke builder sessions on disable — a staff-side
   // disable must kill portal sessions too, not just admin ones.
-  const builderSessionStore: BuilderSessionStore =
+  const builderSessionStore: BuilderSessionStore = withSessionPolicy(
     options.builderSessionStore ??
-    createDrizzleBuilderSessionStore({ db: db.db });
+      createDrizzleBuilderSessionStore({ db: db.db }),
+    {
+      absoluteTtlSeconds: config.auth.builderSessionTtlSeconds,
+      idleTimeoutSeconds: config.auth.builderSessionIdleTimeoutSeconds,
+      touchIntervalSeconds: config.auth.sessionActivityTouchIntervalSeconds,
+    },
+  );
   const userService: UserService = createUserService({
     users: userStore,
     invitations: invitationStore,
@@ -1393,7 +1448,7 @@ export function createComposition(
     appBaseUrl: config.email.appBaseUrl,
     magicLinkTtlSeconds: config.auth.magicLinkTtlSeconds,
     magicLinkMaxSendsPerHour: config.auth.magicLinkMaxSendsPerHour,
-    builderSessionTtlSeconds: config.auth.adminSessionTtlSeconds,
+    builderSessionTtlSeconds: config.auth.builderSessionTtlSeconds,
     // Entra end-session URL for logout (kills the IdP session too once
     // builder Entra lands in AUTH #74; ignored by the frontend until then).
     entraSignIn: config.entraSignIn,
@@ -1423,11 +1478,13 @@ export function createComposition(
   });
   const permissionGuard: PermissionGuard = createPermissionGuard({
     authContext: authContextService,
+    // #730: dangerous routes (registry `recentAuth`) need a recent sign-in.
+    reauthWindowSeconds: config.auth.sessionReauthWindowSeconds,
   });
   const builderAuthRoute: BuilderAuthRoute = createBuilderAuthRoute({
     builderAuth: builderAuthService,
     permissionGuard,
-    builderSessionTtlSeconds: config.auth.adminSessionTtlSeconds,
+    builderSessionTtlSeconds: config.auth.builderSessionTtlSeconds,
   });
   // auth/05 — builder Entra External ID sign-in (organization accounts).
   // Separate External ID app/user flow from admin (`config.builderEntraSignIn`).
@@ -1445,12 +1502,12 @@ export function createComposition(
       builders: builderService,
       sessions: builderSessionStore,
       audit: adminAuditStore,
-      builderSessionTtlSeconds: config.auth.adminSessionTtlSeconds,
+      builderSessionTtlSeconds: config.auth.builderSessionTtlSeconds,
     });
   const builderEntraCallbackRoute: BuilderEntraCallbackRoute =
     createBuilderEntraCallbackRoute({
       entraCallback: builderEntraCallbackService,
-      builderSessionTtlSeconds: config.auth.adminSessionTtlSeconds,
+      builderSessionTtlSeconds: config.auth.builderSessionTtlSeconds,
       permissionGuard,
     });
   const builderUsersRoute: BuilderUsersRoute = createBuilderUsersRoute({
@@ -1470,6 +1527,7 @@ export function createComposition(
   });
   const builderEntraCallbackPipeline: RequestPipeline = createRequestPipeline({
     rateLimiter: builderEntraCallbackRateLimiter,
+    csrf,
     logger: options.logger,
   });
   const viewAsService: ViewAsService = createViewAsService({
@@ -1525,6 +1583,7 @@ export function createComposition(
   const adminSearchPipeline: RequestPipeline = createAdminSearchPipeline({
     ipLimiter: adminSearchIpRateLimiter,
     sessionLimiter: adminSearchSessionRateLimiter,
+    csrf,
     logger: options.logger,
   });
   const adminSearchService: AdminSearchService = createAdminSearchService({
@@ -1666,6 +1725,10 @@ export function createComposition(
     createCityDataFreshnessService(config.cityDataFreshness);
   const cityDataFreshnessRoute: CityDataFreshnessRoute =
     createCityDataFreshnessRoute({ freshness: cityDataFreshnessService });
+  // Zoning rules catalogue (#687): the configured city's district → forms +
+  // key rules table from @feasly/zoning. Pure data, verified values only.
+  const zoningService: ZoningService = createZoningService({ config: config.zoning });
+  const zoningRoute: ZoningRoute = createZoningRoute({ zoning: zoningService });
   // Community-stats monthly refresh (neighbourhood/05): recomputes
   // community_stats from fresh Socrata aggregates on a timer; ops can also
   // trigger it manually via POST /api/v1/admin/community-stats/refresh.
@@ -1854,9 +1917,27 @@ export function createComposition(
   const billingAuditService: BillingAuditService = createBillingAuditService({
     db: db.db,
   });
+  // #753: payment provider switch — the ONLY place a concrete payment
+  // provider is chosen. `simulated` (dev default) is Stripe-shaped and
+  // delivers signed events through the production webhook handler below;
+  // `stripe` uses the SDK with the STRIPE_* Key Vault secrets.
+  const simulatedPaymentProvider: SimulatedPaymentProvider | null =
+    config.payments.provider === 'simulated'
+      ? createSimulatedPaymentProvider({
+          store: createDrizzleSimulatedPaymentStore(db.db),
+          webhookSecret: config.payments.simulatedWebhookSecret,
+          deliveryDelayMs: config.payments.simulatedWebhookDelayMs,
+        })
+      : null;
   const stripeService: StripeService = createStripeService({
     db: db.db,
     billing: config.billing,
+    ...(simulatedPaymentProvider
+      ? {
+          client: simulatedPaymentProvider,
+          webhookSecret: simulatedPaymentProvider.webhookSecret,
+        }
+      : {}),
   });
   const commissionService: CommissionService = createCommissionService({
     db: db.db,
@@ -2038,6 +2119,24 @@ export function createComposition(
   const stripeWebhooksRoute: StripeWebhooksRoute = createStripeWebhooksRoute({
     billingWebhooks: billingWebhookService,
   });
+  // Simulated events take the same path a real Stripe delivery does: the
+  // webhook route → signature verification → idempotent dispatch.
+  simulatedPaymentProvider?.connectWebhook((rawBody, signature) =>
+    stripeWebhooksRoute.handle(rawBody, signature),
+  );
+  const simulatedPaymentsService: SimulatedPaymentsService =
+    createSimulatedPaymentsService({
+      provider: simulatedPaymentProvider,
+      stripe: stripeService,
+      commission: commissionService,
+      audit: billingAuditService,
+    });
+  const simulatedPaymentsRoute: SimulatedPaymentsRoute =
+    createSimulatedPaymentsRoute({
+      simulatedPayments: simulatedPaymentsService,
+      builderGuard,
+      adminGuard,
+    });
   // billing/03 follow-on: read-only dashboard rollup for
   // GET /api/v1/admin/billing (MRR, aging buckets, dunning, webhook health).
   const billingHealthService: BillingHealthService = createBillingHealthService(
@@ -2062,6 +2161,7 @@ export function createComposition(
   });
   const webhookPipeline: RequestPipeline = createRequestPipeline({
     rateLimiter: webhookRateLimiter,
+    csrf,
     logger: options.logger,
   });
   // MCP server (api-mcp/06): Streamable HTTP at POST /mcp/v1.
@@ -2182,6 +2282,8 @@ export function createComposition(
     communityStatsRoute,
     cityDataFreshnessService,
     cityDataFreshnessRoute,
+    zoningService,
+    zoningRoute,
     communityStatsRefreshService,
     communityStatsRefreshRoute,
     adminAuditStore,
@@ -2219,6 +2321,8 @@ export function createComposition(
     billingWebhookService,
     invoiceReviewerService,
     stripeWebhooksRoute,
+    simulatedPaymentsService,
+    simulatedPaymentsRoute,
     webhookRateLimiter,
     webhookPipeline,
     mcpRoute,

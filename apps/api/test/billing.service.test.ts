@@ -43,7 +43,19 @@ function makeDeps(agreements: AgreementGate = ACCEPTED_AGREEMENTS) {
         id: 'lead-1',
         tenantKey: null,
         builderId: ELITE_BUILDER_ID,
+        sandbox: false,
         createdAt: new Date('2026-03-01T10:00:00.000Z'),
+      },
+    ],
+    [
+      // #840: a sandbox (test API key) lead assigned to Elite.
+      'lead-sandbox',
+      {
+        id: 'lead-sandbox',
+        tenantKey: null,
+        builderId: ELITE_BUILDER_ID,
+        sandbox: true,
+        createdAt: new Date('2026-03-01T11:00:00.000Z'),
       },
     ],
     [
@@ -52,6 +64,7 @@ function makeDeps(agreements: AgreementGate = ACCEPTED_AGREEMENTS) {
         id: 'lead-other',
         tenantKey: null,
         builderId: OTHER_BUILDER_ID,
+        sandbox: false,
         createdAt: new Date('2026-03-02T10:00:00.000Z'),
       },
     ],
@@ -186,6 +199,19 @@ describe('billing service facade', () => {
     expect(result).toMatchObject({ billed: true, invoiceId: 'inv-1' });
   });
 
+  it('reportContract refuses a sandbox lead with 409 and never bills (#840)', async () => {
+    const { service, billingHook } = makeDeps();
+    await expect(
+      service.reportContract({
+        tenantKey: 'elite-craft',
+        leadId: 'lead-sandbox',
+        contractValueCents: 50_000_000,
+        contractSignedAt: new Date(),
+      }),
+    ).rejects.toMatchObject({ status: 409, code: 'CONFLICT' });
+    expect(billingHook.recordBillableEvent).not.toHaveBeenCalled();
+  });
+
   it('reportContract 404s for an unknown lead', async () => {
     const { service, billingHook } = makeDeps();
     await expect(
@@ -240,6 +266,14 @@ describe('billing service facade', () => {
     const { service, commission } = makeDeps();
     await service.getInvoice('inv-1', null);
     expect(commission.getById).toHaveBeenCalledWith('inv-1');
+  });
+
+  it('disputeInvoice 403s for another tenant invoice and records nothing (#731)', async () => {
+    const { service, commission } = makeDeps();
+    await expect(
+      service.disputeInvoice('inv-1', 'other-builder', 'x'),
+    ).rejects.toMatchObject({ status: 403 });
+    expect(commission.disputeInvoice).not.toHaveBeenCalled();
   });
 
   it('disputeInvoice checks the tenant then disputes', async () => {

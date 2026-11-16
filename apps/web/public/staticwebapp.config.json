@@ -1,6 +1,6 @@
 {
   "globalHeaders": {
-    "Content-Security-Policy": "default-src 'self'; script-src 'self' 'unsafe-eval' 'sha256-zAUlMTajbqjVdY8AYldT6VARsBxlta5saR1E7WUWGXc=' 'sha256-LMY6wYoFV9I4wWzxaq1N/dTpl4iurQktw706UCHK3vM='; style-src 'self' https://fonts.googleapis.com 'unsafe-inline'; font-src 'self' https://fonts.gstatic.com; img-src 'self' data:; connect-src 'self' https://data.calgary.ca https://feasly-dev-api-4fhkep.azurewebsites.net; frame-ancestors 'none'; form-action 'self'; base-uri 'self'; object-src 'none'",
+    "Content-Security-Policy": "default-src 'self'; script-src 'self' 'sha256-zAUlMTajbqjVdY8AYldT6VARsBxlta5saR1E7WUWGXc=' 'sha256-LMY6wYoFV9I4wWzxaq1N/dTpl4iurQktw706UCHK3vM='; style-src 'self' https://fonts.googleapis.com 'unsafe-inline'; font-src 'self' https://fonts.gstatic.com; img-src 'self' data:; connect-src 'self' https://data.calgary.ca https://feasly-dev-api-4fhkep.azurewebsites.net; frame-ancestors 'none'; form-action 'self'; base-uri 'self'; object-src 'none'",
     "Permissions-Policy": "camera=(), microphone=(), geolocation=(), payment=(), usb=()",
     "Referrer-Policy": "strict-origin-when-cross-origin",
     "Strict-Transport-Security": "max-age=31536000; includeSubDomains; preload",
@@ -49,6 +49,10 @@
     },
     {
       "route": "/r/*",
+      "rewrite": "/index.html"
+    },
+    {
+      "route": "/my-report",
       "rewrite": "/index.html"
     },
     {
@@ -826,14 +830,14 @@
       "route": "/embed/*",
       "rewrite": "/index.html",
       "headers": {
-        "Content-Security-Policy": "default-src 'self'; script-src 'self' 'unsafe-eval' 'sha256-zAUlMTajbqjVdY8AYldT6VARsBxlta5saR1E7WUWGXc=' 'sha256-LMY6wYoFV9I4wWzxaq1N/dTpl4iurQktw706UCHK3vM='; style-src 'self' https://fonts.googleapis.com 'unsafe-inline'; font-src 'self' https://fonts.gstatic.com; img-src 'self' data:; connect-src 'self' https://data.calgary.ca https://feasly-dev-api-4fhkep.azurewebsites.net; frame-ancestors 'self' https://demo.example.com https://elitecraftbuilders.com; form-action 'self'; base-uri 'self'; object-src 'none'"
+        "Content-Security-Policy": "default-src 'self'; script-src 'self' 'sha256-zAUlMTajbqjVdY8AYldT6VARsBxlta5saR1E7WUWGXc=' 'sha256-LMY6wYoFV9I4wWzxaq1N/dTpl4iurQktw706UCHK3vM='; style-src 'self' https://fonts.googleapis.com 'unsafe-inline'; font-src 'self' https://fonts.gstatic.com; img-src 'self' data:; connect-src 'self' https://data.calgary.ca https://feasly-dev-api-4fhkep.azurewebsites.net; frame-ancestors 'self' https://elitecraftbuilders.com; form-action 'self'; base-uri 'self'; object-src 'none'"
       }
     },
     {
       "route": "/embed",
       "rewrite": "/index.html",
       "headers": {
-        "Content-Security-Policy": "default-src 'self'; script-src 'self' 'unsafe-eval' 'sha256-zAUlMTajbqjVdY8AYldT6VARsBxlta5saR1E7WUWGXc=' 'sha256-LMY6wYoFV9I4wWzxaq1N/dTpl4iurQktw706UCHK3vM='; style-src 'self' https://fonts.googleapis.com 'unsafe-inline'; font-src 'self' https://fonts.gstatic.com; img-src 'self' data:; connect-src 'self' https://data.calgary.ca https://feasly-dev-api-4fhkep.azurewebsites.net; frame-ancestors 'self' https://demo.example.com https://elitecraftbuilders.com; form-action 'self'; base-uri 'self'; object-src 'none'"
+        "Content-Security-Policy": "default-src 'self'; script-src 'self' 'sha256-zAUlMTajbqjVdY8AYldT6VARsBxlta5saR1E7WUWGXc=' 'sha256-LMY6wYoFV9I4wWzxaq1N/dTpl4iurQktw706UCHK3vM='; style-src 'self' https://fonts.googleapis.com 'unsafe-inline'; font-src 'self' https://fonts.gstatic.com; img-src 'self' data:; connect-src 'self' https://data.calgary.ca https://feasly-dev-api-4fhkep.azurewebsites.net; frame-ancestors 'self' https://elitecraftbuilders.com; form-action 'self'; base-uri 'self'; object-src 'none'"
       }
     }
   ],

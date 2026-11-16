@@ -67,7 +67,7 @@ export async function reportsRevisionsHandler(
   // Revisions are engine recomputes: same 20/hr/IP budget as estimates.
   const reportToken = req.params?.reportToken ?? '';
   const result = await app.estimatePipeline.run(
-    { headers, clientIp: clientIpFrom(req) },
+    { headers, clientIp: clientIpFrom(req), method: req.method },
     () => app.reportRoute.createRevision(reportToken, req.body),
   );
 

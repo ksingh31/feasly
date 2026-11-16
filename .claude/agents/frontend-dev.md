@@ -17,6 +17,7 @@ and `docs/epics-ui/README.md` before your first edit.
 - Shared UI in `app/shared/`, shared logic in `app/core/`. Reuse before you write.
 - Copy rules: "Unlock" exactly once repo-wide; no accuracy claims; banned words per `check-banned-phrases.mjs`.
 - Mobile: 390×844 no horizontal scroll, ≥44px targets, sticky CTAs never cover inputs. Respect reduced motion.
+- SEO/GEO (priority): every public page meets `docs/seo-page-standard.md` — SEO table, prerender, unique title/description, canonical, OG, JSON-LD mirroring visible copy, answer-first content, sitemap + llms.txt entries, and prerender-check coverage, all in the same PR.
 
 ## Before every push (non-negotiable)
 Run `bash tools/verify-local.sh` (mirrors CI's required checks). Push or open a PR **only** when it

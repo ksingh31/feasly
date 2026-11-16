@@ -4,7 +4,7 @@ import { HttpTestingController, provideHttpClientTesting } from '@angular/common
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { provideRouter, Router } from '@angular/router';
 import { provideStore, Store } from '@ngxs/store';
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { firstValueFrom, throwError } from 'rxjs';
 import type { PropertyRecord } from '@feasly/contracts';
 import { API_SERVICE } from '../../core/api/api.service';
@@ -1527,6 +1527,87 @@ describe('ReportPageComponent', () => {
         fixture.nativeElement.querySelector('section[aria-label="Talk to a builder"]'),
       ).toBeTruthy();
       expect(fixture.nativeElement.querySelector('.partner-note')).toBeNull();
+    });
+  });
+
+  describe('copy link / native share (#704)', () => {
+    const returning = DEFAULT_APP_CONFIG.copy.returning;
+    let writeText: ReturnType<typeof vi.fn>;
+
+    function stubNavigator(key: 'clipboard' | 'share', value: unknown): void {
+      Object.defineProperty(navigator, key, { value, configurable: true, writable: true });
+    }
+
+    function copyButton(): HTMLButtonElement | null {
+      return fixture.nativeElement.querySelector('button.copy-link');
+    }
+
+    beforeEach(() => {
+      writeText = vi.fn().mockResolvedValue(undefined);
+      stubNavigator('clipboard', { writeText });
+    });
+
+    afterEach(() => {
+      stubNavigator('clipboard', undefined);
+      stubNavigator('share', undefined);
+    });
+
+    it('copies a view-only address link (no token) and announces success', async () => {
+      await unlock();
+      const token = store.selectSnapshot(ReportState.reportToken);
+      expect(token).toBeTruthy();
+      copyButton()!.click();
+      await pollFor(() => writeText.mock.calls.length === 1, 'clipboard write');
+      const copied = new URL(writeText.mock.calls[0][0] as string);
+      expect(copied.pathname).toBe('/');
+      expect(copied.searchParams.get('address')).toBe(fakeProperty.address);
+      expect(copied.searchParams.get('src')).toBe('share');
+      // AC4: the owner's magic-link / report token never appears in the URL.
+      expect(copied.toString()).not.toContain(token!);
+      expect(copied.pathname).not.toMatch(/^\/r\//);
+      await pollFor(
+        () =>
+          fixture.nativeElement.querySelector('.link-status[role="status"]')?.textContent?.trim() ===
+          returning.copyLinkDone,
+        'copied announcement',
+      );
+      expect(TestBed.inject(AnalyticsService).track).toHaveBeenCalledWith('report_link_copy');
+    });
+
+    it('shows an error when the clipboard write fails', async () => {
+      writeText.mockRejectedValue(new Error('denied'));
+      await unlock();
+      copyButton()!.click();
+      await pollFor(
+        () => fixture.nativeElement.querySelector('.share-link [role="alert"]') !== null,
+        'copy error',
+      );
+      expect(text()).toContain(returning.copyLinkError);
+    });
+
+    it('offers the native share sheet only where navigator.share exists', async () => {
+      await unlock();
+      expect(fixture.nativeElement.querySelector('button.native-share')).toBeNull();
+
+      const share = vi.fn().mockResolvedValue(undefined);
+      stubNavigator('share', share);
+      await setup();
+      await unlock();
+      const button = fixture.nativeElement.querySelector('button.native-share') as HTMLButtonElement;
+      expect(button.textContent?.trim()).toBe(returning.nativeShareCta);
+      button.click();
+      await pollFor(() => share.mock.calls.length === 1, 'native share');
+      const payload = share.mock.calls[0][0] as { url: string; text: string };
+      expect(new URL(payload.url).searchParams.get('src')).toBe('share');
+      expect(payload.url).not.toContain(store.selectSnapshot(ReportState.reportToken)!);
+      expect(payload.text).toContain(fakeProperty.address);
+    });
+
+    it('never offers the share link in partner view', async () => {
+      await unlock();
+      store.dispatch(new SetPartnerView());
+      fixture.detectChanges();
+      expect(copyButton()).toBeNull();
     });
   });
 

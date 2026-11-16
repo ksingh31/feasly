@@ -21,8 +21,9 @@ import {
   SMALL_SAMPLE_THRESHOLD,
 } from '../src/services/admin-calibration.service';
 import type { CalibrationImportHistoryItem } from '@feasly/contracts';
+import { SEED_ADMIN_EMAIL } from '../src/config';
 
-const ADMIN_EMAIL = 'karanbirsingh667@gmail.com';
+const ADMIN_EMAIL = SEED_ADMIN_EMAIL;
 
 describe('admin-calibration.service', () => {
   it('AC1: reports the current cost-data version honestly (uncalibrated placeholder)', async () => {

@@ -72,7 +72,7 @@ export async function funnelsHandler(
   const correlationId = middleware.ensureCorrelationId(headers);
 
   const result = await app.requestPipeline.run(
-    { headers, clientIp: clientIpFrom(req) },
+    { headers, clientIp: clientIpFrom(req), method: req.method },
     async () => {
       // auth/04: registry permissions are REAL authorization — enforced
       // here before the route runs ('analytics:read' for this endpoint).

@@ -25,6 +25,14 @@ import {
 
 export type NodeEnv = 'development' | 'test' | 'staging' | 'production';
 
+/**
+ * The protected super_admin seeded by migrations 0020/0036/0042 (and mirrored
+ * in tools/repair-sql.mjs). The only runtime copy of this address in app code:
+ * it backs the ops inbox/alert defaults, and tests import it rather than
+ * repeating it. Allowlisted in tools/personal-id-allowlist.txt (#758).
+ */
+export const SEED_ADMIN_EMAIL = 'karanbirsingh667@gmail.com';
+
 /** Split a comma-separated env value into a trimmed, non-empty list. */
 function csvToList(raw: string): string[] {
   return raw
@@ -72,10 +80,15 @@ const EnvSchema = z.object({
   // estimates 20/hr/IP) — env-overridable, never hardcoded per endpoint.
   // Embed traffic is additionally aggregated per tenant so one builder's
   // viral page can't starve the endpoint for everyone else.
+  // #737: the per-tenant default was 20/hr, below the pilot's assumed 1x peak
+  // of 50 estimates/hr (apps/api/loadtest/README.md traffic model), so one
+  // builder's embed would have been throttled at normal traffic. It is now
+  // 600/hr: the 10x target (500/hr) plus 20% headroom. Still a cap per
+  // builder, so one viral page can't starve the endpoint.
   ESTIMATE_RATE_LIMIT_WINDOW_MS: z.coerce.number().int().positive().default(3_600_000),
   ESTIMATE_RATE_LIMIT_MAX_REQUESTS: z.coerce.number().int().positive().default(20),
   ESTIMATE_TENANT_RATE_LIMIT_WINDOW_MS: z.coerce.number().int().positive().default(3_600_000),
-  ESTIMATE_TENANT_RATE_LIMIT_MAX_REQUESTS: z.coerce.number().int().positive().default(20),
+  ESTIMATE_TENANT_RATE_LIMIT_MAX_REQUESTS: z.coerce.number().int().positive().default(600),
   // Analytics ingest is public by design (story consumer/01), so it gets
   // its own limiter — generous (300/min per IP) but separate from the
   // general API traffic.
@@ -169,8 +182,24 @@ const EnvSchema = z.object({
   // INTERIM (api-mcp/01): pre-shared key for admin endpoints until
   // admin/01's session auth lands. Unset = admin endpoints fail closed.
   ADMIN_API_KEY: z.string().trim().min(1).optional(),
-  // Admin session lifetime (admin/01, D-02): 7 days, same as the magic links.
-  ADMIN_SESSION_TTL_SECONDS: z.coerce.number().int().positive().default(604_800),
+  // Admin session ABSOLUTE lifetime (#730, owner decision 2026-11-15): 12 h.
+  // Was 7 days (admin/01, D-02). Also caps rows minted under the old value.
+  ADMIN_SESSION_TTL_SECONDS: z.coerce.number().int().positive().default(43_200),
+  // #730: admin IDLE timeout — a session unused for this long stops
+  // validating (1 h, owner decision 2026-11-15).
+  ADMIN_SESSION_IDLE_TIMEOUT_SECONDS: z.coerce.number().int().positive().default(3_600),
+  // #730: builder session absolute lifetime (7 days) and idle timeout (24 h),
+  // owner decision 2026-11-15. Builders previously shared the admin TTL.
+  BUILDER_SESSION_TTL_SECONDS: z.coerce.number().int().positive().default(604_800),
+  BUILDER_SESSION_IDLE_TIMEOUT_SECONDS: z.coerce.number().int().positive().default(86_400),
+  // #730: how often (at most) a validated session's last_seen_at is written.
+  // Bounds the write load of activity tracking; the idle timeout is accurate
+  // to within this interval.
+  SESSION_ACTIVITY_TOUCH_INTERVAL_SECONDS: z.coerce.number().int().positive().default(60),
+  // #730: dangerous actions (view-as, mark-paid, user deactivation, API-key
+  // issuance/rotation) require a sign-in no older than this; otherwise
+  // 401 REAUTH_REQUIRED and the user signs in again.
+  SESSION_REAUTH_WINDOW_SECONDS: z.coerce.number().int().positive().default(1_800),
   // auth/01: invitation lifetime — 7 days, same discipline as the
   // magic links it replaces.
   INVITATION_TTL_SECONDS: z.coerce.number().int().positive().default(604_800),
@@ -328,6 +357,12 @@ const EnvSchema = z.object({
   LAND_USE_CACHE_TTL_MS: z.coerce.number().int().positive().default(86_400_000),
   // Hard cap on what the district lookup can add to a property lookup (p95).
   LAND_USE_HTTP_TIMEOUT_MS: z.coerce.number().int().positive().default(3_000),
+  // --- Zoning rules catalogue (#687) ---
+  // Which city's catalogue GET /api/v1/zoning/districts serves (a key in
+  // @feasly/zoning ZONING_CATALOGUES). Adding a city = data file + this value.
+  ZONING_CITY: z.string().trim().toLowerCase().min(1).default('calgary'),
+  // Cache-Control max-age for the catalogue (static per deploy; 1h default).
+  ZONING_CACHE_MAX_AGE_S: z.coerce.number().int().nonnegative().default(3_600),
   // --- City-data freshness (landing trust strip) ---
   // Shares the SOCRATA_* source with propertyData; its own TTL because the
   // metadata changes at most monthly (24h default, successful fetches only).
@@ -393,6 +428,25 @@ const EnvSchema = z.object({
   STRIPE_WEBHOOK_SECRET: z.string().min(1).optional(),
   // Flat-plan Stripe Price id (`price_…`) — only used when BILLING_MODEL=flat.
   STRIPE_FLAT_PRICE_ID: z.string().min(1).optional(),
+  // --- Payment provider (#753) ---
+  // `simulated` = Stripe-shaped simulation (test cards, signed webhook
+  // events through the production handler, no real money). `stripe` = the
+  // Stripe SDK with STRIPE_* secrets. Unset → `simulated` in development,
+  // `stripe` everywhere else. Production refuses to boot with `simulated`.
+  PAYMENTS_PROVIDER: z.enum(['simulated', 'stripe']).optional(),
+  // Signing secret for simulated webhook events. Optional: unset → a random
+  // per-process secret (events are signed and verified in the same process
+  // at delivery time). Not a real credential — it can never move money.
+  PAYMENTS_SIMULATED_WEBHOOK_SECRET: z.string().min(16).optional(),
+  // How long after a simulated charge its webhook is delivered (Stripe's
+  // webhooks are asynchronous too). Undelivered events are also flushed on
+  // the next simulated payment call.
+  PAYMENTS_SIMULATED_WEBHOOK_DELAY_MS: z.coerce
+    .number()
+    .int()
+    .min(0)
+    .max(60_000)
+    .default(1_500),
 
   // --- Transactional email (story email/01) ---
   // Provider: Azure Communication Services (Karan-approved 2026-09-24).
@@ -444,12 +498,12 @@ const EnvSchema = z.object({
   UNSUBSCRIBE_TOKEN_SECRET: z.string().min(1).optional(),
   // One-click unsubscribe token validity: 30 days (story requirement).
   UNSUBSCRIBE_TOKEN_TTL_SECONDS: z.coerce.number().int().positive().default(2_592_000),
-  // Team inbox for callback confirmations. Standing test email until Karan
-  // names the ops inbox.
-  OPS_INBOX_EMAIL: z.string().email().default('karanbirsingh667@gmail.com'),
-  // Ops alert recipient (admin/06). Standing test email until Karan names
-  // an ops inbox.
-  OPS_ALERT_EMAIL: z.string().email().default('karanbirsingh667@gmail.com'),
+  // Team inbox for callback confirmations. Defaults to the seeded super_admin
+  // until the owner names an ops inbox (set OPS_INBOX_EMAIL to override).
+  OPS_INBOX_EMAIL: z.string().email().default(SEED_ADMIN_EMAIL),
+  // Ops alert recipient (admin/06). Defaults to the seeded super_admin until
+  // the owner names an ops inbox (set OPS_ALERT_EMAIL to override).
+  OPS_ALERT_EMAIL: z.string().email().default(SEED_ADMIN_EMAIL),
   // Ops alert dedupe window per alert class: at most one failure email
   // per class inside this window (admin/06).
   OPS_ALERT_DEDUPE_WINDOW_MS: z.coerce.number().int().positive().default(86_400_000),
@@ -515,7 +569,7 @@ export interface LeadConfig {
 export interface EstimateConfig {
   /** Per-IP limiter for the public estimates endpoint (frozen: 20/hr/IP). */
   readonly rateLimit: Omit<RateLimitConfig, 'maxTrackedKeys'>;
-  /** Per-tenant limiter aggregating embed traffic (frozen: 20/hr/tenant). */
+  /** Per-tenant limiter aggregating embed traffic (default 600/hr/tenant: the 10x launch target, #737). */
   readonly tenantRateLimit: Omit<RateLimitConfig, 'maxTrackedKeys'>;
 }
 
@@ -569,8 +623,18 @@ export interface AuthConfig {
    * admin endpoints fail closed.
    */
   readonly adminApiKey: string | undefined;
-  /** Lifetime of an admin session cookie (admin/01, D-02: 7 days). */
+  /** Absolute lifetime of an admin session (#730: 12 h). */
   readonly adminSessionTtlSeconds: number;
+  /** Admin idle timeout (#730: 1 h). */
+  readonly adminSessionIdleTimeoutSeconds: number;
+  /** Absolute lifetime of a builder session (#730: 7 days). */
+  readonly builderSessionTtlSeconds: number;
+  /** Builder idle timeout (#730: 24 h). */
+  readonly builderSessionIdleTimeoutSeconds: number;
+  /** Minimum interval between last_seen_at writes for one session (#730). */
+  readonly sessionActivityTouchIntervalSeconds: number;
+  /** Max age of the sign-in for dangerous actions (#730). */
+  readonly sessionReauthWindowSeconds: number;
   /** Lifetime of an invitation (auth/01: 7 days). */
   readonly invitationTtlSeconds: number;
 }
@@ -754,6 +818,17 @@ export interface LandUseConfig {
 }
 
 /**
+ * Zoning rules catalogue config (#687). The catalogue itself is data in
+ * `@feasly/zoning`; config only picks the city and the HTTP cache lifetime.
+ */
+export interface ZoningConfig {
+  /** City key of the served catalogue, e.g. 'calgary'. */
+  readonly city: string;
+  /** Cache-Control max-age (seconds) on the public catalogue response. */
+  readonly cacheMaxAgeSeconds: number;
+}
+
+/**
  * City-data freshness config (trust-strip/01).
  *
  * The landing trust strip reads "Refreshed <Month Year>" from the
@@ -856,6 +931,15 @@ export interface BillingConfig {
   readonly stripeFlatPriceId: string | undefined;
   /** True when NODE_ENV=production (live-money guard). */
   readonly isProduction: boolean;
+}
+
+/** #753: payment provider selection (simulated until Stripe exists). */
+export interface PaymentsConfig {
+  readonly provider: 'simulated' | 'stripe';
+  /** Simulated provider only; undefined → random per-process secret. */
+  readonly simulatedWebhookSecret: string | undefined;
+  /** Simulated provider only: webhook delivery delay after a charge. */
+  readonly simulatedWebhookDelayMs: number;
 }
 
 /** Sales tax (GST/HST) applied to commission invoices (#714). */
@@ -1047,8 +1131,11 @@ export interface ApiConfig {
   readonly costEngine: CostEngineConfig;
   readonly propertyData: PropertyDataConfig;
   readonly landUse: LandUseConfig;
+  readonly zoning: ZoningConfig;
   readonly cityDataFreshness: CityDataFreshnessConfig;
   readonly billing: BillingConfig;
+  /** #753: which payment provider billing talks to. */
+  readonly payments: PaymentsConfig;
   readonly sandboxPurge: SandboxPurgeConfig;
   readonly followUpEmail: FollowUpEmailConfig;
   readonly sheets: SheetsConfig;
@@ -1102,6 +1189,31 @@ function enforceStripeTestMode(
     return undefined;
   }
   return secretKey;
+}
+
+/**
+ * #753: resolve the payment provider. Fail closed: unset → `stripe`
+ * everywhere. `simulated` must be set explicitly (Bicep sets it for dev
+ * only). Deployed apps don't set NODE_ENV at runtime, so the refusal also
+ * keys on a live Stripe key — a signal that is present in production.
+ */
+function resolvePaymentsProvider(
+  requested: 'simulated' | 'stripe' | undefined,
+  nodeEnv: NodeEnv,
+  stripeSecretKey: string | undefined,
+): 'simulated' | 'stripe' {
+  const provider = requested ?? 'stripe';
+  if (provider === 'simulated' && nodeEnv === 'production') {
+    throw new Error(
+      'Invalid configuration:\n  - PAYMENTS_PROVIDER: production cannot use the simulated payment provider',
+    );
+  }
+  if (provider === 'simulated' && stripeSecretKey?.startsWith('sk_live_')) {
+    throw new Error(
+      'Invalid configuration:\n  - PAYMENTS_PROVIDER: the simulated payment provider cannot run with a live (sk_live_) STRIPE_SECRET_KEY',
+    );
+  }
+  return provider;
 }
 
 /**
@@ -1336,6 +1448,15 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): ApiConfig {
       retentionDays: e.SANDBOX_PURGE_RETENTION_DAYS,
       dryRun: e.SANDBOX_PURGE_DRY_RUN,
     },
+    payments: {
+      provider: resolvePaymentsProvider(
+        e.PAYMENTS_PROVIDER,
+        e.NODE_ENV,
+        e.STRIPE_SECRET_KEY,
+      ),
+      simulatedWebhookSecret: e.PAYMENTS_SIMULATED_WEBHOOK_SECRET,
+      simulatedWebhookDelayMs: e.PAYMENTS_SIMULATED_WEBHOOK_DELAY_MS,
+    },
     followUpEmail: {
       enabled: e.FOLLOW_UP_EMAIL_ENABLED,
       delayHours: e.FOLLOW_UP_EMAIL_DELAY_HOURS,
@@ -1397,6 +1518,11 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): ApiConfig {
       magicLinkMaxSendsPerHour: e.MAGIC_LINK_MAX_SENDS_PER_HOUR,
       adminApiKey: e.ADMIN_API_KEY,
       adminSessionTtlSeconds: e.ADMIN_SESSION_TTL_SECONDS,
+      adminSessionIdleTimeoutSeconds: e.ADMIN_SESSION_IDLE_TIMEOUT_SECONDS,
+      builderSessionTtlSeconds: e.BUILDER_SESSION_TTL_SECONDS,
+      builderSessionIdleTimeoutSeconds: e.BUILDER_SESSION_IDLE_TIMEOUT_SECONDS,
+      sessionActivityTouchIntervalSeconds: e.SESSION_ACTIVITY_TOUCH_INTERVAL_SECONDS,
+      sessionReauthWindowSeconds: e.SESSION_REAUTH_WINDOW_SECONDS,
       invitationTtlSeconds: e.INVITATION_TTL_SECONDS,
     },
     entra: {
@@ -1459,6 +1585,10 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): ApiConfig {
       datasetId: e.LAND_USE_DATASET_ID,
       cacheTtlMs: e.LAND_USE_CACHE_TTL_MS,
       httpTimeoutMs: e.LAND_USE_HTTP_TIMEOUT_MS,
+    },
+    zoning: {
+      city: e.ZONING_CITY,
+      cacheMaxAgeSeconds: e.ZONING_CACHE_MAX_AGE_S,
     },
     cityDataFreshness: {
       socrataBaseUrl: e.SOCRATA_BASE_URL,

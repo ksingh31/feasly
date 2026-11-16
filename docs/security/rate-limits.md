@@ -86,7 +86,7 @@ can't exhaust memory.
 | Limit | Env overrides |
 |---|---|
 | Lead: 10 / 60 s per IP | `LEAD_RATE_LIMIT_MAX_REQUESTS`, `LEAD_RATE_LIMIT_WINDOW_MS` |
-| Estimate: 20 / hr per IP, 20 / hr per tenant | `ESTIMATE_RATE_LIMIT_MAX_REQUESTS`, `ESTIMATE_RATE_LIMIT_WINDOW_MS`, `ESTIMATE_TENANT_RATE_LIMIT_MAX_REQUESTS`, `ESTIMATE_TENANT_RATE_LIMIT_WINDOW_MS` |
+| Estimate: 20 / hr per IP, 600 / hr per tenant (#737: covers the 10× launch target of 500 / hr) | `ESTIMATE_RATE_LIMIT_MAX_REQUESTS`, `ESTIMATE_RATE_LIMIT_WINDOW_MS`, `ESTIMATE_TENANT_RATE_LIMIT_MAX_REQUESTS`, `ESTIMATE_TENANT_RATE_LIMIT_WINDOW_MS` |
 | Magic-link reissue: 1 email per 60 s per address, 5 sends / hr per address | `MAGIC_LINK_REISSUE_COOLDOWN_MS`, `MAGIC_LINK_MAX_SENDS_PER_HOUR` |
 
 ### `POST /api/v1/magic-link/reissue`: send-oracle note
@@ -124,7 +124,7 @@ These need owner input and are not implemented yet:
 | Method | Path | Auth | Rate limit | Status |
 |---|---|---|---|---|
 | GET | `/api/health` | none | 100/min per IP | live |
-| POST | `/api/v1/estimate` | none | 20/hr per IP · 20/hr per tenant (embed) | live |
+| POST | `/api/v1/estimate` | none | 20/hr per IP · 600/hr per tenant (embed; #737, 10× launch target) | live |
 | POST | `/api/v1/estimates/preview` | none | 20/hr per IP | live |
 | POST | `/api/v1/leads` | none | 10/min per IP (dedicated lead limiter) | live |
 | GET | `/api/v1/magic-link/verify` | magic-token | 100/min per IP | live |
@@ -146,6 +146,7 @@ These need owner input and are not implemented yet:
 | POST | `/api/v1/unsubscribe/{token}` | magic-token | 10/min per IP | live |
 | GET | `/api/v1/communities/{slug}/stats` | none | 100/min per IP | live |
 | GET | `/api/v1/city-data/freshness` | none | 100/min per IP | live |
+| GET | `/api/v1/zoning/districts` | none | 100/min per IP | live |
 | GET | `/api/v1/embed/config` | none | 120/min per tenant key | live |
 | POST | `/api/v1/embed/session` | none | 30/min per tenant key | planned |
 | POST | `/api/v1/embed/relay/resend` | none | 60s per code · 30/min per IP | live |
@@ -211,6 +212,7 @@ These need owner input and are not implemented yet:
 | GET | `/api/v1/admin/funnels` | admin | 300/min per session | live |
 | GET | `/api/v1/admin/billing` | admin | 300/min per session | live |
 | POST | `/api/v1/admin/billing/invoices/{id}/retry` | admin | 300/min per session | live |
+| POST | `/api/v1/admin/billing/simulated/invoices/{id}/events` | admin | 300/min per session | live |
 | POST | `/api/v1/admin/billing/invoices/{id}/mark-paid` | admin | 300/min per session | live |
 | POST | `/api/v1/admin/billing/invoices/{id}/commission-rate` | admin | 300/min per session | live |
 | PUT | `/api/v1/admin/billing/invoices/{id}/payment-method` | admin | 300/min per session | live |
@@ -228,6 +230,8 @@ These need owner input and are not implemented yet:
 | POST | `/api/v1/stripe/webhooks` | stripe-signature | 100/min per IP | live |
 | POST | `/api/v1/billing/report-contract` | builder-session | 100/min per session | live |
 | POST | `/api/v1/billing/setup-intent` | builder-session | 100/min per session | live |
+| POST | `/api/v1/billing/simulated/confirm-setup` | builder-session | 100/min per session | live |
+| POST | `/api/v1/billing/simulated/authenticate` | builder-session | 100/min per session | live |
 | GET | `/api/v1/billing/card` | builder-session | 100/min per session | live |
 | GET | `/api/v1/billing/commission-rate` | builder-session | 100/min per session | live |
 | GET | `/api/v1/builder/billing/overview` | builder-session | 100/min per session | live |

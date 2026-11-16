@@ -59,6 +59,12 @@ export interface ApiRouteEntry {
    * permission strings by the conformance test.
    */
   readonly permissionsAnyOf?: readonly Permission[];
+  /**
+   * #730: dangerous action — the session's sign-in must be no older than
+   * SESSION_REAUTH_WINDOW_SECONDS (401 REAUTH_REQUIRED otherwise). Only
+   * valid on session routes that declare permissions (conformance test).
+   */
+  readonly recentAuth?: true;
   /** Frozen human-readable limit, e.g. '20/hr per IP'. */
   readonly rateLimit: string;
   readonly status: 'live' | 'planned';
@@ -83,7 +89,7 @@ export const ROUTE_REGISTRY: readonly ApiRouteEntry[] = [
     path: '/api/v1/estimate',
     auth: 'none',
     permissions: [] as const,
-    rateLimit: '20/hr per IP · 20/hr per tenant (embed)',
+    rateLimit: '20/hr per IP · 600/hr per tenant (embed; #737, 10× launch target)',
     status: 'live',
     summary:
       'Run a cost estimate (deterministic engine). Public for the web funnel; ' +
@@ -320,6 +326,18 @@ export const ROUTE_REGISTRY: readonly ApiRouteEntry[] = [
   },
   {
     method: 'GET',
+    path: '/api/v1/zoning/districts',
+    auth: 'none',
+    permissions: [] as const,
+    rateLimit: '100/min per IP',
+    status: 'live',
+    summary:
+      'Zoning rules catalogue for the configured city (#687): district → ' +
+      'typical building forms + key rules (height, coverage, density) with ' +
+      'bylaw sections; verified values only. Cache-Control public.',
+  },
+  {
+    method: 'GET',
     path: '/api/v1/embed/config',
     auth: 'none',
     permissions: [] as const,
@@ -401,7 +419,7 @@ export const ROUTE_REGISTRY: readonly ApiRouteEntry[] = [
     status: 'live',
     summary:
       'Entra PKCE callback: exchange the code, validate the id_token ' +
-      '(JWKS, aud, iss, exp), resolve/link the user row, mint a 7-day ' +
+      '(JWKS, aud, iss, exp), resolve/link the user row, mint a 12-hour ' +
       'admin session. Unknown account → 403, no enumeration.',
   },
   {
@@ -409,6 +427,7 @@ export const ROUTE_REGISTRY: readonly ApiRouteEntry[] = [
     path: '/api/v1/admin/view-as',
     auth: 'admin',
     permissions: ['view_as'] as const,
+    recentAuth: true,
     rateLimit: '60/min per session',
     status: 'live',
     summary:
@@ -483,6 +502,7 @@ export const ROUTE_REGISTRY: readonly ApiRouteEntry[] = [
     auth: 'admin',
     permissions: [] as const,
     permissionsAnyOf: ['users:manage', 'builder:users:manage'] as const,
+    recentAuth: true,
     rateLimit: '60/min per session',
     status: 'live',
     summary:
@@ -495,6 +515,7 @@ export const ROUTE_REGISTRY: readonly ApiRouteEntry[] = [
     path: '/api/v1/admin/users/{id}',
     auth: 'admin',
     permissions: ['users:manage'] as const,
+    recentAuth: true,
     rateLimit: '20/min per session',
     status: 'live',
     summary:
@@ -619,6 +640,7 @@ export const ROUTE_REGISTRY: readonly ApiRouteEntry[] = [
     path: '/api/v1/builder/view-as',
     auth: 'builder-session',
     permissions: ['view_as'] as const,
+    recentAuth: true,
     rateLimit: '60/min per session',
     status: 'live',
     summary:
@@ -656,6 +678,7 @@ export const ROUTE_REGISTRY: readonly ApiRouteEntry[] = [
     path: '/api/v1/builder/users/{id}',
     auth: 'builder-session',
     permissions: ['builder:users:manage'] as const,
+    recentAuth: true,
     rateLimit: '60/min per session',
     status: 'live',
     summary:
@@ -680,6 +703,7 @@ export const ROUTE_REGISTRY: readonly ApiRouteEntry[] = [
     path: '/api/v1/builder/users/{id}',
     auth: 'builder-session',
     permissions: ['builder:users:manage'] as const,
+    recentAuth: true,
     rateLimit: '60/min per session',
     status: 'live',
     summary:
@@ -829,6 +853,7 @@ export const ROUTE_REGISTRY: readonly ApiRouteEntry[] = [
     path: '/api/v1/admin/api-keys',
     auth: 'admin',
     permissions: ['api_keys:manage'] as const,
+    recentAuth: true,
     rateLimit: '10/min per session',
     status: 'live',
     summary:
@@ -840,6 +865,7 @@ export const ROUTE_REGISTRY: readonly ApiRouteEntry[] = [
     path: '/api/v1/admin/api-keys/{id}/rotate',
     auth: 'admin',
     permissions: ['api_keys:manage'] as const,
+    recentAuth: true,
     rateLimit: '10/min per session',
     status: 'live',
     summary: 'Rotate a key (old key stays valid for a grace window).',
@@ -1055,9 +1081,23 @@ export const ROUTE_REGISTRY: readonly ApiRouteEntry[] = [
   },
   {
     method: 'POST',
+    path: '/api/v1/admin/billing/simulated/invoices/{id}/events',
+    auth: 'admin',
+    permissions: ['billing:manage'] as const,
+    rateLimit: '300/min per session',
+    status: 'live',
+    summary:
+      'Test mode only (#753): fire a dispute, dashboard refund (full or ' +
+      "partial) or delayed failure against an invoice's simulated " +
+      'PaymentIntent; the Stripe-shaped event goes through the production ' +
+      'webhook handler. 404 unless the simulated payment provider is active.',
+  },
+  {
+    method: 'POST',
     path: '/api/v1/admin/billing/invoices/{id}/mark-paid',
     auth: 'admin',
     permissions: ['billing:manage'] as const,
+    recentAuth: true,
     rateLimit: '300/min per session',
     status: 'live',
     summary:
@@ -1265,6 +1305,31 @@ export const ROUTE_REGISTRY: readonly ApiRouteEntry[] = [
       'Builder creates a SetupIntent to save a card on file (commission ' +
       'model). Idempotent: ensures the tenant\'s Stripe customer first. ' +
       'Returns the client secret for Stripe Elements.',
+  },
+  // ── Simulated payment provider (#753) — 404 unless PAYMENTS_PROVIDER=simulated
+  {
+    method: 'POST',
+    path: '/api/v1/billing/simulated/confirm-setup',
+    auth: 'builder-session',
+    permissions: ['builder:billing'] as const,
+    rateLimit: '100/min per session',
+    status: 'live',
+    summary:
+      'Test mode only: builder saves one of the Stripe test cards against ' +
+      'their SetupIntent (stand-in for Stripe Elements). 3DS cards return ' +
+      'requires_action. 404 unless the simulated payment provider is active.',
+  },
+  {
+    method: 'POST',
+    path: '/api/v1/billing/simulated/authenticate',
+    auth: 'builder-session',
+    permissions: ['builder:billing'] as const,
+    rateLimit: '100/min per session',
+    status: 'live',
+    summary:
+      'Test mode only: complete or fail the 3D Secure challenge on the ' +
+      "builder's SetupIntent / PaymentIntent in requires_action. 404 unless " +
+      'the simulated payment provider is active.',
   },
   {
     method: 'GET',
