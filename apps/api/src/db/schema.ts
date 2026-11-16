@@ -1874,6 +1874,24 @@ export const builderPartners = pgTable(
   (t) => [index('builder_partners_active_order_idx').on(t.active, t.displayOrder)],
 );
 
+/**
+ * Zoning source watch state (#757): one row per city. The daily watcher
+ * records what it last saw of the City's Land Use Districts dataset and
+ * Land Use Bylaw page, which district codes the catalogue doesn't know,
+ * and the signature of the last "Zoning catalogue may be out of date"
+ * issue it filed (deduplication). Public City metadata only.
+ */
+export const zoningSourceWatch = pgTable('zoning_source_watch', {
+  city: text('city').primaryKey(),
+  datasetRowsUpdatedAt: timestamp('dataset_rows_updated_at', { withTimezone: true }),
+  bylawPageHash: text('bylaw_page_hash'),
+  bylawChangedAt: timestamp('bylaw_changed_at', { withTimezone: true }),
+  unknownDistrictCodes: jsonb('unknown_district_codes').notNull().default([]),
+  issueSignature: text('issue_signature'),
+  issueUrl: text('issue_url'),
+  checkedAt: timestamp('checked_at', { withTimezone: true }).notNull().defaultNow(),
+});
+
 // ── Neighbourhood data (#773) ───────────────────────────────────────────
 //
 // Outside neighbourhood sources (schools, designations, ratings, reviews,

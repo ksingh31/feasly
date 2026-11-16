@@ -336,6 +336,18 @@ export const ROUTE_REGISTRY: readonly ApiRouteEntry[] = [
   },
   {
     method: 'GET',
+    path: '/api/v1/communities/{slug}/living',
+    auth: 'none',
+    permissions: [] as const,
+    rateLimit: '100/min per IP',
+    status: 'live',
+    summary:
+      'Living nearby for an established community (#777): nearest + counts ' +
+      'within 500 m / 1 km per amenity category, and public-tree cover. ' +
+      'Served from monthly-refreshed City open data; never calls a provider.',
+  },
+  {
+    method: 'GET',
     path: '/api/v1/city-data/freshness',
     auth: 'none',
     permissions: [] as const,
