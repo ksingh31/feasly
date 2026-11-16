@@ -78,6 +78,11 @@ function fakeStripe() {
     createCustomer: async () => ({ id: 'cus_test_123' }),
     createSetupIntent: async () => ({ id: 'seti_1', clientSecret: 'seti_secret' }),
     listPaymentMethods: async () => [],
+    updateCustomer: async () => undefined,
+    getDefaultPaymentMethodId: async () => null,
+    setDefaultPaymentMethod: async () => undefined,
+    detachPaymentMethod: async (id: string) => ({ id }),
+    clearCustomerId: async () => null,
     createOffSessionPaymentIntent: async () => {
       pi += 1;
       return { id: `pi_adj_${pi}_${randomUUID().slice(0, 8)}`, status: 'processing' };
