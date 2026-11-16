@@ -814,6 +814,20 @@ ALTER TABLE "simulated_payment_objects" ADD COLUMN IF NOT EXISTS "created_at" ti
 ALTER TABLE "simulated_payment_objects" ADD COLUMN IF NOT EXISTS "delivered_at" timestamp with time zone;
 CREATE INDEX IF NOT EXISTS "simulated_payment_objects_customer_idx" ON "simulated_payment_objects" USING btree ("customer_id","object_type");
 CREATE INDEX IF NOT EXISTS "simulated_payment_objects_type_delivered_idx" ON "simulated_payment_objects" USING btree ("object_type","delivered_at");
+CREATE TABLE IF NOT EXISTS "city_data_cache" (
+
+	"key" text PRIMARY KEY NOT NULL,
+	"dataset_id" text NOT NULL,
+	"payload" jsonb NOT NULL,
+	"fetched_at" timestamp with time zone DEFAULT now() NOT NULL,
+	"expires_at" timestamp with time zone NOT NULL
+);
+ALTER TABLE "city_data_cache" ADD COLUMN IF NOT EXISTS "key" text PRIMARY KEY NOT NULL;
+ALTER TABLE "city_data_cache" ADD COLUMN IF NOT EXISTS "dataset_id" text NOT NULL;
+ALTER TABLE "city_data_cache" ADD COLUMN IF NOT EXISTS "payload" jsonb NOT NULL;
+ALTER TABLE "city_data_cache" ADD COLUMN IF NOT EXISTS "fetched_at" timestamp with time zone DEFAULT now() NOT NULL;
+ALTER TABLE "city_data_cache" ADD COLUMN IF NOT EXISTS "expires_at" timestamp with time zone NOT NULL;
+CREATE INDEX IF NOT EXISTS "city_data_cache_expires_at_idx" ON "city_data_cache" USING btree ("expires_at");
 CREATE TABLE IF NOT EXISTS "lead_reassignments" (
 
 	"id" uuid PRIMARY KEY NOT NULL,

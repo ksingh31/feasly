@@ -6,7 +6,9 @@
  * - Package has zero cost-math of its own.
  */
 import { describe, it, expect, vi } from 'vitest';
+import { ESTIMATE_DISCLAIMER } from '@feasly/contracts';
 import {
+  DETERMINISTIC_DISCLAIMER,
   TOOL_DEFINITIONS,
   requireToolScope,
   executeTool,
@@ -25,6 +27,14 @@ describe('tool definitions', () => {
   it('every description carries the deterministic-math disclaimer', () => {
     for (const tool of TOOL_DEFINITIONS) {
       expect(tool.description).toContain('deterministic');
+    }
+  });
+
+  it('#765 AC3: every description carries ESTIMATE_DISCLAIMER verbatim', () => {
+    expect(TOOL_DEFINITIONS.length).toBeGreaterThan(0);
+    for (const tool of TOOL_DEFINITIONS) {
+      expect(tool.description).toContain(ESTIMATE_DISCLAIMER);
+      expect(tool.description).toContain(DETERMINISTIC_DISCLAIMER);
     }
   });
 
