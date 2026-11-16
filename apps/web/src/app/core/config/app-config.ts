@@ -823,6 +823,12 @@ export interface AppConfig {
     name: string;
     /** Site-root-relative path of the 1200×630 social share image. */
     socialImage: string;
+    /**
+     * Public status page (#831, Upptime on GitHub Pages). Absolute https URL;
+     * empty string = no footer link (never a dead link). Must match
+     * infra/status-page/.upptimerc.yml (status-page-config.spec.ts).
+     */
+    statusPageUrl: string;
   };
   /** Backend wiring. */
   api: {

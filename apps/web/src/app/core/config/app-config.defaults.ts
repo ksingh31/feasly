@@ -24,6 +24,8 @@ export const DEFAULT_APP_CONFIG: AppConfig = {
     url: 'https://feasly.com',
     name: 'Feasly',
     socialImage: '/assets/og/og-default.png',
+    // #831: empty until the Upptime repo is live (docs/ops/status-page.md).
+    statusPageUrl: '',
   },
   api: {
     baseUrl: '',
