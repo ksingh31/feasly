@@ -376,6 +376,8 @@ export function createPrivacyService(deps: PrivacyServiceDeps): PrivacyService {
           name: c.name,
           phone: c.phone,
           window: c.window,
+          preferredDate: c.preferredDate,
+          notes: c.notes,
           status: c.status,
           createdAt: c.createdAt.toISOString(),
         })),

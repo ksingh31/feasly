@@ -28,8 +28,7 @@ const loadWebVitals: WebVitalsLoader = () => import('web-vitals');
  * `POST /api/v1/telemetry`, which writes App Insights traces.
  *
  * - Sampled per page load (`telemetry.sampleRate`); off when disabled, in
- *   mock-API mode, during prerender/SSR, without `sendBeacon`, or in an
- *   automated browser (`navigator.webdriver`).
+ *   mock-API mode, during prerender/SSR, or without `sendBeacon`.
  * - No PII: `page` is the Angular route PATTERN (`/report/:token`), never the
  *   concrete URL; script sources keep only their path; messages are
  *   truncated (the API also scrubs emails + query strings). No ids, no
@@ -71,11 +70,6 @@ export class WebTelemetryService {
     const cfg = this.config.get('telemetry');
     if (!cfg.enabled || this.config.get('api').useMockApi) return;
     if (typeof navigator === 'undefined' || typeof navigator.sendBeacon !== 'function') return;
-    // Automated browsers (Lighthouse/PSI, Playwright, crawlers driven by
-    // WebDriver/CDP) are not real users: skip them so synthetic loads never
-    // pollute RUM, and so the sampled web-vitals chunk can't randomly land
-    // inside a Lighthouse run and flip the script-size budget (#957).
-    if (navigator.webdriver) return;
     if (this.random() >= cfg.sampleRate) return;
     this.active = true;
 

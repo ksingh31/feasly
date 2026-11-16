@@ -63,6 +63,15 @@
       <ui-key-value-list [items]="contactItems()" />
     </section>
 
+    <section class="lead-drawer__section" aria-labelledby="lead-drawer-callbacks" data-testid="admin-lead-callbacks">
+      <h3 id="lead-drawer-callbacks" class="lead-drawer__heading">{{ copy.callbacksHeading }}</h3>
+      @for (request of callbackRequests(); track request.id) {
+        <ui-key-value-list class="lead-drawer__callback" [items]="request.items" />
+      } @empty {
+        <p class="lead-drawer__note">{{ copy.noCallbacks }}</p>
+      }
+    </section>
+
     <section class="lead-drawer__section" aria-labelledby="lead-drawer-campaign">
       <h3 id="lead-drawer-campaign" class="lead-drawer__heading">{{ copy.sections.campaign }}</h3>
       @if (attributionItems().length > 0) {

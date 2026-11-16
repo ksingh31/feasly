@@ -127,8 +127,8 @@ FW_MAX_AGE_SECONDS=3600
 
 fw_cleanup() {
   if [[ -n "$FW_RULE" ]]; then
-    if az postgres flexible-server firewall-rule delete -g "$RG" -n "$SERVER" \
-        --rule-name "$FW_RULE" --yes >/dev/null 2>&1; then
+    if az postgres flexible-server firewall-rule delete -g "$RG" --server-name "$SERVER" \
+        --name "$FW_RULE" --yes >/dev/null 2>&1; then
       echo "removed temporary firewall rule $FW_RULE" >&2
     else
       echo "WARN: could not remove temporary firewall rule $FW_RULE (the next run sweeps it)" >&2
@@ -147,11 +147,11 @@ fw_sweep() {
     epoch="${name#"$FW_PREFIX"}"; epoch="${epoch%%-*}"
     [[ "$epoch" =~ ^[0-9]+$ ]] || continue
     if (( now - epoch > FW_MAX_AGE_SECONDS )); then
-      az postgres flexible-server firewall-rule delete -g "$RG" -n "$SERVER" \
-        --rule-name "$name" --yes >/dev/null 2>&1 \
+      az postgres flexible-server firewall-rule delete -g "$RG" --server-name "$SERVER" \
+        --name "$name" --yes >/dev/null 2>&1 \
         && echo "swept stale firewall rule $name" >&2 || true
     fi
-  done < <(az postgres flexible-server firewall-rule list -g "$RG" -n "$SERVER" \
+  done < <(az postgres flexible-server firewall-rule list -g "$RG" --server-name "$SERVER" \
              --query "[].name" -o tsv 2>/dev/null || true)
 }
 
@@ -170,8 +170,8 @@ fw_open() {
   name="${name:0:128}"
   trap fw_cleanup EXIT
   trap 'fw_cleanup; exit 130' INT TERM
-  if ! az postgres flexible-server firewall-rule create -g "$RG" -n "$SERVER" \
-      --rule-name "$name" --start-ip-address "$ip" --end-ip-address "$ip" >/dev/null; then
+  if ! az postgres flexible-server firewall-rule create -g "$RG" --server-name "$SERVER" \
+      --name "$name" --start-ip-address "$ip" --end-ip-address "$ip" >/dev/null; then
     echo "WARN: could not create temporary firewall rule for $ip" >&2
     return 1
   fi

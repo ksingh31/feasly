@@ -453,9 +453,18 @@ exports[`OpenAPI drift > generated spec matches the snapshot 1`] = `
             "minLength": 1,
             "type": "string",
           },
+          "notes": {
+            "maxLength": 500,
+            "type": "string",
+          },
           "phone": {
             "maxLength": 32,
             "minLength": 7,
+            "type": "string",
+          },
+          "preferredDate": {
+            "description": "Preferred call day (YYYY-MM-DD, America/Edmonton): a weekday from tomorrow through the next 14 days",
+            "pattern": "^\\d{4}-\\d{2}-\\d{2}$",
             "type": "string",
           },
           "reportToken": {
@@ -481,6 +490,12 @@ exports[`OpenAPI drift > generated spec matches the snapshot 1`] = `
               true,
             ],
             "type": "boolean",
+          },
+          "preferredDate": {
+            "type": [
+              "string",
+              "null",
+            ],
           },
           "window": {
             "$ref": "#/components/schemas/CallbackWindow",

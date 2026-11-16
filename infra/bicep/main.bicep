@@ -266,10 +266,10 @@ module functionApp 'modules/function-app.bicep' = {
     // Magic-link URLs in emails must open on the live site (ADM-10), not the
     // feasly.example config default.
     appBaseUrl: 'https://${staticWebApp.outputs.hostname}'
-    // CORS allowlist for the in-app middleware (ADM-10): the web app calls
-    // the API cross-origin (SWA Free SKU rejects linked backends). The
-    // middleware is the single CORS source — platform siteConfig.cors is
-    // pinned empty in the module (#844).
+    // CORS allowlist (ADM-10): the web app calls the API cross-origin (SWA
+    // Free SKU rejects linked backends). One list feeds both the platform
+    // CORS (answers preflights, #954) and the in-app middleware (actual
+    // responses) — see the module.
     // Allowed: the live SWA hostname + local dev. Never '*' — credentials
     // are required.
     corsAllowedOrigins: [

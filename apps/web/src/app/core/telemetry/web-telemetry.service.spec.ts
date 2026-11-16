@@ -193,18 +193,4 @@ describe('WebTelemetryService', () => {
     server.flush();
     expect(beacon).not.toHaveBeenCalled();
   });
-
-  it('stays off in automated browsers (Lighthouse, Playwright) so web-vitals never loads (#957)', () => {
-    Object.defineProperty(navigator, 'webdriver', { value: true, configurable: true });
-    try {
-      const service = setup();
-      const loader = vi.fn(service.loader);
-      service.loader = loader;
-      service.start();
-      expect(service.isActive).toBe(false);
-      expect(loader).not.toHaveBeenCalled();
-    } finally {
-      Object.defineProperty(navigator, 'webdriver', { value: false, configurable: true });
-    }
-  });
 });

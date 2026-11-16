@@ -706,8 +706,11 @@ export function mockRenoReport(
   };
 }
 
-export function mockCallbackOk(window: 'morning' | 'afternoon' | 'evening'): CallbackResponse {
-  return { ok: true, window };
+export function mockCallbackOk(
+  window: 'morning' | 'afternoon' | 'evening',
+  preferredDate: string | null = null,
+): CallbackResponse {
+  return { ok: true, window, preferredDate };
 }
 
 export function mockWaitlistOk(topic: WaitlistTopic): WaitlistResponse {
