@@ -12,7 +12,7 @@
  */
 import { writeFileSync } from 'node:fs';
 import { LABELS, MARKERS, DEFAULTS, judgeClaimedIssue, judgeAgentPr, branchPrefixFor, findMergedPrFor, fixRoundState } from './lib.mjs';
-import { ghWrite, intVar, listIssues, listAgentPrs, listMergedPrs, labeledAt, issueComments, prChecks, maxFixRounds } from './gh.mjs';
+import { ghWrite, intVar, listIssues, listAgentPrs, listMergedPrs, labeledAt, issueComments, prComments, prChecks, maxFixRounds } from './gh.mjs';
 
 const outIdx = process.argv.indexOf('--out');
 const outFile = outIdx > -1 ? process.argv[outIdx + 1] : 'watchdog-summary.json';
@@ -27,7 +27,9 @@ const summary = { generatedAt: new Date(now).toISOString(), issues: [], prs: [],
 
 const prs = listAgentPrs();
 const maxRounds = maxFixRounds();
-const fixRoundsOf = new Map(prs.map((p) => [p.number, fixRoundState(p.comments, maxRounds)]));
+// prComments (REST, paginated, bot authors identifiable) — `pr list --json comments` stops at 100
+// and drops the [bot] suffix the fix-round trust check needs.
+const fixRoundsOf = new Map(prs.map((p) => [p.number, fixRoundState(prComments(p.number), maxRounds)]));
 let mergedPrs = null; // fetched lazily: only needed when a claimed issue has no open PR
 for (const issue of listIssues(LABELS.claimed)) {
   const linkedPr = prs.find((p) => p.headRefName.startsWith(branchPrefixFor(issue.number))) ?? null;

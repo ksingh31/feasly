@@ -211,13 +211,17 @@ test('linkedIssues extracts closing-keyword references only', () => {
 });
 
 // --- fix-round cap (#924) ---
-const round = (n, reason = 'review requested changes', max = 5) => ({ body: `${MARKERS.fixRound}\nFix round ${n}/${max}: ${reason}` });
-const conflictRound = (n) => ({ body: `${MARKERS.fixRound}\nFix round ${n} (merge main — not counted toward the 5-round cap): merge conflict with main: merge main in, resolve, re-verify` });
+// prComments (REST) shape: bots come back as "<name>[bot]" with is_bot.
+const BOT = { author: { login: 'github-actions[bot]', is_bot: true }, authorAssociation: 'CONTRIBUTOR' };
+const STRANGER = { author: { login: 'mallory', is_bot: false }, authorAssociation: 'NONE' };
+const c = (body, who = BOT) => ({ ...who, body });
+const round = (n, reason = 'review requested changes', max = 5) => c(`${MARKERS.fixRound}\nFix round ${n}/${max}: ${reason}`);
+const conflictRound = (n) => c(`${MARKERS.fixRound}\nFix round ${n} (merge main — not counted toward the 5-round cap): merge conflict with main: merge main in, resolve, re-verify`);
 const legacyConflict = (n) => round(n, 'merge conflict with main: merge main in, resolve, re-verify');
 const fiveRounds = [1, 2, 3, 4, 5].map((n) => round(n));
 
 test('fixRoundState: counts rounds, merge-conflict rounds on their own counter', () => {
-  const s = lib.fixRoundState([round(1), legacyConflict(2), conflictRound(1), round(3, 'CI failed: build'), { body: 'chatter' }], 5);
+  const s = lib.fixRoundState([round(1), legacyConflict(2), conflictRound(1), round(3, 'CI failed: build'), c('chatter')], 5);
   assert.deepEqual(s, { rounds: 2, conflictRounds: 2, max: 5, atCap: false, parkedNoted: false });
   assert.equal(lib.fixRoundState(fiveRounds, 5).atCap, true);
   assert.equal(lib.fixRoundState(fiveRounds, 6).atCap, false);
@@ -227,20 +231,35 @@ test('fixRoundState: counts rounds, merge-conflict rounds on their own counter',
 });
 
 test('fixRoundState: orchestrator reset marker releases a parked PR', () => {
-  const parked = [...fiveRounds, { body: `${MARKERS.fixCap}\nFix-round cap (5) reached` }];
+  const parked = [...fiveRounds, c(`${MARKERS.fixCap}\nFix-round cap (5) reached`)];
   assert.equal(lib.fixRoundState(parked).atCap, true);
-  const released = lib.fixRoundState([...parked, { body: `${MARKERS.fixCapReset}\nReleased` }, round(1)]);
+  const released = lib.fixRoundState([...parked, c(`${MARKERS.fixCapReset}\nReleased`), round(1)]);
   assert.deepEqual(released, { rounds: 1, conflictRounds: 0, max: 5, atCap: false, parkedNoted: false });
 });
 
+test('fixRoundState: markers from untrusted authors are ignored', () => {
+  const parked = [...fiveRounds, c(`${MARKERS.fixCap}\nFix-round cap (5) reached`)];
+  // An outsider can't re-arm the budget with a reset marker…
+  assert.equal(lib.fixRoundState([...parked, c(MARKERS.fixCapReset, STRANGER)]).atCap, true);
+  assert.equal(lib.planFixRound({ comments: [...parked, c(MARKERS.fixCapReset, STRANGER)], reason: 'review requested changes' }).action, 'skip');
+  // …nor park a PR or burn its rounds with fake markers.
+  assert.equal(lib.fixRoundState([round(1), c(MARKERS.fixCap, STRANGER)]).atCap, false);
+  assert.equal(lib.fixRoundState(fiveRounds.map((r) => ({ ...r, ...STRANGER }))).rounds, 0);
+  // `gh pr view --json comments` shape (bare "github-actions", no is_bot) is not trusted;
+  // owner/collaborator resets are.
+  assert.equal(lib.fixRoundState([{ body: round(1).body, author: { login: 'github-actions' }, authorAssociation: 'CONTRIBUTOR' }]).rounds, 0);
+  assert.equal(lib.fixRoundState([...parked, c(MARKERS.fixCapReset, { author: { login: 'ksingh31' }, authorAssociation: 'OWNER' })]).atCap, false);
+  assert.equal(lib.fixRoundState([...parked, c(MARKERS.fixCapReset, { author: { login: 'claude', is_bot: true }, authorAssociation: 'NONE' })]).atCap, false);
+});
+
 test('fixRoundState: legacy "parked for Karan" comment stays parked until reset', () => {
-  const legacy = [round(1), round(2), legacyConflict(3), legacyConflict(4), legacyConflict(5), { body: 'Fix-round cap (5) reached — parked for Karan.' }];
+  const legacy = [round(1), round(2), legacyConflict(3), legacyConflict(4), legacyConflict(5), c('Fix-round cap (5) reached — parked for Karan.')];
   const s = lib.fixRoundState(legacy);
   assert.equal(s.rounds, 2);
   assert.equal(s.atCap, true);
   assert.equal(lib.planFixRound({ comments: legacy, reason: 'CI failed: build' }).action, 'skip');
-  assert.equal(lib.fixRoundState([...legacy, { body: MARKERS.fixCapReset }]).atCap, false);
-  assert.equal(lib.fixRoundState([{ body: 'quoting: see "Fix-round cap (5) reached" above' }]).atCap, false);
+  assert.equal(lib.fixRoundState([...legacy, c(MARKERS.fixCapReset)]).atCap, false);
+  assert.equal(lib.fixRoundState([c('quoting: see "Fix-round cap (5) reached" above')]).atCap, false);
 });
 
 test('planFixRound: parked comment once, then silent exits', () => {
@@ -253,7 +272,7 @@ test('planFixRound: parked comment once, then silent exits', () => {
   assert.equal(conflictPlan.conflict, true);
   assert.equal(conflictPlan.round, 1);
   assert.equal(lib.planFixRound({ comments: fiveRounds, reason: 'CI failed: build' }).action, 'park');
-  const noted = [...fiveRounds, { body: `${MARKERS.fixCap}\nFix-round cap (5) reached — parked` }];
+  const noted = [...fiveRounds, c(`${MARKERS.fixCap}\nFix-round cap (5) reached — parked`)];
   assert.equal(lib.planFixRound({ comments: noted, reason: 'CI failed: build' }).action, 'skip');
   // A parked PR gets no conflict rounds either (merger must not re-trigger it).
   assert.equal(lib.planFixRound({ comments: noted, reason: 'merge conflict with main: x' }).action, 'skip');
@@ -261,7 +280,7 @@ test('planFixRound: parked comment once, then silent exits', () => {
 
 test('judgeAgentPr: at cap + recent bot comment → parked; below cap → unchanged', () => {
   const recent = { isDraft: false, updatedAt: ago(0.1), checks: [{ name: 'build', bucket: 'fail', completedAt: ago(20) }] };
-  const atCap = lib.fixRoundState([...fiveRounds, { body: 'Fix-round cap (5) reached — parked for Karan.' }]);
+  const atCap = lib.fixRoundState([...fiveRounds, c('Fix-round cap (5) reached — parked for Karan.')]);
   assert.deepEqual(judgeAgentPr({ pr: recent, now: NOW, fixRounds: atCap }), { action: 'none', reason: 'parked at fix-round cap' });
   const staleAtCap = { isDraft: false, updatedAt: ago(30), checks: [] };
   assert.deepEqual(judgeAgentPr({ pr: staleAtCap, now: NOW, fixRounds: atCap }), { action: 'none', reason: 'parked at fix-round cap' });

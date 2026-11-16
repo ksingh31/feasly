@@ -51,7 +51,7 @@ export const MARKERS = {
  */
 export const CONFLICT_REASON = 'merge conflict with main';
 
-/** Authors whose issues an agent may act on (issue body is the agent's prompt). */
+/** Authors whose issues an agent may act on (issue body is the agent's prompt), and whose fix-round markers count. */
 const TRUSTED_ASSOCIATIONS = new Set(['OWNER', 'MEMBER', 'COLLABORATOR']);
 const TRUSTED_BOTS = new Set(['claude[bot]', 'github-actions[bot]', 'app/claude', 'app/github-actions']);
 
@@ -203,7 +203,13 @@ const LEGACY_PARKED = /^Fix-round cap \(\d+\) reached/m;
  * dispatch site checks this so no further agent-fix runs (and no repeated
  * "parked" comments) are started for it. Comments are in chronological order; a
  * MARKERS.fixCapReset comment (orchestrator release) zeroes the counts before it.
- * @param {{body?:string}[]} comments
+ * Only comments from trusted authors (isTrustedAuthor: OWNER/MEMBER/COLLABORATOR or
+ * the pipeline bots) count — otherwise anyone able to comment could re-arm the budget
+ * with a reset marker (unlimited paid runs) or park a PR with a fake cap marker.
+ * Callers must pass comments with author identity (gh.mjs prComments — REST, which
+ * reports bots as "<name>[bot]" with is_bot; `gh pr list/view --json comments` drops
+ * the [bot] suffix, so those comments are not trusted here).
+ * @param {{body?:string, author?:{login?:string, is_bot?:boolean}, authorAssociation?:string}[]} comments
  * @param {number} [max]
  * @returns {{rounds:number, conflictRounds:number, max:number, atCap:boolean, parkedNoted:boolean}}
  */
@@ -212,6 +218,7 @@ export function fixRoundState(comments, max = DEFAULTS.maxFixRounds) {
   let conflictRounds = 0;
   let parkedNoted = false;
   for (const c of comments ?? []) {
+    if (!isTrustedAuthor(c)) continue;
     const body = c.body ?? '';
     if (body.includes(MARKERS.fixCapReset)) {
       rounds = 0;

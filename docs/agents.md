@@ -71,6 +71,10 @@ measures against), `priority:high`, `bug`, `qa:passed`, `qa:failed`, `ux`,
   - Pre-#924 "Fix-round cap (N) reached — parked for Karan." comments still count as parked.
   - **Release** a parked PR (after fixing the cause or deciding it deserves more rounds): comment
     `<!-- agent:fix-cap-reset -->` on it and remove `agent:stuck`; only rounds after that comment count.
+  - Fix-round, cap and reset markers only count when the comment's author is trusted (OWNER / MEMBER /
+    COLLABORATOR, or the `claude` / `github-actions` bots), so an outside commenter can't re-arm the budget
+    or park a PR. Comments are read via the paginated REST API (`gh.mjs prComments`), not the 100-capped
+    `gh pr list --json comments`.
   A round that merges `main` must regenerate the registry-derived route tables (`npm run gen:route-docs`:
   TECH_PLAN §16 + `docs/security/rate-limits.md` + `docs/security/route-audit.md`) and commit the result. `verify-local.sh` runs it before
   the tests, so a parallel route-adding merge no longer leaves the PR red (#816).

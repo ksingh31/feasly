@@ -13,7 +13,7 @@
  *   node tools/agents/merger.mjs [--dry-run]
  */
 import { decideMerge, linkedIssues, fixRoundState } from './lib.mjs';
-import { ghJson, ghWrite, dispatchFixRound, maxFixRounds } from './gh.mjs';
+import { ghJson, ghWrite, dispatchFixRound, maxFixRounds, prComments } from './gh.mjs';
 
 const prs = ghJson(['pr', 'list', '--state', 'open', '--limit', '50', '--json', 'number,author,isDraft,labels,mergeStateStatus,reviews,headRefOid,headRefName,comments,body']) ?? [];
 const once = (p, key) => !(p.comments ?? []).some((c) => (c.body ?? '').includes(`<!-- agent:${key}:${p.headRefOid} -->`));
@@ -52,9 +52,13 @@ for (const p of prs) {
   }
   // F: merge conflict on an agent PR → fix agent resolves it (once per head commit)
   // A PR parked at the fix-round cap gets no further rounds (#924) — and no conflict marker either.
-  if (isAgent && p.mergeStateStatus === 'DIRTY' && once(p, 'conflict') && !fixRoundState(p.comments, maxFixRounds()).atCap) {
-    mark(p, 'conflict', 'Merge conflict with main — starting a fix round to merge main in and resolve.');
-    dispatchFixRound(p.number, 'merge conflict with main: merge main in, resolve, re-verify', p.comments);
+  // Cap state needs prComments (all comments, bot authors identifiable) — not p.comments.
+  if (isAgent && p.mergeStateStatus === 'DIRTY' && once(p, 'conflict')) {
+    const comments = prComments(p.number);
+    if (!fixRoundState(comments, maxFixRounds()).atCap) {
+      mark(p, 'conflict', 'Merge conflict with main — starting a fix round to merge main in and resolve.');
+      dispatchFixRound(p.number, 'merge conflict with main: merge main in, resolve, re-verify', comments);
+    }
   }
   // E: green but never reviewed (review run skipped/crashed) → run the reviewer (once per head commit)
   if (isAgent && d.action === 'skip' && d.reason === 'awaiting review' && once(p, 'review-requested')) {
