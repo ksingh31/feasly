@@ -35,6 +35,7 @@ import { createStripeWebhooksRoute } from '../src/routes/stripe-webhooks.route';
 import type { EmailService } from '../src/services/email/email.service';
 import { billingEvents, estimates, leads, stripeEvents, tenants } from '../src/db/schema';
 import { createTestDb, type TestDb } from './pglite-db';
+import { ACCEPTED_AGREEMENTS } from './helpers/agreement-gate.fake';
 
 const CARD = {
   ok: '4242424242424242',
@@ -122,7 +123,12 @@ describe('simulated payments through the production webhook handler', () => {
     });
     const route = createStripeWebhooksRoute({ billingWebhooks: webhook });
     provider.connectWebhook((body, signature) => route.handle(body, signature));
-    card = createCommissionCardService({ billing: BILLING, audit, stripe });
+    card = createCommissionCardService({
+      billing: BILLING,
+      audit,
+      stripe,
+      agreements: ACCEPTED_AGREEMENTS,
+    });
     devService = createSimulatedPaymentsService({ provider, stripe, commission, audit });
   }, 60_000);
 

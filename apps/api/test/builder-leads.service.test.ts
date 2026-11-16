@@ -1468,6 +1468,7 @@ describe('builder-leads sandbox leads never enter billing (#840)', () => {
     base.leads.set('lead-1', { ...makeLead({ id: 'lead-1' }), sandbox: true });
     const recordBillableEvent = vi.fn(async () => ({ billed: true }));
     const service = createBuilderLeadsService({
+      agreements: ACCEPTED_AGREEMENTS,
       leadStore: base.leadStore,
       audit: base.audit,
       builders: base.builders,
