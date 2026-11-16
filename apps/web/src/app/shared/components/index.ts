@@ -1,5 +1,6 @@
 /** @shared/components barrel — import shared UI from here to keep import paths short. */
 export { AddressAutocompleteComponent } from './address-autocomplete';
+export type { AddressSearchOutcome } from './address-autocomplete';
 export { BrandMarkComponent } from './brand-mark';
 export { BuilderMatchingExplainerComponent } from './builder-matching-explainer';
 export { BuildTimelineComponent } from './build-timeline';

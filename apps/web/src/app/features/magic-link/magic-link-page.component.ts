@@ -36,6 +36,12 @@ import { AnalyticsService } from '../consent/analytics.service';
  * never prerendered (the token is only known at click time). Lazy-loaded so
  * the page stays out of the initial bundle.
  */
+/**
+ * Route reported on this page's analytics events (#815): the bare `/r`
+ * prefix — the token in the URL is a credential and never leaves in an event.
+ */
+const ANALYTICS_ROUTE = '/r';
+
 type MagicLinkView = 'verifying' | 'invalid' | 'expired' | 'error';
 type ResendStatus = 'idle' | 'sending' | 'sent' | 'send-error';
 
@@ -93,7 +99,7 @@ export class MagicLinkPageComponent implements OnInit {
     }
     this.resendStatus.set('sending');
     // #704: consent-gated inside AnalyticsService; carries no email.
-    this.analytics.track('report_link_request');
+    this.analytics.track('report_link_request', ANALYTICS_ROUTE);
     this.api
       .reissueMagicLink({ email: this.resendForm.controls.email.value.trim() })
       .pipe(takeUntilDestroyed(this.destroyRef))
@@ -130,6 +136,8 @@ export class MagicLinkPageComponent implements OnInit {
             this.verifyPartnerShare();
             return;
           }
+          // #815: the owner's link opened. Consent-gated; route without token.
+          this.analytics.track('magic_link_open', ANALYTICS_ROUTE);
           // Valid: hand the report token to the report state and land on the
           // report page — its ngOnInit dispatches UnlockReport itself.
           this.store.dispatch(new SetReportToken(res.reportToken));

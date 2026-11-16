@@ -2471,6 +2471,8 @@ export interface AppConfig {
             comments: string;
             activity: string;
             record: string;
+            /** #815: campaign attribution section. */
+            campaign: string;
           };
           statusLabel: string;
           builderLabel: string;
@@ -2497,6 +2499,13 @@ export interface AppConfig {
             snapshots: string;
             unsubscribed: string;
             nudgeSent: string;
+            /** #815: campaign attribution (leads.source_*). */
+            utmSource: string;
+            utmMedium: string;
+            utmCampaign: string;
+            utmTerm: string;
+            utmContent: string;
+            clickIdType: string;
           };
           /** "{sqft} sq ft". */
           sqftValue: string;
@@ -2515,6 +2524,8 @@ export interface AppConfig {
           notesHint: string;
           commentsHint: string;
           noActivity: string;
+          /** #815: shown when the lead arrived with no campaign attribution. */
+          noAttribution: string;
           honeypotBadge: string;
           /** Activity sub-list of builder moves (#803). */
           reassignmentsHeading: string;
@@ -2599,6 +2610,23 @@ export interface AppConfig {
         dropOff: string;
         /** Accessible name of the funnel step list. */
         stepsLabel: string;
+        /** #815: utm_source filter label / placeholder. */
+        utmSourceLabel: string;
+        utmSourcePlaceholder: string;
+        /** #815: utm_campaign filter label / placeholder. */
+        utmCampaignLabel: string;
+        utmCampaignPlaceholder: string;
+        /** #815: hint under the utm filters (exact match). */
+        utmHint: string;
+        /** #815: per-(source, campaign) breakdown heading, note, headers. */
+        sourcesHeading: string;
+        sourcesNote: string;
+        sourceHeader: string;
+        campaignHeader: string;
+        /** Shown for an untagged (null) source or campaign. */
+        sourceNone: string;
+        /** Shown when the backend capped the breakdown. */
+        sourcesTruncated: string;
       };
       /** Admin API keys (api-mcp/02; redesign #546, review S13). */
       apiKeys: {

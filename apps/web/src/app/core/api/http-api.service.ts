@@ -304,6 +304,13 @@ export class HttpApiService implements ApiService {
     if (query.tenant !== 'all') {
       params = params.set('tenant_key', query.tenant);
     }
+    // #815: exact-match campaign filters; omitted = any.
+    if (query.utmSource) {
+      params = params.set('utm_source', query.utmSource);
+    }
+    if (query.utmCampaign) {
+      params = params.set('utm_campaign', query.utmCampaign);
+    }
     return this.call(
       this.http.get<FunnelReport>(`${this.base}/admin/funnels`, {
         params,

@@ -65,6 +65,7 @@ import {
   mockVerifySuccess,
   MOCK_FUNNEL_COUNTS,
   MOCK_FUNNEL_DIRECT_SCALE,
+  MOCK_FUNNEL_SOURCE_SHARES,
 } from './mock-data';
 import { PROPERTY_DATA_SERVICE } from './property-data.service';
 
@@ -665,22 +666,43 @@ export class MockApiService implements ApiService {
    */
   getFunnel(query: FunnelQuery): Observable<FunnelReport> {
     // Fixture slices: 'all' = full fixture, 'direct' = 70% slice with
-    // recomputed conversions, any other tenant key = honest zeros.
+    // recomputed conversions, any other tenant key = honest zeros. #815:
+    // utm filters keep only the matching campaign groups of the fixture.
     const scale =
       query.tenant === 'all' ? 1 : query.tenant === 'direct' ? MOCK_FUNNEL_DIRECT_SCALE : 0;
-    const counts = MOCK_FUNNEL_COUNTS.map((s) => Math.round(s.count * scale));
-    const steps: FunnelStep[] = MOCK_FUNNEL_COUNTS.map((s, i) => ({
-      step: s.step,
-      label: s.label,
-      count: counts[i],
-      conversionFromPrevious:
-        i === 0 || counts[i - 1] === 0 ? null : +(counts[i] / counts[i - 1]).toFixed(4),
-    }));
+    const groups = MOCK_FUNNEL_SOURCE_SHARES.filter(
+      (g) =>
+        (query.utmSource === undefined || g.utmSource === query.utmSource) &&
+        (query.utmCampaign === undefined || g.utmCampaign === query.utmCampaign),
+    );
+    const filtered = query.utmSource !== undefined || query.utmCampaign !== undefined;
+    const share = filtered ? groups.reduce((sum, g) => sum + g.share, 0) : 1;
+    const stepsAt = (factor: number): FunnelStep[] => {
+      const counts = MOCK_FUNNEL_COUNTS.map((s) => Math.round(s.count * factor));
+      return MOCK_FUNNEL_COUNTS.map((s, i) => ({
+        step: s.step,
+        label: s.label,
+        count: counts[i],
+        conversionFromPrevious:
+          i === 0 || counts[i - 1] === 0 ? null : +(counts[i] / counts[i - 1]).toFixed(4),
+      }));
+    };
     return this.roundTrip<FunnelReport>({
       from: query.from ?? null,
       to: query.to ?? null,
       tenant: query.tenant,
-      steps,
+      utmSource: query.utmSource ?? null,
+      utmCampaign: query.utmCampaign ?? null,
+      steps: stepsAt(scale * share),
+      bySource:
+        scale === 0
+          ? []
+          : groups.map((g) => ({
+              utmSource: g.utmSource,
+              utmCampaign: g.utmCampaign,
+              steps: stepsAt(scale * g.share),
+            })),
+      bySourceTruncated: false,
     });
   }
 

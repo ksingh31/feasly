@@ -5,7 +5,7 @@ import type { AbstractControl } from '@angular/forms';
 import { ActivatedRoute, Router, RouterLink } from '@angular/router';
 import { Store } from '@ngxs/store';
 import { map, of, switchMap, tap } from 'rxjs';
-import type { TimelineOption } from '@feasly/contracts';
+import type { AnalyticsSource, TimelineOption } from '@feasly/contracts';
 import { API_SERVICE } from '../../core/api/api.service';
 import { buildNewBuildRequest } from '../../core/api/build-estimate-request';
 import { cachedPreviewFor, previewRequestKey } from '../../core/api/preview-cache';
@@ -262,6 +262,8 @@ export class GatePageComponent implements OnInit {
               website: values.website,
               elapsedMs,
               tenantKey,
+              // #815: campaign attribution, only with analytics consent.
+              ...this.leadSourceField(),
             })
             .pipe(map((lead) => ({ lead, email: values.email.trim(), preview }))),
         ),
@@ -307,6 +309,15 @@ export class GatePageComponent implements OnInit {
   }
 
   /**
+   * #815: the session's campaign attribution for the lead row. Empty unless
+   * analytics consent was granted (#814 decision Q2) and a source exists.
+   */
+  private leadSourceField(): { source?: AnalyticsSource } {
+    const source = this.analytics.leadSource();
+    return source ? { source } : {};
+  }
+
+  /**
    * Comparison lead submit (NBH-03): the comparison estimateId already
    * exists, so the lead attaches directly to it. Success marks the
    * comparison unlocked and returns to /estimate/compare — no analyzing
@@ -335,6 +346,7 @@ export class GatePageComponent implements OnInit {
         website: values.website,
         // #788 minimum time-to-submit.
         elapsedMs: this.elapsedMs(),
+        ...this.leadSourceField(),
       })
       .pipe(takeUntilDestroyed(this.destroyRef))
       .subscribe({

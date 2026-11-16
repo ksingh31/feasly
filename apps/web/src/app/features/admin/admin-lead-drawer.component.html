@@ -63,6 +63,15 @@
       <ui-key-value-list [items]="contactItems()" />
     </section>
 
+    <section class="lead-drawer__section" aria-labelledby="lead-drawer-campaign">
+      <h3 id="lead-drawer-campaign" class="lead-drawer__heading">{{ copy.sections.campaign }}</h3>
+      @if (attributionItems().length > 0) {
+        <ui-key-value-list class="lead-drawer__attribution" [items]="attributionItems()" />
+      } @else {
+        <p class="lead-drawer__note">{{ copy.noAttribution }}</p>
+      }
+    </section>
+
     <section class="lead-drawer__section" aria-labelledby="lead-drawer-property">
       <h3 id="lead-drawer-property" class="lead-drawer__heading">{{ copy.sections.property }}</h3>
       @if (l.estimate; as estimate) {

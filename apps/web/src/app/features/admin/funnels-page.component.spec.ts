@@ -39,6 +39,17 @@ const FUNNELS_COPY = {
   overallConversionSub: '{from} → {to}',
   dropOff: '{count} dropped off',
   stepsLabel: 'Funnel steps',
+  utmSourceLabel: 'Source',
+  utmSourcePlaceholder: 'e.g. google',
+  utmCampaignLabel: 'Campaign',
+  utmCampaignPlaceholder: 'e.g. spring-infill',
+  utmHint: 'Exact match.',
+  sourcesHeading: 'By source and campaign',
+  sourcesNote: 'Grouped by utm tags.',
+  sourceHeader: 'Source',
+  campaignHeader: 'Campaign',
+  sourceNone: '(none)',
+  sourcesTruncated: 'Showing the largest groups only.',
 };
 
 const REPORT: FunnelReport = {
@@ -52,6 +63,26 @@ const REPORT: FunnelReport = {
     { step: 'gate', label: 'Gate', count: 40, conversionFromPrevious: 0.6667 },
     { step: 'report', label: 'Report', count: 20, conversionFromPrevious: 0.5 },
   ],
+};
+
+/** #815: report with a per-(source, campaign) breakdown. */
+const SOURCE_REPORT: FunnelReport = {
+  ...REPORT,
+  utmSource: null,
+  utmCampaign: null,
+  bySource: [
+    {
+      utmSource: 'google',
+      utmCampaign: 'test',
+      steps: REPORT.steps.map((st) => ({ ...st, count: st.count / 2 })),
+    },
+    {
+      utmSource: null,
+      utmCampaign: null,
+      steps: REPORT.steps.map((st) => ({ ...st, count: st.count / 2 })),
+    },
+  ],
+  bySourceTruncated: true,
 };
 
 const EMPTY_REPORT: FunnelReport = {
@@ -114,6 +145,56 @@ describe('FunnelsPageComponent', () => {
     await setup(throwError(() => new Error('nope')));
     const text: string = fixture.nativeElement.textContent ?? '';
     expect(text).toContain(FUNNELS_COPY.loadError);
+  });
+
+  describe('source + campaign (#815)', () => {
+    it('renders the breakdown table with one row per group and the cap note', async () => {
+      await setup(of(SOURCE_REPORT));
+      const el: HTMLElement = fixture.nativeElement;
+      const rows = [...el.querySelectorAll('.funnels__sources-table tbody tr')];
+      expect(rows.length).toBe(2);
+      const first = [...rows[0].querySelectorAll('td')].map((td) => td.textContent?.trim());
+      expect(first).toEqual(['google', 'test', '50', '40', '30', '20', '10', '20.0%']);
+      const second = [...rows[1].querySelectorAll('td')].map((td) => td.textContent?.trim());
+      expect(second.slice(0, 2)).toEqual(['(none)', '(none)']);
+      const headers = [...el.querySelectorAll('.funnels__sources-table th')].map((th) => th.textContent?.trim());
+      expect(headers).toEqual(['Source', 'Campaign', 'Scope', 'Details', 'Preview', 'Gate', 'Report', 'Overall conversion']);
+      expect(el.textContent).toContain(FUNNELS_COPY.sourcesTruncated);
+    });
+
+    it('hides the breakdown when the backend sends no groups', async () => {
+      await setup(of(REPORT));
+      expect(fixture.nativeElement.querySelector('.funnels__sources')).toBeNull();
+    });
+
+    it('sends trimmed utm filters and reset clears them', async () => {
+      await setup(of(SOURCE_REPORT));
+      const component = fixture.componentInstance as unknown as {
+        utmSource: { set(v: string): void };
+        utmCampaign: { set(v: string): void };
+        applyFilters(): void;
+        resetFilters(): void;
+      };
+      api.getFunnel.mockClear();
+      component.utmSource.set(' google ');
+      component.utmCampaign.set('test');
+      component.applyFilters();
+      expect(api.getFunnel).toHaveBeenCalledWith(
+        expect.objectContaining({ utmSource: 'google', utmCampaign: 'test' }),
+      );
+      api.getFunnel.mockClear();
+      component.resetFilters();
+      const query = api.getFunnel.mock.calls[0][0] as { utmSource?: string; utmCampaign?: string };
+      expect(query.utmSource).toBeUndefined();
+      expect(query.utmCampaign).toBeUndefined();
+    });
+
+    it('renders the source and campaign filter fields', async () => {
+      await setup(of(REPORT));
+      const el: HTMLElement = fixture.nativeElement;
+      expect(el.querySelector('.funnels__utm-source input')).toBeTruthy();
+      expect(el.querySelector('.funnels__utm-campaign input')).toBeTruthy();
+    });
   });
 
   it('blocks apply when from is after to', async () => {

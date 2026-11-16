@@ -135,12 +135,13 @@ describe('AdminLeadDrawerComponent', () => {
     return root().querySelector<HTMLButtonElement>('.ui-drawer__footer-end button[type="submit"]');
   }
 
-  it('orders the sections Pipeline → Contact → Property → Invoices → Notes → Comments → Activity → Record', async () => {
+  it('orders the sections Pipeline → Contact → Campaign → Property → Invoices → Notes → Comments → Activity → Record', async () => {
     await setup();
     const headings = Array.from(root().querySelectorAll('.lead-drawer__heading')).map((h) => h.textContent?.trim());
     expect(headings).toEqual([
       'Pipeline',
       'Contact',
+      'Campaign',
       'Property & estimate',
       'Invoices',
       'Notes',
@@ -148,6 +149,28 @@ describe('AdminLeadDrawerComponent', () => {
       'Activity',
       'Record',
     ]);
+  });
+
+  it('shows the lead campaign attribution — only the set fields (#815)', async () => {
+    await setup(undefined, {
+      ...DETAIL,
+      attribution: { utm_source: 'google', utm_campaign: 'test', click_id_type: 'gclid' },
+    });
+    const list = root().querySelector('.lead-drawer__attribution') as HTMLElement;
+    expect(list).toBeTruthy();
+    const text = list.textContent ?? '';
+    expect(text).toContain('Source (utm_source)');
+    expect(text).toContain('google');
+    expect(text).toContain('Campaign (utm_campaign)');
+    expect(text).toContain('test');
+    expect(text).toContain('gclid');
+    expect(text).not.toContain('utm_medium');
+  });
+
+  it('says so when the lead has no campaign attribution (#815)', async () => {
+    await setup(undefined, { ...DETAIL, attribution: null });
+    expect(root().querySelector('.lead-drawer__attribution')).toBeNull();
+    expect(root().textContent).toContain('No campaign details');
   });
 
   it('has exactly one Save, in the footer, disabled until something changes', async () => {

@@ -7,7 +7,7 @@ import type { PropertyRecord } from '@feasly/contracts';
 import { provideApi } from '../../../core/api';
 import { providePropertyData } from '../../../core/api/property-data.service';
 import { ConfigService } from '../../../core/config';
-import { AddressAutocompleteComponent } from './address-autocomplete.component';
+import { AddressAutocompleteComponent, type AddressSearchOutcome } from './address-autocomplete.component';
 
 /**
  * FE1-001: autocomplete behavior — 3-char gate, config debounce, keyboard
@@ -295,6 +295,42 @@ describe('AddressAutocompleteComponent', () => {
         expect(inputEl(fixture).hasAttribute('aria-activedescendant')).toBe(false);
         assertControlsValid(fixture);
       });
+    });
+  });
+
+  describe('searchOutcome (#815 analytics hook)', () => {
+    function collect(fixture: ComponentFixture<AddressAutocompleteComponent>): AddressSearchOutcome[] {
+      const outcomes: AddressSearchOutcome[] = [];
+      fixture.componentInstance.searchOutcome.subscribe((o) => outcomes.push(o));
+      return outcomes;
+    }
+
+    it('emits results once for a search with suggestions', async () => {
+      const fixture = create();
+      const outcomes = collect(fixture);
+      await type(fixture, '14 st');
+      expect(outcomes).toEqual(['results']);
+    });
+
+    it('emits no_results once for a search that matches nothing', async () => {
+      const fixture = create();
+      const outcomes = collect(fixture);
+      await type(fixture, '99999 zzz nowhere');
+      expect(outcomes).toEqual(['no_results']);
+    });
+
+    it('emits out_of_coverage once for a non-Calgary query', async () => {
+      const fixture = create();
+      const outcomes = collect(fixture);
+      await type(fixture, '123 King St W, Toronto');
+      expect(outcomes).toEqual(['out_of_coverage']);
+    });
+
+    it('emits nothing for queries under 3 characters', async () => {
+      const fixture = create();
+      const outcomes = collect(fixture);
+      await type(fixture, 'ab');
+      expect(outcomes).toEqual([]);
     });
   });
 
