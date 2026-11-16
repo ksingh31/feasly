@@ -35,23 +35,25 @@ const SCHOOL_ROWS = [
   { name: 'No id school' },
 ];
 
+/** Community Services rows (the fake ignores $where; the parser keeps every row). */
 const AMENITY_ROWS = [
   {
-    type: 'Community Centre',
-    name: 'Rosemont Community Centre',
-    address: '2807 10 ST NW',
-    comm_code: 'CAP',
-    point: { type: 'Point', coordinates: [-114.086, 51.0767] },
+    type: 'Library',
+    name: 'Memorial Park Library',
+    address: '2nd St SW',
+    comm_code: 'BLN',
+    point: { type: 'Point', coordinates: [-114.069, 51.041] },
   },
   // Exact duplicate — kept once.
   {
-    type: 'Community Centre',
-    name: 'Rosemont Community Centre',
-    address: '2807 10 ST NW',
-    comm_code: 'CAP',
-    point: { type: 'Point', coordinates: [-114.086, 51.0767] },
+    type: 'Library',
+    name: 'Memorial Park Library',
+    address: '2nd St SW',
+    comm_code: 'BLN',
+    point: { type: 'Point', coordinates: [-114.069, 51.041] },
   },
-  { type: '', name: 'Unnamed type' },
+  // No geometry — dropped.
+  { type: 'Library', name: 'Nowhere Library' },
 ];
 
 const COMMUNITY_ROWS = [
@@ -97,10 +99,52 @@ function fakeFetch(byDataset: Record<string, unknown>): { fetchImpl: FetchLike; 
   return { fetchImpl, urls };
 }
 
+/** ~1 km (lng) x ~1.11 km (lat) box around Altadore's centre. */
+const ALT_BOUNDARY = {
+  type: 'MultiPolygon',
+  coordinates: [[[[-114.1055, 51.0087], [-114.0911, 51.0087], [-114.0911, 51.0187], [-114.1055, 51.0187], [-114.1055, 51.0087]]]],
+};
+
 const DATASETS = {
   'fd9t-tdn2': SCHOOL_ROWS,
   'x34e-bcjz': AMENITY_ROWS,
   'j9ps-fyst': COMMUNITY_ROWS,
+  'kami-qbfh': [
+    {
+      asset_cd: 'P1',
+      site_name: 'RIVER PARK',
+      the_geom: {
+        type: 'MultiPolygon',
+        coordinates: [[[[-114.1, 51.01], [-114.098, 51.01], [-114.098, 51.012], [-114.1, 51.012], [-114.1, 51.01]]]],
+      },
+    },
+    { asset_cd: 'P2', site_name: 'NO GEOMETRY' },
+  ],
+  'bdu9-amk8': [{ asset_cd: 'PG1', point: { type: 'Point', coordinates: [-114.097, 51.013] } }],
+  'qndb-27qm': [
+    {
+      asset_cd: 'W1',
+      the_geom: { type: 'MultiLineString', coordinates: [[[-114.11, 51.01], [-114.1, 51.02], [-114.09, 51.03]]] },
+    },
+  ],
+  'hxfu-6d96': [
+    { complex_name: 'Repsol Sport Centre', point: { type: 'Point', coordinates: [-114.062, 51.037] } },
+  ],
+  'enr4-crti': [
+    {
+      off_leash_area_id: 'ALT-001',
+      description: 'ALTADORE',
+      multipolygon: {
+        type: 'MultiPolygon',
+        coordinates: [[[[-114.1, 51.015], [-114.099, 51.015], [-114.099, 51.016], [-114.1, 51.016], [-114.1, 51.015]]]],
+      },
+    },
+  ],
+  'surr-xmvs': [
+    { comm_code: 'ALT', name: 'ALTADORE', multipolygon: ALT_BOUNDARY },
+    { comm_code: 'CRA', name: 'CRANSTON', multipolygon: ALT_BOUNDARY },
+  ],
+  'tfs4-3wwa': [{ comm_code: 'ALT', trees: '4000' }, { comm_code: 'CRA', trees: '10' }, { trees: '5' }],
 };
 
 describe('neighbourhood providers — free implementations (#773)', () => {
@@ -122,21 +166,91 @@ describe('neighbourhood providers — free implementations (#773)', () => {
     expect(urls[0]).toBe('https://data.calgary.ca/resource/fd9t-tdn2.json?$limit=50000');
   });
 
-  it('amenities: maps Community Services rows with a stable derived id and de-duplicates', async () => {
-    const { fetchImpl } = fakeFetch(DATASETS);
+  it('amenities: every configured category plus per-community tree cover (#777)', async () => {
+    const { fetchImpl, urls } = fakeFetch(DATASETS);
     const providers = createNeighbourhoodProviders(loadConfig(BASE_ENV).neighbourhoodData, { fetchImpl });
     const rows = await providers.amenities.fetchAll();
-    expect(rows).toEqual([
+
+    const byCategory = (c: string) => rows.filter((r) => r.category === c);
+    // Polygon park → interior point; name from site_name; id from asset_cd.
+    expect(byCategory('parks')).toEqual([
+      expect.objectContaining({ externalId: 'parks|p1', name: 'RIVER PARK', communityCode: null }),
+    ]);
+    const park = byCategory('parks')[0]!;
+    expect(park.lat).toBeGreaterThan(51.01);
+    expect(park.lat).toBeLessThan(51.012);
+    // Line pathway → middle vertex.
+    expect(byCategory('pathways')[0]).toMatchObject({ lat: 51.02, lng: -114.1 });
+    // Playground without a name field → the category label.
+    expect(byCategory('playgrounds')[0]).toMatchObject({ name: 'Playgrounds' });
+    // Library from Community Services, de-duplicated, id from name + location.
+    expect(byCategory('libraries')).toEqual([
       {
-        externalId: 'community centre|rosemont community centre|2807 10 st nw',
-        category: 'Community Centre',
-        name: 'Rosemont Community Centre',
-        communityCode: 'CAP',
-        lat: 51.0767,
-        lng: -114.086,
-        data: { address: '2807 10 ST NW' },
+        externalId: 'libraries|memorial park library|51.04100,-114.06900',
+        category: 'libraries',
+        name: 'Memorial Park Library',
+        communityCode: 'BLN',
+        lat: 51.041,
+        lng: -114.069,
+        data: { address: '2nd St SW' },
       },
     ]);
+    expect(byCategory('off-leash')[0]).toMatchObject({ externalId: 'off-leash|alt-001', name: 'ALTADORE' });
+    expect(byCategory('rec-centres')).toHaveLength(1);
+    expect(byCategory('pools')).toHaveLength(1);
+
+    // Tree cover: established communities only (#690), trees / area.
+    const cover = byCategory('tree-cover');
+    expect(cover.map((r) => r.communityCode)).toEqual(['ALT']);
+    expect(cover[0]).toMatchObject({ name: 'ALTADORE', lat: 51.0137, lng: -114.0983 });
+    const data = cover[0]!.data as { slug: string; publicTrees: number; areaHa: number; treesPerHa: number };
+    expect(data.slug).toBe('altadore');
+    expect(data.publicTrees).toBe(4000);
+    // ~1 km x ~1.11 km box ≈ 111 ha.
+    expect(data.areaHa).toBeGreaterThan(100);
+    expect(data.areaHa).toBeLessThan(125);
+    expect(data.treesPerHa).toBeCloseTo(4000 / data.areaHa, 0);
+
+    // SoQL filters and the grouped tree count come from config.
+    expect(urls).toContain(
+      `https://data.calgary.ca/resource/x34e-bcjz.json?$limit=50000&$where=${encodeURIComponent("type='Library'")}`,
+    );
+    expect(urls.some((u) => u.includes('/tfs4-3wwa.json') && u.includes('$group=comm_code'))).toBe(true);
+  });
+
+  it('amenities: categories are config-driven — add/remove one with env only (#777 AC3)', async () => {
+    const env = {
+      ...BASE_ENV,
+      NEIGHBOURHOOD_AMENITY_CATEGORIES: JSON.stringify([
+        { key: 'golf', label: 'Golf courses', datasetId: 'gggg-0000', nameField: 'name' },
+      ]),
+    } as NodeJS.ProcessEnv;
+    const { fetchImpl, urls } = fakeFetch({
+      ...DATASETS,
+      'gggg-0000': [{ name: 'Shaganappi', point: { type: 'Point', coordinates: [-114.13, 51.04] } }],
+    });
+    const rows = await createNeighbourhoodProviders(loadConfig(env).neighbourhoodData, { fetchImpl })
+      .amenities.fetchAll();
+    expect([...new Set(rows.map((r) => r.category))]).toEqual(['golf', 'tree-cover']);
+    expect(urls.some((u) => u.includes('kami-qbfh'))).toBe(false);
+  });
+
+  it('amenities: an empty category fails the refresh so old rows are kept', async () => {
+    const { fetchImpl } = fakeFetch({ ...DATASETS, 'enr4-crti': [] });
+    const providers = createNeighbourhoodProviders(loadConfig(BASE_ENV).neighbourhoodData, { fetchImpl });
+    await expect(providers.amenities.fetchAll()).rejects.toThrow(/off-leash/);
+  });
+
+  it('rejects malformed amenity category config at startup', () => {
+    const bad = (value: string) =>
+      () => loadConfig({ ...BASE_ENV, NEIGHBOURHOOD_AMENITY_CATEGORIES: value } as NodeJS.ProcessEnv);
+    expect(bad('not json')).toThrow(/NEIGHBOURHOOD_AMENITY_CATEGORIES/);
+    expect(bad('[]')).toThrow(/NEIGHBOURHOOD_AMENITY_CATEGORIES/);
+    expect(bad(JSON.stringify([{ key: 'Bad Key', label: 'x', datasetId: 'abcd-1234' }]))).toThrow(/kebab/);
+    expect(bad(JSON.stringify([{ key: 'tree-cover', label: 'x', datasetId: 'abcd-1234' }]))).toThrow(/reserved/);
+    expect(() =>
+      loadConfig({ ...BASE_ENV, NEIGHBOURHOOD_TREE_COVER_THRESHOLDS: '20,10' } as NodeJS.ProcessEnv),
+    ).toThrow(/NEIGHBOURHOOD_TREE_COVER_THRESHOLDS/);
   });
 
   it('commute: straight-line km from established residential communities only (#690)', async () => {

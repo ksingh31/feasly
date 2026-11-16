@@ -1,4 +1,4 @@
--- #721: lead reassignment audit table (migration 0059). Idempotent; depends
+-- #721: lead reassignment audit table (migration 0060). Idempotent; depends
 -- only on the migrations, never on another fragment.
 CREATE TABLE IF NOT EXISTS "lead_reassignments" (
 

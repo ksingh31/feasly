@@ -164,7 +164,23 @@ describe('loadConfig', () => {
         httpTimeoutMs: 3_000,
       },
       // #687: zoning rules catalogue city + public cache lifetime.
-      zoning: { city: 'calgary', cacheMaxAgeSeconds: 3_600 },
+      zoning: {
+        city: 'calgary',
+        cacheMaxAgeSeconds: 3_600,
+        // #757: daily City-source watcher (no token = detect, file no issue).
+        freshnessCacheTtlMs: 300_000,
+        watch: {
+          enabled: true,
+          socrataBaseUrl: 'https://data.calgary.ca',
+          landUseDatasetId: 'qe6k-p9nh',
+          bylawPageUrl:
+            'https://www.calgary.ca/pda/pd/calgary-land-use-bylaw-1p2007/calgary-land-use-bylaw-1p2007.html',
+          httpTimeoutMs: 15_000,
+          githubRepo: 'ksingh31/feasly',
+          githubToken: '',
+          githubApiUrl: 'https://api.github.com',
+        },
+      },
       // #888: builder partner list caches (in-memory TTL + HTTP max-age).
       partners: { cacheTtlMs: 300_000, cacheMaxAgeSeconds: 300 },
       // trust-strip/01: landing "Refreshed <Month Year>" from the Socrata
@@ -243,7 +259,21 @@ describe('loadConfig', () => {
         },
         socrataBaseUrl: 'https://data.calgary.ca',
         schoolsDatasetId: 'fd9t-tdn2',
-        amenitiesDatasetId: 'x34e-bcjz',
+        amenityCategories: [
+          expect.objectContaining({ key: 'parks', datasetId: 'kami-qbfh' }),
+          expect.objectContaining({ key: 'playgrounds', datasetId: 'bdu9-amk8' }),
+          expect.objectContaining({ key: 'pathways', datasetId: 'qndb-27qm' }),
+          expect.objectContaining({ key: 'rec-centres', datasetId: 'hxfu-6d96' }),
+          expect.objectContaining({ key: 'pools', datasetId: 'hxfu-6d96' }),
+          expect.objectContaining({ key: 'libraries', datasetId: 'x34e-bcjz', where: "type='Library'" }),
+          expect.objectContaining({ key: 'off-leash', datasetId: 'enr4-crti' }),
+        ],
+        publicTreesDatasetId: 'tfs4-3wwa',
+        communityBoundariesDatasetId: 'surr-xmvs',
+        treeCoverThresholds: [11, 16],
+        amenitySearchRadiusM: 3_000,
+        amenityCountRadiiM: [500, 1_000],
+        communityMetricsTtlMs: 86_400_000,
         communityPointsDatasetId: 'j9ps-fyst',
         communityClass: 'Residential',
         communityStructures: ['INNER CITY', '1950s', '1960s/1970s'],
