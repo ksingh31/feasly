@@ -139,6 +139,10 @@ describe('loadConfig', () => {
         httpTimeoutMs: 15_000,
         searchRowLimit: 50,
         suggestionLimit: 8,
+        // #756: durable shared cache + HTTP cache lifetime.
+        dbCacheTtlMs: 604_800_000,
+        dbCacheTimeoutMs: 1_500,
+        httpCacheMaxAgeSeconds: 3_600,
       },
       // #686: current land-use district from the City's Land Use Districts
       // dataset; falls back to the roll value on timeout/error/no hit.
@@ -147,6 +151,7 @@ describe('loadConfig', () => {
         socrataBaseUrl: 'https://data.calgary.ca',
         datasetId: 'qe6k-p9nh',
         cacheTtlMs: 86_400_000,
+        dbCacheTtlMs: 604_800_000,
         httpTimeoutMs: 3_000,
       },
       // #687: zoning rules catalogue city + public cache lifetime.
@@ -193,6 +198,10 @@ describe('loadConfig', () => {
       sandboxPurge: {
         retentionDays: 30,
         dryRun: true,
+      },
+      apiKeyAuth: {
+        authCacheTtlSeconds: 0,
+        acceptedModes: 'all',
       },
       followUpEmail: {
         enabled: false,

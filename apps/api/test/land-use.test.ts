@@ -27,6 +27,9 @@ const PROPERTY_CONFIG: PropertyDataConfig = {
   httpTimeoutMs: 5_000,
   searchRowLimit: 50,
   suggestionLimit: 8,
+  dbCacheTtlMs: 604_800_000,
+  dbCacheTimeoutMs: 1_500,
+  httpCacheMaxAgeSeconds: 3_600,
 };
 
 const LAND_USE_CONFIG: LandUseConfig = {
@@ -34,6 +37,7 @@ const LAND_USE_CONFIG: LandUseConfig = {
   socrataBaseUrl: 'https://data.calgary.ca',
   datasetId: 'qe6k-p9nh',
   cacheTtlMs: 86_400_000,
+  dbCacheTtlMs: 604_800_000,
   httpTimeoutMs: 3_000,
 };
 
