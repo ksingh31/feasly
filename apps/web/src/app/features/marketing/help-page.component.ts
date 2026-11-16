@@ -5,6 +5,7 @@ import { ConfigService } from '../../core/config';
 import { SeoService } from '../../core/seo';
 import { buildWebPageSchema } from '../../core/seo/jsonld-schemas';
 import { SiteFooterComponent, SiteNavComponent } from '../../shared/components';
+import { HELP_COPY, provideHelpCopy } from './help-copy';
 
 /** One resolved help answer, ready to render. */
 export interface HelpAnswer {
@@ -42,14 +43,17 @@ export interface HelpTopic {
   imports: [SiteFooterComponent, SiteNavComponent, RouterLink],
   templateUrl: './help-page.component.html',
   styleUrl: './marketing.scss',
+  // Help copy is provided here (lazy chunk), not in the root config, to keep
+  // it out of the initial bundle.
+  providers: [provideHelpCopy()],
 })
 export class HelpPageComponent implements OnInit {
   private readonly seo = inject(SeoService);
   private readonly config = inject(ConfigService);
 
   private readonly allCopy = this.config.get('copy');
-  /** Help copy (config-owned). */
-  readonly copy = this.allCopy.marketing.help;
+  /** Help copy (config-owned, lazy: see help-copy.ts). */
+  readonly copy = inject(HELP_COPY);
   /** Public status page; the link is omitted while unconfigured (no dead links). */
   readonly statusPageUrl = this.config.get('site').statusPageUrl ?? '';
 
@@ -111,13 +115,17 @@ export class HelpPageComponent implements OnInit {
       zoningGuide: this.allCopy.marketing.zoningGuide?.faqs ?? [],
       communities: this.allCopy.communities?.faqItems ?? [],
     };
-    return this.copy.topics.map((topic) => ({
-      id: topic.id,
-      title: topic.title,
-      answers: topic.answers
-        .map((ref) => sources[ref.source]?.find((item) => item.q === ref.q))
-        .filter((item): item is HelpAnswer => item !== undefined)
-        .map((item) => ({ q: item.q, a: item.a })),
-    }));
+    return this.copy.topics
+      .map((topic) => ({
+        id: topic.id,
+        title: topic.title,
+        answers: topic.answers
+          .map((ref) => sources[ref.source]?.find((item) => item.q === ref.q))
+          .filter((item): item is HelpAnswer => item !== undefined)
+          .map((item) => ({ q: item.q, a: item.a })),
+      }))
+      // A served config that rewords every referenced question would leave
+      // an empty <h2> section; drop topics with no resolved answers.
+      .filter((topic) => topic.answers.length > 0);
   }
 }

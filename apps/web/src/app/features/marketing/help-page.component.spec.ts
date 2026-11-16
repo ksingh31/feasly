@@ -6,6 +6,7 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { ConfigService } from '../../core/config';
 import { DEFAULT_APP_CONFIG } from '../../core/config/app-config.defaults';
 import type { HelpAnswerSource } from '../../core/config/app-config';
+import { DEFAULT_HELP_COPY } from './help-copy.defaults';
 import { HelpPageComponent } from './help-page.component';
 
 /**
@@ -69,12 +70,12 @@ describe('HelpPageComponent', () => {
       zoningGuide: copy.marketing.zoningGuide.faqs,
       communities: copy.communities.faqItems,
     };
-    for (const topic of copy.marketing.help.topics) {
+    for (const topic of DEFAULT_HELP_COPY.topics) {
       for (const ref of topic.answers) {
         expect(sources[ref.source].some((item) => item.q === ref.q), `${ref.source}: ${ref.q}`).toBe(true);
       }
     }
-    const configured = copy.marketing.help.topics.reduce((n, t) => n + t.answers.length, 0);
+    const configured = DEFAULT_HELP_COPY.topics.reduce((n, t) => n + t.answers.length, 0);
     expect(questions()).toHaveLength(configured);
   });
 
@@ -141,5 +142,27 @@ describe('HelpPageComponent', () => {
     expect(data['@type']).toBe('WebPage');
     expect(data['name']).toBe(el().querySelector('h1')?.textContent?.trim());
     expect(String(data['url'])).toMatch(/\/help\/$/);
+  });
+  it('merges deploy-time copy.marketing.help overrides over the lazy defaults', async () => {
+    await setup({ copy: { marketing: { help: { title: 'Get help' } } } });
+    expect(el().querySelector('h1')?.textContent?.trim()).toBe('Get help');
+    expect(el().querySelector('.help-contact h2')?.textContent?.trim()).toBe('Contact us');
+  });
+
+  it('drops a topic whose every reference misses (no empty section)', async () => {
+    await setup({
+      copy: {
+        marketing: {
+          help: {
+            topics: [
+              { id: 'gone', title: 'Gone', answers: [{ source: 'faq', q: 'No such question?' }] },
+              ...DEFAULT_HELP_COPY.topics,
+            ],
+          },
+        },
+      },
+    });
+    const titles = [...el().querySelectorAll('.help-topic-title')].map((h) => h.textContent?.trim());
+    expect(titles).toEqual(['Estimates', 'Zoning', 'Assessed value', 'Privacy', 'Builders']);
   });
 });
