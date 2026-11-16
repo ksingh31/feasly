@@ -382,6 +382,12 @@ const EnvSchema = z.object({
   ZONING_CITY: z.string().trim().toLowerCase().min(1).default('calgary'),
   // Cache-Control max-age for the catalogue (static per deploy; 1h default).
   ZONING_CACHE_MAX_AGE_S: z.coerce.number().int().nonnegative().default(3_600),
+  // --- Builder partner disclosure (#888) ---
+  // In-memory TTL for the public active-partner list (admin writes on the
+  // same instance invalidate it at once; other instances within this TTL).
+  PARTNERS_CACHE_TTL_MS: z.coerce.number().int().nonnegative().default(300_000),
+  // Cache-Control max-age on GET /api/v1/partners (5 min default).
+  PARTNERS_CACHE_MAX_AGE_S: z.coerce.number().int().nonnegative().default(300),
   // --- City-data freshness (landing trust strip) ---
   // Shares the SOCRATA_* source with propertyData; its own TTL because the
   // metadata changes at most monthly (24h default, successful fetches only).
@@ -883,6 +889,17 @@ export interface ZoningConfig {
 }
 
 /**
+ * Builder partner disclosure config (#888). The partner list itself is
+ * data (`builder_partners`); config only sets the cache lifetimes.
+ */
+export interface PartnersConfig {
+  /** In-memory TTL (ms) for the public active-partner list; 0 = no cache. */
+  readonly cacheTtlMs: number;
+  /** Cache-Control max-age (seconds) on the public partner response. */
+  readonly cacheMaxAgeSeconds: number;
+}
+
+/**
  * City-data freshness config (trust-strip/01).
  *
  * The landing trust strip reads "Refreshed <Month Year>" from the
@@ -1202,6 +1219,7 @@ export interface ApiConfig {
   readonly propertyData: PropertyDataConfig;
   readonly landUse: LandUseConfig;
   readonly zoning: ZoningConfig;
+  readonly partners: PartnersConfig;
   readonly cityDataFreshness: CityDataFreshnessConfig;
   readonly billing: BillingConfig;
   /** #753: which payment provider billing talks to. */
@@ -1668,6 +1686,10 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): ApiConfig {
     zoning: {
       city: e.ZONING_CITY,
       cacheMaxAgeSeconds: e.ZONING_CACHE_MAX_AGE_S,
+    },
+    partners: {
+      cacheTtlMs: e.PARTNERS_CACHE_TTL_MS,
+      cacheMaxAgeSeconds: e.PARTNERS_CACHE_MAX_AGE_S,
     },
     cityDataFreshness: {
       socrataBaseUrl: e.SOCRATA_BASE_URL,

@@ -288,6 +288,19 @@ import {
   type AdminBuildersRoute,
 } from './routes/admin-builders.route';
 import {
+  createAdminPartnersRoute,
+  type AdminPartnersRoute,
+} from './routes/admin-partners.route';
+import { createPartnersRoute, type PartnersRoute } from './routes/partners.route';
+import {
+  createBuilderPartnersService,
+  type BuilderPartnersService,
+} from './services/builder-partners.service';
+import {
+  createDrizzleBuilderPartnerStore,
+  type BuilderPartnerStore,
+} from './services/builder-partners.store';
+import {
   createAdminCalibrationRoute,
   type AdminCalibrationRoute,
 } from './routes/admin-calibration.route';
@@ -728,6 +741,10 @@ export interface AppComposition {
    */
   readonly builderService: BuilderService;
   readonly adminBuildersRoute: AdminBuildersRoute;
+  /** #888: builder partner disclosure — public list + admin CRUD. */
+  readonly builderPartnersService: BuilderPartnersService;
+  readonly partnersRoute: PartnersRoute;
+  readonly adminPartnersRoute: AdminPartnersRoute;
   /** admin/02: leads explorer (list, detail, notes, status, CSV export). */
   readonly adminLeadsService: AdminLeadsService;
   readonly adminLeadsRoute: AdminLeadsRoute;
@@ -858,6 +875,8 @@ export interface CompositionOptions {
   readonly invitationStore?: InvitationStore;
   readonly membershipStore?: MembershipStore;
   readonly adminAuditStore?: AdminAuditStore;
+  /** Builder partner store override (tests, #888). */
+  readonly builderPartnerStore?: BuilderPartnerStore;
   readonly adminLeadsStore?: AdminLeadsStore;
   /** Admin global search store override (tests). */
   readonly adminSearchStore?: AdminSearchStore;
@@ -1597,6 +1616,21 @@ export function createComposition(
     builders: builderService,
     adminGuard,
   });
+  // #888: builder partner disclosure. Public active list (cached) + admin
+  // add/deactivate/reorder, audit-logged.
+  const builderPartnersService: BuilderPartnersService = createBuilderPartnersService({
+    store:
+      options.builderPartnerStore ?? createDrizzleBuilderPartnerStore({ db: db.db }),
+    audit: adminAuditStore,
+    config: config.partners,
+  });
+  const partnersRoute: PartnersRoute = createPartnersRoute({
+    partners: builderPartnersService,
+  });
+  const adminPartnersRoute: AdminPartnersRoute = createAdminPartnersRoute({
+    partners: builderPartnersService,
+    adminGuard,
+  });
   // admin/03 — read-only estimate lookup. Reuses the session guard; no
   // mutation endpoints exist. The route is created after the narrative
   // service (below) so the admin narrative top-up can reuse it.
@@ -2238,6 +2272,9 @@ export function createComposition(
     builderSessionStore,
     builderService,
     adminBuildersRoute,
+    builderPartnersService,
+    partnersRoute,
+    adminPartnersRoute,
     adminLeadsService,
     adminLeadsRoute,
     adminLeadsStore,

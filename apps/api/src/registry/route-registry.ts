@@ -338,6 +338,18 @@ export const ROUTE_REGISTRY: readonly ApiRouteEntry[] = [
   },
   {
     method: 'GET',
+    path: '/api/v1/partners',
+    auth: 'none',
+    permissions: [] as const,
+    rateLimit: '100/min per IP',
+    status: 'live',
+    summary:
+      'Builder partner disclosure (#888): active builder companies that ' +
+      'receive leads from Feasly\'s own site, in display order (name, logo, ' +
+      'website, description; no contact details). Cached; Cache-Control public.',
+  },
+  {
+    method: 'GET',
     path: '/api/v1/embed/config',
     auth: 'none',
     permissions: [] as const,
@@ -1017,6 +1029,37 @@ export const ROUTE_REGISTRY: readonly ApiRouteEntry[] = [
     summary:
       'Update a builder. tenant_key is immutable; 404 when unknown; ' +
       'audit-logged with ids only, no contact PII.',
+  },
+  {
+    method: 'GET',
+    path: '/api/v1/admin/partners',
+    auth: 'admin',
+    permissions: ['builders:read'] as const,
+    rateLimit: '300/min per session',
+    status: 'live',
+    summary: 'List every builder partner (#888), active and inactive, in display order.',
+  },
+  {
+    method: 'POST',
+    path: '/api/v1/admin/partners',
+    auth: 'admin',
+    permissions: ['builders:manage'] as const,
+    rateLimit: '60/min per session',
+    status: 'live',
+    summary:
+      'Add a builder partner (#888): name, https logo/website, description, ' +
+      'optional builder link, display order, active. Audit-logged (ids only).',
+  },
+  {
+    method: 'PATCH',
+    path: '/api/v1/admin/partners/{id}',
+    auth: 'admin',
+    permissions: ['builders:manage'] as const,
+    rateLimit: '60/min per session',
+    status: 'live',
+    summary:
+      'Edit, deactivate (active=false) or reorder (displayOrder) a builder ' +
+      'partner (#888). 404 when unknown; audit-logged (ids + field names).',
   },
   {
     method: 'GET',
