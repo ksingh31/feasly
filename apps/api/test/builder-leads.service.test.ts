@@ -220,6 +220,35 @@ function makeDeps() {
   return { service, leadStore, builders, audit, statusHistory, leads };
 }
 
+describe('builder-leads service: reassigned leads (#721)', () => {
+  it('listLeads returns the leads Feasly moved away, scoped to the builder', async () => {
+    const { leadStore, audit, builders } = makeDeps();
+    const listReassignedAway = vi.fn(async () => [
+      { id: 'lead-moved', name: 'Moved Lead', reassignedAt: '2026-11-15T12:00:00.000Z' },
+    ]);
+    const service = createBuilderLeadsService({
+      leadStore,
+      audit,
+      builders,
+      reassignments: { listReassignedAway },
+    });
+    const result = await service.listLeads('elite-craft');
+    const eliteCraft = await builders.getByTenantKey('elite-craft');
+    expect(listReassignedAway).toHaveBeenCalledWith(eliteCraft!.id);
+    expect(result.reassigned).toEqual([
+      { id: 'lead-moved', name: 'Moved Lead', reassignedAt: '2026-11-15T12:00:00.000Z' },
+    ]);
+    // A reassigned lead is never in the active list.
+    expect(result.leads.map((l) => l.id)).not.toContain('lead-moved');
+  });
+
+  it('listLeads returns an empty reassigned list when not wired', async () => {
+    const { service } = makeDeps();
+    const result = await service.listLeads('elite-craft');
+    expect(result.reassigned).toEqual([]);
+  });
+});
+
 describe('builder-leads service (embed/09)', () => {
   it('listLeads returns only the builder-assigned leads', async () => {    const { service } = makeDeps();
     const result = await service.listLeads('elite-craft');
