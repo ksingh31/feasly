@@ -1,0 +1,19 @@
+@if (rows().length > 0) {
+  <div class="bt">
+    @if (showTitle()) {
+      <h2 class="bt-title">{{ copy.title }}</h2>
+    }
+    <p class="bt-intro">{{ copy.intro }}</p>
+    <p class="bt-total">{{ total() }}</p>
+    <ol class="bt-phases" [attr.aria-label]="copy.phasesLabel">
+      @for (row of rows(); track row.id) {
+        <li class="bt-phase">
+          <span class="bt-label">{{ row.label }}</span>&ngsp;
+          <span class="bt-range">{{ row.range }}</span>
+        </li>
+      }
+    </ol>
+    <p class="bt-note">{{ copy.overlapNote }}</p>
+    <p class="bt-note bt-presale" role="note">{{ copy.presaleNote }}</p>
+  </div>
+}

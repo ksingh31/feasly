@@ -776,6 +776,31 @@ export interface BuilderRecordContractCopy {
   viewInvoice: string;
 }
 
+/**
+ * One phase of the typical build timeline (#823). Ranges are typical
+ * durations, never a promise. Permit phases can later be fed from real City
+ * approval times (permits story) by replacing these values.
+ */
+export interface BuildTimelinePhase {
+  /** Stable id (track key), e.g. `development-permit`. */
+  readonly id: string;
+  /** Display label, e.g. "Development permit". */
+  readonly label: string;
+  readonly min: number;
+  readonly max: number;
+  /** Unit of `min`/`max` — picks the range template in copy.buildTimeline. */
+  readonly unit: 'weeks' | 'months';
+}
+
+/** A city's typical design-to-completion timeline (#823). */
+export interface BuildTimelineCity {
+  /** Typical total in months — configured, never summed (phases overlap). */
+  readonly totalMinMonths: number;
+  readonly totalMaxMonths: number;
+  /** Phases in display order. */
+  readonly phases: readonly BuildTimelinePhase[];
+}
+
 export interface AppConfig {
   /** Public site facts. */
   site: {
@@ -949,6 +974,17 @@ export interface AppConfig {
      * estimate-input-bounds-drift.spec.ts fails CI if they diverge.
      */
     estimateRoundingStep: number;
+  };
+  /**
+   * Typical custom-infill build timeline by city (#823, owner decision
+   * 2026-11-15: 12–16 months design to completion). Rendered by the shared
+   * BuildTimelineComponent on the report and address overview; the API's
+   * report email carries the same figures from its own config.
+   */
+  buildTimeline: {
+    /** City used when a surface does not pass one. Must be a key of `cities`. */
+    defaultCity: string;
+    cities: Record<string, BuildTimelineCity>;
   };
   /**
    * Estimator eligibility by city (#685). The early coverage guard
@@ -1550,8 +1586,6 @@ export interface AppConfig {
       planningTitle: string;
       financingTitle: string;
       financingLines: string[];
-      timelineTitle: string;
-      timelineLine: string;
       shareTitle: string;
       shareHint: string;
       shareEmailLabel: string;
@@ -1907,6 +1941,20 @@ export interface AppConfig {
         /** #690: index section headings — established/infill communities first, then newer ones. */
         groups: Record<'established' | 'newer', { heading: string; body: string }>;
       };
+    };
+    /** Typical build timeline section (#823). "Typical", never a promise. */
+    buildTimeline: {
+      title: string;
+      intro: string;
+      /** Typical total line: `{min}`, `{max}` months. */
+      totalTemplate: string;
+      /** Per-phase range by unit: `{min}`, `{max}`. */
+      rangeTemplates: { weeks: string; months: string };
+      /** Accessible name of the phase list. */
+      phasesLabel: string;
+      overlapNote: string;
+      /** Exact owner copy: pre-sale / move-in-ready homes differ. */
+      presaleNote: string;
     };
     /**
      * Builder-matching explainer (UX audit 2026-09-28). The phrases

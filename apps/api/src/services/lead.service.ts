@@ -281,7 +281,7 @@ export function createLeadService(deps: LeadServiceDeps): LeadService {
   async function handleRepeatEstimate(args: {
     readonly existing: LeadRecord;
     readonly input: LeadRequest;
-    readonly estimate: { readonly figures: unknown };
+    readonly estimate: { readonly figures: unknown; readonly projectType?: string };
     readonly email: string;
     readonly expiresInDays: number;
     /** Tenant-scoped suppression key — embeds dedupe per tenant. */
@@ -385,6 +385,7 @@ export function createLeadService(deps: LeadServiceDeps): LeadService {
       token: issued.token,
       addressKey: existing.addressKey,
       expiresAt: issued.expiresAt,
+      ...(estimate.projectType ? { projectType: estimate.projectType } : {}),
     });
     if (delivery.sent || delivery.acceptedByProvider) {
       // Record accepted-but-unconfirmed too: re-sending would likely
@@ -589,6 +590,7 @@ export function createLeadService(deps: LeadServiceDeps): LeadService {
             token: issued.token,
             addressKey: estimate.addressKey,
             expiresAt: issued.expiresAt,
+            projectType: estimate.projectType,
           });
           if (!delivery.sent) {
             console.warn(

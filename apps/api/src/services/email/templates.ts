@@ -20,6 +20,13 @@
  *     trust footer noting deterministic math + uncalibrated cost data.
  */
 
+import {
+  PRESALE_TIMELINE_NOTE,
+  formatPhaseRange,
+  formatTimelineTotal,
+  type BuildTimeline,
+} from '../../lib/build-timeline';
+
 export interface TemplateContext {
   /** Where magic links / resume links point (config APP_BASE_URL). */
   readonly appBaseUrl: string;
@@ -31,6 +38,12 @@ export interface TemplateContext {
    */
   readonly unsubscribeBaseUrl: string;
   readonly brandName: string;
+  /**
+   * #823: typical build timeline for the served city. When present, the
+   * consumer report email for a NEW-BUILD estimate carries a compact
+   * timeline block (see `MagicLinkTemplateInput.projectType`).
+   */
+  readonly buildTimeline?: BuildTimeline;
 }
 
 export interface RenderedEmail {
@@ -128,10 +141,51 @@ export interface MagicLinkTemplateInput {
    * (America/Edmonton); falls back to `expiresInDays` when absent.
    */
   readonly expiresOn?: Date;
+  /**
+   * #823 (consumer only): the estimate's project type. The typical
+   * new-build timeline renders only for `'new_build'` — renovation reports
+   * hide the timeline section on the web, so their email must too. Absent
+   * (unknown) → no timeline block.
+   */
+  readonly projectType?: string;
 }
 
 const TRUST_LINE_TEXT =
   'Deterministic cost math · not a contractor quote · cost data currently uncalibrated.';
+
+const TIMELINE_TITLE = 'Typical new-build timeline';
+
+/**
+ * #823: compact "typical" timeline block for the consumer report email —
+ * total, phases, the pre-sale note. Typical ranges, never a promise; no
+ * dollar figures. Empty strings when no timeline is configured.
+ */
+function renderTimelineBlock(timeline: BuildTimeline | undefined): {
+  html: string;
+  text: string;
+} {
+  if (!timeline || timeline.phases.length === 0) {
+    return { html: '', text: '' };
+  }
+  const total = formatTimelineTotal(timeline);
+  const rows = timeline.phases
+    .map(
+      (p) =>
+        `<tr><td style="padding:4px 12px 4px 0;">${esc(p.label)}</td><td style="padding:4px 0;color:#5c574f;white-space:nowrap;">${esc(formatPhaseRange(p))}</td></tr>`,
+    )
+    .join('\n');
+  const html = `<h2 style="font-size:16px;margin:20px 0 4px;color:#232323;">${esc(TIMELINE_TITLE)}</h2>
+<p style="margin:0 0 8px;font-weight:600;">${esc(total)}</p>
+<table role="presentation" cellpadding="0" cellspacing="0" style="font-size:14px;margin:0 0 8px;">
+${rows}
+</table>
+<p style="font-size:14px;color:#5c574f;margin:0 0 12px;">${esc(PRESALE_TIMELINE_NOTE)}</p>`;
+  const text =
+    `${TIMELINE_TITLE}\n${total}\n` +
+    timeline.phases.map((p) => `- ${p.label}: ${formatPhaseRange(p)}`).join('\n') +
+    `\n${PRESALE_TIMELINE_NOTE}`;
+  return { html, text };
+}
 
 /**
  * Consumer report email (#703). Names the property, lists what the report
@@ -168,6 +222,9 @@ function renderConsumerReportEmail(
   const linkRules = `This link works ${until}. You can open it as often as you like, on any device.`;
   const freshLink =
     'After that, open the same link and enter your email address — we will send you a fresh one.';
+  const timeline = renderTimelineBlock(
+    input.projectType === 'new_build' ? ctx.buildTimeline : undefined,
+  );
   const body = `<p>${greetingHtml}</p>
 <p>${introHtml}</p>
 <p style="margin:0 0 4px;">Your report includes:</p>
@@ -177,12 +234,14 @@ ${contents.map((c) => `<li>${esc(c)}</li>`).join('\n')}
 ${ctaButton(input.magicLinkUrl, ctaLabel)}
 <p>${esc(linkRules)}</p>
 <p style="font-size:14px;color:#5c574f;">${esc(freshLink)}</p>
-${fallbackLink(input.magicLinkUrl)}`;
+${timeline.html}${fallbackLink(input.magicLinkUrl)}`;
   const footerUrl = input.unsubscribeUrl;
   const text =
     `${greetingText}\n\n${introText}\n\nYour report includes:\n` +
     contents.map((c) => `- ${c}`).join('\n') +
-    `\n\n${ctaLabel}: ${input.magicLinkUrl}\n\n${linkRules}\n${freshLink}\n\n— ${ctx.brandName}\n${TRUST_LINE_TEXT}` +
+    `\n\n${ctaLabel}: ${input.magicLinkUrl}\n\n${linkRules}\n${freshLink}` +
+    (timeline.text ? `\n\n${timeline.text}` : '') +
+    `\n\n— ${ctx.brandName}\n${TRUST_LINE_TEXT}` +
     (footerUrl ? `\n\n${leadEmailFooterText(footerUrl)}` : '');
   return {
     subject,

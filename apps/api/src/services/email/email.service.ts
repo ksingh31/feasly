@@ -19,6 +19,7 @@ import type {
 } from './email.types';
 import { EmailProviderError, type EmailFailureCode } from './email.types';
 import { sanitizeErrorMessage } from '../../lib/sanitize-error';
+import type { BuildTimeline } from '../../lib/build-timeline';
 import {
   renderCallbackTeamEmail,
   renderCommissionInvoiceReadyEmail,
@@ -58,6 +59,11 @@ export interface MagicLinkEmailInput {
   readonly address?: string;
   /** #703 (consumer only): the issued token's `expires_at`. */
   readonly expiresOn?: Date;
+  /**
+   * #823 (consumer only): the estimate's project type — the typical
+   * new-build timeline renders only for `'new_build'`.
+   */
+  readonly projectType?: string;
 }
 
 export interface PartnerShareEmailInput {
@@ -290,6 +296,8 @@ export interface EmailServiceDeps {
   readonly maxAttempts?: number;
   /** Backoff between attempts, ms. Default 1000. */
   readonly retryBackoffMs?: number;
+  /** #823: typical build timeline rendered in the consumer report email. */
+  readonly buildTimeline?: BuildTimeline;
 }
 
 /**
@@ -341,6 +349,7 @@ export function createEmailService(deps: EmailServiceDeps): EmailService {
     appBaseUrl: deps.appBaseUrl,
     unsubscribeBaseUrl: deps.unsubscribeBaseUrl,
     brandName: 'Feasly',
+    ...(deps.buildTimeline ? { buildTimeline: deps.buildTimeline } : {}),
   };
 
   /**

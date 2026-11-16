@@ -7,5 +7,6 @@ export * from './async';
 export * from './contrast';
 export * from './geo';
 export * from './legal-copy';
+export * from './build-timeline';
 export * from './http-cache';
 export * from './bot-timing';

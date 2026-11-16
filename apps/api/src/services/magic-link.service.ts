@@ -39,6 +39,7 @@ import { formatDisplayAddress } from '../lib/display-address';
 import { sanitizeErrorMessage } from '../lib/sanitize-error';
 import type { EmailDelivery, EmailService } from './email/email.service';
 import { createSandboxSuppressingEmailService } from './email/sandbox-email.service';
+import type { EstimateStore } from './estimate.store';
 import type { LeadStore } from './lead.store';
 import type { UnsubscribeService } from './unsubscribe.service';
 import {
@@ -88,6 +89,12 @@ export interface MagicLinkServiceDeps {
    * Defaults to a per-instance in-memory limiter.
    */
   readonly sendBudget?: AnyRateLimiter;
+  /**
+   * #823: looks up the lead's estimate so the reissued report email knows
+   * its project type (the new-build timeline is gated on it). Absent or
+   * failing → the email omits the timeline.
+   */
+  readonly estimates?: Pick<EstimateStore, 'findById'>;
   readonly clock?: () => Date;
 }
 
@@ -128,6 +135,8 @@ export interface IssueAndSendMagicLinkArgs {
   readonly magicLinkTtlSeconds: number;
   /** #703: the lead's `address_key` — named in the report email. */
   readonly addressKey?: string;
+  /** #823: the estimate's project type — gates the new-build timeline. */
+  readonly projectType?: string;
   /** #793/#914: flag the link row for the sandbox purge. */
   readonly sandbox?: boolean;
   readonly clock?: () => Date;
@@ -172,6 +181,8 @@ export interface SendOwnerMagicLinkEmailArgs {
   readonly addressKey?: string;
   /** #703: the issued token's `expires_at` — the email states this date. */
   readonly expiresAt?: Date;
+  /** #823: the estimate's project type — gates the new-build timeline. */
+  readonly projectType?: string;
 }
 
 /**
@@ -206,6 +217,7 @@ export async function sendOwnerMagicLinkEmail(
     unsubscribeUrl,
     ...(args.addressKey ? { address: formatDisplayAddress(args.addressKey) } : {}),
     ...(args.expiresAt ? { expiresOn: args.expiresAt } : {}),
+    ...(args.projectType ? { projectType: args.projectType } : {}),
   });
 }
 
@@ -267,6 +279,25 @@ export function createMagicLinkService(
       maxTrackedKeys: 10_000,
       clock: () => clock().getTime(),
     });
+
+  /**
+   * #823: best-effort project-type lookup for the reissued report email.
+   * A failed read must never block the resend — the email just omits the
+   * new-build timeline.
+   */
+  async function lookupProjectType(
+    estimateId: string | null | undefined,
+  ): Promise<string | undefined> {
+    if (!deps.estimates || !estimateId) return undefined;
+    try {
+      return (await deps.estimates.findById(estimateId))?.projectType;
+    } catch (error) {
+      console.warn(
+        `magic-link: estimate lookup failed (${sanitizeErrorMessage(error)})`,
+      );
+      return undefined;
+    }
+  }
 
   return {
     async verify(token: string): Promise<MagicLinkVerifyResponse> {
@@ -349,6 +380,7 @@ export function createMagicLinkService(
       // triggers a real send — route through the no-send decorator, as
       // lead.service and share.service do — and its new link is flagged so
       // the sandbox-purge timer removes it with the lead.
+      const projectType = await lookupProjectType(lead.estimateId);
       const delivery = await issueAndSendMagicLink({
         magicLinks,
         email: lead.sandbox
@@ -364,6 +396,7 @@ export function createMagicLinkService(
         appBaseUrl,
         magicLinkTtlSeconds,
         addressKey: lead.addressKey,
+        ...(projectType ? { projectType } : {}),
         sandbox: lead.sandbox,
         clock,
       });

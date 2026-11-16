@@ -71,7 +71,7 @@ export function columnLetter(index: number): string {
 
 /**
  * Last column of the lead rows, derived from the header so adding a column
- * can never leave the write range short of the row width.
+ * can never leave the write range short of the row width (#927).
  */
 export const LAST_COLUMN = columnLetter(SHEET_HEADERS.length);
 

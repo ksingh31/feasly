@@ -418,6 +418,8 @@ describe('lead service', () => {
     // token's real expiry (900s TTL → NOW + 15 min).
     expect(sent.address).toBe('Calgary 123 Fake St NW');
     expect(sent.expiresOn).toEqual(new Date(NOW.getTime() + 900_000));
+    // #823: the estimate's project type gates the new-build timeline block.
+    expect(sent.projectType).toBe('new_build');
 
     expect(store.inserted).toHaveLength(1);
     const saved = store.inserted[0];
@@ -767,7 +769,9 @@ describe('lead service', () => {
         id === OTHER_ESTIMATE
           ? {
               id: OTHER_ESTIMATE,
-              projectType: 'new_build',
+              // #823: a renovation re-estimate — the dedupe-path email must
+              // carry its project type so the new-build timeline is hidden.
+              projectType: 'renovation',
               // Same property as ESTIMATE_ID's fixture.
               addressKey: 'calgary-123-fake-st-nw',
               inputs: {},
@@ -785,12 +789,14 @@ describe('lead service', () => {
     };
     const store = fakeLeadStore();
     store.recent = existingLeadFixture();
-    const service = createLeadService({ ...DEPS, store, estimateStore });
+    const email = fakeEmailService();
+    const service = createLeadService({ ...DEPS, store, estimateStore, email });
     const result = await service.submitLead({
       ...VALID_BODY,
       estimateId: OTHER_ESTIMATE,
     });
     expect(result.leadId).toBe('existing-lead-id');
+    expect(email.magicLinkSends.at(-1)?.projectType).toBe('renovation');
     expect(store.inserted).toHaveLength(0);
     // The repeat points the lead at the NEWEST estimate.
     expect(store.updated).toHaveLength(1);
