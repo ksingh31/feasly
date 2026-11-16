@@ -14,6 +14,10 @@
  *   caller additionally needs ANY ONE of those (OR) — for routes two
  *   roles may call under different permission strings.
  *
+ * - `recentAuth: true` → additionally `requireRecentAuth` (#730): the
+ *   session's sign-in must be inside SESSION_REAUTH_WINDOW_SECONDS, else
+ *   401 REAUTH_REQUIRED.
+ *
  * This is the DRY enforcement point: one helper, every adapter. Registry
  * declarations alone are not security — this call is what makes them so.
  */
@@ -56,9 +60,13 @@ export async function enforceRoutePermissions(
   // `requirePermissions` also audit-logs the action under the REAL actor
   // when view-as is active (#731 AC5) — so it runs for anyOf-only routes
   // too (with an empty AND list it only resolves + audits).
-  await permissionGuard.requirePermissions(
+  const ctx = await permissionGuard.requirePermissions(
     entry.permissions,
     headers,
     `${httpMethod} ${path}`,
   );
+  // #730: dangerous actions need a recent sign-in (401 REAUTH_REQUIRED).
+  if (entry.recentAuth) {
+    await permissionGuard.requireRecentAuth(ctx, `${httpMethod} ${path}`);
+  }
 }
