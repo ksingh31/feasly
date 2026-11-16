@@ -235,6 +235,15 @@ describe('ScopePageComponent', () => {
     expect(store.selectSnapshot(WizardState.projectType)).toBe('new-build');
   });
 
+  it('project-type cards are one Tab stop, following the selection (#937)', () => {
+    expect(ptypeButton('new-build').getAttribute('tabindex')).toBe('0');
+    expect(ptypeButton('renovation').getAttribute('tabindex')).toBe('-1');
+    ptypeButton('new-build').dispatchEvent(new KeyboardEvent('keydown', { key: 'End', bubbles: true }));
+    fixture.detectChanges();
+    expect(ptypeButton('renovation').getAttribute('tabindex')).toBe('0');
+    expect(ptypeButton('new-build').getAttribute('tabindex')).toBe('-1');
+  });
+
   it('shows new-build inputs only for New Build, and the reno note for Renovation', () => {
     chooseCard('new-build');
     expect(slider()).not.toBeNull();
