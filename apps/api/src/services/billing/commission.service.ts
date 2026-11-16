@@ -306,7 +306,9 @@ export interface CommissionService {
    * #712 webhook: payment_intent.requires_action — the bank wants the
    * builder to confirm the charge. `finalized → action_required` + the
    * "confirm this payment" email, exactly once. No-op when the invoice is
-   * already action_required, settled, or disputed (audited).
+   * already action_required, settled, or disputed — returns the record
+   * unchanged and writes no audit row (requires_action moves no money, so
+   * it is not a charge attempt against a frozen invoice).
    */
   markActionRequiredByPaymentIntent(
     paymentIntentId: string,
