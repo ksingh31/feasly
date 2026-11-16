@@ -111,6 +111,7 @@ function fakeEmailService(): EmailService & {
     sendContractNeedsRecording: async () => ok,
     sendBuilderNewLead: async () => ok,
     sendBuilderNeedsYouDigest: async () => ok,
+    sendErasureConfirmation: async () => ok,
   };
 }
 

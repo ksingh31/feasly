@@ -919,6 +919,20 @@ export const commissionInvoices = pgTable(
      * commission_cents. Readers fall back to commission + tax when null.
      */
     totalCents: integer('total_cents'),
+    /**
+     * Bank chargeback state (#719, migration 0055): null = never disputed
+     * with the bank; 'open' while Stripe's dispute is live (no further
+     * charge attempts); then 'won' | 'lost' | 'warning_closed' from
+     * `charge.dispute.closed`. A lost chargeback does NOT change `status`
+     * — collecting or writing off the commission is a manual ops decision.
+     */
+    chargebackStatus: text('chargeback_status'),
+    /**
+     * Cumulative amount refunded on the invoice's charge, integer cents
+     * (#719): mirrors Stripe's `charge.amount_refunded`, so a refund issued
+     * from the Stripe dashboard shows in Feasly. 0 = nothing refunded.
+     */
+    refundedCents: integer('refunded_cents').notNull().default(0),
     createdAt: timestamp('created_at', { withTimezone: true })
       .notNull()
       .defaultNow(),
@@ -1037,6 +1051,25 @@ export const billingDisputes = pgTable(
     resolvedBy: text('resolved_by'),
     /** Admin's resolution note. */
     resolutionNote: text('resolution_note'),
+    /**
+     * Who raised it (#719): 'builder' = an invoice dispute in the portal;
+     * 'chargeback' = a bank dispute reported by Stripe (charge.dispute.*).
+     */
+    source: text('source').notNull().default('builder'),
+    /** Stripe dispute id (`dp_…`) — chargebacks only. Unique. */
+    stripeDisputeId: text('stripe_dispute_id'),
+    /** Stripe's dispute reason code (e.g. 'fraudulent') — chargebacks only. */
+    stripeReason: text('stripe_reason'),
+    /** Stripe's raw dispute status (needs_response, under_review, won, lost, …). */
+    stripeStatus: text('stripe_status'),
+    /** Disputed amount, integer cents — chargebacks only. */
+    amountCents: integer('amount_cents'),
+    /** Stripe's evidence deadline — chargebacks only (also the SLA). */
+    evidenceDueAt: timestamp('evidence_due_at', { withTimezone: true }),
+    /** won | lost | warning_closed once Stripe closes the chargeback. */
+    outcome: text('outcome'),
+    /** True when the dispute is a Stripe live-mode object. */
+    livemode: boolean('livemode'),
     createdAt: timestamp('created_at', { withTimezone: true })
       .notNull()
       .defaultNow(),
@@ -1047,6 +1080,7 @@ export const billingDisputes = pgTable(
   (t) => [
     index('billing_disputes_status_opened_idx').on(t.status, t.openedAt),
     index('billing_disputes_invoice_idx').on(t.invoiceId),
+    uniqueIndex('billing_disputes_stripe_dispute_id_idx').on(t.stripeDisputeId),
   ],
 );
 

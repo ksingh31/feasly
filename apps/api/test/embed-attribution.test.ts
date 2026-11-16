@@ -180,6 +180,7 @@ function fakeEmailService(): EmailService {
     sendContractNeedsRecording: async () => result,
     sendBuilderNewLead: async () => result,
     sendBuilderNeedsYouDigest: async () => result,
+    sendErasureConfirmation: async () => result,
   } as EmailService;
 }
 
