@@ -163,6 +163,10 @@ exports[`OpenAPI drift > generated spec matches the snapshot 1`] = `
           "report_link_request",
           "report_link_copy",
           "report_link_share",
+          "steer_new_build_offered",
+          "steer_renovation_offered",
+          "steer_none_offered",
+          "steer_override_new_build",
         ],
         "type": "string",
       },
@@ -1146,6 +1150,56 @@ exports[`OpenAPI drift > generated spec matches the snapshot 1`] = `
           "stale": {
             "description": "True when assessment year is older than freshness threshold",
             "type": "boolean",
+          },
+          "steer": {
+            "description": "Project-type steer by home age (#755); absent = no steering",
+            "properties": {
+              "homeAgeYears": {
+                "type": [
+                  "integer",
+                  "null",
+                ],
+              },
+              "reason": {
+                "enum": [
+                  "age_at_or_over_threshold",
+                  "age_under_threshold",
+                  "year_built_unknown",
+                ],
+                "type": "string",
+              },
+              "recommendedProjectType": {
+                "description": "Project type offered first; null = no steering",
+                "enum": [
+                  "new_build",
+                  "renovation",
+                  null,
+                ],
+                "type": [
+                  "string",
+                  "null",
+                ],
+              },
+              "redevelopmentCandidate": {
+                "description": "True when the home is at/over the redevelopment age threshold; null when the year built is unknown",
+                "type": [
+                  "boolean",
+                  "null",
+                ],
+              },
+              "thresholdYears": {
+                "description": "Market redevelopment age threshold, in years",
+                "type": "integer",
+              },
+            },
+            "required": [
+              "redevelopmentCandidate",
+              "reason",
+              "recommendedProjectType",
+              "homeAgeYears",
+              "thresholdYears",
+            ],
+            "type": "object",
           },
           "yearBuilt": {
             "type": [

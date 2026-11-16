@@ -135,6 +135,7 @@ describe('loadConfig', () => {
         httpTimeoutMs: 15_000,
         searchRowLimit: 50,
         suggestionLimit: 8,
+        redevelopmentMinAgeYears: 25,
         // #756: durable shared cache + HTTP cache lifetime.
         dbCacheTtlMs: 604_800_000,
         dbCacheTimeoutMs: 1_500,

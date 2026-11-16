@@ -348,6 +348,10 @@ const EnvSchema = z.object({
   PROPERTY_HTTP_TIMEOUT_MS: z.coerce.number().int().positive().default(15_000),
   PROPERTY_SEARCH_ROW_LIMIT: z.coerce.number().int().positive().default(50),
   PROPERTY_SUGGESTION_LIMIT: z.coerce.number().int().positive().default(8),
+  // #755: market rule — homes this many years old (or older, by the City's
+  // year of construction) are redevelopment candidates; younger homes are
+  // steered to renovation. Per market, so other cities can differ.
+  PROPERTY_REDEVELOPMENT_MIN_AGE_YEARS: z.coerce.number().int().positive().default(25),
   // --- Shared City-data cache (#756) ---
   // Durable (Postgres) cache of City records, shared by every instance and
   // every route. Per-dataset TTLs follow the City's refresh cadence: the
@@ -825,6 +829,11 @@ export interface PropertyDataConfig {
   readonly searchRowLimit: number;
   /** Max autocomplete suggestions returned. */
   readonly suggestionLimit: number;
+  /**
+   * #755: home age (years) at/over which a property is a redevelopment
+   * candidate; younger homes are steered to renovation. Market config.
+   */
+  readonly redevelopmentMinAgeYears: number;
   /** Durable (Postgres) cache TTL for assessment-roll records (#756). */
   readonly dbCacheTtlMs: number;
   /** Max wait on a durable-cache read/write before falling through (#756). */
@@ -1630,6 +1639,7 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): ApiConfig {
       httpTimeoutMs: e.PROPERTY_HTTP_TIMEOUT_MS,
       searchRowLimit: e.PROPERTY_SEARCH_ROW_LIMIT,
       suggestionLimit: e.PROPERTY_SUGGESTION_LIMIT,
+      redevelopmentMinAgeYears: e.PROPERTY_REDEVELOPMENT_MIN_AGE_YEARS,
       dbCacheTtlMs: e.PROPERTY_DB_CACHE_TTL_MS,
       dbCacheTimeoutMs: e.PROPERTY_DB_CACHE_TIMEOUT_MS,
       httpCacheMaxAgeSeconds: e.PROPERTY_HTTP_CACHE_MAX_AGE_S,
