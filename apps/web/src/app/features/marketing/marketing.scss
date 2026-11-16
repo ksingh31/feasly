@@ -560,3 +560,89 @@ a.partner-name {
   align-items: center;
   min-height: 44px;
 }
+
+/* #834: Help page — search, topic groups, contact card. */
+.help-search {
+  margin-bottom: 40px;
+}
+
+.help-search-label {
+  display: block;
+  font-family: var(--font-ui);
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--text);
+  margin-bottom: 8px;
+}
+
+.help-search-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.help-search-input {
+  flex: 1 1 240px;
+  min-width: 0;
+  min-height: 48px;
+  padding: 12px 16px;
+  font-size: 16px;
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+}
+
+/* One clear control: the visible "Clear search" button, not the native ×. */
+.help-search-input::-webkit-search-cancel-button {
+  appearance: none;
+}
+
+.help-search-clear {
+  padding: 12px 20px;
+  min-height: 48px;
+  cursor: pointer;
+}
+
+.help-search-results {
+  min-height: 1.5em;
+  margin: 8px 0 0;
+  font-size: 15px;
+  color: var(--muted);
+}
+
+.help-topic {
+  margin-bottom: 40px;
+}
+
+.help-topic-title {
+  font-family: var(--font-ui);
+  font-size: 22px;
+  font-weight: 700;
+  margin: 0 0 16px;
+  color: var(--text);
+}
+
+.help-answers {
+  margin-bottom: 0;
+}
+
+.help-q {
+  font-family: var(--font-ui);
+  font-size: 16px;
+  font-weight: 600;
+  line-height: 1.4;
+  color: var(--text);
+  margin: 0;
+  padding: 20px 24px 8px;
+}
+
+.help-contact-intro {
+  font-size: 15px;
+  line-height: 1.6;
+  color: var(--text);
+  margin: 0 0 16px;
+}
+
+.help-callback-actions {
+  margin-top: 16px;
+}

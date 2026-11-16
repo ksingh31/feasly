@@ -59,14 +59,15 @@ describe('SiteNavComponent', () => {
     expect(parseFloat(getComputedStyle(brand).minHeight)).toBeGreaterThanOrEqual(44);
   });
 
-  it('renders the approved header: skip link + brand + 3 primary nav links', () => {
+  it('renders the approved header: skip link + brand + 4 primary nav links', () => {
     setup();
     const links = [...fixture.nativeElement.querySelectorAll('nav a')];
-    expect(links).toHaveLength(5);
+    expect(links).toHaveLength(6);
     expect(links[1].classList.contains('nav-brand')).toBe(true);
     expect(links[1].getAttribute('aria-label')).toBe('Feasly home');
     const navLabels = links.slice(2).map((l) => l.textContent?.trim());
-    expect(navLabels).toEqual(['How it works', 'Community guides', 'FAQ']);
+    // #834: Help joins the primary nav.
+    expect(navLabels).toEqual(['How it works', 'Community guides', 'FAQ', 'Help']);
     // No dead auth links: sign-in was deliberately omitted.
     for (const link of links) {
       expect(link.textContent ?? '').not.toMatch(/sign in|log in|sign up/i);
@@ -101,6 +102,7 @@ describe('SiteNavComponent', () => {
       'Community guides',
       'Compare neighbourhoods',
       'FAQ',
+      'Help',
       'Developers',
       // #704: returning users on another device.
       'Find my report',
