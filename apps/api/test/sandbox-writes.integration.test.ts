@@ -58,6 +58,8 @@ function recordingEmail(): EmailService & { sends: MagicLinkEmailInput[] } {
     sendCommissionPaymentActionRequired: async () => ok,
     sendCommissionInvoiceOverdue: async () => ok,
     sendContractNeedsRecording: async () => ok,
+    sendBuilderNewLead: async () => ok,
+    sendBuilderNeedsYouDigest: async () => ok,
   };
 }
 

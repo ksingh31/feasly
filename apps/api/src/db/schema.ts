@@ -25,6 +25,7 @@ import {
   integer,
   jsonb,
   pgTable,
+  primaryKey,
   real,
   text,
   timestamp,
@@ -919,7 +920,7 @@ export const commissionInvoices = pgTable(
      */
     totalCents: integer('total_cents'),
     /*
-     * Dunning (#718, migration 0056). Owner decision 2026-11-15: the
+     * Dunning (#718, migration 0057). Owner decision 2026-11-15: the
      * retry schedule follows each invoice's grace period; admin can edit
      * it per invoice and pause / resume / cancel retries; the builder can
      * only pay now.
@@ -1723,6 +1724,80 @@ export const simulatedPaymentObjects = pgTable(
       t.objectType,
       t.deliveredAt,
     ),
+  ],
+);
+
+/**
+ * Builder notification preferences (#725).
+ *
+ * One row per (user, builder org), written the first time a member saves
+ * their preferences. No row = the defaults (owner decision 2026-11-15):
+ * new-lead email on, daily "Needs you" digest off, billing email on. Email
+ * is the only channel. Both FKs cascade.
+ */
+export const builderNotificationPreferences = pgTable(
+  'builder_notification_preferences',
+  {
+    userId: uuid('user_id')
+      .notNull()
+      .references(() => users.id, { onDelete: 'cascade' }),
+    builderId: uuid('builder_id')
+      .notNull()
+      .references(() => builders.id, { onDelete: 'cascade' }),
+    newLeadEmail: boolean('new_lead_email').notNull().default(true),
+    needsYouDigest: boolean('needs_you_digest').notNull().default(false),
+    billingEmail: boolean('billing_email').notNull().default(true),
+    updatedAt: timestamp('updated_at', { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (t) => [
+    primaryKey({ columns: [t.userId, t.builderId] }),
+    index('builder_notification_preferences_builder_idx').on(t.builderId),
+  ],
+);
+
+/**
+ * Builder notification outbox (#725) — send-once ledger for builder emails.
+ *
+ * `dedupe_key` (unique) is `new_lead:<lead>:<builder>:<user>` or
+ * `needs_you_digest:<yyyy-mm-dd>:<builder>:<user>`, so a resubmitted lead,
+ * a repeated assignment or a second timer tick never emails twice.
+ * `status`: pending → sent | skipped | failed. Pending rows are retried by
+ * the builder-notifications timer until `attempts` hits the configured max.
+ * No PII — ids and a failure code only.
+ */
+export const builderNotifications = pgTable(
+  'builder_notifications',
+  {
+    id: uuid('id').primaryKey(),
+    dedupeKey: text('dedupe_key').notNull(),
+    /** 'new_lead' | 'needs_you_digest'. */
+    kind: text('kind').notNull(),
+    builderId: uuid('builder_id')
+      .notNull()
+      .references(() => builders.id, { onDelete: 'cascade' }),
+    userId: uuid('user_id')
+      .notNull()
+      .references(() => users.id, { onDelete: 'cascade' }),
+    /** Set for new_lead rows; null for digests. */
+    leadId: uuid('lead_id').references(() => leads.id, { onDelete: 'cascade' }),
+    /** 'pending' | 'sent' | 'skipped' | 'failed'. */
+    status: text('status').notNull().default('pending'),
+    attempts: integer('attempts').notNull().default(0),
+    /** Sanitized failure code ('invalid-recipient' | 'delivery-failed' | …). */
+    lastErrorCode: text('last_error_code'),
+    /** Claim lease: a delivery attempt started at this time. */
+    lastAttemptAt: timestamp('last_attempt_at', { withTimezone: true }),
+    processedAt: timestamp('processed_at', { withTimezone: true }),
+    createdAt: timestamp('created_at', { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (t) => [
+    uniqueIndex('builder_notifications_dedupe_key_idx').on(t.dedupeKey),
+    index('builder_notifications_status_created_idx').on(t.status, t.createdAt),
+    index('builder_notifications_lead_idx').on(t.leadId),
   ],
 );
 

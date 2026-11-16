@@ -117,6 +117,8 @@ describe('lead route', () => {
         sendCommissionPaymentActionRequired: async () => ({ sent: true as const, provider: 'log' as const }),
         sendCommissionInvoiceOverdue: async () => ({ sent: true as const, provider: 'log' as const }),
         sendContractNeedsRecording: async () => ({ sent: true as const, provider: 'log' as const }),
+        sendBuilderNewLead: async () => ({ sent: true as const, provider: 'log' as const }),
+        sendBuilderNeedsYouDigest: async () => ({ sent: true as const, provider: 'log' as const }),
       },
       unsubscribe: createUnsubscribeService({
         leads: leadStore,

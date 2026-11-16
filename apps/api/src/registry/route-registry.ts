@@ -748,6 +748,32 @@ export const ROUTE_REGISTRY: readonly ApiRouteEntry[] = [
       'status counts for the segmented filter.',
   },
   {
+    method: 'GET',
+    path: '/api/v1/builder/notifications/preferences',
+    auth: 'builder-session',
+    permissions: ['builder:leads:read'] as const,
+    rateLimit: '100/min per session',
+    status: 'live',
+    summary:
+      'Signed-in builder member reads their email notification preferences ' +
+      '(#725): new-lead email (default on), daily "Needs you" digest ' +
+      '(default off), billing email (default on, admins only), their org ' +
+      'role, and whether they may turn billing emails off.',
+  },
+  {
+    method: 'PUT',
+    path: '/api/v1/builder/notifications/preferences',
+    auth: 'builder-session',
+    permissions: ['builder:leads:read'] as const,
+    rateLimit: '100/min per session',
+    status: 'live',
+    summary:
+      'Signed-in builder member updates their email notification ' +
+      'preferences (#725, partial body). 409 LAST_ADMIN when the org\'s ' +
+      'last admin receiving billing emails turns them off; 403 while ' +
+      'viewing as a teammate.',
+  },
+  {
     method: 'PATCH',
     path: '/api/v1/builder/leads/{id}',
     auth: 'builder-session',

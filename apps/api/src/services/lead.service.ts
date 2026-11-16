@@ -55,6 +55,7 @@ import { ErrorCodes, HttpError } from '../middleware/errors';
 import type { BuilderConfigService } from './builder-config.service';
 import type { BuilderService } from './builder.service';
 import type { EmailService } from './email/email.service';
+import type { BuilderNotificationsService } from './builder-notifications.service';
 import { createSandboxSuppressingEmailService } from './email/sandbox-email.service';
 import type { EstimateStore } from './estimate.store';
 import type { LeadRecord, LeadStore } from './lead.store';
@@ -140,6 +141,13 @@ export interface LeadServiceDeps {
    * (the migration backfill covers pre-existing rows).
    */
   readonly builders?: BuilderService;
+  /**
+   * #725: tells the builder's team about a new embed lead (one email per
+   * opted-in member, send-once outbox). Called without awaiting — it never
+   * rejects, and a failed send never affects the lead response; the
+   * builder-notifications timer retries pending sends. Optional.
+   */
+  readonly builderNotifier?: Pick<BuilderNotificationsService, 'notifyNewLead'>;
   /** Injected clock for tests; defaults to wall time. */
   readonly clock?: () => Date;
 }
@@ -575,6 +583,13 @@ export function createLeadService(deps: LeadServiceDeps): LeadService {
         }
       } catch (error) {
         throw new Error('magic link issuance failed', { cause: error });
+      }
+      // #725: new embed lead → notify the builder's team. Quarantined and
+      // sandbox leads never notify; repeat submissions (the dedupe path
+      // above) never reach here, and the outbox dedupes regardless. Not
+      // awaited: the homeowner's response never waits on builder email.
+      if (builderId !== null && !quarantined && !sandbox && deps.builderNotifier) {
+        void deps.builderNotifier.notifyNewLead({ leadId: inserted.id, builderId });
       }
       return {
         leadId: inserted.id,
