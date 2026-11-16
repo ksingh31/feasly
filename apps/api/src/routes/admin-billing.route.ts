@@ -57,6 +57,7 @@ import type {
 } from '@feasly/contracts';
 import { ErrorCodes, HttpError } from '../middleware/errors';
 import { pastOrPresentDatetime } from '../lib/zod-datetime';
+import { MAX_DUNNING_GRACE_DAYS, MIN_DUNNING_GRACE_DAYS } from '../lib/dunning-schedule';
 import type { AdminGuard } from '../middleware/admin-guard';
 import type { BillingHealthService } from '../services/billing/billing-health.service';
 import type { BillingService } from '../services/billing/billing.service';
@@ -109,7 +110,7 @@ const dunningBodySchema: z.ZodType<UpdateInvoiceDunningRequest> = z.union([
   z.object({ action: z.literal('cancel') }),
   z.object({
     action: z.literal('set_grace_days'),
-    graceDays: z.number().int().min(1).max(90),
+    graceDays: z.number().int().min(MIN_DUNNING_GRACE_DAYS).max(MAX_DUNNING_GRACE_DAYS),
   }),
 ]);
 
@@ -312,7 +313,7 @@ export function createAdminBillingRoute(
           400,
           ErrorCodes.VALIDATION_FAILED,
           'Invalid dunning body: action must be pause, resume, cancel, or ' +
-            'set_grace_days with graceDays (whole number, 1–90).',
+            `set_grace_days with graceDays (whole number, ${MIN_DUNNING_GRACE_DAYS}–${MAX_DUNNING_GRACE_DAYS}).`,
           false,
         );
       }

@@ -19,6 +19,11 @@
 import { z } from 'zod';
 import { version as packageVersion } from '../package.json';
 import { WAITLIST_CONSENT_VERSION } from './lib/legal-copy';
+import {
+  DEFAULT_DUNNING_GRACE_DAYS,
+  MAX_DUNNING_GRACE_DAYS,
+  MIN_DUNNING_GRACE_DAYS,
+} from './lib/dunning-schedule';
 
 export type NodeEnv = 'development' | 'test' | 'staging' | 'production';
 
@@ -446,7 +451,12 @@ const EnvSchema = z.object({
   // next automatic retry. Manual-method invoices: days after the review
   // window closes before the invoice is overdue. 7 matches the "update your
   // card within 7 days" copy the declined email already carried.
-  BILLING_DUNNING_GRACE_DAYS: z.coerce.number().int().min(1).max(90).default(7),
+  BILLING_DUNNING_GRACE_DAYS: z.coerce
+    .number()
+    .int()
+    .min(MIN_DUNNING_GRACE_DAYS)
+    .max(MAX_DUNNING_GRACE_DAYS)
+    .default(DEFAULT_DUNNING_GRACE_DAYS),
   // --- Card lifecycle (#716) ---
   // Text on the builder's bank statement for a commission charge. Sent as
   // Stripe's statement_descriptor_suffix (card PaymentIntents reject a full

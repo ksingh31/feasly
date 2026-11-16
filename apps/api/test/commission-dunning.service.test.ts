@@ -465,6 +465,35 @@ describe('dunning schedule (#718)', () => {
     expect(last.input).toMatchObject({ finalNotice: false, nextRetryAt: null });
   });
 
+  it('Pay now attempts share the retry budget: exhausting it via Pay now flags collections and sends the final notice', async () => {
+    const fx = newServices(testDb, billingConfig({ maxChargeRetries: 2 }));
+    const failed = await seedFailed(testDb, fx, 'dun-pay-budget');
+
+    const first = await fx.commission.payNow(failed.id);
+    expect(first.status).toBe('failed');
+    expect(first.retryCount).toBe(1);
+    expect(first.collectionsAt).toBeNull();
+    // One retry left → the automatic schedule is still armed.
+    expect(first.nextRetryAt).not.toBeNull();
+
+    const second = await fx.commission.payNow(failed.id);
+    expect(second.status).toBe('failed');
+    expect(second.retryCount).toBe(2);
+    expect(second.collectionsAt).not.toBeNull();
+    expect(second.nextRetryAt).toBeNull();
+
+    // No automatic attempt ran, yet the budget is spent: the admin retry is
+    // capped and the final notice went out once.
+    const retried = (await events(failed.id)).filter((e) => e.eventType === 'invoice.charge_retried');
+    expect(retried.map((e) => (e.payload as { trigger: string }).trigger)).toEqual(['builder', 'builder']);
+    await expect(fx.commission.retryCharge(failed.id)).rejects.toMatchObject({
+      code: ErrorCodes.VALIDATION_FAILED,
+    });
+    const declined = ops(fx, 'sendCommissionPaymentFailed');
+    expect(declined.map((s) => s.input['finalNotice'])).toEqual([false, false, true]);
+    expect((await events(failed.id)).filter((e) => e.eventType === 'invoice.collections_flagged')).toHaveLength(1);
+  });
+
   it('Pay now refuses invoices that are not failed card invoices', async () => {
     const fx = newServices(testDb);
     const inReview = await seedInReview(testDb, fx, 'dun-pay-refuse');

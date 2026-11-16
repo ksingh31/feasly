@@ -652,7 +652,11 @@ export interface CommissionPaymentFailedTemplateInput {
    * America/Edmonton). Omitted/null = no retry scheduled.
    */
   readonly nextRetryAt?: Date | null;
-  /** #718: this was the last automatic attempt — the final notice. */
+  /**
+   * #718: the retry budget (BILLING_MAX_CHARGE_RETRIES) is used up — the
+   * final notice. Builder Pay now attempts count toward that budget, so
+   * the copy never claims the failed attempt itself was automatic.
+   */
   readonly finalNotice?: boolean;
   readonly tax?: CommissionEmailTax;
 }
@@ -667,7 +671,7 @@ function paymentFailedNextStep(
 ): { html: string; text: string } {
   if (input.finalNotice === true) {
     const line =
-      'This was our last automatic attempt. Please update your card and choose Pay now on your billing page to settle the invoice.';
+      "We won't try this charge again automatically. Please update your card and choose Pay now on your billing page to settle the invoice.";
     return { html: `<p>${esc(line)}</p>`, text: line };
   }
   if (input.nextRetryAt) {

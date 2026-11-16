@@ -115,14 +115,16 @@ describe('commission-payment-failed dunning copy (#718)', () => {
     }
   });
 
-  it('sends a final notice after the last automatic attempt', () => {
+  it('sends a final notice once the retry budget is used up', () => {
     const rendered = renderCommissionPaymentFailedEmail(CTX, {
       ...base,
       nextRetryAt: null,
       finalNotice: true,
     });
     expect(rendered.subject).toBe('Final notice: invoice INV-0718 is unpaid');
-    expect(rendered.text).toContain('This was our last automatic attempt.');
+    expect(rendered.text).toContain("We won't try this charge again automatically.");
+    // Pay now attempts share the budget — never claim an automatic attempt ran.
+    expect(rendered.text).not.toContain('last automatic attempt');
     expect(rendered.html).toContain('Pay now');
     expect(rendered.text).not.toContain('try the charge again');
   });

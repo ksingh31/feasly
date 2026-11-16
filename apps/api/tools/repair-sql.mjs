@@ -487,14 +487,6 @@ ALTER TABLE "commission_invoices" ADD COLUMN IF NOT EXISTS "tax_inclusive" boole
 ALTER TABLE "commission_invoices" ADD COLUMN IF NOT EXISTS "tax_cents" integer DEFAULT 0 NOT NULL;
 ALTER TABLE "commission_invoices" ADD COLUMN IF NOT EXISTS "total_cents" integer;
 UPDATE "commission_invoices" SET "total_cents" = "commission_cents" + "tax_cents" WHERE "total_cents" IS NULL;
--- #718 dunning schedule columns (migration 0057). Expand-only.
-ALTER TABLE "commission_invoices" ADD COLUMN IF NOT EXISTS "retry_grace_days" integer;
-ALTER TABLE "commission_invoices" ADD COLUMN IF NOT EXISTS "next_retry_at" timestamp with time zone;
-ALTER TABLE "commission_invoices" ADD COLUMN IF NOT EXISTS "last_charge_failed_at" timestamp with time zone;
-ALTER TABLE "commission_invoices" ADD COLUMN IF NOT EXISTS "dunning_state" text DEFAULT 'active' NOT NULL;
-ALTER TABLE "commission_invoices" ADD COLUMN IF NOT EXISTS "collections_at" timestamp with time zone;
-ALTER TABLE "commission_invoices" ADD COLUMN IF NOT EXISTS "overdue_reminded_at" timestamp with time zone;
-CREATE INDEX IF NOT EXISTS "commission_invoices_next_retry_idx" ON "commission_invoices" USING btree ("next_retry_at");
 -- billing/12 safety net: rows created while migration 0046 was missing get
 -- human-readable invoice numbers (INV-0001… in created_at order), then the
 -- sequence advances past every assigned number — never backwards, so a

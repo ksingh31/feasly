@@ -297,7 +297,12 @@ export interface CommissionService {
   ): Promise<CommissionInvoiceRecord>;
   /**
    * #718 builder Pay now: re-charge a `failed` card invoice against the
-   * card on file right away. Not capped by BILLING_MAX_CHARGE_RETRIES and
+   * card on file right away. Not capped by BILLING_MAX_CHARGE_RETRIES, but
+   * each attempt increments `retryCount` (its idempotency key is the next
+   * `:retry:{n}`), so it uses up the automatic-retry budget: when a Pay now
+   * failure exhausts the budget the invoice is flagged for collections and
+   * the builder gets the final notice. Deliberate — the cap bounds total
+   * declined charges on one invoice, whoever started them. Pay now is
    * allowed while retries are paused or cancelled (owner: the builder can
    * always pay now, never change the schedule). Idempotent: an invoice
    * already `finalized` / `paid` is returned unchanged with no new charge;
@@ -1220,7 +1225,8 @@ export function createCommissionService(
       throw error;
     }
     // BILL-04: "card declined — update it" email on failed charge; #718:
-    // the last automatic attempt sends the final notice instead.
+    // the failure that uses up the retry budget (automatic, admin or a
+    // builder Pay now — they share it) sends the final notice instead.
     await notifyBuilder(invoice, 'payment_failed', { finalNotice: enterCollections });
     if (enterCollections) {
       // #718: one collections alert replaces the per-failure alert.
