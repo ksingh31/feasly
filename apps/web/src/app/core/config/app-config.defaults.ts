@@ -1202,7 +1202,7 @@ export const DEFAULT_APP_CONFIG: AppConfig = {
           },
           {
             q: 'My lot is R-CG — can I still build a single-family home?',
-            a: 'Yes. Single-detached homes are a listed use in R-CG (Residential – Contextual Grade-Oriented Infill), alongside semi-detached homes, rowhouses, and suites. R-CG gives you more options, not fewer — a single-family build is still allowed.',
+            a: 'Usually, but it needs City approval. In R-CG (Residential – Contextual Grade-Oriented Infill) a single-detached home is a discretionary use (Land Use Bylaw 1P2007, s. 527(2)(r)), so the City has to approve it. Semi-detached homes, rowhouses and suites are also possible. Feasly still gives R-CG lots an estimate and notes the approval step.',
           },
           {
             q: 'What is Direct Control (DC) zoning?',
