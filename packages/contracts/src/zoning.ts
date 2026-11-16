@@ -167,4 +167,10 @@ export interface ZoningDistrictsResponse {
   readonly bylawVersion: string;
   readonly sourceUrl: string;
   readonly districts: readonly ZoningDistrict[];
+  /**
+   * #689: building forms the cost engine can price today (from the engine,
+   * not the catalogue). Every other form a district allows is shown as
+   * "estimate coming soon" and is refused by the estimate endpoints.
+   */
+  readonly estimableBuildingForms: readonly BuildingForm[];
 }

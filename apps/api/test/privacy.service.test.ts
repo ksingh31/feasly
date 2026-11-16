@@ -129,8 +129,17 @@ function callback(id: string, leadId: string): CallbackRequestRecord {
   };
 }
 
-function signup(id: string, email: string, topic: string): WaitlistSignupRecord {
-  return { id, email, topic, createdAt: NOW, consentTs: NOW, consentVersion: 'v-test' };
+function signup(
+  id: string,
+  email: string,
+  topic: string,
+  form: Pick<WaitlistSignupRecord, 'buildingForm' | 'district' | 'community'> = {
+    buildingForm: null,
+    district: null,
+    community: null,
+  },
+): WaitlistSignupRecord {
+  return { id, email, topic, createdAt: NOW, consentTs: NOW, consentVersion: 'v-test', ...form };
 }
 
 function link(
@@ -166,6 +175,11 @@ function setup(blockers: { kind: string; reason: string }[] = []): {
     waitlist: [
       signup('w1', ALICE, 'renovation'),
       signup('w2', ALICE, 'toronto'),
+      signup('w4', ALICE, 'building-form', {
+        buildingForm: 'semi-detached',
+        district: 'R-C2',
+        community: 'Altadore',
+      }),
       signup('w3', BOB, 'vancouver'),
     ],
     callbacks: [callback('cb1', ALICE_LEAD), callback('cb2', BOB_LEAD)],
@@ -373,8 +387,18 @@ describe('privacy export', () => {
   it('#520: includes the requester\u2019s waitlist signups with consent, and nobody else\u2019s', async () => {
     const out = await service.exportMyData(ALICE_TOKEN);
     expect(out.waitlistSignups).toEqual([
-      { topic: 'renovation', createdAt: NOW.toISOString(), consentTs: NOW.toISOString(), consentVersion: 'v-test' },
-      { topic: 'toronto', createdAt: NOW.toISOString(), consentTs: NOW.toISOString(), consentVersion: 'v-test' },
+      { topic: 'renovation', createdAt: NOW.toISOString(), consentTs: NOW.toISOString(), consentVersion: 'v-test', buildingForm: null, district: null, community: null },
+      { topic: 'toronto', createdAt: NOW.toISOString(), consentTs: NOW.toISOString(), consentVersion: 'v-test', buildingForm: null, district: null, community: null },
+      // #689: building-form interest exports its form, district and community.
+      {
+        topic: 'building-form',
+        createdAt: NOW.toISOString(),
+        consentTs: NOW.toISOString(),
+        consentVersion: 'v-test',
+        buildingForm: 'semi-detached',
+        district: 'R-C2',
+        community: 'Altadore',
+      },
     ]);
   });
 
@@ -538,7 +562,7 @@ describe('erasure confirm (step 2)', () => {
     // Audit trail.
     const confirms = world.audits.filter((a) => a.action === 'erase.confirm');
     expect(confirms).toHaveLength(1);
-    expect(confirms[0]!.detail).toBe('revoked:1,deleted:1,waitlist:2,callbacks:1');
+    expect(confirms[0]!.detail).toBe('revoked:1,deleted:1,waitlist:3,callbacks:1');
     expect(world.requests[0]!.status).toBe('completed');
   });
 

@@ -4,10 +4,11 @@ import { HttpTestingController, provideHttpClientTesting } from '@angular/common
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { provideRouter, Router } from '@angular/router';
 import { provideStore, Store } from '@ngxs/store';
-import { of } from 'rxjs';
+import { of, throwError } from 'rxjs';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { PropertyRecord } from '@feasly/contracts';
 import { API_SERVICE, type ApiService } from '../../core/api';
+import { MOCK_ZONING_DISTRICTS } from '../../core/api/mock-data';
 import { ConfigService } from '../../core/config/config.service';
 import { ChooseProjectType, GoToStep, SelectProperty, WizardState } from '../wizard';
 import { ScopePageComponent } from './scope-page.component';
@@ -59,11 +60,20 @@ describe('ScopePageComponent', () => {
     }
   }
 
-  /** Stubbed API seam: only the waitlist call is reachable from this step. */
+  /** Stubbed API seam: the waitlist and the zoning catalogue (#689). */
   const joinWaitlist = vi.fn((req: { topic: string }) => of({ ok: true as const, topic: req.topic }));
+  let catalogueFails = false;
+  const getZoningDistricts = vi.fn(() =>
+    catalogueFails ? throwError(() => new Error('down')) : of(MOCK_ZONING_DISTRICTS),
+  );
 
-  async function setup(renoWaitlist = false): Promise<void> {
+  async function setup(
+    renoWaitlist = false,
+    opts: { zoning?: string; catalogueFails?: boolean } = {},
+  ): Promise<void> {
     joinWaitlist.mockClear();
+    getZoningDistricts.mockClear();
+    catalogueFails = opts.catalogueFails ?? false;
     TestBed.resetTestingModule();
     TestBed.configureTestingModule({
       imports: [ScopePageComponent, BlankComponent],
@@ -78,7 +88,10 @@ describe('ScopePageComponent', () => {
           { path: 'estimate/reno-scope', component: BlankComponent },
         ]),
         provideStore([WizardState]),
-        { provide: API_SERVICE, useValue: { joinWaitlist } as unknown as ApiService },
+        {
+          provide: API_SERVICE,
+          useValue: { joinWaitlist, getZoningDistricts } as unknown as ApiService,
+        },
       ],
     });
     httpMock = TestBed.inject(HttpTestingController);
@@ -93,7 +106,9 @@ describe('ScopePageComponent', () => {
     await pending;
     store = TestBed.inject(Store);
     router = TestBed.inject(Router);
-    store.dispatch(new SelectProperty(fakeProperty));
+    store.dispatch(
+      new SelectProperty(opts.zoning ? { ...fakeProperty, zoning: opts.zoning } : fakeProperty),
+    );
     fixture = TestBed.createComponent(ScopePageComponent);
     fixture.detectChanges();
   }
@@ -151,7 +166,7 @@ describe('ScopePageComponent', () => {
       expect(card.getAttribute('aria-disabled')).toBeNull();
       expect(card.disabled).toBe(false);
     }
-    expect(fixture.nativeElement.textContent).not.toMatch(/coming soon/i);
+    expect(fixture.nativeElement.querySelector('.ptypes').textContent).not.toMatch(/coming soon/i);
   });
 
   it('preselects New Build on first visit (CTA enabled); cards still switch it', () => {
@@ -419,6 +434,143 @@ describe('ScopePageComponent', () => {
       fixture.componentInstance.seePreview();
       await fixture.whenStable();
       expect(router.url).not.toBe('/estimate/reno-scope');
+    });
+  });
+  describe('#689 building-form choice', () => {
+    function formCards(): HTMLButtonElement[] {
+      return Array.from(fixture.nativeElement.querySelectorAll('.bform-card'));
+    }
+    function formIds(estimable?: boolean): string[] {
+      return formCards()
+        .filter((c) => estimable === undefined || c.dataset['estimable'] === String(estimable))
+        .map((c) => c.dataset['form']!);
+    }
+    function formCard(form: string): HTMLButtonElement {
+      const card = fixture.nativeElement.querySelector(`.bform-card[data-form="${form}"]`);
+      if (!card) throw new Error(`no form card ${form}`);
+      return card;
+    }
+
+    it('R-C1: single-detached priced, suites "coming soon", nothing else (AC1)', async () => {
+      await setup(false, { zoning: 'R-C1' });
+      expect(getZoningDistricts).toHaveBeenCalledTimes(1);
+      expect(formIds(true)).toEqual(['single-detached']);
+      expect(formIds(false)).toEqual(['secondary-suite', 'backyard-suite']);
+      expect(formCard('single-detached').getAttribute('aria-checked')).toBe('true');
+      expect(formCard('secondary-suite').textContent).toContain('Allowed here, estimate coming soon');
+      expect(formCard('single-detached').textContent).not.toContain('coming soon');
+      expect(fixture.nativeElement.querySelector('.bform-hint').textContent).toContain('R-C1');
+      expect(fixture.nativeElement.querySelector('.bform-hint').textContent).toMatch(/confirm with the City/);
+    });
+
+    it('R-C2: semi-detached and duplex shown as "coming soon" (AC1)', async () => {
+      await setup(false, { zoning: 'R-C2' });
+      expect(formIds(true)).toEqual(['single-detached']);
+      expect(formIds(false)).toEqual(
+        expect.arrayContaining(['semi-detached', 'duplex']),
+      );
+      expect(formIds()).not.toContain('rowhouse');
+    });
+
+    it('R-CG: additionally shows rowhouse (AC1)', async () => {
+      await setup(false, { zoning: 'r-cg' });
+      expect(formIds(false)).toEqual(expect.arrayContaining(['semi-detached', 'duplex', 'rowhouse']));
+    });
+
+    it.each(['DC', 'ZZ-UNKNOWN'])(
+      '%s: fails open — only the estimable form, CTA works, no form sent (AC2)',
+      async (zoning) => {
+        await setup(false, { zoning });
+        expect(formIds()).toEqual(['single-detached']);
+        expect(fixture.nativeElement.querySelector('.bform-section').dataset['status']).toBe('fail-open');
+        cta().click();
+        await pollUrl('/estimate/preview');
+        expect(store.selectSnapshot(WizardState.inputs).buildingForm).toBeUndefined();
+      },
+    );
+
+    it('catalogue unavailable: the choice is hidden and the estimate runs as before', async () => {
+      await setup(false, { catalogueFails: true });
+      expect(fixture.nativeElement.querySelector('.bform-section')).toBeNull();
+      expect(slider()).not.toBeNull();
+      cta().click();
+      await pollUrl('/estimate/preview');
+      expect(store.selectSnapshot(WizardState.inputs).buildingForm).toBeUndefined();
+    });
+
+    it('covered lot: the CTA stores the estimable form for the request', async () => {
+      await setup(false, { zoning: 'R-C2' });
+      cta().click();
+      await pollUrl('/estimate/preview');
+      expect(store.selectSnapshot(WizardState.inputs).buildingForm).toBe('single-detached');
+    });
+
+    it('picking a "coming soon" form shows its waitlist instead of the scope inputs and CTA', async () => {
+      await setup(false, { zoning: 'R-C2' });
+      formCard('semi-detached').click();
+      fixture.detectChanges();
+      const root: HTMLElement = fixture.nativeElement;
+      expect(formCard('semi-detached').getAttribute('aria-checked')).toBe('true');
+      expect(root.querySelector('app-waitlist-signup[variant="building-form"]')).not.toBeNull();
+      expect(root.querySelector('.wl-heading')?.textContent).toContain('Semi-detached');
+      expect(root.querySelector('.wl-body')?.textContent).toContain('R-C2');
+      expect(root.querySelector('button.cta')).toBeNull();
+      expect(slider()).toBeNull();
+      // Never stored for the estimate request.
+      expect(store.selectSnapshot(WizardState.inputs).buildingForm).toBeUndefined();
+      fixture.componentInstance.seePreview();
+      await fixture.whenStable();
+      expect(router.url).not.toBe('/estimate/preview');
+    });
+
+    it('the form waitlist records form, district and community (AC5)', async () => {
+      await setup(false, { zoning: 'R-CG' });
+      formCard('rowhouse').click();
+      fixture.detectChanges();
+      const root: HTMLElement = fixture.nativeElement;
+      const input = root.querySelector<HTMLInputElement>('.wl-input')!;
+      input.value = 'row@example.com';
+      input.dispatchEvent(new Event('input'));
+      root.querySelector<HTMLInputElement>('.wl-consent input[type="checkbox"]')!.click();
+      fixture.detectChanges();
+      root.querySelector<HTMLButtonElement>('.wl-submit')!.click();
+      fixture.detectChanges();
+      expect(joinWaitlist).toHaveBeenCalledWith({
+        email: 'row@example.com',
+        topic: 'building-form',
+        consent: true,
+        buildingForm: 'rowhouse',
+        district: 'R-CG',
+        community: 'Mount Pleasant',
+      });
+      expect(root.querySelector('.wl-success')).not.toBeNull();
+    });
+
+    it('"Estimate a single-detached home instead" returns to the priced flow', async () => {
+      await setup(false, { zoning: 'R-C2' });
+      formCard('duplex').click();
+      fixture.detectChanges();
+      const back: HTMLButtonElement = fixture.nativeElement.querySelector('.bform-back');
+      expect(back.textContent).toContain('single-detached');
+      back.click();
+      fixture.detectChanges();
+      expect(formCard('single-detached').getAttribute('aria-checked')).toBe('true');
+      expect(cta()).not.toBeNull();
+      expect(slider()).not.toBeNull();
+    });
+
+    it('arrow keys move between form cards (radio group)', async () => {
+      await setup(false, { zoning: 'R-C1' });
+      const group: HTMLElement = fixture.nativeElement.querySelector('.bforms');
+      group.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowRight', bubbles: true }));
+      fixture.detectChanges();
+      expect(formCard('secondary-suite').getAttribute('aria-checked')).toBe('true');
+      expect(formCard('single-detached').getAttribute('tabindex')).toBe('-1');
+    });
+
+    it('shows no dollar figures on the form cards', async () => {
+      await setup(false, { zoning: 'R-CG' });
+      expect(fixture.nativeElement.querySelector('.bform-section').textContent).not.toMatch(/\$\s?\d/);
     });
   });
 });

@@ -58,6 +58,16 @@ describe('WizardState', () => {
     expect(state.step).toBe(2);
   });
 
+  it('#689: a different lot clears the building form; the same lot keeps it', () => {
+    store.dispatch(new SelectProperty(fakeProperty));
+    store.dispatch(new UpdateInputs({ buildingForm: 'single-detached' }));
+    store.dispatch(new SelectProperty({ ...fakeProperty }));
+    expect(snapshot().inputs.buildingForm).toBe('single-detached');
+    store.dispatch(new SelectProperty({ ...fakeProperty, addressKey: 'calgary-other-lot' }));
+    expect(snapshot().inputs.buildingForm).toBeUndefined();
+    expect(snapshot().inputs.tier).toBe('standard');
+  });
+
   it('ChooseProjectType records the project type', () => {
     store.dispatch(new ChooseProjectType('new-build'));
     expect(snapshot().projectType).toBe('new-build');

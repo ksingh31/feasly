@@ -2,12 +2,12 @@ import { Component, DestroyRef, computed, effect, inject, input, signal } from '
 import { takeUntilDestroyed, toSignal } from '@angular/core/rxjs-interop';
 import { FormControl, ReactiveFormsModule, Validators } from '@angular/forms';
 import { RouterLink } from '@angular/router';
-import type { WaitlistTopic } from '@feasly/contracts';
+import type { BuildingForm, WaitlistRequest, WaitlistTopic } from '@feasly/contracts';
 import { API_SERVICE } from '../../../core/api';
 import { ConfigService } from '../../../core/config';
 
 /** Which list the form signs people up for. */
-export type WaitlistVariant = 'renovation' | 'city';
+export type WaitlistVariant = 'renovation' | 'city' | 'building-form';
 
 type SignupStatus = 'idle' | 'sending' | 'sent' | 'error';
 
@@ -21,6 +21,10 @@ let nextInstanceId = 0;
  *   that leads nowhere.
  * - `city`: a city choice (Toronto / Vancouver, config-owned) under the
  *   out-of-coverage message. `query` preselects the city the user typed.
+ * - `building-form` (#689): interest in a building form the lot's district
+ *   typically allows but Feasly does not estimate yet. The signup carries
+ *   the form, the district and the community (`buildingForm`, `district`,
+ *   `community`); `formName` is the display name for the copy.
  *
  * Deliberately not a `<form>`: it renders inside the landing page's
  * address form, and nested forms are invalid HTML. Enter in the email
@@ -46,6 +50,14 @@ export class WaitlistSignupComponent {
   readonly variant = input.required<WaitlistVariant>();
   /** Free text (e.g. the typed address) used to preselect a city. */
   readonly query = input<string>('');
+  /** #689 (`building-form` variant): the form of interest. */
+  readonly buildingForm = input<BuildingForm | null>(null);
+  /** #689: display name of the form, for the heading/body copy. */
+  readonly formName = input<string>('');
+  /** #689: the lot's land-use district code. */
+  readonly district = input<string>('');
+  /** #689: the lot's community. */
+  readonly community = input<string>('');
 
   readonly copy = inject(ConfigService).get('copy').waitlist;
 
@@ -94,9 +106,19 @@ export class WaitlistSignupComponent {
   readonly showInvalid = signal(false);
 
   /** Heading/body for the active variant. */
-  readonly variantCopy = computed(() =>
-    this.variant() === 'renovation' ? this.copy.renovation : this.copy.city,
-  );
+  readonly variantCopy = computed(() => {
+    const variant = this.variant();
+    if (variant === 'renovation') return this.copy.renovation;
+    if (variant === 'city') return this.copy.city;
+    // #689: fill the form name and district into the config copy.
+    // The heading leads with the name as written; mid-sentence it is lower case.
+    const fill = (text: string, form: string): string =>
+      text.replaceAll('{form}', form).replaceAll('{district}', this.district());
+    return {
+      heading: fill(this.copy.buildingForm.heading, this.formName()),
+      body: fill(this.copy.buildingForm.body, this.formName().toLowerCase()),
+    };
+  });
   /** City choices (only the `city` variant renders them). */
   readonly cities = this.copy.city.cities;
 
@@ -106,6 +128,7 @@ export class WaitlistSignupComponent {
   /** The topic the signup is for. */
   readonly topic = computed<WaitlistTopic>(() => {
     if (this.variant() === 'renovation') return 'renovation';
+    if (this.variant() === 'building-form') return 'building-form';
     const picked = this.pickedCity();
     if (picked) return picked;
     const typed = this.query().toLowerCase();
@@ -121,6 +144,26 @@ export class WaitlistSignupComponent {
       this.query();
       this.pickedCity.set(null);
     });
+    // #689: a different form is a different list — reset a finished signup.
+    effect(() => {
+      this.buildingForm();
+      this.status.set('idle');
+    });
+  }
+
+  /** The signup body; building-form signups add the form, district and community. */
+  private request(): WaitlistRequest {
+    const base: WaitlistRequest = { email: this.email.value.trim(), topic: this.topic(), consent: true };
+    const form = this.buildingForm();
+    if (this.variant() !== 'building-form' || form == null) return base;
+    const district = this.district().trim();
+    const community = this.community().trim();
+    return {
+      ...base,
+      buildingForm: form,
+      ...(district ? { district } : {}),
+      ...(community ? { community } : {}),
+    };
   }
 
   pickCity(id: WaitlistTopic): void {
@@ -141,7 +184,7 @@ export class WaitlistSignupComponent {
     if (!emailOk) return;
     this.status.set('sending');
     this.api
-      .joinWaitlist({ email: this.email.value.trim(), topic: this.topic(), consent: true })
+      .joinWaitlist(this.request())
       .pipe(takeUntilDestroyed(this.destroyRef))
       .subscribe({
         next: () => this.status.set('sent'),

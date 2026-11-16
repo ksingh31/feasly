@@ -6,8 +6,13 @@
  * what this returns is safe to show as-is ("typically allowed, confirm with
  * the City", with `sourceUrl`). No I/O, no db, no process.env (config
  * arrives via deps). No dollar figures: those only come from the cost engine.
+ *
+ * #689: the response also lists `estimableBuildingForms` — the forms the cost
+ * engine can price today — so clients never hard-code which forms are
+ * estimable. The list comes from the engine, never from the catalogue.
  */
-import type { ZoningDistrictsResponse } from '@feasly/contracts';
+import { BUILDING_FORMS, type BuildingForm, type ZoningDistrictsResponse } from '@feasly/contracts';
+import { PRICED_BUILDING_FORMS } from '@feasly/cost-engine';
 import {
   ZONING_CATALOGUES,
   createZoningResolver,
@@ -34,7 +39,13 @@ export function createZoningService(deps: ZoningServiceDeps): ZoningService {
   const resolver = deps.resolver ?? createZoningResolver(ZONING_CATALOGUES);
   const { city } = deps.config;
   // The catalogue is static per deploy: project it once.
-  const catalogue = resolver.catalogue(city);
+  const source = resolver.catalogue(city);
+  const estimableBuildingForms: readonly BuildingForm[] = BUILDING_FORMS.filter((f) =>
+    PRICED_BUILDING_FORMS.includes(f),
+  );
+  const catalogue: ZoningDistrictsResponse | undefined = source
+    ? { ...source, estimableBuildingForms }
+    : undefined;
   return {
     getCatalogue: () => catalogue,
     resolve: (districtCode, lot) => resolver.resolve(city, districtCode, lot),

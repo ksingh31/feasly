@@ -39,6 +39,7 @@ import type {
   UnsubscribePreferencesInput,
   UnsubscribeResultResponse,
   UnsubscribeStateResponse,
+  ZoningDistrictsResponse,
 } from '@feasly/contracts';
 import { ConfigService } from '../config/config.service';
 import type { ApiKeyUpdatePatch, ApiKeyUsageAggregate, ApiService, CommunityStats } from './api.service';
@@ -61,6 +62,7 @@ import {
   mockVerifySuccess,
   MOCK_FUNNEL_COUNTS,
   MOCK_FUNNEL_DIRECT_SCALE,
+  MOCK_ZONING_DISTRICTS,
 } from './mock-data';
 import { PROPERTY_DATA_SERVICE } from './property-data.service';
 
@@ -308,6 +310,10 @@ export class MockApiService implements ApiService {
    */
   getCityDataFreshness(): Observable<CityDataFreshnessResponse> {
     return this.roundTrip({ refreshedMonth: null });
+  }
+
+  getZoningDistricts(): Observable<ZoningDistrictsResponse> {
+    return this.roundTrip(MOCK_ZONING_DISTRICTS);
   }
 
   submitLead(request: LeadRequest): Observable<LeadResponse> {

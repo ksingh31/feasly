@@ -36,6 +36,7 @@ import type {
   UnsubscribeStateResponse,
   WaitlistRequest,
   WaitlistResponse,
+  ZoningDistrictsResponse,
 } from '@feasly/contracts';
 import { ConfigService } from '../config/config.service';
 import type { FunnelQuery, FunnelReport } from './funnel.types';
@@ -103,6 +104,13 @@ export interface ApiService {
    * its "Live City data" fallback instead of a month.
    */
   getCityDataFreshness(): Observable<CityDataFreshnessResponse>;
+  /**
+   * #689: the zoning catalogue (GET /api/v1/zoning/districts) — which
+   * building forms each district typically allows, plus the forms the
+   * engine can estimate. Drives the scope step's "What do you want to
+   * build?" choice; callers fail open when it errors.
+   */
+  getZoningDistricts(): Observable<ZoningDistrictsResponse>;
   /** Lead capture. The magic link travels by email in prod. */
   submitLead(request: LeadRequest): Observable<LeadResponse>;
   /** Resolves a magic-link token to a report token. */
@@ -268,6 +276,10 @@ class LazyApiService implements ApiService {
 
   getCityDataFreshness(): Observable<CityDataFreshnessResponse> {
     return this.resolve().getCityDataFreshness();
+  }
+
+  getZoningDistricts(): Observable<ZoningDistrictsResponse> {
+    return this.resolve().getZoningDistricts();
   }
 
   submitLead(request: LeadRequest): Observable<LeadResponse> {

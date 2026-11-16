@@ -95,6 +95,23 @@ export const EstimatePropertySchema = z
   })
   .openapi('EstimateProperty');
 
+const BUILDING_FORM_VALUES = [
+  'single-detached',
+  'semi-detached',
+  'duplex',
+  'rowhouse',
+  'townhouse',
+  'secondary-suite',
+  'backyard-suite',
+  'multi-residential',
+] as const;
+
+export const BuildingFormSchema = z
+  .enum(BUILDING_FORM_VALUES)
+  .describe('Building form from the fixed vocabulary.')
+  .openapi('BuildingForm');
+
+
 export const EstimateScopeSchema = z
   .object({
     buildSqft: z
@@ -105,6 +122,10 @@ export const EstimateScopeSchema = z
     tier: FinishTierSchema,
     garage: GarageOptionSchema,
     basement: BasementOptionSchema,
+    // #689: omitted = single-detached. Unpriced forms → 400
+    // BUILDING_FORM_NOT_PRICED; a form the lot's district does not list →
+    // 400 BUILDING_FORM_NOT_ALLOWED.
+    buildingForm: BuildingFormSchema.optional(),
   })
   .openapi('EstimateScope');
 
@@ -432,21 +453,6 @@ export const CityDataFreshnessResponseSchema = z
 
 // ── Zoning rules catalogue (#687) ───────────────────────────────────────
 
-const BUILDING_FORM_VALUES = [
-  'single-detached',
-  'semi-detached',
-  'duplex',
-  'rowhouse',
-  'townhouse',
-  'secondary-suite',
-  'backyard-suite',
-  'multi-residential',
-] as const;
-
-export const BuildingFormSchema = z
-  .enum(BUILDING_FORM_VALUES)
-  .describe('Building form from the fixed vocabulary.')
-  .openapi('BuildingForm');
 
 const ZoningCategorySchema = z.enum([
   'low-density',
@@ -523,7 +529,12 @@ const zoningVersionShape = {
 };
 
 export const ZoningDistrictsResponseSchema = z
-  .object({ ...zoningVersionShape, districts: z.array(ZoningDistrictSchema) })
+  .object({
+    ...zoningVersionShape,
+    districts: z.array(ZoningDistrictSchema),
+    // #689: forms the cost engine prices today; others are "coming soon".
+    estimableBuildingForms: z.array(BuildingFormSchema),
+  })
   .strict()
   .openapi('ZoningDistrictsResponse');
 
@@ -691,7 +702,7 @@ export const CallbackResponseSchema = z
 // ── Waitlist signups (#520) ─────────────────────────────────────────────
 
 export const WaitlistTopicSchema = z
-  .enum(['renovation', 'toronto', 'vancouver'])
+  .enum(['renovation', 'toronto', 'vancouver', 'building-form'])
   .openapi('WaitlistTopic');
 
 export const WaitlistRequestSchema = z
@@ -700,6 +711,10 @@ export const WaitlistRequestSchema = z
     topic: WaitlistTopicSchema,
     /** CASL express consent — the required checkbox. */
     consent: z.literal(true),
+    // #689: required for the building-form topic; refused on other topics.
+    buildingForm: BuildingFormSchema.optional(),
+    district: z.string().min(1).max(40).optional().describe("Lot's land-use district (building-form topic)."),
+    community: z.string().min(1).max(120).optional().describe("Lot's community (building-form topic)."),
   })
   .openapi('WaitlistRequest');
 

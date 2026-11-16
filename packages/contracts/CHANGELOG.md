@@ -12,7 +12,22 @@ real backend. Changing them has a cost, so:
 - **Never** widen a type to `any` to "unblock" something — the no-`any` lint exists
   precisely to stop that.
 
-## Unreleased — 2026-11-15 (additive)
+## Unreleased — 2026-11-16 (additive)
+
+Building-form choice (issue #689):
+
+- **Added** optional `EstimateScopeInputs.buildingForm` (`BuildingForm`).
+  Omitted = single-detached, exactly as before. Optional
+  `EstimateInputs.buildingForm` carries the wizard's choice to the request
+  builder; responses do not echo it.
+- **Added** `ZoningDistrictsResponse.estimableBuildingForms` — the forms the
+  cost engine prices today (single-detached only for now).
+- **Added** `WaitlistTopic` `building-form` and optional
+  `WaitlistRequest.buildingForm` / `district` / `community`.
+- **Added** optional `PrivacyWaitlistSignupExport.buildingForm` /
+  `district` / `community`.
+
+## 2026-11-15 (additive)
 
 Zoning rules catalogue (issue #687):
 

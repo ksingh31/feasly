@@ -26,12 +26,17 @@ import {
   type RangedAmount,
 } from './types';
 import { addBands, band, outputGranularity, wholeDollars, zeroBand } from './bands';
+import { isPricedBuildingForm, UnpricedBuildingFormError } from './building-forms';
 
 /** Domain limits come from the cost-data file, never from code literals. */
 function checkBounds(input: EngineInput, data: CostData): void {
   const bounds = data.inputBounds;
   const { property, scope } = input;
 
+  // #689: only forms with cost data price; anything else is a typed refusal.
+  if (!isPricedBuildingForm(scope.buildingForm)) {
+    throw new UnpricedBuildingFormError(String(scope.buildingForm));
+  }
   if (!data.tiers.includes(scope.tier)) {
     throw new EngineInputError(`unknown finish tier: ${String(scope.tier)}`);
   }

@@ -65,6 +65,12 @@ export interface PrivacyWaitlistSignupExport {
   readonly consentTs: string;
   /** Which consent wording the person agreed to (null = unknown). */
   readonly consentVersion: string | null;
+  /** #689: building form of interest (building-form topic only, else null). */
+  readonly buildingForm?: string | null;
+  /** #689: land-use district recorded with the signup (else null). */
+  readonly district?: string | null;
+  /** #689: community recorded with the signup (else null). */
+  readonly community?: string | null;
 }
 
 /** One "call me back" request (#639) attached to one of the subject's leads. */

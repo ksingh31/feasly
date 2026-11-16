@@ -8,6 +8,7 @@ import type {
  * Builds the new-build estimate request the live backend expects: the nested
  * `{ property, scope }` shape (mirrors the API's `NewBuildRequestSchema`).
  * A flat body (`addressKey`/`sqft` at top level) gets a 400 from the live API.
+ * #689: `inputs.buildingForm` rides along as `scope.buildingForm` when set.
  */
 export function buildNewBuildRequest(
   property: PropertyRecord,
@@ -26,6 +27,9 @@ export function buildNewBuildRequest(
       tier: inputs.tier,
       garage: inputs.garage,
       basement: inputs.basement,
+      // #689: only when the scope step chose one — omitted = single-detached,
+      // byte-identical to the request before building forms existed.
+      ...(inputs.buildingForm !== undefined ? { buildingForm: inputs.buildingForm } : {}),
     },
   };
 }

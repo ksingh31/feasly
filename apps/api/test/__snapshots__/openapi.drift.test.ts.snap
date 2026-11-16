@@ -737,6 +737,9 @@ exports[`OpenAPI drift > generated spec matches the snapshot 1`] = `
             "exclusiveMinimum": 0,
             "type": "integer",
           },
+          "buildingForm": {
+            "$ref": "#/components/schemas/BuildingForm",
+          },
           "garage": {
             "$ref": "#/components/schemas/GarageOption",
           },
@@ -1317,11 +1320,26 @@ exports[`OpenAPI drift > generated spec matches the snapshot 1`] = `
       },
       "WaitlistRequest": {
         "properties": {
+          "buildingForm": {
+            "$ref": "#/components/schemas/BuildingForm",
+          },
+          "community": {
+            "description": "Lot's community (building-form topic).",
+            "maxLength": 120,
+            "minLength": 1,
+            "type": "string",
+          },
           "consent": {
             "enum": [
               true,
             ],
             "type": "boolean",
+          },
+          "district": {
+            "description": "Lot's land-use district (building-form topic).",
+            "maxLength": 40,
+            "minLength": 1,
+            "type": "string",
           },
           "email": {
             "format": "email",
@@ -1362,6 +1380,7 @@ exports[`OpenAPI drift > generated spec matches the snapshot 1`] = `
           "renovation",
           "toronto",
           "vancouver",
+          "building-form",
         ],
         "type": "string",
       },
@@ -1583,6 +1602,12 @@ exports[`OpenAPI drift > generated spec matches the snapshot 1`] = `
             "pattern": "^\\d{4}-\\d{2}-\\d{2}$",
             "type": "string",
           },
+          "estimableBuildingForms": {
+            "items": {
+              "$ref": "#/components/schemas/BuildingForm",
+            },
+            "type": "array",
+          },
           "sourceUrl": {
             "description": "The City's bylaw page — where to confirm the rules.",
             "format": "uri",
@@ -1596,6 +1621,7 @@ exports[`OpenAPI drift > generated spec matches the snapshot 1`] = `
           "bylawVersion",
           "sourceUrl",
           "districts",
+          "estimableBuildingForms",
         ],
         "type": "object",
       },

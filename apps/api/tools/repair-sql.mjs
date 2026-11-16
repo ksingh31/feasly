@@ -97,6 +97,7 @@ ALTER TABLE "estimates" ADD COLUMN IF NOT EXISTS "figures" jsonb NOT NULL;
 ALTER TABLE "estimates" ADD COLUMN IF NOT EXISTS "rows" jsonb NOT NULL;
 ALTER TABLE "estimates" ADD COLUMN IF NOT EXISTS "cost_data_version" text NOT NULL;
 ALTER TABLE "estimates" ADD COLUMN IF NOT EXISTS "sandbox" boolean DEFAULT false NOT NULL;
+ALTER TABLE "estimates" ADD COLUMN IF NOT EXISTS "building_form" text;
 ALTER TABLE "estimates" ADD COLUMN IF NOT EXISTS "created_at" timestamp with time zone DEFAULT now() NOT NULL;
 ALTER TABLE "estimates" ADD COLUMN IF NOT EXISTS "narrative" text;
 ALTER TABLE "estimates" ADD COLUMN IF NOT EXISTS "narrative_generated_at" timestamp with time zone;
@@ -784,7 +785,11 @@ ALTER TABLE "waitlist_signups" ADD COLUMN IF NOT EXISTS "topic" text NOT NULL;
 ALTER TABLE "waitlist_signups" ADD COLUMN IF NOT EXISTS "created_at" timestamp with time zone DEFAULT now() NOT NULL;
 ALTER TABLE "waitlist_signups" ADD COLUMN IF NOT EXISTS "consent_ts" timestamp with time zone DEFAULT now() NOT NULL;
 ALTER TABLE "waitlist_signups" ADD COLUMN IF NOT EXISTS "consent_version" text;
-CREATE UNIQUE INDEX IF NOT EXISTS "waitlist_signups_email_topic_idx" ON "waitlist_signups" USING btree ("email","topic");
+ALTER TABLE "waitlist_signups" ADD COLUMN IF NOT EXISTS "building_form" text;
+ALTER TABLE "waitlist_signups" ADD COLUMN IF NOT EXISTS "district" text;
+ALTER TABLE "waitlist_signups" ADD COLUMN IF NOT EXISTS "community" text;
+CREATE UNIQUE INDEX IF NOT EXISTS "waitlist_signups_email_topic_form_idx" ON "waitlist_signups" USING btree ("email","topic",COALESCE("building_form", ''));
+DROP INDEX IF EXISTS "waitlist_signups_email_topic_idx";
 CREATE TABLE IF NOT EXISTS "rate_limit_counters" (
 
 	"key" text PRIMARY KEY NOT NULL,

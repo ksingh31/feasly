@@ -173,3 +173,123 @@
     width: auto;
   }
 }
+
+/* #689: "What do you want to build?" form cards — one column on mobile,
+   two-up at >=640px. Same card language as the project-type cards. */
+.bforms {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 12px;
+}
+
+@media (min-width: 640px) {
+  .bforms {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+
+.bform-source {
+  color: var(--accent-text);
+  text-decoration: underline;
+  white-space: nowrap;
+}
+
+.bform-card {
+  font-family: var(--font-ui);
+  text-align: left;
+  background: transparent;
+  border: 1.5px solid var(--border);
+  border-radius: 12px;
+  padding: 14px 16px;
+  min-height: 44px;
+  cursor: pointer;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  transition: border-color 0.15s, background-color 0.15s;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .bform-card {
+    transition: none;
+  }
+}
+
+.bform-card:hover {
+  border-color: var(--accent);
+}
+
+.bform-card:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+.bform-card.selected {
+  border-color: var(--accent);
+  background: var(--accent-bg);
+}
+
+.bform-card.coming-soon:not(.selected) {
+  border-style: dashed;
+}
+
+.bform-name {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  font-size: 16px;
+  font-weight: 700;
+  color: var(--text);
+}
+
+.bform-badge {
+  text-transform: none;
+  letter-spacing: 0;
+}
+
+.bform-blurb,
+.bform-permission {
+  font-size: 13px;
+  line-height: 1.5;
+  color: var(--muted);
+}
+
+.bform-card.selected .bform-blurb,
+.bform-card.selected .bform-permission {
+  color: var(--text);
+}
+
+.bform-waitlist {
+  display: block;
+  margin-top: 20px;
+}
+
+.bform-back {
+  font-family: var(--font-ui);
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--accent-text);
+  background: transparent;
+  border: 1.5px solid var(--border);
+  border-radius: 12px;
+  padding: 0 20px;
+  min-height: 48px;
+  cursor: pointer;
+  width: 100%;
+}
+
+.bform-back:hover {
+  border-color: var(--accent);
+}
+
+.bform-back:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+@media (min-width: 640px) {
+  .bform-back {
+    width: auto;
+  }
+}

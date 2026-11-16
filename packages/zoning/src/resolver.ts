@@ -70,6 +70,13 @@ export interface ZoningResolution {
   readonly indicativeMaxUnits?: IndicativeUnitCount;
 }
 
+/**
+ * The catalogue as this package can answer it: everything in the API
+ * response except `estimableBuildingForms`, which comes from the cost engine
+ * (#689) and is added by the API's zoning service.
+ */
+export type ZoningCatalogue = Omit<ZoningDistrictsResponse, 'estimableBuildingForms'>;
+
 export interface ResolveOptions {
   /** ISO date; picks the newest version in effect on that date. Default: newest. */
   readonly asOf?: string;
@@ -79,7 +86,7 @@ export interface ZoningResolver {
   /** Cities with at least one catalogue. */
   cities(): readonly string[];
   /** Verified-only catalogue for a city, or undefined when there is none. */
-  catalogue(city: string, opts?: ResolveOptions): ZoningDistrictsResponse | undefined;
+  catalogue(city: string, opts?: ResolveOptions): ZoningCatalogue | undefined;
   resolve(
     city: string,
     districtCode: string | null | undefined,

@@ -30,6 +30,7 @@ import type {
   RenoEstimateInputs,
   RenoEstimateRequest,
   RenoType,
+  ZoningDistrictsResponse,
 } from '@feasly/contracts';
 import { ESTIMATE_DISCLAIMER } from '@feasly/contracts';
 import communityIndex from '../../../content/data/community-index.json';
@@ -672,6 +673,76 @@ export function mockCallbackOk(window: 'morning' | 'afternoon' | 'evening'): Cal
 export function mockWaitlistOk(topic: WaitlistTopic): WaitlistResponse {
   return { ok: true, topic };
 }
+
+/**
+ * #689: zoning catalogue fixture for mock mode — a contract-shaped subset of
+ * the API's Calgary catalogue (the districts the mock properties use, plus
+ * DC). Like all fixtures here, the values are inherently literal; product
+ * code never names a district or form.
+ */
+export const MOCK_ZONING_DISTRICTS: ZoningDistrictsResponse = {
+  city: 'calgary',
+  effectiveDate: '2026-08-04',
+  bylaw: 'Land Use Bylaw 1P2007',
+  bylawVersion: 'mock',
+  sourceUrl: 'https://www.calgary.ca/planning/land-use/bylaw-1p2007.html',
+  estimableBuildingForms: ['single-detached'],
+  districts: [
+    {
+      code: 'R-C1',
+      name: 'Residential – Contextual One Dwelling',
+      category: 'low-density',
+      coverage: 'covered',
+      aliases: [],
+      forms: [
+        { form: 'single-detached', permission: 'permitted', section: 's. 385(1)(b)' },
+        { form: 'secondary-suite', permission: 'permitted', section: 's. 387(1)(a)' },
+        { form: 'backyard-suite', permission: 'discretionary', section: 's. 386(1)(a.2)' },
+      ],
+      rules: {},
+    },
+    {
+      code: 'R-C2',
+      name: 'Residential – Contextual One / Two Dwelling',
+      category: 'low-density',
+      coverage: 'covered',
+      aliases: [],
+      forms: [
+        { form: 'single-detached', permission: 'permitted', section: 's. 425(1)(b)' },
+        { form: 'semi-detached', permission: 'permitted', section: 's. 425(1)(a.1)' },
+        { form: 'duplex', permission: 'discretionary', section: 's. 426(1)(e)' },
+        { form: 'secondary-suite', permission: 'permitted', section: 's. 425(1)(f.1)' },
+        { form: 'backyard-suite', permission: 'discretionary', section: 's. 426(1)(a.2)' },
+      ],
+      rules: {},
+    },
+    {
+      code: 'R-CG',
+      name: 'Residential – Grade-Oriented Infill',
+      category: 'grade-oriented',
+      coverage: 'covered',
+      aliases: [],
+      forms: [
+        { form: 'single-detached', permission: 'discretionary', section: 's. 527(2)(r)' },
+        { form: 'semi-detached', permission: 'permitted', section: 's. 526(1)(b)' },
+        { form: 'duplex', permission: 'discretionary', section: 's. 527(2)(h)' },
+        { form: 'rowhouse', permission: 'permitted', section: 's. 526(1)(e)' },
+        { form: 'secondary-suite', permission: 'permitted', section: 's. 526(1)(f)' },
+        { form: 'backyard-suite', permission: 'discretionary', section: 's. 527(2)(a.2)' },
+      ],
+      rules: {},
+    },
+    {
+      code: 'DC',
+      name: 'Direct Control',
+      category: 'direct-control',
+      coverage: 'site-specific',
+      aliases: [],
+      forms: [],
+      rules: {},
+    },
+  ],
+};
 
 export function mockShareOk(partnerEmail: string): PartnerShareResponse {
   return { sent: true, sharedTo: partnerEmail };
