@@ -30,7 +30,10 @@
  *   is forgotten)
  * - `customer.subscription.updated|deleted` → audit event
  * - anything else → logged audit event, 200 (never 500-retry loops)
- * - `payment_intent.*` for a PaymentIntent no invoice owns → audited as
+ * - `charge.dispute.created|updated|closed|funds_withdrawn|funds_reinstated`
+ *   → bank chargeback recorded on the invoice + admin disputes queue (#719)
+ * - `charge.refunded` → refunded amount mirrored onto the invoice (#719)
+ * - `payment_intent.*` / `charge.*` for a PaymentIntent no invoice owns → audited as
  *   `webhook.orphan_payment_intent`, one ops alert, 200 (#711)
  *
  * Only services and composition.ts may import from src/db/ — enforced by
@@ -44,6 +47,10 @@ import { AUTHENTICATION_REQUIRED_CODE } from '../../lib/charge-outcome';
 import type { EmailService } from '../email/email.service';
 import { ensureOpsAlertDelivered } from '../ops-alerts.service';
 import type { BillingAuditService } from './billing-audit.service';
+import {
+  isChargebackEventType,
+  type ChargebackService,
+} from './chargeback.service';
 import {
   isCardWebhookEvent,
   type CommissionCardService,
@@ -70,6 +77,8 @@ export interface BillingWebhookServiceDeps {
   readonly audit: BillingAuditService;
   readonly commission: CommissionService;
   readonly flatPlan: FlatPlanService;
+  /** Bank chargebacks + dashboard refunds (#719). */
+  readonly chargebacks: ChargebackService;
   /** #716 card lifecycle events. Absent (legacy tests) = audited only. */
   readonly commissionCard?: Pick<CommissionCardService, 'handleCardEvent'>;
   /** Ops alert delivery for orphan PaymentIntents (#711). */
@@ -92,7 +101,8 @@ type ClaimOutcome = 'new' | 'unprocessed' | 'processed';
 export function createBillingWebhookService(
   deps: BillingWebhookServiceDeps,
 ): BillingWebhookService {
-  const { db, stripe, audit, commission, flatPlan, email, opsInbox } = deps;
+  const { db, stripe, audit, commission, flatPlan, chargebacks, email, opsInbox } =
+    deps;
   const now = deps.now ?? (() => new Date());
   const logWarning =
     deps.logWarning ?? ((message: string) => console.warn(message));
@@ -217,6 +227,24 @@ export function createBillingWebhookService(
     }
   }
 
+  /**
+   * #719: a handled event type missing the fields billing needs (e.g. a
+   * charge with no PaymentIntent — created outside Feasly). Acknowledge
+   * with an audit row; it is not "unhandled", and retrying cannot fix it.
+   */
+  async function auditUnusable(
+    event: NormalizedStripeEvent,
+    tenantKey: string | null,
+  ): Promise<void> {
+    await audit.append({
+      tenantKey,
+      eventType: 'webhook.ignored',
+      entityType: 'stripe_event',
+      entityId: event.id,
+      payload: { stripeType: event.type, reason: 'missing_payment_intent' },
+    });
+  }
+
   return {
     async handleWebhook(
       rawBody: Buffer,
@@ -316,6 +344,45 @@ export function createBillingWebhookService(
             entityId: event.id,
             payload: { paymentIntentId: event.paymentIntentId ?? null },
           });
+          break;
+        case 'charge.dispute.created':
+        case 'charge.dispute.updated':
+        case 'charge.dispute.closed':
+        case 'charge.dispute.funds_withdrawn':
+        case 'charge.dispute.funds_reinstated':
+          if (
+            isChargebackEventType(event.type) &&
+            event.paymentIntentId &&
+            event.dispute
+          ) {
+            const piId = event.paymentIntentId;
+            const input = {
+              eventId: event.id,
+              eventType: event.type,
+              paymentIntentId: piId,
+              dispute: event.dispute,
+            };
+            await tolerateOrphanPaymentIntent(event, piId, () =>
+              chargebacks.handleDisputeEvent(input),
+            );
+          } else {
+            await auditUnusable(event, tenantKey);
+          }
+          break;
+        case 'charge.refunded':
+          if (event.paymentIntentId && event.amountRefundedCents !== undefined) {
+            const piId = event.paymentIntentId;
+            const amountRefundedCents = event.amountRefundedCents;
+            await tolerateOrphanPaymentIntent(event, piId, () =>
+              chargebacks.recordChargeRefund({
+                eventId: event.id,
+                paymentIntentId: piId,
+                amountRefundedCents,
+              }),
+            );
+          } else {
+            await auditUnusable(event, tenantKey);
+          }
           break;
         case 'invoice.payment_succeeded':
           if (event.invoiceId) {
