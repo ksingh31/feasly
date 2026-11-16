@@ -110,6 +110,9 @@ const ISOLATION_CASES: Readonly<Record<string, IsolationEntry>> = {
   'POST /api/v1/billing/invoices/{id}/confirm-payment': {
     cases: [{ file: 'billing.service.test.ts', title: 'confirmInvoicePayment 403s for another tenant invoice and asks the provider for nothing (#712)' }],
   },
+  'POST /api/v1/billing/invoices/{id}/pay': {
+    cases: [{ file: 'billing.service.test.ts', title: 'payInvoice 403s for another tenant invoice and charges nothing (#718)' }],
+  },
   'POST /api/v1/billing/invoices/{id}/dispute': {
     cases: [{ file: 'billing.service.test.ts', title: 'disputeInvoice 403s for another tenant invoice and records nothing (#731)' }],
   },

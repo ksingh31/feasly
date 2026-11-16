@@ -48,6 +48,8 @@ export class SiteNavComponent {
     { label: 'How it works', path: '/how-it-works' },
     { label: 'Community guides', path: '/communities' },
     { label: 'FAQ', path: '/faq' },
+    // #834: help + contact.
+    { label: 'Help', path: '/help' },
   ];
 
   /**
@@ -59,6 +61,7 @@ export class SiteNavComponent {
     { label: 'Community guides', path: '/communities' },
     { label: 'Compare neighbourhoods', path: '/estimate/compare', queryParams: { fresh: 1 } },
     { label: 'FAQ', path: '/faq' },
+    { label: 'Help', path: '/help' },
     { label: 'Developers', path: '/developers' },
     // #704: returning users on another device request their report link.
     // Optional chaining: page specs stub ConfigService with partial copy.

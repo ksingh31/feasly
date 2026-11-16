@@ -34,6 +34,8 @@ import type {
 } from '@feasly/contracts';
 import { z } from 'zod';
 import { ErrorCodes, HttpError } from '../middleware/errors';
+import { sanitizeErrorMessage } from '../lib/sanitize-error';
+import type { JobQueue } from './job-queue.service';
 import type { LeadStore } from './lead.store';
 import {
   issueUnsubscribeToken,
@@ -81,6 +83,12 @@ export interface UnsubscribeServiceDeps {
   /** Token validity in seconds (30 days). */
   readonly tokenTtlSeconds: number;
   readonly clock?: () => Date;
+  /**
+   * #838: an opt-out cancels the lead's queued reminder jobs. Best effort —
+   * the reminder handlers re-check consent at send time, so a failed
+   * cancel never sends mail to an unsubscribed lead.
+   */
+  readonly jobs?: Pick<JobQueue, 'cancelForLead'>;
 }
 
 const tokenInputSchema = z.string().trim().min(1).max(500);
@@ -101,6 +109,18 @@ export function createUnsubscribeService(
   deps: UnsubscribeServiceDeps,
 ): UnsubscribeService {
   const now = (): Date => deps.clock?.() ?? new Date();
+
+  /** #838: withdraw queued reminders after any opt-out. Never throws. */
+  async function cancelQueuedJobs(leadId: string): Promise<void> {
+    if (!deps.jobs) return;
+    try {
+      await deps.jobs.cancelForLead(leadId);
+    } catch (error) {
+      console.error(
+        `unsubscribe: cancelling queued jobs failed (error=${sanitizeErrorMessage(error)})`,
+      );
+    }
+  }
 
   async function resolveLead(
     token: string,
@@ -189,6 +209,7 @@ export function createUnsubscribeService(
         emailOptOut: true,
         at: now(),
       });
+      await cancelQueuedJobs(lead.id);
       return {
         unsubscribed: true,
         alreadyUnsubscribed: already,
@@ -227,6 +248,9 @@ export function createUnsubscribeService(
         at: now(),
       });
       const final = saved ?? lead;
+      if (prefs.emailOptOut || prefs.contactOptOut) {
+        await cancelQueuedJobs(lead.id);
+      }
       return {
         unsubscribed: final.unsubscribedAt !== null,
         alreadyUnsubscribed: already,

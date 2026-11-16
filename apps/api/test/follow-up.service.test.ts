@@ -62,6 +62,10 @@ function world(opts?: {
   sendThrows?: boolean;
   /** Ids returned by findCandidates regardless of the SQL filter (races). */
   staleCandidates?: string[];
+  /** #838: leads that asked for a builder callback. */
+  callbacks?: string[];
+  /** #838: enqueue instead of sending inline. */
+  queue?: { enqueue: (input: { type: string; leadId?: string | null; dedupeKey?: string | null }) => Promise<{ enqueued: boolean }> };
 }) {
   const rows = new Map<string, Row>((opts?.rows ?? []).map((r) => [r.lead.id, r]));
   const sent: FollowUpEmailInput[] = [];
@@ -88,7 +92,8 @@ function world(opts?: {
             r.lead.unsubscribedAt === null &&
             r.lead.contactOptOutAt === null &&
             !r.lead.quarantined &&
-            !r.lead.sandbox,
+            !r.lead.sandbox &&
+            !(opts?.callbacks ?? []).includes(r.lead.id),
         )
         .slice(0, limit)
         .map((r) => r.lead.id)),
@@ -96,6 +101,7 @@ function world(opts?: {
       const r = rows.get(leadId);
       return r ? { reportOpenedAt: r.reportOpenedAt, followUpSentAt: r.followUpSentAt } : null;
     },
+    hasCallbackRequest: async (leadId) => (opts?.callbacks ?? []).includes(leadId),
     setFollowUpSentAt: async ({ leadId, at }) => {
       const r = rows.get(leadId);
       if (r) r.followUpSentAt = at;
@@ -137,6 +143,7 @@ function world(opts?: {
     onLeadError: (e) => errors.push(e),
     onWarn: (m) => warnings.push(m),
     clock: () => NOW,
+    ...(opts?.queue ? { queue: opts.queue } : {}),
   });
   return { service, rows, sent, errors, warnings, get issued() { return issued; } };
 }
@@ -282,5 +289,75 @@ describe('follow-up service (#703)', () => {
     expect(w.rows.get('lead-1')!.followUpSentAt).toEqual(NOW);
     expect(w.warnings[0]).toContain('delivery unconfirmed');
     expect(w.warnings[0]).not.toContain('sam@example.com');
+  });
+
+  it('#838: no nudge once the homeowner asked a builder to contact them', async () => {
+    const w = world({ rows: [dueRow()], callbacks: ['lead-1'] });
+    await w.service.runFollowUpCycle();
+    expect(w.sent).toHaveLength(0);
+    // Defense in depth: the send-time re-check catches a callback that
+    // arrived after the candidate scan.
+    const raced = world({ rows: [dueRow()], callbacks: ['lead-1'], staleCandidates: ['lead-1'] });
+    await raced.service.runFollowUpCycle();
+    expect(raced.sent).toHaveLength(0);
+  });
+});
+
+describe('follow-up through the job queue (#838)', () => {
+  function fakeQueue() {
+    const keys = new Set<string>();
+    const enqueued: { type: string; leadId?: string | null; dedupeKey?: string | null }[] = [];
+    return {
+      enqueued,
+      enqueue: async (input: { type: string; leadId?: string | null; dedupeKey?: string | null }) => {
+        if (input.dedupeKey && keys.has(input.dedupeKey)) return { enqueued: false };
+        if (input.dedupeKey) keys.add(input.dedupeKey);
+        enqueued.push(input);
+        return { enqueued: true };
+      },
+    };
+  }
+
+  it('the cycle enqueues one job per lead (deduped) and sends nothing inline', async () => {
+    const queue = fakeQueue();
+    const w = world({ rows: [dueRow()], queue });
+    expect(await w.service.runFollowUpCycle()).toEqual({ sent: 1, skipped: 0 });
+    expect(await w.service.runFollowUpCycle()).toEqual({ sent: 0, skipped: 1 });
+    expect(queue.enqueued).toEqual([
+      {
+        type: 'reminder.no-builder-contact',
+        leadId: 'lead-1',
+        dedupeKey: 'reminder.no-builder-contact:lead-1',
+      },
+    ]);
+    expect(w.sent).toHaveLength(0);
+  });
+
+  it('sendReminder sends once and stamps; a repeat is a no-op', async () => {
+    const w = world({ rows: [dueRow()] });
+    expect(await w.service.sendReminder('lead-1')).toBe(true);
+    expect(await w.service.sendReminder('lead-1')).toBe(false);
+    expect(w.sent).toHaveLength(1);
+  });
+
+  it('sendReminder throws on a failed send so the queue retries', async () => {
+    const w = world({
+      rows: [dueRow()],
+      delivery: { sent: false, provider: 'log', failureReason: 'down', emailError: 'delivery-failed' },
+    });
+    await expect(w.service.sendReminder('lead-1')).rejects.toThrow(/Follow-up email failed/);
+    expect(w.rows.get('lead-1')!.followUpSentAt).toBeNull();
+  });
+
+  it('sendReminder re-checks consent at send time (withdrawn after enqueue)', async () => {
+    const w = world({ rows: [dueRow()], unsubscribed: ['lead-1'] });
+    expect(await w.service.sendReminder('lead-1')).toBe(false);
+    expect(w.sent).toHaveLength(0);
+  });
+
+  it('sendReminder never sends with the flag off', async () => {
+    const w = world({ enabled: false, rows: [dueRow()] });
+    expect(await w.service.sendReminder('lead-1')).toBe(false);
+    expect(w.sent).toHaveLength(0);
   });
 });

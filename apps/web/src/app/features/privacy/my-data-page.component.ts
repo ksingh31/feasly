@@ -11,6 +11,7 @@ import {
   DownloadMyData,
   PRIVACY_CONFIRMED_STATE,
   RequestErasure,
+  ResendErasureEmail,
   ResetPrivacy,
   SendPrivacyLink,
 } from './privacy.actions';
@@ -50,6 +51,11 @@ export class MyDataPageComponent implements OnInit {
   protected readonly erase = this.store.selectSignal(PrivacyState.erase);
   protected readonly requestId = this.store.selectSignal(PrivacyState.eraseRequestId);
   protected readonly consequences = this.store.selectSignal(PrivacyState.consequences);
+  protected readonly eraseEmail = this.store.selectSignal(PrivacyState.eraseEmail);
+  /** #806: the API didn't send a confirmation email on the last attempt. */
+  protected readonly emailNotSent = computed(
+    () => this.eraseEmail() === 'not-sent' || this.eraseEmail() === 'resending',
+  );
   protected readonly link = this.store.selectSignal(PrivacyState.link);
 
   /** An expired/revoked token behaves like no token: offer a fresh link. */
@@ -99,6 +105,13 @@ export class MyDataPageComponent implements OnInit {
       void this.router.navigate(['/privacy/confirm', id], {
         state: { [PRIVACY_CONFIRMED_STATE]: true },
       });
+    }
+  }
+
+  protected resendErasureEmail(): void {
+    const token = this.token();
+    if (token && this.eraseEmail() !== 'resending') {
+      this.store.dispatch(new ResendErasureEmail(token));
     }
   }
 

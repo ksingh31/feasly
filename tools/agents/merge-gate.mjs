@@ -6,13 +6,13 @@
  *     the required ones GitHub auto-merge waits for) — the release manager
  *     merges approved PRs once all checks pass, re-running flaky env checks.
  *   APPROVE + sensitive paths → label needs:karan, do not enable.
- *   REQUEST_CHANGES on an agent PR → agent-fix.yml picks it up (round cap there).
+ *   REQUEST_CHANGES on an agent PR → agent-fix.yml, unless parked at the fix-round cap (#924).
  *   NEEDS_KARAN → label needs:karan.
  *
  *   node tools/agents/merge-gate.mjs <pr> <APPROVE|REQUEST_CHANGES|NEEDS_KARAN> [--dry-run]
  */
 import { LABELS, sensitiveFiles } from './lib.mjs';
-import { ghJson, ghWrite } from './gh.mjs';
+import { ghJson, ghWrite, dispatchFixRound } from './gh.mjs';
 
 const [pr, verdict] = process.argv.slice(2).filter((a) => !a.startsWith('--'));
 if (!pr || !verdict) {
@@ -43,6 +43,6 @@ if (info.state !== 'OPEN' || info.isDraft) {
     console.log(`#${pr}: approved — merges once every check is green`);
   }
 } else if (verdict === 'REQUEST_CHANGES') {
-  if (isAgentPr) ghWrite(['workflow', 'run', 'agent-fix.yml', '-f', `pr=${pr}`, '-f', 'reason=review requested changes']);
-  console.log(`#${pr}: changes requested${isAgentPr ? ' → fix round dispatched' : ' (human PR — author fixes)'}`);
+  const started = isAgentPr && dispatchFixRound(pr, 'review requested changes');
+  console.log(`#${pr}: changes requested${isAgentPr ? (started ? ' → fix round dispatched' : ' → parked at fix-round cap') : ' (human PR — author fixes)'}`);
 }

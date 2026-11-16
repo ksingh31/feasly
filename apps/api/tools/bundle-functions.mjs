@@ -63,6 +63,7 @@ const targets = [
   { entry: 'src/functions/magic-link-verify.ts', out: 'magic-link-verify/index.js' },
   { entry: 'src/functions/magic-link-reissue.ts', out: 'magic-link-reissue/index.js' },
   { entry: 'src/functions/events.ts', out: 'events/index.js' },
+  { entry: 'src/functions/telemetry.ts', out: 'telemetry/index.js' },
   { entry: 'src/functions/privacy-export.ts', out: 'privacy-export/index.js' },
   { entry: 'src/functions/privacy-erase.ts', out: 'privacy-erase/index.js' },
   {
@@ -77,6 +78,10 @@ const targets = [
   {
     entry: 'src/functions/communities-lots.ts',
     out: 'communities-lots/index.js',
+  },
+  {
+    entry: 'src/functions/communities-living.ts',
+    out: 'communities-living/index.js',
   },
   {
     entry: 'src/functions/city-data-freshness.ts',
@@ -254,6 +259,18 @@ const targets = [
     out: 'admin-builders-detail/index.js',
   },
   {
+    entry: 'src/functions/admin-builders-status.ts',
+    out: 'admin-builders-status/index.js',
+  },
+  {
+    entry: 'src/functions/admin-builders-offboarding-blockers.ts',
+    out: 'admin-builders-offboarding-blockers/index.js',
+  },
+  {
+    entry: 'src/functions/admin-builders-export.ts',
+    out: 'admin-builders-export/index.js',
+  },
+  {
     entry: 'src/functions/admin-partners.ts',
     out: 'admin-partners/index.js',
   },
@@ -406,6 +423,24 @@ const targets = [
     entry: 'src/functions/builder-notifications-preferences.ts',
     out: 'builder-notifications-preferences/index.js',
   },
+  // #870 — builder Settings: profile & branding, embed snippet + install
+  // check, embed origin-change requests.
+  {
+    entry: 'src/functions/builder-profile.ts',
+    out: 'builder-profile/index.js',
+  },
+  {
+    entry: 'src/functions/builder-embed.ts',
+    out: 'builder-embed/index.js',
+  },
+  {
+    entry: 'src/functions/builder-account-close-request.ts',
+    out: 'builder-account-close-request/index.js',
+  },
+  {
+    entry: 'src/functions/builder-embed-origin-requests.ts',
+    out: 'builder-embed-origin-requests/index.js',
+  },
   // #531 — builder portal Money page header (one-call billing overview).
   {
     entry: 'src/functions/builder-billing-overview.ts',
@@ -425,6 +460,11 @@ const targets = [
   {
     entry: 'src/functions/billing-invoice-confirm-payment.ts',
     out: 'billing-invoice-confirm-payment/index.js',
+  },
+  // #718 — builder Pay now for a failed card invoice (POST).
+  {
+    entry: 'src/functions/billing-invoice-pay.ts',
+    out: 'billing-invoice-pay/index.js',
   },
   // Dispute console (billing/01 follow-on, was OPS-009).
   {
@@ -456,6 +496,11 @@ const targets = [
   {
     entry: 'src/functions/admin-billing-retry.ts',
     out: 'admin-billing-retry/index.js',
+  },
+  // #718: edit one invoice's retry schedule (admin, billing:manage).
+  {
+    entry: 'src/functions/admin-billing-dunning.ts',
+    out: 'admin-billing-dunning/index.js',
   },
   // #753: simulated payment provider dev actions (404 unless
   // PAYMENTS_PROVIDER=simulated).
@@ -511,9 +556,27 @@ const targets = [
     entry: 'src/functions/sheets-sync-timer.ts',
     out: 'sheets-sync-timer/index.js',
   },
+  // #757: daily zoning source watch (City bylaw + districts dataset).
+  {
+    entry: 'src/functions/zoning-watch-timer.ts',
+    out: 'zoning-watch-timer/index.js',
+  },
   {
     entry: 'src/functions/admin-community-stats-refresh.ts',
     out: 'admin-community-stats-refresh/index.js',
+  },
+  // #759: monthly community narratives — timer + admin status/regenerate.
+  {
+    entry: 'src/functions/community-narrative-timer.ts',
+    out: 'community-narrative-timer/index.js',
+  },
+  {
+    entry: 'src/functions/admin-community-narratives.ts',
+    out: 'admin-community-narratives/index.js',
+  },
+  {
+    entry: 'src/functions/admin-community-narratives-regenerate.ts',
+    out: 'admin-community-narratives-regenerate/index.js',
   },
   // #773: neighbourhood data refresh (daily tick, monthly schedule in config)
   // + admin "refresh now" per provider.
@@ -554,6 +617,11 @@ const targets = [
     entry: 'src/functions/shares-verify.ts',
     out: 'shares-verify/index.js',
   },
+  { entry: 'src/functions/shares-link.ts', out: 'shares-link/index.js' },
+  { entry: 'src/functions/shares-link-list.ts', out: 'shares-link-list/index.js' },
+  { entry: 'src/functions/shares-link-revoke.ts', out: 'shares-link-revoke/index.js' },
+  { entry: 'src/functions/admin-jobs.ts', out: 'admin-jobs/index.js' },
+  { entry: 'src/functions/job-queue-timer.ts', out: 'job-queue-timer/index.js' },
   // embed/06: token relay inside the iframe.
   {
     entry: 'src/functions/embed-session.ts',

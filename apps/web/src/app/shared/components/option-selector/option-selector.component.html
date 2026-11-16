@@ -20,6 +20,7 @@
         role="radio"
         [attr.data-option]="option.id"
         [attr.aria-checked]="selected() === option.id"
+        [attr.tabindex]="tabIndexFor(option.id)"
         [class.selected]="selected() === option.id"
         (click)="choose(option.id)"
       >

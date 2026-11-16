@@ -9,7 +9,18 @@
  * Exactly-once is guarded by `leads.nudge_sent_at` (NULL = not yet sent).
  * The fresh link reuses the magic-link store's issue path; the previous
  * unclicked link(s) are revoked first so only the nudge link is live.
+ *
+ * #838 — the "started but didn't finish" reminder:
+ *   - CASL: sent only to leads that gave marketing consent;
+ *   - with a `queue`, the hourly cycle only ENQUEUES one job per candidate
+ *     (dedupe key per lead, so a lead is never queued twice) and the
+ *     job-queue worker sends via `sendReminder` — a failed send is retried
+ *     with backoff (the `nudge_sent_at` stamp keeps it exactly-once) and
+ *     dead-letters after the queue's max attempts. Unsubscribe cancels the
+ *     pending job; the handler re-checks consent at send time anyway.
+ *   - without a queue (legacy wiring / tests) the cycle sends directly.
  */
+import type { JobQueue } from './job-queue.service';
 import type { EmailService } from './email/email.service';
 import { EmailProviderError } from './email';
 import type { LeadStore } from './lead.store';
@@ -44,7 +55,12 @@ export interface NudgeServiceDeps {
    */
   readonly onWarn?: (message: string) => void;
   readonly clock?: () => Date;
+  /** #838: enqueue reminders instead of sending inline. */
+  readonly queue?: Pick<JobQueue, 'enqueue'>;
 }
+
+/** #838: job type of the "started but didn't finish" reminder. */
+export const UNFINISHED_ESTIMATE_REMINDER_JOB = 'reminder.unfinished-estimate';
 
 export interface NudgeService {
   /**
@@ -52,6 +68,13 @@ export interface NudgeService {
    * candidates were skipped (verified / opted-out / quarantined / failed).
    */
   runNudgeCycle(): Promise<{ readonly nudged: number; readonly skipped: number }>;
+  /**
+   * #838 queue handler: send the reminder for one lead. Resolves true when
+   * sent, false when the lead is legitimately excluded (consent withdrawn,
+   * verified, already nudged …). Throws on delivery/infra failure so the
+   * queue retries.
+   */
+  sendReminder(leadId: string): Promise<boolean>;
 }
 
 export function createNudgeService(deps: NudgeServiceDeps): NudgeService {
@@ -68,6 +91,7 @@ export function createNudgeService(deps: NudgeServiceDeps): NudgeService {
     onLeadError = () => {},
     onWarn = (message: string) => console.warn(message),
     clock = () => new Date(),
+    queue,
   } = deps;
 
   return {
@@ -90,6 +114,28 @@ export function createNudgeService(deps: NudgeServiceDeps): NudgeService {
       let skipped = 0;
 
       for (const lead of candidates) {
+        if (queue) {
+          // #838: enqueue only — the job-queue worker sends (with retries).
+          // Cheap pre-filter on the candidate row; the handler re-checks
+          // everything at send time.
+          if (!lead.marketingConsent || lead.quarantined || lead.sandbox) {
+            skipped++;
+            continue;
+          }
+          try {
+            const { enqueued } = await queue.enqueue({
+              type: UNFINISHED_ESTIMATE_REMINDER_JOB,
+              leadId: lead.id,
+              dedupeKey: `${UNFINISHED_ESTIMATE_REMINDER_JOB}:${lead.id}`,
+            });
+            if (enqueued) nudged++;
+            else skipped++;
+          } catch (error) {
+            onLeadError(error);
+            skipped++;
+          }
+          continue;
+        }
         try {
           const sent = await maybeNudgeLead(lead.id);
           if (sent) nudged++;
@@ -112,6 +158,7 @@ export function createNudgeService(deps: NudgeServiceDeps): NudgeService {
 
       return { nudged, skipped };
     },
+    sendReminder: (leadId: string) => maybeNudgeLead(leadId),
   };
 
   /**
@@ -129,6 +176,8 @@ export function createNudgeService(deps: NudgeServiceDeps): NudgeService {
     // concurrent timer instance could race us. Re-check before sending.
     if (lead.nudgeSentAt) return false;
     if (lead.quarantined) return false;
+    // #838 CASL: a reminder is commercial email — consent required.
+    if (!lead.marketingConsent) return false;
     // #793: sandbox (feasly_test_) leads never receive real email.
     if (lead.sandbox) return false;
     // Proactive outreach respects both opt-outs: email-unsubscribed leads

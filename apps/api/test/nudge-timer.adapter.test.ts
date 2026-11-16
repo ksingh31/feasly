@@ -13,7 +13,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 const runNudgeCycle = vi.fn();
 const fakeApp = {
-  nudgeService: { runNudgeCycle },
+  nudgeService: { runNudgeCycle, sendReminder: vi.fn() },
 };
 
 vi.mock('../src/index', () => ({

@@ -1,0 +1,53 @@
+:host {
+  display: block;
+}
+
+.bt-title {
+  margin: 0 0 0.5rem;
+  font-size: 1.125rem;
+}
+
+.bt-intro,
+.bt-note {
+  margin: 0 0 0.75rem;
+  color: var(--muted);
+  line-height: 1.5;
+}
+
+.bt-total {
+  margin: 0 0 0.75rem;
+  font-weight: 600;
+}
+
+.bt-phases {
+  list-style: none;
+  margin: 0 0 1rem;
+  padding: 0;
+  border-left: 2px solid var(--accent);
+}
+
+.bt-phase {
+  position: relative;
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  gap: 0.25rem 1rem;
+  padding: 0.5rem 0 0.5rem 1rem;
+  overflow-wrap: anywhere;
+
+  &::before {
+    content: '';
+    position: absolute;
+    left: -6px;
+    top: 0.9rem;
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+    background: var(--accent);
+  }
+}
+
+.bt-range {
+  color: var(--muted);
+  white-space: nowrap;
+}

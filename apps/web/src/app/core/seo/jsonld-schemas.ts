@@ -151,6 +151,24 @@ export function buildArticleSchema(
 }
 
 /**
+ * WebPage for utility pages such as `/help` (#834). The help page reuses FAQ
+ * answers that `/faq` already marks up as FAQPage; Google wants repeated FAQ
+ * content marked up once, so this page gets a plain WebPage. `name` must be
+ * the visible `<h1>` and `description` the page's meta description.
+ */
+export function buildWebPageSchema(pageUrl: string, name: string, description: string): Record<string, unknown> {
+  return {
+    '@context': 'https://schema.org',
+    '@type': 'WebPage',
+    name,
+    description,
+    url: pageUrl,
+    inLanguage: 'en-CA',
+    publisher: { '@type': 'Organization', name: 'Feasly' },
+  };
+}
+
+/**
  * Asserts a built schema contains no `null` values (SEO-06 acceptance).
  * Throws on the first `null` found.
  */

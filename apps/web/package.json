@@ -12,7 +12,8 @@
     "@stripe/stripe-js": "^9.17.0",
     "jspdf": "^4.2.1",
     "rxjs": "~7.8.0",
-    "tslib": "^2.3.0"
+    "tslib": "^2.3.0",
+    "web-vitals": "^5.3.0"
   },
   "description": "Feasly consumer site: Angular 22, static prerender, NGXS state, contract-driven mocks.",
   "devDependencies": {

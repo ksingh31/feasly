@@ -17,6 +17,7 @@ import {
   renderCommissionPaymentReceivedEmail,
   renderCommissionPaymentFailedEmail,
   renderCommissionPaymentActionRequiredEmail,
+  renderCommissionInvoiceOverdueEmail,
   type TemplateContext,
 } from '../src/services/email/templates';
 
@@ -89,6 +90,89 @@ describe('commission-payment-failed template (BILL-04)', () => {
     expect(rendered.html).toContain('Update card');
     expect(rendered.html).toContain('7 days');
     expect(rendered.text).toContain('7 days');
+  });
+
+  it('#873: the chargeback_lost variant says the payment was reversed, not declined', () => {
+    const rendered = renderCommissionPaymentFailedEmail(CTX, {
+      invoiceRef: 'INV-2026-001',
+      commissionCents: 500_000,
+      currency: 'CAD',
+      updateWithinDays: 7,
+      reason: 'chargeback_lost',
+    });
+    expect(rendered.subject).toBe(
+      'Your bank reversed a payment — invoice INV-2026-001 is unpaid again',
+    );
+    for (const body of [rendered.html, rendered.text]) {
+      expect(body).toContain('INV-2026-001');
+      expect(body).toContain('$5,000.00');
+      expect(body).toContain('chargeback');
+      expect(body).toContain('still owed');
+      expect(body).not.toContain('declined');
+    }
+    expect(rendered.html).toContain('https://app.feasly.example/builder/billing');
+  });
+});
+
+describe('commission-payment-failed dunning copy (#718)', () => {
+  const base = {
+    invoiceRef: 'INV-0718',
+    commissionCents: 500_000,
+    currency: 'CAD',
+    updateWithinDays: 7,
+  };
+
+  it('names the next automatic retry date and the Pay now option', () => {
+    const rendered = renderCommissionPaymentFailedEmail(CTX, {
+      ...base,
+      nextRetryAt: new Date('2026-11-23T18:00:00.000Z'),
+    });
+    expect(rendered.subject).toContain('declined');
+    for (const body of [rendered.html, rendered.text]) {
+      expect(body).toContain('try the charge again on');
+      expect(body).toContain('2026');
+      expect(body).toContain('Pay now');
+      expect(body).not.toContain('7 days');
+    }
+  });
+
+  it('sends a final notice once the retry budget is used up', () => {
+    const rendered = renderCommissionPaymentFailedEmail(CTX, {
+      ...base,
+      nextRetryAt: null,
+      finalNotice: true,
+    });
+    expect(rendered.subject).toBe('Final notice: invoice INV-0718 is unpaid');
+    expect(rendered.text).toContain("We won't try this charge again automatically.");
+    // Pay now attempts share the budget — never claim an automatic attempt ran.
+    expect(rendered.text).not.toContain('last automatic attempt');
+    expect(rendered.html).toContain('Pay now');
+    expect(rendered.text).not.toContain('try the charge again');
+  });
+
+  it('with no retry scheduled, asks for Pay now without promising a retry', () => {
+    const rendered = renderCommissionPaymentFailedEmail(CTX, { ...base, nextRetryAt: null });
+    expect(rendered.text).toContain('choose Pay now on your billing page');
+    expect(rendered.text).not.toContain('retry the charge automatically');
+  });
+});
+
+describe('commission-invoice-overdue template (#718)', () => {
+  it('states the due date and amount and offers the card switch', () => {
+    const rendered = renderCommissionInvoiceOverdueEmail(CTX, {
+      invoiceRef: 'INV-0719',
+      commissionCents: 500_000,
+      currency: 'CAD',
+      dueAt: new Date('2026-11-20T18:00:00.000Z'),
+    });
+    expect(rendered.subject).toBe('Invoice INV-0719 is past due');
+    for (const body of [rendered.html, rendered.text]) {
+      expect(body).toContain('INV-0719');
+      expect(body).toContain('$5,000.00');
+      expect(body).toContain('2026');
+      expect(body).toContain('https://app.feasly.example/builder/billing');
+    }
+    expect(rendered.text).toContain('switch this invoice to your card on file');
   });
 });
 

@@ -1,75 +1,56 @@
 /**
- * AI narrative worker (story consumer/06).
+ * Report narrative read path (consumer/06, reworked for #759).
  *
- * Generates the natural-language summary for an estimate's report page.
- * The LLM writes ONLY the narrative around the deterministic engine
- * figures — it never produces dollar figures. Two type-level and runtime
- * boundaries enforce this:
+ * Owner decision 2026-11-15: no LLM call per estimate. The neighbourhood
+ * narrative is generated once a month per community by the
+ * community-narrative timer and stored; this service only READS it:
  *
- * 1. `buildNarrativePrompt()` (in @feasly/cost-engine) accepts ONLY the
- *    engine output — passing `CostData`/`CostParams` is a compile error.
- * 2. `validateNarrative()` rejects any output containing a $-figure not
- *    from the engine output. The verbatim compliance footer is appended
- *    deterministically by the worker (never required from the model).
+ * authenticate (magic-link bearer) → load estimate → verify ownership →
+ * - legacy: an estimate that already has a per-estimate narrative (from
+ *   before #759) keeps serving it;
+ * - otherwise: resolve the property's community → one DB read for the
+ *   stored community narrative (newest month with text, so a failed month
+ *   keeps last month's) → prepend the deterministic estimate sentence
+ *   (size, finish, range — filled from the engine figures, no LLM);
+ * - no stored narrative (new community, or none generated yet) → the
+ *   deterministic sentence + the static Calgary guide.
  *
- * Flow: authenticate (magic-link bearer) → load estimate → verify
- * ownership → return cached if present → rate-limit check → resolve
- * community context (property + community stats, best-effort) → build
- * prompt → provider.generate → validate → (one repair retry) → persist →
- * return. Validation failures fire the `narrative_worker_failed` ops
- * alert (defined in admin/06).
- *
- * Synthetic-output guard (bug goal_aec0b247775d): when the provider is the
- * log provider (no LLM key configured), its placeholder output is dropped
- * before validation/persistence — the response carries an empty narrative
- * and the report page renders its "summary unavailable" state. Placeholder
- * rows persisted before the guard are likewise never served from cache.
- *
- * The estimate record is reconstructed into an `EstimateOutput` from the
- * persisted figures/rows — the engine is NEVER re-run (the narrative
- * describes the historical snapshot, not a fresh computation).
+ * Nothing is persisted on the estimate row any more, and there is no
+ * provider dependency at all — so viewing any number of reports costs zero
+ * LLM calls. The estimate record is reconstructed into an `EstimateOutput`
+ * from the persisted figures — the engine is NEVER re-run.
  */
 import {
-  buildNarrativePrompt,
-  ensureNarrativeFooter,
-  validateNarrative,
-  type CommunityFacts,
+  buildEstimateSummary,
   type CostRow,
   type EstimateOutput,
-  type NarrativePromptInput,
   type RangedAmount,
 } from '@feasly/cost-engine';
 import type { NarrativeResponse } from '@feasly/contracts';
 import { ErrorCodes, HttpError } from '../middleware/errors';
+import type { CommunityNarrativeService } from './community-narrative.service';
 import { toSlug } from './community-stats/socrata-aggregates';
-import type { CommunityStatsService } from './community-stats.service';
 import type { EstimateRecord, EstimateStore } from './estimate.store';
 import type { LeadStore } from './lead.store';
 import type { MagicLinkStore } from './magic-link.store';
 import { isSyntheticNarrative } from './narrative/narrative.types';
 import { buildStaticGuideNarrative } from './narrative/static-guide';
-import type {
-  NarrativeProvider,
-  NarrativeProviderResult,
-} from './narrative/narrative.types';
-import type { OpsAlertsService } from './ops-alerts.service';
 import type { PropertyService } from './property.service';
 
 export interface NarrativeService {
   /**
-   * Generate (or return cached) the narrative for an estimate.
-   * Throws 401 (bad token), 403 (not your estimate), 404 (unknown
-   * estimate), 429 (rate-limited), 502 (provider/validation failure).
+   * The report narrative for an estimate: stored community narrative +
+   * deterministic estimate sentence (never an LLM call). Throws 401 (bad
+   * token), 403 (not your estimate), 404 (unknown estimate).
    */
   generateNarrative(
     bearerToken: string | undefined,
     estimateId: string,
   ): Promise<NarrativeResponse>;
   /**
-   * Admin variant of {@link generateNarrative}: same cache, rate-limit,
-   * and provider chain, but no magic-link auth or ownership check —
-   * the caller (admin route) already enforced the admin session guard.
-   * Throws 404 (unknown estimate), 429 (rate-limited).
+   * Admin variant of {@link generateNarrative}: same read path, but no
+   * magic-link auth or ownership check — the caller (admin route) already
+   * enforced the admin session guard. Throws 404 (unknown estimate).
    */
   generateNarrativeForAdmin(estimateId: string): Promise<NarrativeResponse>;
 }
@@ -78,43 +59,16 @@ export interface NarrativeServiceDeps {
   readonly magicLinks: MagicLinkStore;
   readonly leads: LeadStore;
   readonly estimates: EstimateStore;
-  readonly provider: NarrativeProvider;
-  readonly opsAlerts: Pick<OpsAlertsService, 'notifyFailure'>;
-  /** Property lookup for prompt community resolution (best-effort). */
+  /** Property lookup for community resolution (best-effort). */
   readonly properties: Pick<PropertyService, 'getProperty'>;
-  /** Community stats for the prompt's neighbourhood section (best-effort). */
-  readonly communityStats: Pick<CommunityStatsService, 'getBySlug'>;
+  /** Stored monthly community narratives (#759) — read only. */
+  readonly communityNarratives: Pick<CommunityNarrativeService, 'findServable'>;
   /** Injected clock for tests; defaults to wall time. */
   readonly clock?: () => Date;
-  /** Injected rate-limit store for tests; defaults to in-memory. */
-  readonly rateLimitStore?: NarrativeRateLimitStore;
-}
-
-/** Minimal rate-limit store — production uses the shared throttler. */
-export interface NarrativeRateLimitStore {
-  /** Count generations for (estimateId) in the last 24h; record this one. */
-  checkAndRecord(estimateId: string, now: Date): Promise<number>;
 }
 
 const UUID_RE =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-
-/** Cost guard: max LLM generations per estimate per 24h. */
-const MAX_GENERATIONS_PER_DAY = 5;
-
-/** In-memory rate-limit store (per-instance; tests inject a fake). */
-function createMemoryRateLimitStore(): NarrativeRateLimitStore {
-  const hits = new Map<string, number[]>();
-  return {
-    async checkAndRecord(estimateId: string, now: Date): Promise<number> {
-      const cutoff = now.getTime() - 24 * 60 * 60 * 1000;
-      const times = (hits.get(estimateId) ?? []).filter((t) => t > cutoff);
-      times.push(now.getTime());
-      hits.set(estimateId, times);
-      return times.length;
-    },
-  };
-}
 
 /** Reconstruct the engine output shape from the persisted record. */
 function toEstimateOutput(record: EstimateRecord): EstimateOutput {
@@ -150,79 +104,115 @@ function toEstimateOutput(record: EstimateRecord): EstimateOutput {
   };
 }
 
-/** City facts for the prompt — city/province only, never PII. */
-function cityFactsFor(record: EstimateRecord): NarrativePromptInput['cityFacts'] {
-  // The addressKey is the normalized address; the community is not
-  // reliably parseable from it, so only city/province are provided.
-  // (The prompt builder handles missing community gracefully.)
-  return { city: 'Calgary', province: 'Alberta' };
-}
-
-/** Aggregate vintage label for the prompt, e.g. "September 2026". */
-function vintageLabel(d: Date): string {
-  const month = d.toLocaleString('en-US', { month: 'long', timeZone: 'UTC' });
-  return `${month} ${d.getUTCFullYear()}`;
-}
-
 export function createNarrativeService(
   deps: NarrativeServiceDeps,
 ): NarrativeService {
   const clock = deps.clock ?? (() => new Date());
-  const rateLimits = deps.rateLimitStore ?? createMemoryRateLimitStore();
 
-  /**
-   * Resolve community context for the narrative prompt. Best-effort: any
-   * failure (City API down, unknown community, missing stats row) degrades
-   * to city-only facts — narrative generation must never fail for this.
-   */
-  async function communityContextFor(record: EstimateRecord): Promise<{
-    cityFacts: NarrativePromptInput['cityFacts'];
-    communityFacts: CommunityFacts | undefined;
-  }> {
-    let community: string | undefined;
+  /** The property's community slug, or undefined (best-effort). */
+  async function communitySlugFor(record: EstimateRecord): Promise<string | undefined> {
     try {
       const property = await deps.properties.getProperty(record.addressKey);
       const name = property?.community?.trim();
       // PropertyService falls back to 'Calgary' when the City row has no
       // community — that means "unknown", not a community name.
-      if (name && name.toLowerCase() !== 'calgary') community = name;
+      if (name && name.toLowerCase() !== 'calgary') return toSlug(name);
     } catch {
-      // City data unavailable — degrade to city-only facts.
+      // City data unavailable — degrade to the static guide.
     }
-    let communityFacts: CommunityFacts | undefined;
-    if (community) {
+    return undefined;
+  }
+
+  /** Deterministic estimate sentence from engine figures; '' when not narratable. */
+  function estimateSentence(record: EstimateRecord): string {
+    try {
+      const output = toEstimateOutput(record);
+      const inputs = (record.inputs ?? {}) as { sqft?: unknown; tier?: unknown };
+      const sqft = typeof inputs.sqft === 'number' ? inputs.sqft : null;
+      const finishTier = typeof inputs.tier === 'string' ? inputs.tier : null;
+      return buildEstimateSummary(output, {
+        sqft: record.projectType === 'renovation' ? null : sqft,
+        finishTier,
+      });
+    } catch {
+      // Comparison or malformed records have no single range to describe.
+      return '';
+    }
+  }
+
+  function withSentence(sentence: string, narrative: string): string {
+    return sentence ? `${sentence}\n\n${narrative}` : narrative;
+  }
+
+  async function narrativeForRecord(record: EstimateRecord): Promise<NarrativeResponse> {
+    // Legacy per-estimate narrative (pre-#759 reports). Placeholder rows
+    // persisted before the synthetic guard are never served.
+    if (
+      record.narrative &&
+      record.narrativeGeneratedAt &&
+      !isSyntheticNarrative(record.narrative)
+    ) {
+      return {
+        estimateId: record.id,
+        narrative: record.narrative,
+        narrativeGeneratedAt: record.narrativeGeneratedAt.toISOString(),
+        cached: true,
+        narrativeSource: 'ai',
+      };
+    }
+    const sentence = estimateSentence(record);
+    const slug = await communitySlugFor(record);
+    if (slug) {
+      let stored = null;
       try {
-        const stats = await deps.communityStats.getBySlug(toSlug(community));
-        communityFacts = {
-          community: stats?.name ?? community,
-          avgSingleFamilyAssessedValue: stats?.avgAssessedValue ?? null,
-          assessedHomeCount: stats?.assessmentCount ?? null,
-          avgLotSqft: stats?.avgLotSqft ?? null,
-          dataVintage: stats ? vintageLabel(stats.refreshedAt) : null,
-        };
-      } catch {
-        // Stats unavailable — the prompt still gets the community name so
-        // the LLM covers the neighbourhood from its (hedged) knowledge.
-        communityFacts = {
-          community,
-          avgSingleFamilyAssessedValue: null,
-          assessedHomeCount: null,
-          avgLotSqft: null,
-          dataVintage: null,
+        stored = await deps.communityNarratives.findServable(slug);
+      } catch (error) {
+        console.error(
+          JSON.stringify({
+            event: 'narrative.community-read-failed',
+            estimateId: record.id,
+            error: error instanceof Error ? error.constructor.name : 'UnknownError',
+          }),
+        );
+      }
+      if (stored) {
+        return {
+          estimateId: record.id,
+          narrative: withSentence(sentence, stored.narrative),
+          narrativeGeneratedAt: stored.generatedAt.toISOString(),
+          cached: true,
+          narrativeSource: 'ai',
         };
       }
     }
+    // No stored narrative for this community: the honest static guide.
     return {
-      cityFacts: community
-        ? { city: 'Calgary', province: 'Alberta', community }
-        : cityFactsFor(record),
-      communityFacts,
+      estimateId: record.id,
+      narrative: withSentence(sentence, buildStaticGuideNarrative()),
+      narrativeGeneratedAt: clock().toISOString(),
+      cached: true,
+      narrativeSource: 'static-guide',
     };
+  }
+
+  async function loadRecord(estimateId: string): Promise<EstimateRecord> {
+    if (!UUID_RE.test(estimateId)) {
+      throw new HttpError(404, ErrorCodes.NOT_FOUND, 'Unknown estimate.', false);
+    }
+    let record;
+    try {
+      record = await deps.estimates.findById(estimateId);
+    } catch (error) {
+      throw new Error('estimate lookup failed', { cause: error });
+    }
+    if (!record) {
+      throw new HttpError(404, ErrorCodes.NOT_FOUND, 'Unknown estimate.', false);
+    }
+    return record;
   }
 
   async function authenticate(bearerToken: string | undefined): Promise<{
     leadId: string;
-    email: string;
     estimateId: string;
   }> {
     const denied = new HttpError(
@@ -249,263 +239,18 @@ export function createNarrativeService(
       throw new Error('lead lookup failed', { cause: error });
     }
     if (!lead) throw denied;
-    return { leadId: lead.id, email: lead.email, estimateId: lead.estimateId };
+    return { leadId: lead.id, estimateId: lead.estimateId };
   }
-
-  async function generateOnce(
-    output: EstimateOutput,
-    record: EstimateRecord,
-  ): Promise<{
-    result: NarrativeProviderResult;
-    communityFacts: CommunityFacts | undefined;
-  }> {
-    const { cityFacts, communityFacts } = await communityContextFor(record);
-    const input: NarrativePromptInput = {
-      projectType:
-        record.projectType === 'renovation' ? 'renovation' : 'new_build',
-      estimate: output,
-      cityFacts,
-      communityFacts,
-    };
-    const prompt = buildNarrativePrompt(input);
-    return {
-      result: await deps.provider.generate(prompt),
-      communityFacts,
-    };
-  }
-
-  /**
-   * Generate once; null when the provider emitted synthetic dev output.
-   * Synthetic output (log provider — bug goal_aec0b247775d) is never
-   * validated or persisted: callers return the empty-narrative response
-   * instead, and the report page renders its "summary unavailable" state.
-   * The marker-string check is a backstop in case a provider ever forgets
-   * to set `synthetic: true`.
-   *
-   * The verbatim compliance footer is appended deterministically here —
-   * never required from the model — so a model that omits it can no longer
-   * fail validation on an otherwise good narrative.
-   */
-  async function generateReal(
-    output: EstimateOutput,
-    record: EstimateRecord,
-  ): Promise<{
-    result: NarrativeProviderResult;
-    communityFacts: CommunityFacts | undefined;
-  } | null> {
-    const generation = await generateOnce(output, record);
-    if (deps.provider.synthetic || isSyntheticNarrative(generation.result.text)) {
-      return null;
-    }
-    return {
-      result: {
-        ...generation.result,
-        text: ensureNarrativeFooter(generation.result.text),
-      },
-      communityFacts: generation.communityFacts,
-    };
-  }
-
-  /**
-   * Shared generation core: cache → rate limit → provider chain →
-   * static-guide fallback. Called by the consumer entry point (after
-   * magic-link auth + ownership) and the admin entry point (after the
-   * admin session guard). The record must already be loaded.
-   */
-  async function generateForRecord(
-    record: EstimateRecord,
-  ): Promise<NarrativeResponse> {
-  const estimateId = record.id;
-  // Cached: no LLM call, no cost. Placeholder rows persisted before the
-  // synthetic guard (bug goal_aec0b247775d) are never served from cache.
-  if (
-    record.narrative &&
-    record.narrativeGeneratedAt &&
-    !isSyntheticNarrative(record.narrative)
-  ) {
-    return {
-      estimateId: record.id,
-      narrative: record.narrative,
-      narrativeGeneratedAt: record.narrativeGeneratedAt.toISOString(),
-      cached: true,
-      // Anything persisted is AI output — the static guide is never
-      // persisted (BE-9), so a cached row is always 'ai'.
-      narrativeSource: 'ai',
-    };
-  }
-  // Cost guard.
-  const now = clock();
-  let count: number;
-  try {
-    count = await rateLimits.checkAndRecord(estimateId, now);
-  } catch (error) {
-    throw new Error('rate limit check failed', { cause: error });
-  }
-  if (count > MAX_GENERATIONS_PER_DAY) {
-    throw new HttpError(
-      429,
-      ErrorCodes.RATE_LIMITED,
-      'Narrative generation rate limit exceeded. Try again tomorrow.',
-      true,
-    );
-  }
-  const output = toEstimateOutput(record);
-  /**
-   * Static-guide fallback (BE-9, final resilience tier). When the model
-   * chain is exhausted, the output fails validation after the repair
-   * retry, or the provider is synthetic (dev log mode), the user gets
-   * the hard-coded Calgary guide instead of a 502 dead-end. The guide
-   * is honest (labeled 'static-guide', never AI prose), carries the
-   * verbatim footer, and is NEVER persisted — the next visit retries
-   * the AI chain. The ops alert still fires so a real outage is
-   * visible (except for the synthetic dev path, which is not a
-   * failure).
-   */
-  const staticGuide = async (
-    reason: string,
-    alert: boolean,
-  ): Promise<NarrativeResponse> => {
-    if (alert) {
-      try {
-        await deps.opsAlerts.notifyFailure('narrative_worker_failed', {
-          consecutiveFailures: 1,
-          firstFailureAt: now,
-        });
-      } catch {
-        // Alert delivery must never mask the original failure.
-      }
-      console.error(
-        JSON.stringify({
-          event: 'narrative.static-guide-served',
-          estimateId: record.id,
-          reason,
-        }),
-      );
-    }
-    return {
-      estimateId: record.id,
-      narrative: buildStaticGuideNarrative(),
-      narrativeGeneratedAt: now.toISOString(),
-      cached: false,
-      narrativeSource: 'static-guide',
-    };
-  };
-  let result: NarrativeProviderResult;
-  let communityFacts: CommunityFacts | undefined;
-  // Synthetic dev output (log provider) never reaches users as AI
-  // prose: serve the static guide instead of the old empty state.
-  const emptyForSynthetic = (): Promise<NarrativeResponse> =>
-    staticGuide('synthetic provider output', false);
-  try {
-    const generation = await generateReal(output, record);
-    if (!generation) return emptyForSynthetic();
-    result = generation.result;
-    communityFacts = generation.communityFacts;
-  } catch (error) {
-    return staticGuide(
-      error instanceof Error ? error.message : 'provider error',
-      true,
-    );
-  }
-  let validation = validateNarrative(result.text, output, communityFacts);
-  if (!validation.ok) {
-    // One repair retry: ask the provider again (the prompt already
-    // constrains the output; a second sample often fixes it).
-    try {
-      const retry = await generateReal(output, record);
-      if (!retry) return emptyForSynthetic();
-      result = retry.result;
-      communityFacts = retry.communityFacts;
-    } catch (error) {
-      return staticGuide(
-        error instanceof Error ? error.message : 'provider error',
-        true,
-      );
-    }
-    validation = validateNarrative(result.text, output, communityFacts);
-  }
-  if (!validation.ok) {
-    return staticGuide(
-      `LLM output failed validation: ${validation.violations.join('; ')}`,
-      true,
-    );
-  }
-  let persisted: boolean;
-  try {
-    persisted = await deps.estimates.setNarrative({
-      id: record.id,
-      narrative: result.text,
-      generatedAt: now,
-    });
-  } catch (error) {
-    throw new Error('narrative persistence failed', { cause: error });
-  }
-  // If a racing worker won, return the winner's narrative — unless it is
-  // a pre-guard placeholder row, in which case this worker's (real,
-  // already validated) result stands.
-  if (!persisted) {
-    const fresh = await deps.estimates.findById(record.id);
-    if (
-      fresh?.narrative &&
-      fresh.narrativeGeneratedAt &&
-      !isSyntheticNarrative(fresh.narrative)
-    ) {
-      return {
-        estimateId: fresh.id,
-        narrative: fresh.narrative,
-        narrativeGeneratedAt: fresh.narrativeGeneratedAt.toISOString(),
-        cached: true,
-        narrativeSource: 'ai',
-      };
-    }
-  }
-  console.info(
-    JSON.stringify({
-      event: 'narrative.generated',
-      estimateId: record.id,
-      model: result.model,
-    }),
-  );
-  return {
-    estimateId: record.id,
-    narrative: result.text,
-    narrativeGeneratedAt: now.toISOString(),
-    cached: false,
-    narrativeSource: 'ai',
-  };
-  }
-
 
   return {
-    async generateNarrative(
-      bearerToken,
-      estimateId,
-    ): Promise<NarrativeResponse> {
+    async generateNarrative(bearerToken, estimateId): Promise<NarrativeResponse> {
       if (!UUID_RE.test(estimateId)) {
-        throw new HttpError(
-          404,
-          ErrorCodes.NOT_FOUND,
-          'Unknown estimate.',
-          false,
-        );
+        throw new HttpError(404, ErrorCodes.NOT_FOUND, 'Unknown estimate.', false);
       }
       const auth = await authenticate(bearerToken);
-      let record;
-      try {
-        record = await deps.estimates.findById(estimateId);
-      } catch (error) {
-        throw new Error('estimate lookup failed', { cause: error });
-      }
-      if (!record) {
-        throw new HttpError(
-          404,
-          ErrorCodes.NOT_FOUND,
-          'Unknown estimate.',
-          false,
-        );
-      }
-      // Ownership: the estimate must belong to the caller's lead. The
-      // 403 message names the reason, never the other party's data.
+      const record = await loadRecord(estimateId);
+      // Ownership: the estimate must belong to the caller's lead. The 403
+      // message names the reason, never the other party's data.
       if (record.id !== auth.estimateId) {
         throw new HttpError(
           403,
@@ -514,39 +259,14 @@ export function createNarrativeService(
           false,
         );
       }
-      return generateForRecord(record);
+      return narrativeForRecord(record);
     },
     /**
-     * Admin entry point: same generation pipeline as the consumer, but
-     * the admin session guard (enforced by the route) replaces magic-link
-     * auth — no ownership check against a lead token.
+     * Admin entry point: same read path; the admin session guard (enforced
+     * by the route) replaces magic-link auth.
      */
-    async generateNarrativeForAdmin(
-      estimateId: string,
-    ): Promise<NarrativeResponse> {
-      if (!UUID_RE.test(estimateId)) {
-        throw new HttpError(
-          404,
-          ErrorCodes.NOT_FOUND,
-          'Unknown estimate.',
-          false,
-        );
-      }
-      let record;
-      try {
-        record = await deps.estimates.findById(estimateId);
-      } catch (error) {
-        throw new Error('estimate lookup failed', { cause: error });
-      }
-      if (!record) {
-        throw new HttpError(
-          404,
-          ErrorCodes.NOT_FOUND,
-          'Unknown estimate.',
-          false,
-        );
-      }
-      return generateForRecord(record);
+    async generateNarrativeForAdmin(estimateId: string): Promise<NarrativeResponse> {
+      return narrativeForRecord(await loadRecord(estimateId));
     },
   };
 }

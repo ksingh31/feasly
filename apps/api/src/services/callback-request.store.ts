@@ -17,6 +17,10 @@ export interface CallbackRequestRecord {
   readonly phone: string;
   /** 'morning' | 'afternoon' | 'evening' (contracts CallbackWindow). */
   readonly window: string;
+  /** #836: `YYYY-MM-DD` preferred day; null for pre-#836 rows. */
+  readonly preferredDate: string | null;
+  /** #836: optional homeowner notes. */
+  readonly notes: string | null;
   readonly status: string;
   readonly createdAt: Date;
 }
@@ -27,6 +31,9 @@ export interface NewCallbackRequest {
   readonly name: string;
   readonly phone: string;
   readonly window: string;
+  /** #836: absent/null = no preferred day (pre-#836 clients). */
+  readonly preferredDate?: string | null;
+  readonly notes?: string | null;
 }
 
 export interface CallbackRequestStore {
@@ -54,6 +61,8 @@ function toRecord(row: CallbackRow): CallbackRequestRecord {
     name: row.name,
     phone: row.phone,
     window: row.window,
+    preferredDate: row.preferredDate ?? null,
+    notes: row.notes ?? null,
     status: row.status,
     createdAt: row.createdAt,
   };
@@ -77,6 +86,8 @@ export function createDrizzleCallbackRequestStore(
           name: request.name,
           phone: request.phone,
           window: request.window,
+          preferredDate: request.preferredDate ?? null,
+          notes: request.notes ?? null,
         })
         .returning();
       const row = rows[0];

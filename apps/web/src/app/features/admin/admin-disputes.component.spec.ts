@@ -36,10 +36,25 @@ function dispute(id: string, businessDaysRemaining: number, breached = false): D
 
 const ROWS = [dispute('d1', 4), dispute('d2', 0), dispute('d3', -1, true)];
 
-async function setup(options: { fails?: boolean; url?: string } = {}) {
+/** #872: a Stripe bank chargeback in the same queue. */
+const CHARGEBACK: DisputeListItem = {
+  ...dispute('cb1', 2),
+  reason: 'fraudulent',
+  source: 'chargeback',
+  stripeDisputeId: 'dp_123',
+  stripeReason: 'product_not_received',
+  stripeStatus: 'needs_response',
+  amountCents: 990000,
+  evidenceDueAt: '2026-10-06T23:59:59.000Z',
+  evidenceDaysRemaining: 6,
+  outcome: null,
+  livemode: true,
+};
+
+async function setup(options: { fails?: boolean; url?: string; rows?: DisputeListItem[] } = {}) {
   const api = {
     listDisputes: vi.fn(() =>
-      options.fails ? throwError(() => ({ message: 'Server down' })) : of({ disputes: ROWS }),
+      options.fails ? throwError(() => ({ message: 'Server down' })) : of({ disputes: options.rows ?? ROWS }),
     ),
     getDispute: vi.fn(() => new Subject()),
     acceptDispute: vi.fn(),
@@ -69,10 +84,10 @@ afterEach(() => {
 });
 
 describe('AdminDisputesComponent (#545)', () => {
-  it('renders the queue in a DataTable with Opened · Invoice · Builder · Amount · Reason · SLA', async () => {
+  it('renders the queue in a DataTable with Opened · Invoice · Builder · Amount · Reason · Due', async () => {
     const { el } = await setup();
     const headers = Array.from(el.querySelectorAll('thead th')).map((th) => th.textContent?.trim());
-    expect(headers).toEqual(['Opened', 'Invoice', 'Builder', 'Amount', 'Reason', 'SLA']);
+    expect(headers).toEqual(['Opened', 'Invoice', 'Builder', 'Amount', 'Reason', 'Due']);
     expect(el.querySelectorAll('tbody tr')).toHaveLength(3);
     expect(el.querySelector('tbody')?.textContent).toContain('$9,800');
     expect(el.querySelector('[data-testid="disputes-count"]')?.textContent).toContain('3 open disputes');
@@ -128,5 +143,28 @@ describe('AdminDisputesComponent (#545)', () => {
     const retry = Array.from(el.querySelectorAll('ui-data-table button')).find((b) => b.textContent?.trim() === 'Retry');
     (retry as HTMLButtonElement).click();
     expect(api.listDisputes).toHaveBeenCalledTimes(2);
+  });
+});
+
+describe('AdminDisputesComponent — chargebacks (#872)', () => {
+  it('marks only chargeback rows with a "Chargeback" chip', async () => {
+    const { el } = await setup({ rows: [dispute('d1', 4), CHARGEBACK] });
+    const rows = Array.from(el.querySelectorAll('tbody tr'));
+    expect(rows[0].querySelector('[data-testid="chargeback-chip"]')).toBeNull();
+    expect(rows[1].querySelector('[data-testid="chargeback-chip"]')?.textContent?.trim()).toBe('Chargeback');
+  });
+
+  it('shows the disputed amount, Stripe reason and evidence countdown for a chargeback', async () => {
+    const { el } = await setup({ rows: [CHARGEBACK] });
+    const row = el.querySelector('tbody tr') as HTMLElement;
+    expect(row.textContent).toContain('$9,900');
+    expect(row.textContent).toContain('Product not received');
+    expect(row.querySelector('[data-testid="sla-chip"]')?.textContent?.trim()).toBe('Evidence due in 6 days');
+  });
+
+  it('the phone card carries the chip in its title', async () => {
+    const { el } = await setup({ rows: [CHARGEBACK] });
+    const card = el.querySelector('.ui-dt__card') as HTMLElement;
+    expect(card.querySelector('.ui-dt__card-title [data-testid="chargeback-chip"]')).not.toBeNull();
   });
 });

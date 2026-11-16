@@ -28,6 +28,7 @@ import type {
   CommentStore,
   NewCommentRow,
 } from '../src/services/builder-comments.store';
+import { BUILDER_STATUSES, BUILDER_STATUS_POLICY } from '@feasly/contracts';
 
 const BUILDER_ID = 'b1111111-1111-4111-8111-111111111111';
 const OTHER_BUILDER_ID = 'b2222222-2222-4222-8222-222222222222';
@@ -128,7 +129,7 @@ function makeStore(seed: CommentRow[] = []): CommentStore & {
   };
 }
 
-function makeService(store: CommentStore): {
+function makeService(store: CommentStore, builderStatus = 'active'): {
   service: BuilderCommentsService;
   spies: { findByIdAndBuilderId: ReturnType<typeof vi.fn> };
 } {
@@ -145,7 +146,7 @@ function makeService(store: CommentStore): {
     builders: {
       getByTenantKey: async (tenantKey: string) =>
         tenantKey === 'acme'
-          ? ({ id: BUILDER_ID, status: 'active' } as never)
+          ? ({ id: BUILDER_ID, status: builderStatus } as never)
           : null,
     },
     leadStore: {
@@ -602,5 +603,25 @@ describe('builder-comments.service', () => {
       // which escapes exactly once. Escaping here would double-escape.
       expect(res.comments[0]?.body).toBe(raw);
     });
+  });
+});
+
+// #860: comments enforcement point — one test per status (read = portalRead,
+// write = portalWrite).
+describe.each(BUILDER_STATUSES)('builder-comments policy — %s builder', (status) => {
+  it('list follows portalRead, create follows portalWrite', async () => {
+    const { service } = makeService(makeStore(), status);
+    const list = service.listComments({ entityType: 'lead', entityId: LEAD_ID, actor: builderActor });
+    if (BUILDER_STATUS_POLICY[status].portalRead) await expect(list).resolves.toBeDefined();
+    else await expect(list).rejects.toMatchObject({ status: 403, code: 'BUILDER_PAUSED' });
+    const create = service.createComment({
+      entityType: 'lead',
+      entityId: LEAD_ID,
+      body: 'note',
+      visibility: undefined,
+      actor: builderActor,
+    });
+    if (BUILDER_STATUS_POLICY[status].portalWrite) await expect(create).resolves.toBeDefined();
+    else await expect(create).rejects.toMatchObject({ status: 403, code: 'BUILDER_PAUSED' });
   });
 });

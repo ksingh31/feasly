@@ -64,6 +64,7 @@ import { fileURLToPath } from 'node:url';
 import { DEFAULT_APP_CONFIG } from '../config/app-config.defaults';
 import {
   pricingCoverageIssue,
+  singleDetachedNeedsApproval,
   type PricingCoverageBounds,
   type PricingCoverageFacts,
 } from './coverage';
@@ -120,10 +121,17 @@ describe('pricingCoverageIssue', () => {
   });
 
   it('keeps rejecting multi-residential, commercial, industrial and special-purpose districts (#685 AC2)', () => {
-    for (const zoning of ['M-C1', 'M-CG', 'C-N2', 'I-G', 'S-SPR', 'R-MH', 'R-Gm', 'MU-1']) {
+    // R-CGex: no cited single-detached entry in the catalogue yet (#911).
+    for (const zoning of ['M-C1', 'M-CG', 'C-N2', 'I-G', 'S-SPR', 'R-MH', 'R-CGex', 'MU-1']) {
       expect(pricingCoverageIssue(facts({ zoning }), bounds, CALGARY_DISTRICTS)).toBe(
         'unsupported-property-type',
       );
+    }
+  });
+
+  it('quotes R-Gm: single-detached is a discretionary use there (s. 547.3(2)(a), #911)', () => {
+    for (const zoning of ['R-Gm', 'r-gm', 'R-GM']) {
+      expect(pricingCoverageIssue(facts({ zoning }), bounds, CALGARY_DISTRICTS)).toBeNull();
     }
   });
 
@@ -226,5 +234,29 @@ describe('pricingCoverageIssue', () => {
     expect(
       pricingCoverageIssue(facts({ zoning: 'M-X2', assessedValue: 0, isNonResidential: true }), bounds, CALGARY_DISTRICTS),
     ).toBe('non-residential');
+  });
+});
+
+describe('singleDetachedNeedsApproval (#911)', () => {
+  const quotable = DEFAULT_APP_CONFIG.coverage.singleFamilyDistricts.calgary;
+  const discretionary = DEFAULT_APP_CONFIG.coverage.discretionarySingleFamilyDistricts.calgary;
+  const needs = (zoning: string | null): boolean => singleDetachedNeedsApproval(zoning, quotable, discretionary);
+
+  it('is true when every listed district is discretionary', () => {
+    expect(needs('R-Gm')).toBe(true);
+    expect(needs(' r-cg ')).toBe(true);
+    expect(needs('R-2M,R-CG')).toBe(true);
+    expect(needs('R-CG,M-C1')).toBe(true);
+  });
+
+  it('is false when any listed district permits single-detached, for DC, unlisted or blank zoning', () => {
+    for (const zoning of ['R-C1', 'R-C1,R-CG', 'R-1N,R-G', 'DC', 'M-C1', '', null]) {
+      expect(needs(zoning), String(zoning)).toBe(false);
+    }
+  });
+
+  it('reads both lists from its arguments', () => {
+    expect(singleDetachedNeedsApproval('X-1', ['x-1'], ['X-1'])).toBe(true);
+    expect(singleDetachedNeedsApproval('X-1', ['x-1'], [])).toBe(false);
   });
 });

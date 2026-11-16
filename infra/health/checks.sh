@@ -73,6 +73,38 @@ else
   fi
 fi
 
+# 3b. CORS preflight (#954): a JSON POST from the SWA needs the preflight to
+# echo the site origin with credentials. In Azure the Functions host answers
+# preflights from platform siteConfig.cors — when that list is empty it still
+# returns 204, just with no Access-Control-* headers, so status alone proves
+# nothing. Exactly ONE Access-Control-Allow-Origin (duplicates break
+# credentialed requests).
+pf_headers="$(curl -s -o /dev/null -D - --max-time 25 -X OPTIONS \
+  "${API_URL}/api/v1/telemetry" \
+  -H "Origin: ${SITE_URL}" \
+  -H "Access-Control-Request-Method: POST" \
+  -H "Access-Control-Request-Headers: content-type" 2>/dev/null | tr -d '\r' || true)"
+pf_code="$(echo "$pf_headers" | awk 'toupper($1) ~ /^HTTP/ {c=$2} END {print c}')"
+pf_acao="$(echo "$pf_headers" | grep -i '^access-control-allow-origin:' || true)"
+pf_acao_n="$(printf '%s' "$pf_acao" | grep -c . || true)"
+pf_acac="$(echo "$pf_headers" | grep -i '^access-control-allow-credentials:' \
+  | head -1 | cut -d: -f2- | tr -d ' ' | tr 'A-Z' 'a-z' || true)"
+if [[ -z "$pf_code" ]]; then
+  report "api_cors_preflight" fail "no response"
+elif [[ "$pf_code" != "204" && "$pf_code" != "200" ]]; then
+  report "api_cors_preflight" fail "HTTP ${pf_code} (expected 204)"
+elif [[ "$pf_acao_n" -eq 0 ]]; then
+  report "api_cors_preflight" fail "no Access-Control-Allow-Origin for ${SITE_URL}"
+elif [[ "$pf_acao_n" -gt 1 ]]; then
+  report "api_cors_preflight" fail "duplicate Access-Control-Allow-Origin (${pf_acao_n})"
+elif [[ "$(echo "$pf_acao" | cut -d: -f2- | sed 's/^ *//')" != "$SITE_URL" ]]; then
+  report "api_cors_preflight" fail "Access-Control-Allow-Origin is not ${SITE_URL}"
+elif [[ "$pf_acac" != "true" ]]; then
+  report "api_cors_preflight" fail "Access-Control-Allow-Credentials missing"
+else
+  report "api_cors_preflight" ok "HTTP ${pf_code} origin echoed with credentials"
+fi
+
 # 4. Latest main-branch CI workflow conclusion: alert only on completed non-success
 # (in_progress/queued are normal during active dev).
 # NOTE: filter to the CI workflow specifically — the latest run overall is often

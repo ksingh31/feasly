@@ -78,6 +78,7 @@ function makeDeps(): AdminBillingRouteDeps {
     },
     commission: {
       retryCharge: vi.fn(),
+      updateDunning: vi.fn(),
       getById: vi.fn(),
       markPaidManually: vi.fn(),
       setCommissionRate: vi.fn(),
@@ -580,5 +581,86 @@ describe('admin-billing route setInvoicePaymentMethod', () => {
         method: 'cheque',
       }),
     ).rejects.toMatchObject({ code: ErrorCodes.CONFLICT });
+  });
+});
+
+describe('admin-billing route updateDunning (#718)', () => {
+  const INVOICE = '00000000-0000-4000-8000-000000000718';
+
+  function withDunning() {
+    const deps = makeDeps();
+    const commission = deps.commission as unknown as {
+      updateDunning: ReturnType<typeof vi.fn>;
+    };
+    commission.updateDunning.mockResolvedValue({
+      id: INVOICE,
+      status: 'failed',
+      dunningState: 'paused',
+      retryGraceDays: 10,
+      nextRetryAt: null,
+    });
+    return { route: createAdminBillingRoute(deps), commission };
+  }
+
+  it('passes the parsed action and admin email to the service and returns the schedule', async () => {
+    const { route, commission } = withDunning();
+    const result = await route.updateDunning(ADMIN_HEADERS, INVOICE, {
+      action: 'set_grace_days',
+      graceDays: 10,
+    });
+    expect(commission.updateDunning).toHaveBeenCalledWith(
+      INVOICE,
+      { action: 'set_grace_days', graceDays: 10 },
+      SEED_ADMIN_EMAIL,
+    );
+    expect(result).toEqual({
+      invoiceId: INVOICE,
+      status: 'failed',
+      dunningState: 'paused',
+      retryGraceDays: 10,
+      nextRetryAt: null,
+    });
+  });
+
+  it.each([
+    [{ action: 'pause' }],
+    [{ action: 'resume' }],
+    [{ action: 'cancel' }],
+  ])('accepts %o', async (body) => {
+    const { route, commission } = withDunning();
+    await route.updateDunning(ADMIN_HEADERS, INVOICE, body);
+    expect(commission.updateDunning).toHaveBeenCalledWith(INVOICE, body, SEED_ADMIN_EMAIL);
+  });
+
+  it.each([
+    [{ action: 'reschedule' }],
+    [{ action: 'set_grace_days' }],
+    [{ action: 'set_grace_days', graceDays: 0 }],
+    [{ action: 'set_grace_days', graceDays: 2.5 }],
+    [{ action: 'set_grace_days', graceDays: 91 }],
+    [null],
+  ])('rejects %o with 400', async (body) => {
+    const { route, commission } = withDunning();
+    await expect(route.updateDunning(ADMIN_HEADERS, INVOICE, body)).rejects.toMatchObject({
+      status: 400,
+      code: ErrorCodes.VALIDATION_FAILED,
+    });
+    expect(commission.updateDunning).not.toHaveBeenCalled();
+  });
+
+  it('rejects a non-uuid invoice id with 400', async () => {
+    const { route, commission } = withDunning();
+    await expect(
+      route.updateDunning(ADMIN_HEADERS, 'nope', { action: 'pause' }),
+    ).rejects.toMatchObject({ status: 400 });
+    expect(commission.updateDunning).not.toHaveBeenCalled();
+  });
+
+  it('rejects non-admin callers with 401', async () => {
+    const { route, commission } = withDunning();
+    await expect(route.updateDunning({}, INVOICE, { action: 'pause' })).rejects.toMatchObject({
+      status: 401,
+    });
+    expect(commission.updateDunning).not.toHaveBeenCalled();
   });
 });

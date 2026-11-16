@@ -34,6 +34,9 @@
  *   the payment method on one of their invoices (billing/12). Unpaid
  *   invoices only; choosing a manual method pauses the Stripe auto-charge.
  *   Builder-gated; tenant-scoped (403 for another tenant's invoice).
+ * - `POST /api/v1/billing/invoices/{id}/pay` — builder Pay now (#718):
+ *   charge a failed card invoice against the card on file right away.
+ *   Builder-gated; tenant-scoped. Double submission → one charge.
  *
  * Hard rules (enforced by test/boundaries.test.ts):
  * - a route NEVER imports from src/db/
@@ -149,6 +152,11 @@ export interface BillingRoute {
     headers: Record<string, string | string[] | undefined>,
     id: unknown,
   ): Promise<ConfirmInvoicePaymentResponse>;
+  /** POST /api/v1/billing/invoices/{id}/pay (#718) */
+  payInvoice(
+    headers: Record<string, string | string[] | undefined>,
+    id: unknown,
+  ): Promise<CommissionInvoiceRecord>;
 }
 
 const uuidSchema = z.string().trim().uuid();
@@ -373,6 +381,14 @@ export function createBillingRoute(deps: BillingRouteDeps): BillingRoute {
         parseInvoiceId(id),
         session.tenantKey,
       );
+    },
+
+    async payInvoice(
+      headers: Record<string, string | string[] | undefined>,
+      id: unknown,
+    ): Promise<CommissionInvoiceRecord> {
+      const session = await requireBuilderSession(builderGuard, headers);
+      return billing.payInvoice(parseInvoiceId(id), session.tenantKey);
     },
 
     async createSetupIntent(

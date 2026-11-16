@@ -1,5 +1,5 @@
 -- #691: community lot inventory (phase 1). Mirrors migration
--- 0058_community_lots. Idempotent; depends only on the migrations — no other
+-- 0070_community_lots. Idempotent; depends only on the migrations — no other
 -- table or fragment.
 CREATE TABLE IF NOT EXISTS "community_lots" (
 
