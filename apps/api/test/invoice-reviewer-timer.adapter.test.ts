@@ -35,20 +35,47 @@ import type { StripeService } from '../src/services/billing/stripe.service';
 import type { EmailService } from '../src/services/email/email.service';
 import {
   billingEvents,
+  builderMemberships,
+  builders,
+  cardExpiryReminders,
   commissionInvoices,
   estimates,
   leads,
   tenants,
+  users,
 } from '../src/db/schema';
+import { createCardExpiryReminderService } from '../src/services/billing/card-expiry-reminder.service';
+import { createDrizzleCardExpiryReminderStore } from '../src/services/billing/card-expiry-reminder.store';
+import { createBuilderService } from '../src/services/builder.service';
+import { createDrizzleMembershipStore } from '../src/services/user.store';
+import type { AdminAuditStore } from '../src/services/admin-audit.store';
+import type { CardSummary } from '../src/services/billing/stripe.service';
+import type { CardExpiryReminderEmailInput } from '../src/services/email/email.service';
 import type { BillingConfig } from '../src/config';
 import { createTestDb, type TestDb } from './pglite-db';
 
 // The adapter binds `createComposition` lazily via getApp(), but the module
 // import itself must see the mocked barrel — same pattern as the
 // sheets-sync timer adapter test.
-const fakeApp: { invoiceReviewerService: unknown } = {
+const fakeApp: {
+  invoiceReviewerService: unknown;
+  cardExpiryReminderService: unknown;
+} = {
   invoiceReviewerService: null,
+  // #880: the timer also runs the card reminder; a no-op unless a test
+  // installs the real one.
+  cardExpiryReminderService: {
+    runReminderCycle: async () => ({
+      checked: 0,
+      reminded: 0,
+      emailsSent: 0,
+      alreadyReminded: 0,
+      skipped: 0,
+      errors: [],
+    }),
+  },
 };
+const NOOP_REMINDERS = fakeApp.cardExpiryReminderService;
 
 vi.mock('../src/index', () => ({
   createComposition: () => fakeApp,
@@ -69,6 +96,9 @@ const BILLING: BillingConfig = {
   stripeWebhookSecret: 'whsec_fake',
   stripeFlatPriceId: undefined,
   isProduction: false,
+  // #880: wide enough that a card expiring at the end of the real current
+  // month is always inside the window (the timer uses the real clock).
+  cardExpiryWarningDays: 45,
 };
 
 let idCounter = 9000;
@@ -324,6 +354,15 @@ describe('invoice-reviewer-timer adapter', () => {
     fakeApp.invoiceReviewerService = {
       runReviewCycle: vi.fn().mockRejectedValue(boom),
     };
+    const reminders = vi.fn().mockResolvedValue({
+      checked: 0,
+      reminded: 0,
+      emailsSent: 0,
+      alreadyReminded: 0,
+      skipped: 0,
+      errors: [],
+    });
+    fakeApp.cardExpiryReminderService = { runReminderCycle: reminders };
 
     const { context, lines } = makeContext();
     await expect(invoiceReviewerTimerHandler(context)).rejects.toThrow('boom');
@@ -331,5 +370,187 @@ describe('invoice-reviewer-timer adapter', () => {
     const line = lines()[0]!;
     expect(line).toContain('CYCLE FAILED');
     expect(line).toContain('boom');
+    // #880: a failed review cycle does not skip the card reminder.
+    expect(reminders).toHaveBeenCalledTimes(1);
+    fakeApp.cardExpiryReminderService = NOOP_REMINDERS;
+  });
+});
+
+/**
+ * #880 — the one-time card-expiry reminder rides the same daily timer.
+ * REAL reminder service + REAL Drizzle stores (dedupe table, tenants,
+ * builders, memberships, billing_events) against PGlite with the real
+ * migrations; the payment provider and email stay faked (external).
+ */
+describe('invoice-reviewer-timer adapter — card-expiry reminder (#880)', () => {
+  let testDb: TestDb;
+  const TENANT = 'card-reminder-builder';
+  const CUSTOMER = 'cus_card_reminder';
+  let cards: CardSummary[] = [];
+  let sends: CardExpiryReminderEmailInput[] = [];
+
+  /** A card valid through the end of the real current month: in window. */
+  function expiringCard(id: string, last4: string): CardSummary {
+    const now = new Date();
+    return {
+      id,
+      brand: 'visa',
+      last4,
+      expMonth: now.getUTCMonth() + 1,
+      expYear: now.getUTCFullYear(),
+    };
+  }
+
+  function installRealReminder(sendImpl?: () => Promise<never>): void {
+    const stripe: StripeService = {
+      ...fakeStripe(),
+      listPaymentMethods: async (customerId: string) =>
+        customerId === CUSTOMER ? cards : [],
+      getDefaultPaymentMethodId: async () => cards[0]?.id ?? null,
+    };
+    fakeApp.invoiceReviewerService = {
+      runReviewCycle: async () => ({
+        finalized: 0,
+        failed: 0,
+        skipped: 0,
+        reconciledPaid: 0,
+        reconciledFailed: 0,
+        stillPending: 0,
+        errors: [],
+      }),
+    };
+    fakeApp.cardExpiryReminderService = createCardExpiryReminderService({
+      billing: BILLING,
+      stripe,
+      store: createDrizzleCardExpiryReminderStore({ db: testDb.db }),
+      email: {
+        sendCardExpiryReminder:
+          sendImpl ??
+          (async (input) => {
+            sends.push(input);
+            return { sent: true, provider: 'log' };
+          }),
+      },
+      builders: createBuilderService({
+        db: testDb.db,
+        audit: { log: async () => undefined } as unknown as AdminAuditStore,
+      }),
+      memberships: createDrizzleMembershipStore({ db: testDb.db }),
+      audit: createBillingAuditService({ db: testDb.db, newId: nextId }),
+    });
+  }
+
+  beforeAll(async () => {
+    testDb = await createTestDb();
+    const builderId = randomUUID();
+    await testDb.db.insert(builders).values({
+      id: builderId,
+      tenantKey: TENANT,
+      businessName: 'Card Reminder Builders Ltd',
+      displayName: 'Card Reminder',
+      plan: 'commission',
+    });
+    await testDb.db.insert(tenants).values({
+      tenantKey: TENANT,
+      businessName: 'Card Reminder Builders Ltd',
+      displayName: 'Card Reminder',
+      accentColor: '#B08D57',
+      allowedOrigins: ['https://example.com'],
+      stripeCustomerId: CUSTOMER,
+    });
+    const adminId = randomUUID();
+    const memberId = randomUUID();
+    await testDb.db.insert(users).values([
+      { id: adminId, email: 'admin@card-reminder.example', name: 'Admin', status: 'active' },
+      { id: memberId, email: 'member@card-reminder.example', name: 'Member', status: 'active' },
+    ]);
+    await testDb.db.insert(builderMemberships).values([
+      { id: randomUUID(), userId: adminId, builderId, role: 'builder_admin' },
+      { id: randomUUID(), userId: memberId, builderId, role: 'builder_member' },
+    ]);
+  }, 60_000);
+  afterAll(async () => {
+    fakeApp.cardExpiryReminderService = NOOP_REMINDERS;
+    await testDb.close();
+  });
+
+  it('sends exactly one reminder per card across runs; a replaced card gets its own', async () => {
+    cards = [expiringCard('pm_first', '4242')];
+    sends = [];
+    installRealReminder();
+
+    const first = makeContext();
+    await expect(invoiceReviewerTimerHandler(first.context)).resolves.toBeUndefined();
+    expect(sends.map((s) => s.to)).toEqual(['admin@card-reminder.example']);
+    expect(sends[0]).toMatchObject({ last4: '4242', businessName: 'Card Reminder Builders Ltd' });
+    const summary = first.lines().find((l) => l.includes('card reminders complete'))!;
+    expect(summary).toContain('reminded=1');
+    expect(summary).toContain('emailsSent=1');
+    // Aggregates only — no tenant key, email or card id in the log.
+    expect(summary).not.toMatch(/@|card-reminder-builder|pm_first/);
+
+    const claims = await testDb.db
+      .select()
+      .from(cardExpiryReminders)
+      .where(eq(cardExpiryReminders.paymentMethodId, 'pm_first'));
+    expect(claims).toHaveLength(1);
+    const audit = await testDb.db
+      .select()
+      .from(billingEvents)
+      .where(eq(billingEvents.eventType, 'card.expiry_reminder_sent'));
+    expect(audit.map((r) => r.entityId)).toEqual(['pm_first']);
+
+    // Second run (or a host retry): nothing new.
+    const second = makeContext();
+    await invoiceReviewerTimerHandler(second.context);
+    expect(sends).toHaveLength(1);
+    expect(second.lines().join('\n')).toContain('alreadyReminded=1');
+
+    // Two overlapping runs (scale-out) on the same card: still one email.
+    await Promise.all([
+      invoiceReviewerTimerHandler(makeContext().context),
+      invoiceReviewerTimerHandler(makeContext().context),
+    ]);
+    expect(sends).toHaveLength(1);
+
+    // The builder replaces the card: the new card gets its own reminder.
+    cards = [expiringCard('pm_second', '5555')];
+    await invoiceReviewerTimerHandler(makeContext().context);
+    expect(sends.map((s) => s.last4)).toEqual(['4242', '5555']);
+  });
+
+  it('a send failure releases the claim (retried next run) and is logged', async () => {
+    cards = [expiringCard('pm_flaky', '0005')];
+    sends = [];
+    installRealReminder(async () => {
+      throw new Error('email provider unavailable');
+    });
+    const failed = makeContext();
+    await expect(invoiceReviewerTimerHandler(failed.context)).resolves.toBeUndefined();
+    const all = failed.lines().join('\n');
+    expect(all).toContain('failed=1');
+    expect(all).toContain('card reminder failed: email provider unavailable');
+    const claims = await testDb.db
+      .select()
+      .from(cardExpiryReminders)
+      .where(eq(cardExpiryReminders.paymentMethodId, 'pm_flaky'));
+    expect(claims).toHaveLength(0);
+
+    installRealReminder();
+    await invoiceReviewerTimerHandler(makeContext().context);
+    expect(sends.map((s) => s.last4)).toEqual(['0005']);
+  });
+
+  it('logs CARD REMINDER FAILED and rethrows when the reminder cycle dies', async () => {
+    fakeApp.cardExpiryReminderService = {
+      runReminderCycle: vi
+        .fn()
+        .mockRejectedValue(new Error('relation "card_expiry_reminders" does not exist')),
+    };
+    const { context, lines } = makeContext();
+    await expect(invoiceReviewerTimerHandler(context)).rejects.toThrow('card_expiry_reminders');
+    expect(lines().join('\n')).toContain('CARD REMINDER FAILED');
+    // The review cycle still ran and logged first.
+    expect(lines()[0]).toContain('cycle complete');
   });
 });
