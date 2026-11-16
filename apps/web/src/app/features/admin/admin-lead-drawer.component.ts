@@ -13,8 +13,8 @@ import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { FormControl, ReactiveFormsModule, Validators } from '@angular/forms';
 import { RouterLink } from '@angular/router';
 import { Store } from '@ngxs/store';
-import { type Observable, concat, defer } from 'rxjs';
-import type { AdminLeadDetail, AdminLeadStatus } from '@feasly/contracts';
+import { type Observable, concat, defer, filter } from 'rxjs';
+import type { AdminLeadDetail, AdminLeadReassignmentEntry, AdminLeadStatus } from '@feasly/contracts';
 import { ConfigService } from '@app/core/config/config.service';
 import {
   KeyValueListComponent,
@@ -22,6 +22,7 @@ import {
   KitDateTimePipe,
   StatusChipComponent,
   UiButtonComponent,
+  UiConfirmService,
   UiDrawerComponent,
   UiDrawerRef,
   UiSelectComponent,
@@ -95,6 +96,7 @@ export class AdminLeadDrawerComponent {
   private readonly store = inject(Store);
   private readonly destroyRef = inject(DestroyRef);
   private readonly toasts = inject(UiToastService);
+  private readonly confirms = inject(UiConfirmService);
   private readonly data = inject<AdminLeadDrawerData>(DIALOG_DATA);
   protected readonly ref = inject(UiDrawerRef);
 
@@ -149,6 +151,21 @@ export class AdminLeadDrawerComponent {
   });
 
   protected readonly dirty = computed(() => this.statusChanged() || this.builderChanged());
+
+  /**
+   * #721/#803: builder moves of this lead, newest first, with builder ids
+   * resolved to display names (null = unassigned).
+   */
+  protected readonly reassignments = computed(() => {
+    const entries: readonly AdminLeadReassignmentEntry[] = this.lead()?.reassignments ?? [];
+    return [...entries].reverse().map((entry) => ({
+      key: `${entry.changedAt}|${entry.fromBuilderId ?? ''}|${entry.toBuilderId ?? ''}`,
+      from: this.builderName(entry.fromBuilderId),
+      to: this.builderName(entry.toBuilderId),
+      changedBy: entry.changedBy,
+      changedAt: entry.changedAt,
+    }));
+  });
 
   protected readonly noteControl = new FormControl('', {
     nonNullable: true,
@@ -254,6 +271,34 @@ export class AdminLeadDrawerComponent {
   protected save(): void {
     const lead = this.lead();
     if (!lead || !this.dirty() || this.saving()) return;
+    // Moving a lead away from a builder closes that builder's attribution
+    // (#721) — confirm the consequences first. A first assignment doesn't.
+    if (this.builderChanged() && lead.builderId) {
+      const c = this.copy.reassignConfirm;
+      const values = {
+        lead: lead.name,
+        from: this.builderName(lead.builderId),
+        to: this.builderName(this.builderPick()),
+      };
+      const unassign = this.builderPick() === null;
+      this.confirms
+        .confirm({
+          title: fill(unassign ? c.unassignTitle : c.title, values),
+          body: fill(unassign ? c.unassignBody : c.body, values),
+          verb: unassign ? c.unassignVerb : c.verb,
+          cancelLabel: c.cancel,
+          tone: 'danger',
+        })
+        .pipe(filter(Boolean), takeUntilDestroyed(this.destroyRef))
+        .subscribe(() => this.commit());
+      return;
+    }
+    this.commit();
+  }
+
+  private commit(): void {
+    const lead = this.lead();
+    if (!lead || !this.dirty() || this.saving()) return;
     const id = lead.id;
     const status = this.statusPick();
     const builderId = this.builderPick();
@@ -302,6 +347,12 @@ export class AdminLeadDrawerComponent {
 
   protected statusLabel(status: AdminLeadStatus | null): string {
     return status ? statusPresentation('lead', status).label : '—';
+  }
+
+  /** Builder display name for an id; null reads as "Unassigned". */
+  protected builderName(id: string | null): string {
+    if (id === null) return this.copy.unassigned;
+    return this.builders().find((b) => b.id === id)?.displayName ?? this.copy.unknownBuilder;
   }
 
   private clearPipelineFeedback(): void {

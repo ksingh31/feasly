@@ -152,6 +152,19 @@
       } @else {
         <p class="lead-drawer__note">{{ copy.noActivity }}</p>
       }
+      @if (reassignments().length > 0) {
+        <h4 class="lead-drawer__subheading">{{ copy.reassignmentsHeading }}</h4>
+        <ol class="lead-drawer__list" data-testid="lead-reassignments">
+          @for (entry of reassignments(); track entry.key) {
+            <li>
+              {{ entry.from }} → <strong>{{ entry.to }}</strong>
+              <span class="lead-drawer__muted">
+                {{ entry.changedAt | kitDateTime }} · {{ entry.changedBy }}
+              </span>
+            </li>
+          }
+        </ol>
+      }
     </section>
 
     <section class="lead-drawer__section" aria-labelledby="lead-drawer-record">

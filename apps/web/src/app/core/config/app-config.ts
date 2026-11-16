@@ -560,6 +560,14 @@ export interface BuilderLeadsHomeCopy {
   timelinePrefix: string;
   /** Text marker on stale rows (the highlight is never colour-only). */
   staleLabel: string;
+  /** Read-only list of leads Feasly moved away from this builder (#803). */
+  reassignedHeading: string;
+  /** Sub-copy under the heading. */
+  reassignedHint: string;
+  /** Marker on each reassigned row. */
+  reassignedLabel: string;
+  /** Time prefix on each reassigned row ("Moved"). */
+  reassignedAtPrefix: string;
   noResultsHeading: string;
   noResultsMessage: string;
   clearFiltersLabel: string;
@@ -2361,6 +2369,23 @@ export interface AppConfig {
           commentsHint: string;
           noActivity: string;
           honeypotBadge: string;
+          /** Activity sub-list of builder moves (#803). */
+          reassignmentsHeading: string;
+          /** Shown for a builder id no longer in the builders list. */
+          unknownBuilder: string;
+          /**
+           * Confirm before moving a lead away from its builder (#803).
+           * `{lead}`, `{from}`, `{to}` are filled in.
+           */
+          reassignConfirm: {
+            title: string;
+            body: string;
+            verb: string;
+            unassignTitle: string;
+            unassignBody: string;
+            unassignVerb: string;
+            cancel: string;
+          };
         };
       },
       /** EntityLink + "Technical IDs" copy shared by admin pages (#538). */

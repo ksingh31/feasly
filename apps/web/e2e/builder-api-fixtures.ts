@@ -164,6 +164,11 @@ const LEADS: readonly BuilderLeadListItem[] = [
 export const LEAD_LIST: BuilderLeadListResponse = {
   leads: LEADS,
   summary: { total: 5, new: 1, contacted: 1, quoted: 1, won: 1, lost: 1, needsRecording: 1 },
+  // #803: read-only "Reassigned by Feasly" rows (long name exercises wrapping at 390px).
+  reassigned: [
+    { id: 'lead-r1', name: 'Bartholomew Okonkwo-Vandermeer', reassignedAt: daysAgo(2) },
+    { id: 'lead-r2', name: 'Priya Natarajan', reassignedAt: daysAgo(9) },
+  ],
 };
 
 function needsYouItem(l: BuilderLeadListItem, waitingDays: number): BuilderLeadNeedsYouItem {

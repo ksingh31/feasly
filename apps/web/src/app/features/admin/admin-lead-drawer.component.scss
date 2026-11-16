@@ -45,6 +45,13 @@
   text-transform: uppercase;
 }
 
+.lead-drawer__subheading {
+  margin: var(--space-2) 0 0;
+  font: var(--type-body-sm);
+  font-weight: 600;
+  color: var(--text);
+}
+
 .lead-drawer__fields {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(12rem, 1fr));
