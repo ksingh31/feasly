@@ -35,6 +35,7 @@ import {
   CallbackWindowSchema,
   CityDataFreshnessResponseSchema,
   ZoningDistrictsResponseSchema,
+  BuilderPartnerListResponseSchema,
   CommunityStatsResponseSchema,
   CostRangeSchema,
   EmbedPublicConfigSchema,
@@ -160,6 +161,7 @@ export function buildOpenApiSpec(options: OpenApiSpecOptions) {
   registry.register('CommunityStatsResponse', CommunityStatsResponseSchema);
   registry.register('CityDataFreshnessResponse', CityDataFreshnessResponseSchema);
   registry.register('ZoningDistrictsResponse', ZoningDistrictsResponseSchema);
+  registry.register('BuilderPartnerListResponse', BuilderPartnerListResponseSchema);
   registry.register('MagicLinkVerifyResponse', MagicLinkVerifyResponseSchema);
   registry.register('ReportSnapshot', ReportSnapshotSchema);
   registry.register('RenoEstimateInputs', RenoEstimateInputsSchema);
@@ -699,6 +701,30 @@ export function buildOpenApiSpec(options: OpenApiSpecOptions) {
         description: 'Zoning rules catalogue',
         content: {
           'application/json': { schema: ZoningDistrictsResponseSchema },
+        },
+      },
+      ...errorResponses(),
+    },
+  });
+
+  // GET /v1/partners (#888)
+  registry.registerPath({
+    method: 'get',
+    path: '/v1/partners',
+    summary: 'List builder partners',
+    description:
+      'The builder companies that receive leads from Feasly\'s own site ' +
+      '(partner disclosure), active partners only, in display order. ' +
+      'Company names only; no contact details. Public by design; cached ' +
+      '(Cache-Control public).',
+    // Public by design (registry auth: none). Explicit [] satisfies the
+    // Redocly security-defined rule.
+    security: [],
+    responses: {
+      '200': {
+        description: 'Active builder partners',
+        content: {
+          'application/json': { schema: BuilderPartnerListResponseSchema },
         },
       },
       ...errorResponses(),

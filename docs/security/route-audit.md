@@ -64,6 +64,7 @@ Related: [rate-limits.md](rate-limits.md) · [asvs-l1.md](asvs-l1.md) ·
 | GET | `/api/v1/communities/{slug}/stats` | none | — | 100/min per IP | live |  |
 | GET | `/api/v1/city-data/freshness` | none | — | 100/min per IP | live |  |
 | GET | `/api/v1/zoning/districts` | none | — | 100/min per IP | live |  |
+| GET | `/api/v1/partners` | none | — | 100/min per IP | live |  |
 | GET | `/api/v1/embed/config` | none | — | 120/min per tenant key | live | Public tenant config only; rates/margins never serialized (secret-leak test). |
 | POST | `/api/v1/embed/session` | none | — | 30/min per tenant key | planned | Not live yet. Must get origin-allowlist and tenant-key checks before going live. |
 | POST | `/api/v1/embed/relay/resend` | none | — | 60s per code · 30/min per IP | live |  |
@@ -124,6 +125,9 @@ Related: [rate-limits.md](rate-limits.md) · [asvs-l1.md](asvs-l1.md) ·
 | POST | `/api/v1/admin/builders` | admin | builders:manage | 60/min per session | live |  |
 | GET | `/api/v1/admin/builders/{id}` | admin | builders:read | 300/min per session | live |  |
 | PATCH | `/api/v1/admin/builders/{id}` | admin | builders:manage | 60/min per session | live |  |
+| GET | `/api/v1/admin/partners` | admin | builders:read | 300/min per session | live |  |
+| POST | `/api/v1/admin/partners` | admin | builders:manage | 60/min per session | live |  |
+| PATCH | `/api/v1/admin/partners/{id}` | admin | builders:manage | 60/min per session | live |  |
 | GET | `/api/v1/admin/estimates/{id}` | admin | estimates:read | 300/min per session | planned |  |
 | POST | `/api/v1/admin/estimates/{id}/narrative` | admin | estimates:read | 60/min per session | live |  |
 | GET | `/api/v1/admin/funnels` | admin | analytics:read | 300/min per session | live |  |

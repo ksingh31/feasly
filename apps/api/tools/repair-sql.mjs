@@ -831,6 +831,29 @@ ALTER TABLE "city_data_cache" ADD COLUMN IF NOT EXISTS "payload" jsonb NOT NULL;
 ALTER TABLE "city_data_cache" ADD COLUMN IF NOT EXISTS "fetched_at" timestamp with time zone DEFAULT now() NOT NULL;
 ALTER TABLE "city_data_cache" ADD COLUMN IF NOT EXISTS "expires_at" timestamp with time zone NOT NULL;
 CREATE INDEX IF NOT EXISTS "city_data_cache_expires_at_idx" ON "city_data_cache" USING btree ("expires_at");
+CREATE TABLE IF NOT EXISTS "builder_partners" (
+
+	"id" uuid PRIMARY KEY NOT NULL,
+	"builder_id" uuid REFERENCES "builders"("id") ON DELETE SET NULL,
+	"name" text NOT NULL,
+	"logo_url" text,
+	"website_url" text,
+	"description" text,
+	"display_order" integer DEFAULT 0 NOT NULL,
+	"active" boolean DEFAULT true NOT NULL,
+	"created_at" timestamp with time zone DEFAULT now() NOT NULL,
+	"updated_at" timestamp with time zone DEFAULT now() NOT NULL
+);
+ALTER TABLE "builder_partners" ADD COLUMN IF NOT EXISTS "builder_id" uuid REFERENCES "builders"("id") ON DELETE SET NULL;
+ALTER TABLE "builder_partners" ADD COLUMN IF NOT EXISTS "name" text NOT NULL;
+ALTER TABLE "builder_partners" ADD COLUMN IF NOT EXISTS "logo_url" text;
+ALTER TABLE "builder_partners" ADD COLUMN IF NOT EXISTS "website_url" text;
+ALTER TABLE "builder_partners" ADD COLUMN IF NOT EXISTS "description" text;
+ALTER TABLE "builder_partners" ADD COLUMN IF NOT EXISTS "display_order" integer DEFAULT 0 NOT NULL;
+ALTER TABLE "builder_partners" ADD COLUMN IF NOT EXISTS "active" boolean DEFAULT true NOT NULL;
+ALTER TABLE "builder_partners" ADD COLUMN IF NOT EXISTS "created_at" timestamp with time zone DEFAULT now() NOT NULL;
+ALTER TABLE "builder_partners" ADD COLUMN IF NOT EXISTS "updated_at" timestamp with time zone DEFAULT now() NOT NULL;
+CREATE INDEX IF NOT EXISTS "builder_partners_active_order_idx" ON "builder_partners" USING btree ("active","display_order");
 CREATE TABLE IF NOT EXISTS "partner_shares" (
 
 	"id" uuid PRIMARY KEY NOT NULL,
@@ -1072,4 +1095,19 @@ SET "tenant_key" = b."tenant_key"
 FROM "builders" b
 WHERE "leads"."builder_id" = b."id"
   AND ("leads"."tenant_key" IS NULL OR "leads"."tenant_key" <> b."tenant_key");
+
+-- #888: builder partner seed guard. Mirrors migration 0055 exactly (same
+-- fixed UUID): Elite Craft Builders is the current partner. A no-op when
+-- the row already exists — an admin's later edits (deactivate, reorder,
+-- rename) are never overwritten.
+INSERT INTO "builder_partners"
+  ("id", "builder_id", "name", "website_url", "display_order", "active")
+SELECT
+  '3fc7bb9f-e00b-4028-9255-e01730fd17c9',
+  (SELECT b."id" FROM "builders" b WHERE b."tenant_key" = 'elite-craft-builders'),
+  'Elite Craft Builders',
+  'https://elitecraftbuilders.com',
+  0,
+  true
+ON CONFLICT ("id") DO NOTHING;
 `;
