@@ -491,7 +491,8 @@
   color: var(--text);
 }
 
-.field input {
+.field input,
+.field textarea {
   font-family: var(--font-ui);
   font-size: 16px;
   color: var(--text);

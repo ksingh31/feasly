@@ -26,7 +26,9 @@ import {
   UiToastService,
   leadStepperModel,
 } from '@app/shared/ui';
-import { formatEdmontonMediumDate } from '../../shared/utils/edmonton';
+import { formatEdmontonDateTime, formatEdmontonMediumDate } from '../../shared/utils/edmonton';
+import { formatCallbackDay } from '../../shared/utils/callback-day';
+import { ConfigService } from '../../core/config/config.service';
 import { BUILDER_COPY } from './builder-copy';
 import { BuilderLeadCommentsComponent } from './builder-lead-comments.component';
 import { BuilderRecordContractPanelComponent } from './builder-record-contract-panel.component';
@@ -125,6 +127,21 @@ export class BuilderLeadDrawerComponent {
   });
 
   protected readonly stepper = computed(() => leadStepperModel(this.lead()?.status));
+
+  private readonly callbackWindows = inject(ConfigService).get('copy').report.callbackWindows;
+
+  /** #836: the newest callback request, display-ready (null when none). */
+  protected readonly callback = computed(() => {
+    const request = this.lead()?.latestCallback;
+    if (!request) return null;
+    const w = this.callbackWindows.find((option) => option.id === request.window);
+    return {
+      day: formatCallbackDay(request.preferredDate) ?? this.t.callbackAnyDay,
+      window: w ? `${w.label} (${w.range})` : request.window,
+      notes: request.notes,
+      requested: formatEdmontonDateTime(request.createdAt),
+    };
+  });
 
   /** A contract recorded from this drawer: keep its success state on screen. */
   protected readonly recordedHere = signal(false);

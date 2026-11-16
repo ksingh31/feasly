@@ -136,6 +136,8 @@ function callback(id: string, leadId: string): CallbackRequestRecord {
     name: 'Caller',
     phone: '403-555-0100',
     window: 'morning',
+    preferredDate: null,
+    notes: null,
     status: 'pending',
     createdAt: NOW,
   };
@@ -409,6 +411,8 @@ describe('privacy export', () => {
         name: 'Caller',
         phone: '403-555-0100',
         window: 'morning',
+        preferredDate: null,
+        notes: null,
         status: 'pending',
         createdAt: NOW.toISOString(),
       },

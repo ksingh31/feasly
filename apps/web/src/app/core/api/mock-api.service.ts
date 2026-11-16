@@ -490,7 +490,7 @@ export class MockApiService implements ApiService {
   }
 
   requestCallback(request: CallbackRequest): Observable<CallbackResponse> {
-    return this.roundTrip(mockCallbackOk(request.window));
+    return this.roundTrip(mockCallbackOk(request.window, request.preferredDate ?? null));
   }
 
   joinWaitlist(request: WaitlistRequest): Observable<WaitlistResponse> {

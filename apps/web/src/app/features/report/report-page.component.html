@@ -247,12 +247,29 @@
               <input type="tel" formControlName="phone" autocomplete="tel" inputmode="tel" />
             </label>
             <label class="field">
+              <span>{{ copy.callbackDayLabel }}</span>
+              <select formControlName="preferredDate" required>
+                <option value="" disabled>{{ copy.callbackDayPlaceholder }}</option>
+                @for (d of callbackDays; track d.value) {
+                  <option [value]="d.value">{{ d.label }}</option>
+                }
+              </select>
+            </label>
+            <label class="field">
               <span>{{ copy.callbackWindowLabel }}</span>
               <select formControlName="window">
                 @for (w of copy.callbackWindows; track w.id) {
-                  <option [value]="w.id">{{ w.label }}</option>
+                  <option [value]="w.id">{{ callbackWindowOption(w) }}</option>
                 }
               </select>
+            </label>
+            <label class="field">
+              <span>{{ copy.callbackNotesLabel }}</span>
+              <textarea
+                formControlName="notes"
+                rows="3"
+                [attr.maxlength]="callbackNotesMaxLength"
+              ></textarea>
             </label>
             @if (callbackDetailsInvalid) {
               <p class="field-error" role="alert">{{ copy.callbackInvalid }}</p>
@@ -262,7 +279,7 @@
             </button>
           </form>
           @if (callbackStatus() === 'sent') {
-            <p class="form-success" role="status">{{ copy.callbackSuccess }}</p>
+            <p class="form-success" role="status">{{ callbackConfirmation() }}</p>
           }
           @if (callbackStatus() === 'error') {
             <p class="field-error" role="alert">{{ copy.callbackError }}</p>

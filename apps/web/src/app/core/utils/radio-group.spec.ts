@@ -34,6 +34,12 @@ function press(target: HTMLElement, key: string): KeyboardEvent {
   return event;
 }
 
+// Specs share one jsdom document: remove the attached groups (and the focus
+// they hold) so later specs start from a clean body.
+afterEach(() => {
+  document.querySelectorAll('[role="radiogroup"]').forEach((el) => el.remove());
+});
+
 describe('radioTabIndex (#937 roving tabindex)', () => {
   it('makes only the checked radio a Tab stop', () => {
     expect(IDS.map((id) => radioTabIndex(IDS, 'b', id))).toEqual([-1, 0, -1]);

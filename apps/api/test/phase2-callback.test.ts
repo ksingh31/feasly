@@ -108,7 +108,7 @@ describe('callback service', () => {
   it('persists a lead-task row and returns the window', async () => {
     const { service, persisted } = fakeStores();
     const result = await service.requestCallback(VALID_BODY);
-    expect(result).toEqual({ ok: true, window: 'evening' });
+    expect(result).toEqual({ ok: true, window: 'evening', preferredDate: null });
     expect(persisted).toHaveLength(1);
     expect(persisted[0]).toMatchObject({
       leadId: LEAD_ID,
@@ -161,12 +161,67 @@ describe('callback service', () => {
   });
 });
 
+// Clock: 2026-09-26T05:00Z = Fri 2026-09-25 23:00 in America/Edmonton.
+describe('callback preferred day and notes (#836)', () => {
+  it('persists the preferred day and trimmed notes and echoes the day', async () => {
+    const { service, persisted } = fakeStores();
+    const result = await service.requestCallback({
+      ...VALID_BODY,
+      preferredDate: '2026-09-28',
+      notes: '  Ask for the side door  ',
+    });
+    expect(result).toEqual({ ok: true, window: 'evening', preferredDate: '2026-09-28' });
+    expect(persisted[0]).toMatchObject({
+      preferredDate: '2026-09-28',
+      notes: 'Ask for the side door',
+    });
+  });
+
+  it('stores null for absent or blank notes and a missing day', async () => {
+    const { service, persisted } = fakeStores();
+    await service.requestCallback({ ...VALID_BODY, notes: '   ' });
+    expect(persisted[0]).toMatchObject({ preferredDate: null, notes: null });
+  });
+
+  it('accepts the last business day inside the 14-day window', async () => {
+    const { service, persisted } = fakeStores();
+    await service.requestCallback({ ...VALID_BODY, preferredDate: '2026-10-09' });
+    expect(persisted).toHaveLength(1);
+  });
+
+  it('rejects today, weekends, past, out-of-window and impossible dates', async () => {
+    const { service, persisted } = fakeStores();
+    for (const preferredDate of [
+      '2026-09-25', // today (Edmonton)
+      '2026-09-26', // Saturday
+      '2026-09-27', // Sunday
+      '2026-09-24', // past
+      '2026-10-12', // Monday, 17 days out
+      '2026-02-30', // not a date
+      '28-09-2026', // wrong format
+    ]) {
+      await expect(
+        service.requestCallback({ ...VALID_BODY, preferredDate }),
+      ).rejects.toMatchObject({ status: 400, code: ErrorCodes.VALIDATION_FAILED });
+    }
+    expect(persisted).toHaveLength(0);
+  });
+
+  it('rejects notes over 500 characters', async () => {
+    const { service, persisted } = fakeStores();
+    await expect(
+      service.requestCallback({ ...VALID_BODY, notes: 'x'.repeat(501) }),
+    ).rejects.toMatchObject({ status: 400 });
+    expect(persisted).toHaveLength(0);
+  });
+});
+
 describe('callback route', () => {
   it('delegates to the callback service', async () => {
     const { service } = fakeStores();
     const route = createCallbackRoute({ callbacks: service });
     const result = await route.handle(VALID_BODY);
-    expect(result).toEqual({ ok: true, window: 'evening' });
+    expect(result).toEqual({ ok: true, window: 'evening', preferredDate: null });
   });
 });
 

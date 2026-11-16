@@ -10,6 +10,7 @@
  * math in display (AC2).
  */
 import type { AnalyticsSource } from './events';
+import type { LeadCallbackSummary } from './callback';
 
 /** Pipeline statuses. Matches the `leads.status` column values. */
 export type AdminLeadStatus = 'new' | 'contacted' | 'quoting' | 'won' | 'lost';
@@ -174,6 +175,11 @@ export interface AdminLeadDetail extends AdminLeadListItem {
    * always sends it; optional only so older admin builds keep compiling.
    */
   readonly reassignments?: readonly AdminLeadReassignmentEntry[];
+  /**
+   * #836: callback requests for this lead (preferred day, window, notes),
+   * newest first. The API always sends it; optional for older builds.
+   */
+  readonly callbacks?: readonly LeadCallbackSummary[];
 }
 
 /** One builder reassignment (#721). Null builder id = unassigned. */

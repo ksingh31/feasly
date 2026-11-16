@@ -161,3 +161,9 @@
   flex: none;
   min-height: 44px;
 }
+
+// #836: homeowner notes keep their line breaks.
+.lead-drawer__callback-notes {
+  white-space: pre-line;
+  overflow-wrap: anywhere;
+}

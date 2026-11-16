@@ -20,6 +20,7 @@
  */
 import {
   boolean,
+  date,
   doublePrecision,
   index,
   integer,
@@ -1556,6 +1557,13 @@ export const callbackRequests = pgTable(
     phone: text('phone').notNull(),
     /** 'morning' | 'afternoon' | 'evening' (contracts CallbackWindow). */
     window: text('window').notNull(),
+    /**
+     * #836: preferred call day (America/Edmonton calendar). Nullable —
+     * expand-only; rows from before #836 carry no preferred day.
+     */
+    preferredDate: date('preferred_date', { mode: 'string' }),
+    /** #836: optional free-text notes from the homeowner. */
+    notes: text('notes'),
     /** 'pending' → 'done' — worked by the team inbox flow (future). */
     status: text('status').notNull().default('pending'),
     createdAt: timestamp('created_at', { withTimezone: true })
