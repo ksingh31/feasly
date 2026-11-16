@@ -34,6 +34,9 @@ describe('RouteFocusService', () => {
         ]),
       ],
     });
+    // Start from a clean focus state: the DOM is shared with other spec
+    // files in the worker, so something else may still hold focus (#946).
+    (document.activeElement as HTMLElement | null)?.blur();
     main = document.createElement('main');
     main.id = MAIN_CONTENT_ID;
     main.tabIndex = -1;

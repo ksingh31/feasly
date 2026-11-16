@@ -727,11 +727,12 @@ export function mockShareOk(partnerEmail: string): PartnerShareResponse {
  * pinned by mock-api.service.spec.ts.
  */
 export const MOCK_FUNNEL_COUNTS: ReadonlyArray<{ step: string; label: string; count: number }> = [
-  // #814 steps: mirrors FUNNEL_STEPS in apps/api/src/services/funnel.service.ts.
+  // #814 + #835 steps: mirrors FUNNEL_STEPS in apps/api/src/services/funnel.service.ts.
   { step: 'landing', label: 'Landing view', count: 2400 },
   { step: 'address', label: 'Address selected', count: 1240 },
   { step: 'preview', label: 'Preview', count: 812 },
   { step: 'gate', label: 'Gate view', count: 644 },
+  { step: 'submit', label: 'Gate submit', count: 418 },
   { step: 'convert', label: 'Gate convert', count: 352 },
   { step: 'report', label: 'Report open', count: 301 },
 ];

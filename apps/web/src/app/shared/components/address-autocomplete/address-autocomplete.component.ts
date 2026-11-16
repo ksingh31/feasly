@@ -76,7 +76,11 @@ export class AddressAutocompleteComponent implements OnInit {
   readonly selected = output<PropertyRecord>();
   /** Fires on Enter with no highlighted suggestion (parent decides: pick the sole match or hint). */
   readonly submitted = output<void>();
-  /** #815: one emission per completed lookup — see {@link AddressSearchOutcome}. */
+  /**
+   * #815: one emission per completed autocomplete request (each debounced
+   * lookup, Enter-to-search or prefill) — not per user session, and never for
+   * resolving a picked suggestion. See {@link AddressSearchOutcome}.
+   */
   readonly searchOutcome = output<AddressSearchOutcome>();
   /**
    * #520: offer the other-city notify-me under the out-of-coverage message.
@@ -252,10 +256,20 @@ export class AddressAutocompleteComponent implements OnInit {
 
   /** A lookup failed: show its error state and report the outcome once (#815). */
   private fail(error: unknown): void {
+    const code = this.showError(error);
+    this.searchOutcome.emit(code === OUT_OF_COVERAGE ? 'out_of_coverage' : 'error');
+  }
+
+  /**
+   * Shows a failed request's error state without reporting a search outcome.
+   * Used directly by the pick path: resolving a suggestion is not a search, and
+   * the lookup that produced it already reported its outcome (#815).
+   */
+  private showError(error: unknown): string | null {
     const code = apiErrorCode(error);
     this.status.set('error');
     this.errorCode.set(code);
-    this.searchOutcome.emit(code === OUT_OF_COVERAGE ? 'out_of_coverage' : 'error');
+    return code;
   }
 
   /**
@@ -580,7 +594,7 @@ export class AddressAutocompleteComponent implements OnInit {
           this.status.set('idle');
           this.selected.emit(property);
         },
-        error: (error: unknown) => this.fail(error),
+        error: (error: unknown) => this.showError(error),
       });
   }
 }

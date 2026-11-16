@@ -270,6 +270,28 @@ const EnvSchema = z.object({
     .transform((value) => value === 'true'),
   FOLLOW_UP_EMAIL_DELAY_HOURS: z.coerce.number().int().positive().default(72),
 
+  // #838: Postgres-backed job queue (`jobs` table, claimed with FOR UPDATE
+  // SKIP LOCKED by the job-queue timer). No new Azure resource. Failed jobs
+  // retry with exponential backoff (BASE · 2^(attempt-1), capped at MAX)
+  // and dead-letter after MAX_ATTEMPTS; a job claimed but not finished
+  // within LOCK_TIMEOUT (worker crash) is reclaimed.
+  JOB_QUEUE_BATCH_SIZE: z.coerce.number().int().positive().max(500).default(50),
+  JOB_QUEUE_MAX_ATTEMPTS: z.coerce.number().int().positive().max(20).default(5),
+  JOB_QUEUE_BACKOFF_BASE_SECONDS: z.coerce.number().int().positive().default(300),
+  JOB_QUEUE_BACKOFF_MAX_SECONDS: z.coerce.number().int().positive().default(21_600),
+  JOB_QUEUE_LOCK_TIMEOUT_SECONDS: z.coerce.number().int().positive().default(900),
+  // #838: homeowner reminders (CASL consent only, through the queue).
+  // UNFINISHED_DELAY_HOURS: gave an email but never opened the report.
+  // MAX_PER_RUN caps how many reminders one scheduler run enqueues, per
+  // reminder type (backpressure on the email provider).
+  REMINDER_UNFINISHED_DELAY_HOURS: z.coerce.number().int().positive().default(24),
+  REMINDER_MAX_PER_RUN: z.coerce.number().int().positive().max(5_000).default(500),
+  // #838: link-only (copy-link) report shares — read-only, expiring,
+  // revocable from the report page. TTL in seconds (default 7 days);
+  // MAX_ACTIVE caps live links per report.
+  SHARE_LINK_TTL_SECONDS: z.coerce.number().int().positive().default(604_800),
+  SHARE_LINK_MAX_ACTIVE: z.coerce.number().int().positive().max(50).default(5),
+
   // #725: builder notifications — one new-lead email per opted-in member
   // (send-once outbox, retried by the builder-notifications timer) and the
   // opt-in daily "Needs you" digest. ENABLED is the kill switch (default on:
@@ -1432,6 +1454,36 @@ export interface FollowUpEmailConfig {
   readonly delayHours: number;
 }
 
+/** #838: Postgres-backed job queue tunables. */
+export interface JobQueueConfig {
+  /** Max jobs claimed per worker run. */
+  readonly batchSize: number;
+  /** Attempts before a job is dead-lettered. */
+  readonly maxAttempts: number;
+  /** First retry delay, seconds (doubles per attempt). */
+  readonly backoffBaseSeconds: number;
+  /** Retry delay ceiling, seconds. */
+  readonly backoffMaxSeconds: number;
+  /** A running job older than this is reclaimed (worker crash). */
+  readonly lockTimeoutSeconds: number;
+}
+
+/** #838: homeowner reminder caps. */
+export interface RemindersConfig {
+  /** Hours after lead capture before the "unfinished estimate" reminder. */
+  readonly unfinishedDelayHours: number;
+  /** Max reminders enqueued per scheduler run, per reminder type. */
+  readonly maxPerRun: number;
+}
+
+/** #838: link-only report shares. */
+export interface ShareLinkConfig {
+  /** Link lifetime, seconds. */
+  readonly ttlSeconds: number;
+  /** Max live links per report. */
+  readonly maxActive: number;
+}
+
 /** #765: API-key auth posture (revocation lag + live/sandbox isolation). */
 export interface ApiKeyAuthConfig {
   /** Per-instance auth cache TTL, seconds (0–60; 0 = no cache). */
@@ -1710,6 +1762,9 @@ export interface ApiConfig {
   readonly sandboxPurge: SandboxPurgeConfig;
   readonly apiKeyAuth: ApiKeyAuthConfig;
   readonly followUpEmail: FollowUpEmailConfig;
+  readonly jobQueue: JobQueueConfig;
+  readonly reminders: RemindersConfig;
+  readonly shareLink: ShareLinkConfig;
   readonly builderNotifications: BuilderNotificationsConfig;
   readonly sheets: SheetsConfig;
   readonly narrative: NarrativeConfig;
@@ -2053,6 +2108,21 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): ApiConfig {
     followUpEmail: {
       enabled: e.FOLLOW_UP_EMAIL_ENABLED,
       delayHours: e.FOLLOW_UP_EMAIL_DELAY_HOURS,
+    },
+    jobQueue: {
+      batchSize: e.JOB_QUEUE_BATCH_SIZE,
+      maxAttempts: e.JOB_QUEUE_MAX_ATTEMPTS,
+      backoffBaseSeconds: e.JOB_QUEUE_BACKOFF_BASE_SECONDS,
+      backoffMaxSeconds: e.JOB_QUEUE_BACKOFF_MAX_SECONDS,
+      lockTimeoutSeconds: e.JOB_QUEUE_LOCK_TIMEOUT_SECONDS,
+    },
+    reminders: {
+      unfinishedDelayHours: e.REMINDER_UNFINISHED_DELAY_HOURS,
+      maxPerRun: e.REMINDER_MAX_PER_RUN,
+    },
+    shareLink: {
+      ttlSeconds: e.SHARE_LINK_TTL_SECONDS,
+      maxActive: e.SHARE_LINK_MAX_ACTIVE,
     },
     builderNotifications: {
       enabled: e.BUILDER_NOTIFICATIONS_ENABLED,

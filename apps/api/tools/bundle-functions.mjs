@@ -569,6 +569,11 @@ const targets = [
     entry: 'src/functions/shares-verify.ts',
     out: 'shares-verify/index.js',
   },
+  { entry: 'src/functions/shares-link.ts', out: 'shares-link/index.js' },
+  { entry: 'src/functions/shares-link-list.ts', out: 'shares-link-list/index.js' },
+  { entry: 'src/functions/shares-link-revoke.ts', out: 'shares-link-revoke/index.js' },
+  { entry: 'src/functions/admin-jobs.ts', out: 'admin-jobs/index.js' },
+  { entry: 'src/functions/job-queue-timer.ts', out: 'job-queue-timer/index.js' },
   // embed/06: token relay inside the iframe.
   {
     entry: 'src/functions/embed-session.ts',

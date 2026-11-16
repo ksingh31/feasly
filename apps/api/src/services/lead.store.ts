@@ -641,6 +641,8 @@ export function createDrizzleLeadStore(deps: DrizzleLeadStoreDeps): LeadStore {
             gte(leads.createdAt, args.createdAfter),
             lt(leads.createdAt, args.createdBefore),
             isNull(leads.nudgeSentAt),
+            // #838 CASL: reminders go to marketing-consent leads only.
+            eq(leads.marketingConsent, true),
             // Proactive outreach respects opt-outs: neither email-unsubscribed
             // nor calls/messages-opted-out leads are nudge candidates.
             isNull(leads.unsubscribedAt),

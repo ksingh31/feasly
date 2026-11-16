@@ -1593,7 +1593,13 @@ export const partnerShares = pgTable(
     magicLinkId: uuid('magic_link_id').references(() => magicLinks.id, {
       onDelete: 'set null',
     }),
-    partnerEmail: text('partner_email').notNull(),
+    /**
+     * Recipient of an emailed share. NULL for a link-only share (#838 —
+     * the owner copied a read-only link; nobody was emailed).
+     */
+    partnerEmail: text('partner_email'),
+    /** 'email' (emailed to a partner) | 'link' (copy-link share, #838). */
+    kind: text('kind').notNull().default('email'),
     /** True when the email provider accepted the message. */
     sent: boolean('sent').notNull().default(false),
     createdAt: timestamp('created_at', { withTimezone: true })
@@ -2148,5 +2154,52 @@ export const communityNarratives = pgTable(
       columns: [t.communitySlug, t.period],
     }),
     index('community_narratives_status_idx').on(t.status),
+  ],
+);
+
+/**
+ * Postgres-backed job queue (#838).
+ *
+ * One row per unit of deferred work (reminder emails today; reusable by
+ * other senders). The job-queue timer claims due rows with
+ * `FOR UPDATE SKIP LOCKED`, so concurrent workers never double-process.
+ *
+ * Lifecycle: pending → running → done | (pending again with a backed-off
+ * run_at) → dead after max_attempts. `cancelled` = withdrawn before it ran
+ * (e.g. the homeowner unsubscribed). `dedupe_key` (unique) makes enqueue
+ * idempotent. `lead_id` cascades so privacy erasure / sandbox purge
+ * remove a lead's jobs with the lead. `payload` and `last_error` never hold
+ * tokens, emails or names.
+ */
+export const jobs = pgTable(
+  'jobs',
+  {
+    /** App-generated UUID (node:crypto). */
+    id: uuid('id').primaryKey(),
+    /** Handler key, e.g. 'reminder.unfinished-estimate'. */
+    type: text('type').notNull(),
+    payload: jsonb('payload').notNull().default({}),
+    leadId: uuid('lead_id').references(() => leads.id, { onDelete: 'cascade' }),
+    dedupeKey: text('dedupe_key'),
+    /** 'pending' | 'running' | 'done' | 'dead' | 'cancelled'. */
+    status: text('status').notNull().default('pending'),
+    attempts: integer('attempts').notNull().default(0),
+    maxAttempts: integer('max_attempts').notNull(),
+    runAt: timestamp('run_at', { withTimezone: true }).notNull(),
+    lockedAt: timestamp('locked_at', { withTimezone: true }),
+    /** Sanitized failure message of the last attempt. */
+    lastError: text('last_error'),
+    completedAt: timestamp('completed_at', { withTimezone: true }),
+    createdAt: timestamp('created_at', { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+    updatedAt: timestamp('updated_at', { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (t) => [
+    uniqueIndex('jobs_dedupe_key_idx').on(t.dedupeKey),
+    index('jobs_status_run_at_idx').on(t.status, t.runAt),
+    index('jobs_lead_id_idx').on(t.leadId),
   ],
 );
