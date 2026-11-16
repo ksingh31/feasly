@@ -9,7 +9,7 @@
  * Only services import from this module (layer boundary: routes never touch
  * the db directly).
  */
-import { and, eq, gt } from 'drizzle-orm';
+import { and, eq, gt, lt } from 'drizzle-orm';
 import { cityDataCache } from '../db/schema';
 
 export interface CityDataCacheStore {
@@ -17,6 +17,15 @@ export interface CityDataCacheStore {
   get(datasetId: string, key: string, now: Date): Promise<unknown>;
   /** Upserts the payload for (dataset, key) until `expiresAt`. */
   put(datasetId: string, key: string, payload: unknown, expiresAt: Date): Promise<void>;
+}
+
+/**
+ * #757: drops a dataset's entries fetched before the City last updated it,
+ * so the next lookup re-reads the City (the zoning watcher's refresh).
+ */
+export interface CityDataCacheInvalidator {
+  /** Deletes `datasetId` rows fetched before `fetchedBefore`; resolves the count removed. */
+  invalidateDataset(datasetId: string, fetchedBefore: Date): Promise<number>;
 }
 
 export interface DrizzleCityDataCacheStoreDeps {
@@ -31,7 +40,7 @@ export function cityDataCacheKey(datasetId: string, key: string): string {
 
 export function createDrizzleCityDataCacheStore(
   deps: DrizzleCityDataCacheStoreDeps,
-): CityDataCacheStore {
+): CityDataCacheStore & CityDataCacheInvalidator {
   const { db } = deps;
   const t = cityDataCache;
   return {
@@ -53,6 +62,14 @@ export function createDrizzleCityDataCacheStore(
           target: t.key,
           set: { payload, fetchedAt, expiresAt },
         });
+    },
+
+    async invalidateDataset(datasetId, fetchedBefore): Promise<number> {
+      const rows: Array<{ key: string }> = await db
+        .delete(t)
+        .where(and(eq(t.datasetId, datasetId), lt(t.fetchedAt, fetchedBefore)))
+        .returning({ key: t.key });
+      return rows.length;
     },
   };
 }

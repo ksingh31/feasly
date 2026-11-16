@@ -390,6 +390,15 @@ import {
 import { createZoningRoute, type ZoningRoute } from './routes/zoning.route';
 import { createZoningService, type ZoningService } from './services/zoning.service';
 import {
+  createZoningWatchService,
+  type ZoningWatchService,
+} from './services/zoning-watch.service';
+import {
+  createDrizzleZoningWatchStore,
+  type ZoningWatchStore,
+} from './services/zoning-watch.store';
+import { createGitHubIssuesClient } from './services/github-issues.client';
+import {
   createCommunityStatsRefreshRoute,
   type CommunityStatsRefreshRoute,
 } from './routes/community-stats-refresh.route';
@@ -637,6 +646,7 @@ import {
 import { createTurnstileVerifier } from './services/turnstile.service';
 import {
   createDrizzleCityDataCacheStore,
+  type CityDataCacheInvalidator,
   type CityDataCacheStore,
 } from './services/city-data-cache.store';
 import { MAGIC_LINK_SEND_BUDGET_WINDOW_MS } from './services/magic-link.service';
@@ -810,6 +820,8 @@ export interface AppComposition {
   /** #687: zoning rules catalogue (pure data; no I/O). */
   readonly zoningService: ZoningService;
   readonly zoningRoute: ZoningRoute;
+  /** #757: daily City-source watch + catalogue freshness. */
+  readonly zoningWatchService: ZoningWatchService;
   /** Monthly refresh timer + manual admin trigger (neighbourhood/05). */
   readonly communityStatsRefreshService: CommunityStatsRefreshService;
   readonly communityStatsRefreshRoute: CommunityStatsRefreshRoute;
@@ -909,6 +921,8 @@ export interface CompositionOptions {
   readonly challengeVerifier?: ChallengeVerifier;
   /** #756: shared City-data cache (tests inject an in-memory fake). */
   readonly cityDataCacheStore?: CityDataCacheStore;
+  /** #757: zoning source watch state (default: Drizzle). */
+  readonly zoningWatchStore?: ZoningWatchStore;
   /** #773: neighbourhood data tables (tests inject PGlite/fakes). */
   readonly neighbourhoodDataStore?: NeighbourhoodDataStore;
   /** #773: neighbourhood providers (tests inject fakes; default from config). */
@@ -1841,7 +1855,6 @@ export function createComposition(
   // Zoning rules catalogue (#687): the configured city's district → forms +
   // key rules table from @feasly/zoning. Pure data, verified values only.
   const zoningService: ZoningService = createZoningService({ config: config.zoning });
-  const zoningRoute: ZoningRoute = createZoningRoute({ zoning: zoningService });
   // Community-stats monthly refresh (neighbourhood/05): recomputes
   // community_stats from fresh Socrata aggregates on a timer; ops can also
   // trigger it manually via POST /api/v1/admin/community-stats/refresh.
@@ -1965,6 +1978,39 @@ export function createComposition(
   });
   const propertyRoute: PropertyRoute = createPropertyRoute({
     property: propertyService,
+  });
+
+  // #757: daily zoning source watch. Refreshes cached districts when the
+  // City's Land Use Districts dataset changes, files one "catalogue may be
+  // out of date" issue (GitHub token from Key Vault; none → log only), and
+  // tells GET /zoning/districts whether the catalogue predates a change.
+  const zoningWatchService: ZoningWatchService = createZoningWatchService({
+    config: {
+      ...config.zoning.watch,
+      city: config.zoning.city,
+      freshnessCacheTtlMs: config.zoning.freshnessCacheTtlMs,
+    },
+    zoning: zoningService,
+    store: options.zoningWatchStore ?? createDrizzleZoningWatchStore({ db: db.db }),
+    cityDataCache:
+      'invalidateDataset' in cityDataCacheStore
+        ? (cityDataCacheStore as CityDataCacheStore & CityDataCacheInvalidator)
+        : { invalidateDataset: () => Promise.resolve(0) },
+    ...(config.zoning.watch.githubToken
+      ? {
+          issues: createGitHubIssuesClient({
+            repo: config.zoning.watch.githubRepo,
+            token: config.zoning.watch.githubToken,
+            apiBaseUrl: config.zoning.watch.githubApiUrl,
+            httpTimeoutMs: config.zoning.watch.httpTimeoutMs,
+          }),
+        }
+      : {}),
+    logger: { info: (m) => console.info(m), warn: (m) => console.warn(m) },
+  });
+  const zoningRoute: ZoningRoute = createZoningRoute({
+    zoning: zoningService,
+    watch: zoningWatchService,
   });
   // phase-2 wiring: the five live-API endpoints the web app needs. Same
   // pinned cost data + draft gate as the estimate endpoint, so preview,
@@ -2461,6 +2507,7 @@ export function createComposition(
     cityDataFreshnessRoute,
     zoningService,
     zoningRoute,
+    zoningWatchService,
     communityStatsRefreshService,
     communityStatsRefreshRoute,
     neighbourhoodRefreshService,

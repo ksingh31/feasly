@@ -164,7 +164,23 @@ describe('loadConfig', () => {
         httpTimeoutMs: 3_000,
       },
       // #687: zoning rules catalogue city + public cache lifetime.
-      zoning: { city: 'calgary', cacheMaxAgeSeconds: 3_600 },
+      zoning: {
+        city: 'calgary',
+        cacheMaxAgeSeconds: 3_600,
+        // #757: daily City-source watcher (no token = detect, file no issue).
+        freshnessCacheTtlMs: 300_000,
+        watch: {
+          enabled: true,
+          socrataBaseUrl: 'https://data.calgary.ca',
+          landUseDatasetId: 'qe6k-p9nh',
+          bylawPageUrl:
+            'https://www.calgary.ca/pda/pd/calgary-land-use-bylaw-1p2007/calgary-land-use-bylaw-1p2007.html',
+          httpTimeoutMs: 15_000,
+          githubRepo: 'ksingh31/feasly',
+          githubToken: '',
+          githubApiUrl: 'https://api.github.com',
+        },
+      },
       // #888: builder partner list caches (in-memory TTL + HTTP max-age).
       partners: { cacheTtlMs: 300_000, cacheMaxAgeSeconds: 300 },
       // trust-strip/01: landing "Refreshed <Month Year>" from the Socrata
