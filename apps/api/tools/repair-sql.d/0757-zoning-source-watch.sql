@@ -1,4 +1,4 @@
--- #757: zoning source watch state (mirrors migration 0057).
+-- #757: zoning source watch state (mirrors migration 0059_zoning_source_watch).
 CREATE TABLE IF NOT EXISTS "zoning_source_watch" (
 	"city" text PRIMARY KEY NOT NULL,
 	"dataset_rows_updated_at" timestamp with time zone,
