@@ -8,6 +8,7 @@
  */
 import { loadConfig, type ApiConfig } from './config';
 import { PLACEHOLDER_COST_DATA } from '@feasly/cost-engine';
+import type { Builder } from '@feasly/contracts';
 import { createDbClient, type DbClient } from './db/client';
 import { sanitizeErrorMessage } from './lib/sanitize-error';
 import { createHealthService, type HealthService } from './services/health.service';
@@ -1135,9 +1136,16 @@ export function createComposition(
   // sessions, and the embed config lookup. Created before the lead
   // service so embed lead capture can dual-write builder_id in the same
   // insert (the lead is visible in the builder portal immediately).
+  // #716: the Stripe customer re-syncs on a builder profile change. The
+  // card service is built later (it needs the payment provider), so the
+  // hook binds late.
+  let syncStripeCustomer: ((builder: Builder) => Promise<void>) | null = null;
   const builderService: BuilderService = createBuilderService({
     db: db.db,
     audit: adminAuditStore,
+    onBillingProfileChanged: async (builder) => {
+      await syncStripeCustomer?.(builder);
+    },
   });
   const leadService: LeadService = createLeadService({
     store: leadStore,
@@ -1937,14 +1945,22 @@ export function createComposition(
     builders: builderService,
     disputes: disputeService,
   });
+  const invoiceSummaryStore: InvoiceSummaryStore = createInvoiceSummaryStore({
+    db: db.db,
+  });
   // billing/02 (BILL-02) — commission card-on-file: the setup-intent +
-  // card-status endpoints. Model-gated inside the service.
+  // card-status endpoints. Model-gated inside the service. #716: card
+  // lifecycle (single card, removal, expiry flag, customer details).
   const commissionCardService: CommissionCardService =
     createCommissionCardService({
       billing: config.billing,
       audit: billingAuditService,
       stripe: stripeService,
+      invoiceSummaries: invoiceSummaryStore,
+      builders: builderService,
     });
+  syncStripeCustomer = (builder) =>
+    commissionCardService.syncCustomerDetails(builder);
   // #661 — builder invoice PDF/receipt download.
   const invoicePdfService: InvoicePdfService = createInvoicePdfService({
     billing: billingService,
@@ -1967,9 +1983,6 @@ export function createComposition(
   // embed/09 builder portal: won transitions run the billing charge path.
   // Portal scoping is by builder_id (builders table); the session's tenant
   // key resolves to the builder row.
-  const invoiceSummaryStore: InvoiceSummaryStore = createInvoiceSummaryStore({
-    db: db.db,
-  });
   // #531 builder portal Money page header: one tenant-scoped read over the
   // invoice summaries + configured rate + card on file.
   const billingOverviewService: BillingOverviewService =
@@ -2042,6 +2055,7 @@ export function createComposition(
       audit: billingAuditService,
       commission: commissionService,
       flatPlan: flatPlanService,
+      commissionCard: commissionCardService,
       email: emailService,
       opsInbox: config.email.opsInbox,
     });

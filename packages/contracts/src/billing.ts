@@ -267,6 +267,13 @@ export interface CardOnFileStatus {
   readonly last4?: string;
   readonly expMonth?: number;
   readonly expYear?: number;
+  /**
+   * #716: the card's expiry month ends within the configured warning
+   * window (BILLING_CARD_EXPIRY_WARNING_DAYS) — show "expires soon".
+   */
+  readonly expiresSoon?: boolean;
+  /** #716: the card's expiry month has ended — it can no longer be charged. */
+  readonly expired?: boolean;
 }
 
 /** Result of POST /api/v1/billing/setup-intent (billing/02, BILL-02). */

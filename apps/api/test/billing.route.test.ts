@@ -35,6 +35,7 @@ function makeDeps(opts?: {
   readonly admin?: boolean;
   readonly billingModel?: 'commission' | 'flat';
   readonly stripeConfigured?: boolean;
+  readonly removeBlocked?: boolean;
   readonly card?: { hasCard: boolean; brand?: string; last4?: string };
 }): {
   route: ReturnType<typeof createBillingRoute>;
@@ -138,6 +139,15 @@ function makeDeps(opts?: {
         });
       }
       return card;
+    }),
+    removeCard: vi.fn(async () => {
+      if (opts?.removeBlocked) {
+        throw Object.assign(new Error('unpaid card invoice'), {
+          status: 409,
+          code: 'CONFLICT',
+        });
+      }
+      return { hasCard: false };
     }),
   } as unknown as CommissionCardService;
 
@@ -403,6 +413,28 @@ describe('GET /api/v1/billing/card (BILL-02)', () => {
     await expect(route.getCard({})).rejects.toMatchObject({
       status: 409,
       code: 'BILLING_MODEL_MISMATCH',
+    });
+  });
+});
+
+describe('DELETE /api/v1/billing/card (#716)', () => {
+  it('removes the card for the session tenant', async () => {
+    const { route, commissionCard } = makeDeps();
+    await expect(route.removeCard({})).resolves.toEqual({ hasCard: false });
+    expect(commissionCard.removeCard).toHaveBeenCalledWith('elite-craft');
+  });
+
+  it('requires builder auth (401 without a session)', async () => {
+    const { route, commissionCard } = makeDeps({ builderSession: null });
+    await expect(route.removeCard({})).rejects.toMatchObject({ status: 401 });
+    expect(commissionCard.removeCard).not.toHaveBeenCalled();
+  });
+
+  it('passes the 409 through when an unpaid card invoice blocks removal', async () => {
+    const { route } = makeDeps({ removeBlocked: true });
+    await expect(route.removeCard({})).rejects.toMatchObject({
+      status: 409,
+      code: 'CONFLICT',
     });
   });
 });
