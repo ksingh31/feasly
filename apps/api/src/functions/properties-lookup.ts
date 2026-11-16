@@ -18,6 +18,7 @@
 import { randomUUID } from 'node:crypto';
 import {
   createComposition,
+  lib,
   loadConfig,
   middleware,
   type AppComposition,
@@ -93,15 +94,23 @@ export async function propertiesLookupHandler(
     };
     return;
   }
+  // #756: public City data — the browser reuses it for max-age and
+  // revalidates with If-None-Match (304, no body) after that.
+  const cacheable = lib.cacheableResponse(
+    result,
+    req.headers?.['if-none-match'],
+    app.config.propertyData.httpCacheMaxAgeSeconds,
+  );
   context.res = {
-    status: 200,
+    status: cacheable.status,
     headers: {
       ...middleware.securityHeaders(),
       'Content-Type': 'application/json',
+      ...cacheable.headers,
       [CORRELATION_RESPONSE_HEADER]: correlationId,
       ...corsHeaders,
     },
-    body: result,
+    ...(cacheable.status === 200 ? { body: cacheable.body } : {}),
   };
 }
 

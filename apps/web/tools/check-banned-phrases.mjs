@@ -15,8 +15,9 @@
  * 2. DISCLAIMER PRESENCE — fails when the approved deterministic-math
  *    disclaimer is missing from any of the four surfaces:
  *      report (web report page) · print (same page, must print) ·
- *      API (EstimateResponse.disclaimer) · MCP (tool descriptions —
- *    skipped until api-mcp/06 lands; the check notes the skip).
+ *      API (EstimateResponse.disclaimer) · MCP (every tool description in
+ *    packages/mcp/src/tools.ts carries ESTIMATE_DISCLAIMER — #765; the
+ *    check notes a skip only when the MCP package is absent).
  *
  * 3. SINGLE "UNLOCK" (issue #506) — "Unlock" appears in user-facing copy
  *    exactly once: the preview CTA (copy.report.unlockCta).
@@ -268,7 +269,7 @@ export function checkBannedPhrases(root = ROOT) {
     }
   }
 
-  // 4. MCP surface — skipped until api-mcp/06 lands.
+  // 4. MCP surface (#765 AC3) — every tool description carries the disclaimer.
   const mcpTools = [];
   for (const base of [join(root, 'packages', 'mcp'), join(apiSrc, 'mcp')]) {
     try {
@@ -284,16 +285,55 @@ export function checkBannedPhrases(root = ROOT) {
   } else {
     for (const f of mcpTools) {
       const src = readFileSync(f, 'utf8');
-      if (/description\s*[:=]/.test(src) && !src.includes('deterministically')) {
+      if (
+        /description\s*[:=]/.test(src) &&
+        !src.includes('deterministically') &&
+        !src.includes('ESTIMATE_DISCLAIMER')
+      ) {
         failures.push(`mcp surface: ${relative(root, f)} has tool descriptions without the deterministic disclaimer`);
       }
     }
+    failures.push(...checkMcpToolDefinitions(root));
   }
 
   // ── Single "Unlock" ──
   failures.push(...checkSingleUnlock(root));
 
   return { failures, notes };
+}
+
+/**
+ * #765 AC3: per-tool disclaimer check on packages/mcp/src/tools.ts. The
+ * disclaimer must come from the contracts' ESTIMATE_DISCLAIMER (single
+ * source), and EVERY entry in TOOL_DEFINITIONS must append it to its
+ * description — a file-level "contains 'deterministically'" match would
+ * miss one tool silently dropping it.
+ */
+export function checkMcpToolDefinitions(root) {
+  const toolsPath = join(root, 'packages', 'mcp', 'src', 'tools.ts');
+  if (!existsSync(toolsPath)) return [];
+  const rel = relative(root, toolsPath);
+  const src = readFileSync(toolsPath, 'utf8');
+  const failures = [];
+  if (!/import\s*\{[^}]*\bESTIMATE_DISCLAIMER\b[^}]*\}\s*from\s*'@feasly\/contracts'/.test(src)) {
+    failures.push(`mcp surface: ${rel} does not import ESTIMATE_DISCLAIMER from @feasly/contracts`);
+  }
+  const block = src.match(/TOOL_DEFINITIONS[^=]*=\s*\[([\s\S]*?)\n\];/);
+  if (!block) {
+    failures.push(`mcp surface: ${rel} has no TOOL_DEFINITIONS array`);
+    return failures;
+  }
+  const entries = block[1].split(/\bname:\s*/).slice(1);
+  if (entries.length === 0) {
+    failures.push(`mcp surface: ${rel} TOOL_DEFINITIONS has no tools`);
+  }
+  for (const entry of entries) {
+    const name = (entry.match(/^['"]([^'"]+)['"]/) ?? [, '?'])[1];
+    if (!/\b(DETERMINISTIC_DISCLAIMER|ESTIMATE_DISCLAIMER)\b/.test(entry)) {
+      failures.push(`mcp surface: tool ${name} in ${rel} has a description without the deterministic disclaimer`);
+    }
+  }
+  return failures;
 }
 
 const isCli = process.argv[1] === fileURLToPath(import.meta.url);
