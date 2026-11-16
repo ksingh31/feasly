@@ -145,6 +145,16 @@ for (const route of [...INDEXABLE, '/404']) {
 // redirect to / during prerender (no wizard state), so prerendering them
 // would only bake the redirect placeholder. Covered by unit tests instead. ---
 
+// --- #824: How it works prerenders the estimate's includes / not-included
+// lists (static: generated from the engine line items + config). ---
+{
+  const html = htmlFor('/how-it-works');
+  if (html !== null) {
+    mustContain(html, '/how-it-works', 'What this estimate includes', 'estimate includes list');
+    mustContain(html, '/how-it-works', 'Not included', 'estimate not-included list');
+  }
+}
+
 // --- 404 brand copy + noindex. ---
 {
   const html = htmlFor('/404');

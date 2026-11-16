@@ -235,6 +235,15 @@ describe('PreviewPageComponent', () => {
     expect(text()).not.toContain('explore finish tiers');
   });
 
+  it('lists what the estimate includes and leaves out, with no figures (#824)', () => {
+    const scope = fixture.nativeElement.querySelector('.scope-card app-estimate-scope') as HTMLElement;
+    expect(scope).not.toBeNull();
+    expect(scope.textContent).toContain('What this estimate includes');
+    expect(scope.textContent).toContain('Site preparation & excavation');
+    expect(scope.textContent).toContain('Not included');
+    expect(scope.textContent).not.toMatch(/\$\d/);
+  });
+
   it('preview copy carries no ±, %, or accuracy claim (copy-lint)', () => {
     const config = TestBed.inject(ConfigService);
     const dump = JSON.stringify(config.get('copy').preview);
@@ -363,6 +372,12 @@ describe('PreviewPageComponent loading state', () => {
         /^1234 14 St NW, Calgary, AB · .*Basement.* · 800 sq ft · Premium$/,
       );
       expect(chip.querySelector('a.recap-edit')?.getAttribute('href')).toBe('/estimate/reno-scope');
+      TestBed.resetTestingModule();
+    });
+
+    it('omits the new-build includes / not-included lists (#824)', async () => {
+      const fixture = await setupReno();
+      expect(fixture.nativeElement.querySelector('app-estimate-scope')).toBeNull();
       TestBed.resetTestingModule();
     });
 

@@ -391,12 +391,10 @@
       <section class="card ref" [attr.aria-label]="copy.coverageTitle">
         <details>
           <summary><h2 class="disclosure-heading">{{ copy.coverageTitle }}</h2></summary>
-          <p class="hint">{{ copy.includedLine }}</p>
+          <!-- #824: includes = the engine's line items (generated);
+               not included = config, minus anything the engine prices. -->
+          <app-estimate-scope [headingLevel]="3" />
           <p class="build-note">{{ copy.costMovementNote }}</p>
-          <h3 class="subhead">{{ copy.exclusionsTitle }}</h3>
-          @for (e of copy.exclusions; track e) {
-            <p class="build-note exclusion">• {{ e }}</p>
-          }
         </details>
       </section>
 

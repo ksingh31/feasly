@@ -792,6 +792,19 @@ export interface BuildTimelinePhase {
   readonly unit: 'weeks' | 'months';
 }
 
+/** One entry in the estimate's includes / not-included lists (#824). */
+export interface EstimateScopeItem {
+  /**
+   * Engine line-item key (`hard.<k>`, `soft.<k>`, `contingency`) for
+   * includes. For not-included entries, the cost-data category key the item
+   * would get once the engine prices it (e.g. `demolition`): an entry whose
+   * key matches an included item's key (ignoring the `hard.`/`soft.` prefix)
+   * is hidden, so it moves to "includes" when the engine adds it (#825).
+   */
+  readonly key: string;
+  readonly label: string;
+}
+
 /** A city's typical design-to-completion timeline (#823). */
 export interface BuildTimelineCity {
   /** Typical total in months — configured, never summed (phases overlap). */
@@ -974,6 +987,16 @@ export interface AppConfig {
      * estimate-input-bounds-drift.spec.ts fails CI if they diverge.
      */
     estimateRoundingStep: number;
+  };
+  /**
+   * What a new-build estimate includes and leaves out (#824, owner decision
+   * 2026-11-15). `includes` is GENERATED from the cost engine's line items
+   * (estimate-scope.generated.ts) — never hand-written, so it can't drift.
+   * `notIncluded` lists what the engine doesn't price yet.
+   */
+  estimateScope: {
+    includes: readonly EstimateScopeItem[];
+    notIncluded: readonly EstimateScopeItem[];
   };
   /**
    * Typical custom-infill build timeline by city (#823, owner decision
@@ -1529,16 +1552,13 @@ export interface AppConfig {
       tierDescriptors: { standard: string; premium: string; luxury: string };
       /** Upgrades-are-explicit-choices note under the tier descriptor. */
       tierChoicesNote: string;
-      /** "What your estimate covers" — honest included/excluded framing. */
+      /**
+       * "What your estimate covers" — section heading. The includes and
+       * not-included lists themselves come from `estimateScope` (#824).
+       */
       coverageTitle: string;
-      /** One-line "full build" framing above the exclusions list. */
-      includedLine: string;
       /** Honest note: inflation, material choices, project conditions can move costs. */
       costMovementNote: string;
-      /** "What's not in this estimate" heading. */
-      exclusionsTitle: string;
-      /** Honest exclusion list — landscaping only (Karan 2026-09-28: the estimate covers the full build except landscaping). */
-      exclusions: string[];
       tierTitle: string;
       tierLockedNote: string;
       /** What-if toggle hint (report page, post-gate): instant-plain, mirrors adjustHint. */
@@ -1941,6 +1961,13 @@ export interface AppConfig {
         /** #690: index section headings — established/infill communities first, then newer ones. */
         groups: Record<'established' | 'newer', { heading: string; body: string }>;
       };
+    };
+    /** Includes / not-included lists (#824). No accuracy claims. */
+    estimateScope: {
+      includesTitle: string;
+      includesIntro: string;
+      notIncludedTitle: string;
+      notIncludedIntro: string;
     };
     /** Typical build timeline section (#823). "Typical", never a promise. */
     buildTimeline: {

@@ -1,4 +1,5 @@
 import type { AppConfig } from './app-config';
+import { ESTIMATE_LINE_ITEMS } from './estimate-scope.generated';
 import { ZONING_ELIGIBILITY } from './zoning-eligibility.generated';
 
 /**
@@ -116,6 +117,27 @@ export const DEFAULT_APP_CONFIG: AppConfig = {
      * cost-data top-level `roundTo` — the drift spec keeps them equal.
      */
     estimateRoundingStep: 1000,
+  },
+  estimateScope: {
+    /**
+     * #824: generated from the cost engine's line items by
+     * packages/cost-engine/tools/gen-web-scope.ts; never edit by hand. The
+     * agreement test there fails CI when this drifts from the engine.
+     */
+    includes: ESTIMATE_LINE_ITEMS.items,
+    /**
+     * What the engine doesn't price yet (owner decision 2026-11-15). Keys are
+     * the cost-data category key each item would get: when the engine adds
+     * one (#825), it drops off this list and shows under "includes".
+     */
+    notIncluded: [
+      { key: 'demolition', label: 'Demolition of an existing home' },
+      { key: 'utilities', label: 'Utility connections (water, sewer, gas, power)' },
+      { key: 'landscaping', label: 'Landscaping & driveway' },
+      { key: 'warranty', label: 'New-home warranty' },
+      { key: 'gst', label: 'GST' },
+      { key: 'land', label: 'Buying the land (the total adds the City-assessed lot value)' },
+    ],
   },
   buildTimeline: {
     defaultCity: 'calgary',
@@ -588,14 +610,8 @@ export const DEFAULT_APP_CONFIG: AppConfig = {
       tierChoicesNote:
         'Premium upgrades — like basement in-floor heating, marble countertops, or upgraded windows — are explicit choices you make in your finish tier, never costs hidden in the number.',
       coverageTitle: 'What your estimate covers',
-      includedLine:
-        'Built the way a real Calgary builder budgets — across 60+ line items covering structure, envelope, interior finishes, mechanical systems, and standard allowances. Everything is in, except the exclusions below.',
       costMovementNote:
         'Final costs can move with inflation, your material choices, and project-specific conditions — the planning range above reflects how far they can swing.',
-      exclusionsTitle: "What's not in this estimate",
-      exclusions: [
-        'Landscaping — it varies too much from lot to lot to price, so budget it separately with your builder',
-      ],
       tierTitle: 'What if you change the finish tier?',
       tierToggleHint: 'Pick a finish level — every figure on this page updates to match.',
       tierLockedNote: 'Your full report adds the cost breakdown and next steps.',
@@ -1024,10 +1040,10 @@ export const DEFAULT_APP_CONFIG: AppConfig = {
           'At 2,400 square feet — a common size for a Calgary infill — the build itself budgets roughly $468,000–$703,000 at Standard tier, $629,000–$938,000 at Premium, and $864,000–$1,298,000 at Luxury. Land sits on top: the City-assessed value varies a lot by neighbourhood — each community guide shows its own average.',
         includedTitle: 'What’s included in the estimate',
         includedBody:
-          'Feasly budgets the way a real Calgary builder does — across 60+ line items covering structure, envelope, interior finishes, mechanical systems, and standard allowances. Demolition, soil and servicing, permits and fees, financing costs, and GST are part of the range.',
+          'Each build range adds up the line items below, straight from Feasly’s cost model.',
         excludedTitle: 'What’s not included',
         excludedBody:
-          'Only landscaping — it varies too much from lot to lot to price honestly, so budget it separately with your builder.',
+          'The cost model doesn’t price these yet, so budget for them separately with your builder.',
         infillTitle: 'Infill vs greenfield: why the lot changes the math',
         infillBody:
           'On an infill lot — a teardown in an established neighbourhood — expect demolition costs and sometimes servicing upgrades, in exchange for a known neighbourhood and no new-suburb premiums. On a greenfield lot in a new community, the developer sets the land price and servicing is brand new. Either way, build cost per square foot follows the same tiers above; it is the land line that moves.',
@@ -1271,6 +1287,12 @@ export const DEFAULT_APP_CONFIG: AppConfig = {
         },
       },
     },
+    estimateScope: {
+      includesTitle: 'What this estimate includes',
+      includesIntro: 'The build range adds up these line items from our cost model:',
+      notIncludedTitle: 'Not included',
+      notIncludedIntro: 'Our cost model doesn’t price these yet, so budget for them separately with your builder:',
+    },
     buildTimeline: {
       title: 'Typical build timeline',
       intro: 'How long a custom infill home typically takes, from first drawings to moving in.',
@@ -1360,7 +1382,9 @@ export const DEFAULT_APP_CONFIG: AppConfig = {
         },
         {
           q: 'What is not included in these figures?',
-          a: 'Only landscaping — it varies too much from lot to lot to price, so budget it separately with your builder. Everything else (demolition, soil and servicing, permits and fees, financing, GST) is part of the estimate range.',
+          // #824: {includes}/{notIncluded} are filled from `estimateScope`
+          // (generated from the cost engine) — never list items here.
+          a: 'The build range covers {includes}. It does not include {notIncluded}, so budget for those separately with your builder.',
         },
         {
           q: 'What is the next step?',

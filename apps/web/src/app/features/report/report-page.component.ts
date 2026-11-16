@@ -12,6 +12,7 @@ import { LoadPartners, PartnersState } from '../../core/partners';
 import {
   BrandMarkComponent,
   BuildTimelineComponent,
+  EstimateScopeComponent,
   SiteFooterComponent,
   SiteNavComponent,
   BuilderMatchingExplainerComponent,
@@ -116,6 +117,7 @@ const SHARE_LINK_SOURCE = 'share';
     BrandMarkComponent,
     BuilderMatchingExplainerComponent,
     BuildTimelineComponent,
+    EstimateScopeComponent,
     OptionSelectorComponent,
     PartnerDisclosureComponent,
     PrivacyDataLinkComponent,
