@@ -157,6 +157,11 @@ export interface BillingHealthResponse {
     readonly configured: boolean;
     /** True when the configured key is a test key (`sk_test_…`). */
     readonly testMode: boolean;
+    /**
+     * #753: active payment provider. The admin dev panel (fire dispute /
+     * refund / delayed failure) shows only when this is `simulated`.
+     */
+    readonly provider?: 'stripe' | 'simulated';
   };
   readonly generatedAt: string;
   readonly mrr: BillingHealthMrr;

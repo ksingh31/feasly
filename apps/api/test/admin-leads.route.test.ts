@@ -12,9 +12,10 @@ import {
 } from '../src/routes/admin-leads.route';
 import { ErrorCodes, HttpError } from '../src/middleware/errors';
 import type { AdminLeadsService } from '../src/services/admin-leads.service';
+import { SEED_ADMIN_EMAIL } from '../src/config';
 
 const ADMIN_HEADERS = { cookie: 'feasly_admin_session=valid-test-session' };
-const ADMIN_EMAIL = 'karanbirsingh667@gmail.com';
+const ADMIN_EMAIL = SEED_ADMIN_EMAIL;
 
 function makeDeps(): AdminLeadsRouteDeps {
   const service: AdminLeadsService = {

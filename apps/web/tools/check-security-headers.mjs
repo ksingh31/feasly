@@ -7,10 +7,10 @@
  *   1. globalHeaders must carry all five headers: Content-Security-Policy,
  *      Strict-Transport-Security, X-Content-Type-Options, Referrer-Policy,
  *      Permissions-Policy.
- *   2. The global CSP must be strict: no 'unsafe-inline' in script-src
- *      ('unsafe-eval' IS allowed — NGXS compiles store selectors with
- *      `new Function(...)` (getStateGetter/makeRootSelector) and offers no
- *      configuration to avoid it; without it every page throws EvalError),
+ *   2. The global CSP must be strict: no 'unsafe-inline' and no
+ *      'unsafe-eval' in script-src (#797 — NGXS runs with
+ *      `compatibility.strictContentSecurityPolicy`, see NGXS_STORE_OPTIONS
+ *      in src/app/app.config.ts, so nothing compiles code at runtime),
  *      no '*' anywhere, frame-ancestors 'none', the two known inline
  *      scripts allowlisted by sha256 hash (see INLINE_SCRIPT_HASHES), and
  *      it must allow exactly the browser's real external dependencies
@@ -105,11 +105,11 @@ if (csp.includes('*') && !csp.includes('https://')) {
 if (has('script-src', "'unsafe-inline'")) {
   fail("CSP script-src must not allow 'unsafe-inline' — inline scripts are allowlisted by hash");
 }
-// 'unsafe-eval' is required: NGXS compiles store selectors via `new Function(...)`
-// (getStateGetter/makeRootSelector) and offers no configuration to avoid it.
-// Without it, the store is dead at runtime (EvalError on every page).
-if (!has('script-src', "'unsafe-eval'")) {
-  fail("CSP script-src must allow 'unsafe-eval' (NGXS requires it — see comment above)");
+// 'unsafe-eval' is forbidden (#797, #731 F-5): the production build is AOT
+// and NGXS runs with compatibility.strictContentSecurityPolicy (app.config.ts
+// NGXS_STORE_OPTIONS), so nothing needs eval/new Function at runtime.
+if (has('script-src', "'unsafe-eval'")) {
+  fail("CSP script-src must not allow 'unsafe-eval' (NGXS runs in strictContentSecurityPolicy mode)");
 }
 for (const hash of INLINE_SCRIPT_HASHES) {
   if (!has('script-src', hash)) {
@@ -171,13 +171,13 @@ for (const routePath of ['/embed/*', '/embed']) {
   }
   if (!/frame-ancestors/.test(embedCsp)) fail(`${routePath} CSP must declare frame-ancestors`);
   // The embed serves the same index.html, so it needs the same script-src
-  // allowances (NGXS eval + the two hashed inline scripts).
+  // allowances (the two hashed inline scripts, no eval).
   const embedHas = (token) => embedCsp.split(';').some((d) => {
     const [name, ...rest] = d.trim().split(/\s+/);
     return name === 'script-src' && rest.includes(token);
   });
   if (embedHas("'unsafe-inline'")) fail(`${routePath} CSP script-src must not allow 'unsafe-inline'`);
-  if (!embedHas("'unsafe-eval'")) fail(`${routePath} CSP script-src must allow 'unsafe-eval' (NGXS)`);
+  if (embedHas("'unsafe-eval'")) fail(`${routePath} CSP script-src must not allow 'unsafe-eval'`);
   for (const hash of INLINE_SCRIPT_HASHES) {
     if (!embedHas(hash)) fail(`${routePath} CSP script-src must allowlist ${hash}`);
   }

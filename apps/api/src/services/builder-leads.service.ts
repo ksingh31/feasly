@@ -49,6 +49,7 @@ import type {
   BillableEventResult,
   EmbedBillingHookService,
 } from './billing/embed-billing-hook.service';
+import { SANDBOX_LEAD_NOT_BILLABLE_MESSAGE } from './billing/embed-billing-hook.service';
 import type { InvoiceSummaryStore } from './billing/invoice-summary.store';
 import type { CommentStore, CommentSummary } from './builder-comments.store';
 import type { BuilderService } from './builder.service';
@@ -377,6 +378,18 @@ export function createBuilderLeadsService(
     throw new HttpError(404, ErrorCodes.NOT_FOUND, 'Lead not found.', false);
   }
 
+  /** #840: refuse the won/billing path for sandbox (test API key) leads. */
+  function requireNonSandbox(record: { readonly sandbox: boolean }): void {
+    if (record.sandbox) {
+      throw new HttpError(
+        409,
+        ErrorCodes.CONFLICT,
+        SANDBOX_LEAD_NOT_BILLABLE_MESSAGE,
+        false,
+      );
+    }
+  }
+
   async function hasRecordedContract(
     leadId: string,
     builderTenantKey: string,
@@ -493,6 +506,13 @@ export function createBuilderLeadsService(
 
     const oldStatus = record.status;
     const newStatus = parsed.data.status;
+
+    // #840: sandbox leads never enter billing — a won transition would
+    // create attribution/commission rows (RESTRICT FKs to leads) that
+    // block the sandbox purge. Rejected before any side effect.
+    if (newStatus === 'won' && oldStatus !== 'won') {
+      requireNonSandbox(record);
+    }
 
     // Lead status lock (2026-09-29, Karan): once a signed contract is
     // recorded (a commission invoice exists), the pipeline status is
@@ -823,6 +843,7 @@ export function createBuilderLeadsService(
     ): Promise<BuilderLeadMarkWonResponse> {
       const builder = await requireBuilder(tenantKey);
       const record = await requireOwnLead(id, builder.id, tenantKey, actorEmail);
+      requireNonSandbox(record);
 
       // A recorded lead is already closed out — nothing to mark.
       if (await hasRecordedContract(id, builder.tenantKey)) {

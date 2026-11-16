@@ -59,6 +59,9 @@ measures against), `priority:high`, `bug`, `qa:passed`, `qa:failed`, `ux`,
 - **Verify before push**: every agent runs `bash tools/verify-local.sh` and pushes only on `VERIFY: PASS`.
 - **Fix until merged**: any failed CI run on an agent/Dependabot PR triggers a fix round (CI triage); each round
   reproduces locally, verifies, pushes. `AGENT_MAX_FIX_ROUNDS` (default 5), then `needs:karan`.
+  A round that merges `main` must regenerate the registry-derived route tables (`npm run gen:route-docs`:
+  TECH_PLAN §16 + `docs/security/rate-limits.md` + `docs/security/route-audit.md`) and commit the result. `verify-local.sh` runs it before
+  the tests, so a parallel route-adding merge no longer leaves the PR red (#816).
 - **Requeues**: a claimed issue with no PR for 4h, or a dev run that ends without a PR, is requeued; after 2 requeues → `agent:stuck` (the orchestrator investigates; not an owner decision). A claimed issue whose PR already merged (closing reference or `agent/issue-<n>-` branch, merged since the claim) is closed as completed instead of requeued.
 - **QA reopen cap**: a bug that fails QA twice goes to `needs:karan`.
 - **Trust**: reviews run only for PRs from collaborators, `claude[bot]`,

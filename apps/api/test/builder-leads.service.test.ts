@@ -1444,3 +1444,57 @@ describe('builder-leads "Needs you" feed (issue #526)', () => {
     ]);
   });
 });
+
+describe('builder-leads sandbox leads never enter billing (#840)', () => {
+  function makeSandboxDeps() {
+    const base = makeDeps();
+    base.leads.set('lead-1', { ...makeLead({ id: 'lead-1' }), sandbox: true });
+    const recordBillableEvent = vi.fn(async () => ({ billed: true }));
+    const service = createBuilderLeadsService({
+      leadStore: base.leadStore,
+      audit: base.audit,
+      builders: base.builders,
+      billingHook: { recordBillableEvent } as never,
+    });
+    return { ...base, service, recordBillableEvent };
+  }
+
+  it('updateStatus to won is refused with 409 and no billing or status write', async () => {
+    const { service, recordBillableEvent, leads, statusHistory } = makeSandboxDeps();
+    await expect(
+      service.updateStatus(
+        'lead-1',
+        {
+          status: 'won',
+          contractValueCents: 50_000_000,
+          contractSignedAt: '2026-09-20T10:00:00.000Z',
+        },
+        'elite-craft',
+        'builder@example.com',
+      ),
+    ).rejects.toMatchObject({ status: 409, code: 'CONFLICT' });
+    expect(recordBillableEvent).not.toHaveBeenCalled();
+    expect(leads.get('lead-1')?.status).toBe('new');
+    expect(statusHistory).toEqual([]);
+  });
+
+  it('markWon is refused with 409 and no billing', async () => {
+    const { service, recordBillableEvent, leads } = makeSandboxDeps();
+    await expect(
+      service.markWon('lead-1', 'elite-craft', 'member@elite.example'),
+    ).rejects.toMatchObject({ status: 409, code: 'CONFLICT' });
+    expect(recordBillableEvent).not.toHaveBeenCalled();
+    expect(leads.get('lead-1')?.status).toBe('new');
+  });
+
+  it('non-won transitions on a sandbox lead still work', async () => {
+    const { service, leads } = makeSandboxDeps();
+    await service.updateStatus(
+      'lead-1',
+      { status: 'contacted' },
+      'elite-craft',
+      'builder@example.com',
+    );
+    expect(leads.get('lead-1')?.status).toBe('contacted');
+  });
+});

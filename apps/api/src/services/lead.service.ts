@@ -55,6 +55,7 @@ import { ErrorCodes, HttpError } from '../middleware/errors';
 import type { BuilderConfigService } from './builder-config.service';
 import type { BuilderService } from './builder.service';
 import type { EmailService } from './email/email.service';
+import { createSandboxSuppressingEmailService } from './email/sandbox-email.service';
 import type { EstimateStore } from './estimate.store';
 import type { LeadRecord, LeadStore } from './lead.store';
 import {
@@ -97,7 +98,20 @@ export interface LeadService {
    * Capture a lead. Rejects with HttpError(400) for invalid input or an
    * unknown estimateId; resolves to the contract `LeadResponse`.
    */
-  submitLead(requestBody: unknown): Promise<LeadResponse>;
+  submitLead(requestBody: unknown, options?: LeadOptions): Promise<LeadResponse>;
+}
+
+/**
+ * Per-request write options (#793). Set from the API-key auth context by
+ * the REST/MCP adapters — never from the request body.
+ */
+export interface LeadOptions {
+  /**
+   * True for `feasly_test_` keys: the lead (and its magic link) is written
+   * with sandbox=true, dedupe only matches other sandbox rows, and every
+   * email send is suppressed via the sandbox email decorator.
+   */
+  readonly sandbox?: boolean;
 }
 
 export interface LeadServiceDeps {
@@ -147,6 +161,11 @@ function extractTotalBase(figures: unknown): number | undefined {
 
 export function createLeadService(deps: LeadServiceDeps): LeadService {
   const clock = deps.clock ?? (() => new Date());
+  /** #793: sandbox writes never send email — every send is a logged no-op. */
+  const sandboxEmail: EmailService = createSandboxSuppressingEmailService({
+    inner: deps.email,
+    log: (message) => console.info(message),
+  });
 
   /**
    * P0 2026-09-27 — idempotent resubmit suppression. Keyed by
@@ -171,8 +190,10 @@ export function createLeadService(deps: LeadServiceDeps): LeadService {
     email: string,
     addressKey: string,
     tenantKey: string | null,
+    sandbox: boolean,
   ): string {
-    return `${email}|${addressKey}|${tenantKey ?? ''}`;
+    // #793: sandbox (suppressed) sends never mask a later real send.
+    return `${sandbox ? 'sandbox|' : ''}${email}|${addressKey}|${tenantKey ?? ''}`;
   }
   function recordSend(key: string): void {
     if (lastSendAtMs.size >= MAX_SEND_RECORDS) {
@@ -241,8 +262,10 @@ export function createLeadService(deps: LeadServiceDeps): LeadService {
      * Stamped only when the stored lead still has a null builder_id.
      */
     readonly builderId?: string | null;
+    /** #793: sandbox request — suppress the email, flag the link row. */
+    readonly sandbox: boolean;
   }): Promise<LeadResponse> {
-    const { existing, input, estimate, email, expiresInDays } = args;
+    const { existing, input, estimate, email, expiresInDays, sandbox } = args;
     if (existing.quarantined) {
       // Spam stays buried: no update, no email, same response shape.
       return { leadId: existing.id, magicLinkSent: false, expiresInDays };
@@ -297,7 +320,7 @@ export function createLeadService(deps: LeadServiceDeps): LeadService {
     // is never stranded. (The email provider already logs email.send-failed
     // for the ops alert; the message here is sanitized — provider errors
     // can echo PII.)
-    const sendKey = sendRecordKey(email, existing.addressKey, args.tenantKey);
+    const sendKey = sendRecordKey(email, existing.addressKey, args.tenantKey, sandbox);
     const resubmitSuppressed = hasRecentSend(sendKey);
     let issued;
     try {
@@ -306,6 +329,7 @@ export function createLeadService(deps: LeadServiceDeps): LeadService {
         leadId: existing.id,
         magicLinkTtlSeconds: deps.magicLinkTtlSeconds,
         clock,
+        sandbox,
       });
     } catch (error) {
       throw new Error('magic link reissue failed', { cause: error });
@@ -322,7 +346,7 @@ export function createLeadService(deps: LeadServiceDeps): LeadService {
       };
     }
     const delivery = await sendOwnerMagicLinkEmail({
-      email: deps.email,
+      email: sandbox ? sandboxEmail : deps.email,
       unsubscribe: deps.unsubscribe,
       leadId: existing.id,
       to: email,
@@ -358,7 +382,11 @@ export function createLeadService(deps: LeadServiceDeps): LeadService {
   }
 
   return {
-    async submitLead(requestBody: unknown): Promise<LeadResponse> {
+    async submitLead(
+      requestBody: unknown,
+      options?: LeadOptions,
+    ): Promise<LeadResponse> {
+      const sandbox = options?.sandbox === true;
       const parsed = LeadRequestSchema.safeParse(requestBody);
       if (!parsed.success) {
         const first = parsed.error.issues[0];
@@ -375,7 +403,12 @@ export function createLeadService(deps: LeadServiceDeps): LeadService {
       const email = input.email.toLowerCase();
 
       const estimate = await deps.estimateStore.findById(input.estimateId);
-      if (!estimate) {
+      // #793: a lead's sandbox flag must match its estimate's. A live lead
+      // pointing at a sandbox estimate would block the sandbox purge (the
+      // leads → estimates FK is RESTRICT), and a sandbox lead on a live
+      // estimate would leak test traffic into real data. A mismatch is
+      // indistinguishable from an unknown id — no cross-mode probing.
+      if (!estimate || (estimate.sandbox ?? false) !== sandbox) {
         throw new HttpError(
           400,
           ErrorCodes.VALIDATION_FAILED,
@@ -428,6 +461,8 @@ export function createLeadService(deps: LeadServiceDeps): LeadService {
           // Without this, tenant B's repeat could rewrite tenant A's lead
           // and mint an owner token for it.
           tenantKey: tenantKey ?? null,
+          // #793: sandbox rows only dedupe against sandbox rows.
+          sandbox,
         });
       } catch (error) {
         throw new Error('lead store lookup failed', { cause: error });
@@ -442,6 +477,7 @@ export function createLeadService(deps: LeadServiceDeps): LeadService {
           expiresInDays,
           tenantKey: tenantKey ?? null,
           builderId,
+          sandbox,
         });
       }
 
@@ -466,6 +502,7 @@ export function createLeadService(deps: LeadServiceDeps): LeadService {
           builderId,
           source,
           quarantined,
+          sandbox,
         });
       } catch (error) {
         throw new Error('lead store insert failed', { cause: error });
@@ -496,6 +533,7 @@ export function createLeadService(deps: LeadServiceDeps): LeadService {
             leadId: inserted.id,
             ttlSeconds: deps.magicLinkTtlSeconds,
             clock,
+            ...(sandbox ? { sandbox: true } : {}),
           });
         } else {
           const issued = await issueOwnerMagicLinkToken({
@@ -503,10 +541,11 @@ export function createLeadService(deps: LeadServiceDeps): LeadService {
             leadId: inserted.id,
             magicLinkTtlSeconds: deps.magicLinkTtlSeconds,
             clock,
+            sandbox,
           });
           reportToken = issued.token;
           const delivery = await sendOwnerMagicLinkEmail({
-            email: deps.email,
+            email: sandbox ? sandboxEmail : deps.email,
             unsubscribe: deps.unsubscribe,
             leadId: inserted.id,
             to: email,
@@ -530,7 +569,7 @@ export function createLeadService(deps: LeadServiceDeps): LeadService {
             // Accepted-but-unconfirmed counts too: re-sending would likely
             // duplicate a delivered email, so resubmits stay suppressed.
             recordSend(
-              sendRecordKey(email, estimate.addressKey, tenantKey ?? null),
+              sendRecordKey(email, estimate.addressKey, tenantKey ?? null, sandbox),
             );
           }
         }

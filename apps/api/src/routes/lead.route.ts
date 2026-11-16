@@ -17,20 +17,25 @@
  * - a route depends on the service *interface*, never the implementation
  */
 import type { LeadResponse } from '@feasly/contracts';
-import type { LeadService } from '../services/lead.service';
+import type { LeadOptions, LeadService } from '../services/lead.service';
 
 export interface LeadRouteDeps {
   readonly leads: LeadService;
 }
 
 export interface LeadRoute {
-  /** Captures one lead from an untrusted request body. */
-  handle(requestBody: unknown): Promise<LeadResponse>;
+  /**
+   * Captures one lead from an untrusted request body. `options.sandbox`
+   * comes from the API-key auth context (#793), never the body.
+   */
+  handle(requestBody: unknown, options?: LeadOptions): Promise<LeadResponse>;
 }
 
 export function createLeadRoute(deps: LeadRouteDeps): LeadRoute {
   return {
-    handle: (requestBody: unknown): Promise<LeadResponse> =>
-      deps.leads.submitLead(requestBody),
+    handle: (requestBody: unknown, options?: LeadOptions): Promise<LeadResponse> =>
+      options === undefined
+        ? deps.leads.submitLead(requestBody)
+        : deps.leads.submitLead(requestBody, options),
   };
 }

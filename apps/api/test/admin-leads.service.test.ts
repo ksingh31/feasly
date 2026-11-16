@@ -20,8 +20,9 @@ import type { AdminLeadsStore, AdminLeadRow } from '../src/services/admin-leads.
 import type { LeadStore } from '../src/services/lead.store';
 import type { EstimateStore } from '../src/services/estimate.store';
 import type { AdminAuditStore } from '../src/services/admin-audit.store';
+import { SEED_ADMIN_EMAIL } from '../src/config';
 
-const ADMIN_EMAIL = 'karanbirsingh667@gmail.com';
+const ADMIN_EMAIL = SEED_ADMIN_EMAIL;
 
 function makeLeadRow(overrides?: Partial<AdminLeadRow>): AdminLeadRow {
   return {

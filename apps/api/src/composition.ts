@@ -220,6 +220,7 @@ import {
 import {
   createDrizzleAdminSessionStore,
 } from './services/admin-auth.store';
+import { withSessionPolicy } from './services/session-policy';
 import {
   createEntraTokenValidator,
   type EntraTokenValidator,
@@ -522,6 +523,19 @@ import {
   type CommissionService,
 } from './services/billing/commission.service';
 import {
+  createSimulatedPaymentProvider,
+  type SimulatedPaymentProvider,
+} from './services/billing/simulated-payment.provider';
+import { createDrizzleSimulatedPaymentStore } from './services/billing/simulated-payment.store';
+import {
+  createSimulatedPaymentsService,
+  type SimulatedPaymentsService,
+} from './services/billing/simulated-payments.service';
+import {
+  createSimulatedPaymentsRoute,
+  type SimulatedPaymentsRoute,
+} from './routes/simulated-payments.route';
+import {
   createFlatPlanService,
   type FlatPlanService,
 } from './services/billing/flat-plan.service';
@@ -802,6 +816,9 @@ export interface AppComposition {
   /** billing/02: daily review-window finalizer. */
   readonly invoiceReviewerService: InvoiceReviewerService;
   readonly stripeWebhooksRoute: StripeWebhooksRoute;
+  /** #753: simulated-provider dev actions (404 unless PAYMENTS_PROVIDER=simulated). */
+  readonly simulatedPaymentsService: SimulatedPaymentsService;
+  readonly simulatedPaymentsRoute: SimulatedPaymentsRoute;
   /** Tight limiter + pipeline for the Stripe webhook receiver. */
   readonly webhookRateLimiter: RateLimiter;
   readonly webhookPipeline: RequestPipeline;
@@ -1284,9 +1301,16 @@ export function createComposition(
   // auth/02 — admin session auth (Entra sign-in mints the sessions).
   // The session guard replaces the interim pre-shared-key guard; routes
   // are untouched (they depend on the AdminGuard interface).
-  const adminSessionStore: AdminSessionStore =
-    options.adminSessionStore ??
-    createDrizzleAdminSessionStore({ db: db.db });
+  // #730: absolute + idle timeouts and activity tracking wrap the store, so
+  // every session reader (guards, AuthContextService, view-as) enforces them.
+  const adminSessionStore: AdminSessionStore = withSessionPolicy(
+    options.adminSessionStore ?? createDrizzleAdminSessionStore({ db: db.db }),
+    {
+      absoluteTtlSeconds: config.auth.adminSessionTtlSeconds,
+      idleTimeoutSeconds: config.auth.adminSessionIdleTimeoutSeconds,
+      touchIntervalSeconds: config.auth.sessionActivityTouchIntervalSeconds,
+    },
+  );
   // (adminAuditStore is defined above with the builders-table setup.)
   const adminAuthService: AdminAuthService = createAdminAuthService({
     sessions: adminSessionStore,
@@ -1325,9 +1349,15 @@ export function createComposition(
   // auth/05 hardening: created here (ahead of the builder-auth block) so
   // UserService can revoke builder sessions on disable — a staff-side
   // disable must kill portal sessions too, not just admin ones.
-  const builderSessionStore: BuilderSessionStore =
+  const builderSessionStore: BuilderSessionStore = withSessionPolicy(
     options.builderSessionStore ??
-    createDrizzleBuilderSessionStore({ db: db.db });
+      createDrizzleBuilderSessionStore({ db: db.db }),
+    {
+      absoluteTtlSeconds: config.auth.builderSessionTtlSeconds,
+      idleTimeoutSeconds: config.auth.builderSessionIdleTimeoutSeconds,
+      touchIntervalSeconds: config.auth.sessionActivityTouchIntervalSeconds,
+    },
+  );
   const userService: UserService = createUserService({
     users: userStore,
     invitations: invitationStore,
@@ -1390,7 +1420,7 @@ export function createComposition(
     appBaseUrl: config.email.appBaseUrl,
     magicLinkTtlSeconds: config.auth.magicLinkTtlSeconds,
     magicLinkMaxSendsPerHour: config.auth.magicLinkMaxSendsPerHour,
-    builderSessionTtlSeconds: config.auth.adminSessionTtlSeconds,
+    builderSessionTtlSeconds: config.auth.builderSessionTtlSeconds,
     // Entra end-session URL for logout (kills the IdP session too once
     // builder Entra lands in AUTH #74; ignored by the frontend until then).
     entraSignIn: config.entraSignIn,
@@ -1420,11 +1450,13 @@ export function createComposition(
   });
   const permissionGuard: PermissionGuard = createPermissionGuard({
     authContext: authContextService,
+    // #730: dangerous routes (registry `recentAuth`) need a recent sign-in.
+    reauthWindowSeconds: config.auth.sessionReauthWindowSeconds,
   });
   const builderAuthRoute: BuilderAuthRoute = createBuilderAuthRoute({
     builderAuth: builderAuthService,
     permissionGuard,
-    builderSessionTtlSeconds: config.auth.adminSessionTtlSeconds,
+    builderSessionTtlSeconds: config.auth.builderSessionTtlSeconds,
   });
   // auth/05 — builder Entra External ID sign-in (organization accounts).
   // Separate External ID app/user flow from admin (`config.builderEntraSignIn`).
@@ -1442,12 +1474,12 @@ export function createComposition(
       builders: builderService,
       sessions: builderSessionStore,
       audit: adminAuditStore,
-      builderSessionTtlSeconds: config.auth.adminSessionTtlSeconds,
+      builderSessionTtlSeconds: config.auth.builderSessionTtlSeconds,
     });
   const builderEntraCallbackRoute: BuilderEntraCallbackRoute =
     createBuilderEntraCallbackRoute({
       entraCallback: builderEntraCallbackService,
-      builderSessionTtlSeconds: config.auth.adminSessionTtlSeconds,
+      builderSessionTtlSeconds: config.auth.builderSessionTtlSeconds,
       permissionGuard,
     });
   const builderUsersRoute: BuilderUsersRoute = createBuilderUsersRoute({
@@ -1857,9 +1889,27 @@ export function createComposition(
   const billingAuditService: BillingAuditService = createBillingAuditService({
     db: db.db,
   });
+  // #753: payment provider switch — the ONLY place a concrete payment
+  // provider is chosen. `simulated` (dev default) is Stripe-shaped and
+  // delivers signed events through the production webhook handler below;
+  // `stripe` uses the SDK with the STRIPE_* Key Vault secrets.
+  const simulatedPaymentProvider: SimulatedPaymentProvider | null =
+    config.payments.provider === 'simulated'
+      ? createSimulatedPaymentProvider({
+          store: createDrizzleSimulatedPaymentStore(db.db),
+          webhookSecret: config.payments.simulatedWebhookSecret,
+          deliveryDelayMs: config.payments.simulatedWebhookDelayMs,
+        })
+      : null;
   const stripeService: StripeService = createStripeService({
     db: db.db,
     billing: config.billing,
+    ...(simulatedPaymentProvider
+      ? {
+          client: simulatedPaymentProvider,
+          webhookSecret: simulatedPaymentProvider.webhookSecret,
+        }
+      : {}),
   });
   const commissionService: CommissionService = createCommissionService({
     db: db.db,
@@ -2018,6 +2068,24 @@ export function createComposition(
   const stripeWebhooksRoute: StripeWebhooksRoute = createStripeWebhooksRoute({
     billingWebhooks: billingWebhookService,
   });
+  // Simulated events take the same path a real Stripe delivery does: the
+  // webhook route → signature verification → idempotent dispatch.
+  simulatedPaymentProvider?.connectWebhook((rawBody, signature) =>
+    stripeWebhooksRoute.handle(rawBody, signature),
+  );
+  const simulatedPaymentsService: SimulatedPaymentsService =
+    createSimulatedPaymentsService({
+      provider: simulatedPaymentProvider,
+      stripe: stripeService,
+      commission: commissionService,
+      audit: billingAuditService,
+    });
+  const simulatedPaymentsRoute: SimulatedPaymentsRoute =
+    createSimulatedPaymentsRoute({
+      simulatedPayments: simulatedPaymentsService,
+      builderGuard,
+      adminGuard,
+    });
   // billing/03 follow-on: read-only dashboard rollup for
   // GET /api/v1/admin/billing (MRR, aging buckets, dunning, webhook health).
   const billingHealthService: BillingHealthService = createBillingHealthService(
@@ -2199,6 +2267,8 @@ export function createComposition(
     billingWebhookService,
     invoiceReviewerService,
     stripeWebhooksRoute,
+    simulatedPaymentsService,
+    simulatedPaymentsRoute,
     webhookRateLimiter,
     webhookPipeline,
     mcpRoute,

@@ -58,7 +58,10 @@ import type {
   InvoicePdfResult,
   InvoicePdfService,
 } from '../services/billing/invoice-pdf.service';
-import type { CommissionRateResponse } from '@feasly/contracts';
+import type {
+  CommissionRateResponse,
+  SetupIntentResponse,
+} from '@feasly/contracts';
 import type {
   DefaultPaymentMethodResponse,
   SetDefaultPaymentMethodResponse,
@@ -82,7 +85,7 @@ export interface BillingRoute {
   /** POST /api/v1/billing/setup-intent */
   createSetupIntent(
     headers: Record<string, string | string[] | undefined>,
-  ): Promise<{ setupIntentId: string; clientSecret: string }>;
+  ): Promise<SetupIntentResponse>;
   /** GET /api/v1/billing/card */
   getCard(
     headers: Record<string, string | string[] | undefined>,
@@ -342,7 +345,7 @@ export function createBillingRoute(deps: BillingRouteDeps): BillingRoute {
 
     async createSetupIntent(
       headers: Record<string, string | string[] | undefined>,
-    ): Promise<{ setupIntentId: string; clientSecret: string }> {
+    ): Promise<SetupIntentResponse> {
       const session = await requireBuilderSession(builderGuard, headers);
       // Idempotent: ensures the tenant has a Stripe customer first, so the
       // portal needs only one call to start the card form. ensureCustomer

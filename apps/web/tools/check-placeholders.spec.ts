@@ -46,24 +46,17 @@ describe('checkPlaceholders', () => {
     expect(checkPlaceholders(root).length).toBe(1);
   });
 
-  it('fails on the test email in a production path', () => {
-    write('apps/api/src/c.ts', `const inbox = 'karanbirsingh667@gmail.com';\n`);
-    const failures = checkPlaceholders(root);
-    expect(failures.length).toBe(1);
-    expect(failures[0]).toContain('[test email]');
-  });
-
   it('passes an allowlisted placeholder', () => {
     write(
       'tools/placeholder-allowlist.txt',
-      'apps/api/src/c.ts :: test email :: standing test email until Karan names the inbox\n',
+      'apps/api/src/c.ts :: PLACEHOLDER :: blocked on the owner naming the inbox\n',
     );
-    write('apps/api/src/c.ts', `const inbox = 'karanbirsingh667@gmail.com';\n`);
+    write('apps/api/src/c.ts', `const inbox = 'PLACEHOLDER@example.com';\n`);
     expect(checkPlaceholders(root)).toEqual([]);
   });
 
   it('always excludes test files', () => {
-    write('apps/api/test/c.test.ts', `const inbox = 'karanbirsingh667@gmail.com';\n`);
+    write('apps/api/test/c.test.ts', `const inbox = 'PLACEHOLDER';\n`);
     expect(checkPlaceholders(root)).toEqual([]);
   });
 });

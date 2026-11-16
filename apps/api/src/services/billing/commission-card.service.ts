@@ -40,6 +40,8 @@ export interface CommissionCardService {
   createSetupIntent(tenantKey: string): Promise<{
     setupIntentId: string;
     clientSecret: string;
+    /** #753: `simulated` → the portal shows the test-card picker. */
+    provider?: 'stripe' | 'simulated';
   }>;
   /**
    * Card-on-file status for the builder portal. Never includes the PAN —
@@ -104,6 +106,7 @@ export function createCommissionCardService(
     async createSetupIntent(tenantKey: string): Promise<{
       setupIntentId: string;
       clientSecret: string;
+      provider?: 'stripe' | 'simulated';
     }> {
       requireCommissionModel();
       if (!stripe.isConfigured) {
@@ -129,7 +132,11 @@ export function createCommissionCardService(
         entityId: intent.id,
         payload: { customerId, plan: 'commission' },
       });
-      return { setupIntentId: intent.id, clientSecret: intent.clientSecret };
+      return {
+        setupIntentId: intent.id,
+        clientSecret: intent.clientSecret,
+        ...(stripe.provider ? { provider: stripe.provider } : {}),
+      };
     },
 
     async getCard(tenantKey: string): Promise<CommissionCardStatus> {
