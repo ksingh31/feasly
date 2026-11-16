@@ -8,7 +8,8 @@
   "scripts": {
     "build": "tsc -b",
     "test": "vitest run",
-    "typecheck": "tsc --noEmit -p tsconfig.test.json"
+    "typecheck": "tsc --noEmit -p tsconfig.test.json",
+    "gen:web-eligibility": "tsx tools/gen-web-eligibility.ts"
   },
   "dependencies": {
     "@feasly/contracts": "^0.3.0"
