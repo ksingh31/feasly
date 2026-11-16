@@ -394,6 +394,26 @@ import {
   type CommunityStatsRefreshRoute,
 } from './routes/community-stats-refresh.route';
 import {
+  createAdminNeighbourhoodDataRoute,
+  type AdminNeighbourhoodDataRoute,
+} from './routes/admin-neighbourhood-data.route';
+import {
+  createNeighbourhoodProviders,
+  type NeighbourhoodProviders,
+} from './services/neighbourhood-data/providers';
+import {
+  createDrizzleNeighbourhoodDataStore,
+  type NeighbourhoodDataStore,
+} from './services/neighbourhood-data/neighbourhood-data.store';
+import {
+  createNeighbourhoodRefreshService,
+  type NeighbourhoodRefreshService,
+} from './services/neighbourhood-data/neighbourhood-refresh.service';
+import {
+  createNeighbourhoodReadService,
+  type NeighbourhoodReadService,
+} from './services/neighbourhood-data/neighbourhood-read.service';
+import {
   createEmbedConfigRoute,
   type EmbedConfigRoute,
 } from './routes/embed-config.route';
@@ -624,6 +644,12 @@ import {
 } from './middleware/shared-rate-limit';
 import { createDrizzleRateLimitStore } from './services/rate-limit.store';
 import {
+  createBotChallengeGate,
+  type BotChallengeGate,
+  type ChallengeVerifier,
+} from './middleware/bot-challenge';
+import { createTurnstileVerifier } from './services/turnstile.service';
+import {
   createDrizzleCityDataCacheStore,
   type CityDataCacheStore,
 } from './services/city-data-cache.store';
@@ -806,6 +832,11 @@ export interface AppComposition {
   /** Monthly refresh timer + manual admin trigger (neighbourhood/05). */
   readonly communityStatsRefreshService: CommunityStatsRefreshService;
   readonly communityStatsRefreshRoute: CommunityStatsRefreshRoute;
+  /** #773: monthly neighbourhood data refresh (the only provider caller). */
+  readonly neighbourhoodRefreshService: NeighbourhoodRefreshService;
+  /** #773: request-path neighbourhood reads (tables only, no providers). */
+  readonly neighbourhoodReadService: NeighbourhoodReadService;
+  readonly adminNeighbourhoodDataRoute: AdminNeighbourhoodDataRoute;
   /** Append-only admin audit log (neighbourhood/05; reused by later admin stories). */
   readonly adminAuditStore: AdminAuditStore;
   readonly builderConfigService: BuilderConfigService;
@@ -893,8 +924,14 @@ export interface CompositionOptions {
   readonly estimateStore?: EstimateStore;
   /** #729: shared rate-limit counters (default: Postgres via Drizzle). */
   readonly rateLimitStore?: SharedCounterStore;
+  /** #788: Turnstile verifier seam (default: siteverify over HTTPS). */
+  readonly challengeVerifier?: ChallengeVerifier;
   /** #756: shared City-data cache (tests inject an in-memory fake). */
   readonly cityDataCacheStore?: CityDataCacheStore;
+  /** #773: neighbourhood data tables (tests inject PGlite/fakes). */
+  readonly neighbourhoodDataStore?: NeighbourhoodDataStore;
+  /** #773: neighbourhood providers (tests inject fakes; default from config). */
+  readonly neighbourhoodProviders?: NeighbourhoodProviders;
   readonly leadStore?: LeadStore;
   readonly leadStatusChangeStore?: LeadStatusChangeStore;
   /** #703: report-opened + follow-up stamps (default: Drizzle). */
@@ -1050,9 +1087,33 @@ export function createComposition(
         maxTrackedKeys: config.rateLimit.maxTrackedKeys,
       }),
     });
+  // #788 (owner decision on #750): invisible bot challenge, required only
+  // from an IP that tripped the lead or estimate per-IP limiter, for
+  // BOT_CHALLENGE_WINDOW_MS after the trip. Dormant (undefined) until the
+  // Turnstile site key AND secret are configured — then the pipelines
+  // behave exactly as before #788.
+  const botChallenge: BotChallengeGate | undefined = config.botChallenge.enabled
+    ? createBotChallengeGate({
+        siteKey: config.botChallenge.siteKey,
+        trips: createSharedCooldown({
+          store: rateLimitStore,
+          scope: 'bot-challenge:ip',
+          cooldownMs: config.botChallenge.windowMs,
+        }),
+        attempts: sharedLimiter('bot-challenge:verify', config.botChallenge.verifyRateLimit),
+        verifier:
+          options.challengeVerifier ??
+          createTurnstileVerifier({
+            secretKey: config.botChallenge.secretKey,
+            verifyUrl: config.botChallenge.verifyUrl,
+            timeoutMs: config.botChallenge.verifyTimeoutMs,
+          }),
+      })
+    : undefined;
   const leadRateLimiter: AnyRateLimiter = sharedLimiter('lead:ip', config.lead.rateLimit);
   const leadPipeline: RequestPipeline = createRequestPipeline({
     rateLimiter: leadRateLimiter,
+    challenge: botChallenge,
     csrf,
     logger: options.logger,
   });
@@ -1081,6 +1142,7 @@ export function createComposition(
         label: 'tenant',
       },
     ],
+    challenge: botChallenge,
     csrf,
     logger: options.logger,
   });
@@ -1219,6 +1281,7 @@ export function createComposition(
     appBaseUrl: config.email.appBaseUrl,
     dedupWindowDays: config.lead.dedupWindowDays,
     magicLinkTtlSeconds: config.auth.magicLinkTtlSeconds,
+    minSubmitMs: config.lead.minSubmitMs,
     builderConfigs: builderConfigService,
     builders: builderService,
     // #725: late-bound (see builderService above).
@@ -1813,6 +1876,41 @@ export function createComposition(
       audit: adminAuditStore,
       adminGuard,
     });
+  // #773: neighbourhood data. Providers (chosen by config) are handed ONLY
+  // to the refresh service; the read service gets the store alone, so no
+  // request path can reach an outside source. One ops alert after
+  // NEIGHBOURHOOD_ALERT_AFTER_FAILURE_DAYS of failures; telemetry is one JSON
+  // trace per provider run: `traces | where message startswith
+  // '{"event":"neighbourhood_data.'`.
+  const neighbourhoodDataStore: NeighbourhoodDataStore =
+    options.neighbourhoodDataStore ?? createDrizzleNeighbourhoodDataStore({ db: db.db });
+  const neighbourhoodRefreshService: NeighbourhoodRefreshService =
+    createNeighbourhoodRefreshService({
+      providers:
+        options.neighbourhoodProviders ?? createNeighbourhoodProviders(config.neighbourhoodData),
+      store: neighbourhoodDataStore,
+      refreshDayOfMonth: config.neighbourhoodData.refreshDayOfMonth,
+      alertAfterFailureDays: config.neighbourhoodData.alertAfterFailureDays,
+      onFailing: ({ consecutiveFailures, firstFailureAt }) =>
+        opsAlertsService.notifyFailure('neighbourhood_data_failed', {
+          consecutiveFailures,
+          firstFailureAt,
+        }),
+      onRecovered: () => opsAlertsService.notifyRecovered('neighbourhood_data_failed'),
+      onEvent: (event) =>
+        console.info(JSON.stringify({ ...event, event: `neighbourhood_data.${event.event}` })),
+    });
+  const neighbourhoodReadService: NeighbourhoodReadService = createNeighbourhoodReadService({
+    store: neighbourhoodDataStore,
+    lotRadiusM: config.neighbourhoodData.lotRadiusM,
+    lotMetricsTtlMs: config.neighbourhoodData.lotMetricsTtlMs,
+  });
+  const adminNeighbourhoodDataRoute: AdminNeighbourhoodDataRoute =
+    createAdminNeighbourhoodDataRoute({
+      refresh: neighbourhoodRefreshService,
+      audit: adminAuditStore,
+      adminGuard,
+    });
   // Builder embed config (embed/02): repo JSON inlined at build time wins,
   // Embed config route uses the builderConfigService created above.
   const embedConfigRoute: EmbedConfigRoute = createEmbedConfigRoute({
@@ -2389,6 +2487,9 @@ export function createComposition(
     communityLotsRefreshService,
     communityStatsRefreshService,
     communityStatsRefreshRoute,
+    neighbourhoodRefreshService,
+    neighbourhoodReadService,
+    adminNeighbourhoodDataRoute,
     adminAuditStore,
     builderConfigService,
     embedConfigRoute,

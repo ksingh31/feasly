@@ -151,6 +151,7 @@ describe('ops alerts (admin/06)', () => {
       { type: 'stripe_webhook_failed', path: '/admin/ops/billing' },
       { type: 'narrative_worker_failed', path: '/admin/ops/narrative' },
       { type: 'backup_missed', path: '/admin/ops/backup' },
+      { type: 'neighbourhood_data_failed', path: '/admin/ops/neighbourhood-data' },
     ];
     for (const { type, path } of cases) {
       await service.notifyFailure(type, FAILURE_CTX);

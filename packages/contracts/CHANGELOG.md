@@ -12,6 +12,18 @@ real backend. Changing them has a cost, so:
 - **Never** widen a type to `any` to "unblock" something — the no-`any` lint exists
   precisely to stop that.
 
+## Unreleased — 2026-11-16 (additive) — invisible bot protection
+
+Issue #788 (follow-up to #750):
+
+- **Added** optional `LeadRequest.elapsedMs`. This is how long, in ms, the gate
+  form was on screen before submit. The API quarantines submissions faster than
+  `LEAD_MIN_SUBMIT_MS`, the same way it handles the honeypot.
+- **Added** `ChallengeRequiredError` (`error.ts`). This is the 403 sent when an
+  IP that tripped a shared rate limit must pass Cloudflare Turnstile. It carries
+  `challenge.provider` and the public `challenge.siteKey`. The client sends the
+  token it gets back in the `X-Turnstile-Token` header (`BOT_CHALLENGE_HEADER`).
+
 ## Unreleased — 2026-11-16 (additive) — builder partners
 
 Builder partner disclosure (issue #888, API half of #847):

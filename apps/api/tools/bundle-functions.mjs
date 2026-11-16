@@ -515,6 +515,16 @@ const targets = [
     entry: 'src/functions/admin-community-stats-refresh.ts',
     out: 'admin-community-stats-refresh/index.js',
   },
+  // #773: neighbourhood data refresh (daily tick, monthly schedule in config)
+  // + admin "refresh now" per provider.
+  {
+    entry: 'src/functions/neighbourhood-data-refresh-timer.ts',
+    out: 'neighbourhood-data-refresh-timer/index.js',
+  },
+  {
+    entry: 'src/functions/admin-neighbourhood-data-refresh.ts',
+    out: 'admin-neighbourhood-data-refresh/index.js',
+  },
   // phase-2 wiring: the five live-API endpoints the web app needs.
   {
     entry: 'src/functions/estimates-preview.ts',

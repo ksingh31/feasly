@@ -151,7 +151,7 @@ if [[ "$stale_rows" =~ ^[0-9]+$ ]] && (( stale_rows > 0 )); then
   failures=1
 fi
 
-# Community lots (#691). to_regclass() is NULL until migration 0055 runs.
+# Community lots (#691). to_regclass() is NULL until migration 0058_community_lots runs.
 lots_table="$(q "SELECT coalesce(to_regclass('public.community_lot_refreshes')::text, 'missing');" || echo "")"
 if [[ -z "$lots_table" ]]; then
   echo "FAIL: could not query for community_lot_refreshes (see psql error above)" >&2

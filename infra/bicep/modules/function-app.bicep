@@ -88,6 +88,12 @@ param stripeSecretKeySecretUri string = ''
 @description('Key Vault secret URI (versionless) for the Stripe webhook signing secret. Empty = webhook verification fails closed. Karan provisions the secret in Key Vault himself — Bicep only references it, never writes it.')
 param stripeWebhookSecretUri string = ''
 
+@description('#788: public Cloudflare Turnstile site key (not a secret). Empty = the invisible bot challenge stays dormant.')
+param turnstileSiteKey string = ''
+
+@description('#788: Key Vault secret URI (versionless) for the Turnstile secret key. Empty = setting omitted; the challenge stays dormant. Karan provisions the secret in Key Vault himself; Bicep only references it, never writes it.')
+param turnstileSecretKeySecretUri string = ''
+
 @description('Payment provider (#753): `simulated` (Stripe-shaped test mode, no real money) or `stripe`. Empty = the app setting is omitted and the app defaults to `stripe` (fail closed). Set to `simulated` for dev only in main.bicep.')
 @allowed([
   ''
@@ -406,6 +412,22 @@ resource app 'Microsoft.Web/sites@2024-04-01' = {
               {
                 name: 'STRIPE_WEBHOOK_SECRET'
                 value: '@Microsoft.KeyVault(SecretUri=${stripeWebhookSecretUri})'
+              }
+            ],
+        // #788: invisible bot challenge (Cloudflare Turnstile, free tier),
+        // required only from an IP that tripped a shared rate limit. The
+        // app enables it only when BOTH settings are present.
+        empty(turnstileSiteKey) || empty(turnstileSecretKeySecretUri)
+          ? []
+          : [
+              {
+                name: 'TURNSTILE_SITE_KEY'
+                value: turnstileSiteKey
+              }
+              {
+                // Key Vault reference — the secret never lands in app settings.
+                name: 'TURNSTILE_SECRET_KEY'
+                value: '@Microsoft.KeyVault(SecretUri=${turnstileSecretKeySecretUri})'
               }
             ],
         // #753: payment provider. Set to `simulated` for dev only (main.bicep);

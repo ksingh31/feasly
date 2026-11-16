@@ -1,7 +1,18 @@
 import { DIALOG_DATA } from '@angular/cdk/dialog';
-import { ChangeDetectionStrategy, Component, DestroyRef, Injector, computed, inject } from '@angular/core';
+import {
+  ChangeDetectionStrategy,
+  Component,
+  DestroyRef,
+  Injector,
+  computed,
+  effect,
+  inject,
+  signal,
+  untracked,
+} from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { Store } from '@ngxs/store';
+import type { ConfirmInvoicePaymentResponse, SimulatedIntentResponse } from '@feasly/contracts';
 import {
   StatusChipComponent,
   StepperComponent,
@@ -16,7 +27,10 @@ import { ConfigService } from '../../core/config/config.service';
 import { formatCentsToCad, formatRatePercent } from '../../shared/utils/money';
 import { formatEdmontonMediumDate } from '../../shared/utils/edmonton';
 import { formatInvoiceTax } from '../../shared/utils/invoice-tax';
+import { BuilderBillingApiService } from './builder-billing-api.service';
+import { LoadBillingOverview } from './builder-billing.actions';
 import { BuilderBillingState } from './builder-billing.state';
+import { BuilderSimulatedChallengeComponent } from './builder-simulated-challenge.component';
 import { injectCardModal } from './builder-card-modal.component';
 import { BUILDER_COPY } from './builder-copy';
 import {
@@ -32,7 +46,7 @@ import {
   paymentMethodEditable,
   reviewCountdown,
 } from './builder-invoice-view';
-import { DownloadInvoicePdf, SelectInvoice } from './builder-invoices.actions';
+import { DownloadInvoicePdf, LoadInvoices, SelectInvoice } from './builder-invoices.actions';
 import { BuilderInvoicesState } from './builder-invoices.state';
 import type { BuilderCommissionInvoice } from './builder-invoices-api.service';
 import type { BuilderPaymentMethod } from './builder-payment-methods';
@@ -58,12 +72,26 @@ export interface BuilderInvoiceDrawerData {
  *
  * Reads the invoice live from BuilderInvoicesState so a saved method
  * change re-renders in place.
+ *
+ * #791: an invoice whose charge waits on 3D Secure (`action_required`)
+ * asks POST /billing/invoices/{id}/confirm-payment for its PaymentIntent.
+ * With the simulated provider the drawer offers the dev-only "Complete
+ * 3DS challenge" step for that PaymentIntent; the webhook settles the
+ * invoice and the drawer reloads it. The Stripe on-session confirm is
+ * #867 — nothing renders here for `provider: 'stripe'`.
  */
 @Component({
   selector: 'app-builder-invoice-drawer',
   standalone: true,
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [UiDrawerComponent, UiButtonComponent, StatusChipComponent, StepperComponent, TimelineComponent],
+  imports: [
+    UiDrawerComponent,
+    UiButtonComponent,
+    StatusChipComponent,
+    StepperComponent,
+    TimelineComponent,
+    BuilderSimulatedChallengeComponent,
+  ],
   templateUrl: './builder-invoice-drawer.component.html',
   styleUrl: './builder-invoice-drawer.component.scss',
 })
@@ -74,9 +102,11 @@ export class BuilderInvoiceDrawerComponent {
   private readonly modals = inject(UiModalService);
   private readonly toasts = inject(UiToastService);
   private readonly data = inject<BuilderInvoiceDrawerData>(DIALOG_DATA);
+  private readonly billingApi = inject(BuilderBillingApiService);
 
   protected readonly copy = inject(BUILDER_COPY);
   protected readonly t = this.copy.invoiceDrawer;
+  protected readonly simCopy = this.copy.simulated;
   /** Deploy-configured "Question this invoice" destination; '' hides it. */
   protected readonly questionHref = inject(ConfigService).get('billing').questionInvoiceHref;
 
@@ -148,6 +178,22 @@ export class BuilderInvoiceDrawerComponent {
     };
   });
 
+  /** #791: confirm-payment lookup for an invoice waiting on 3DS. */
+  protected readonly confirmStatus = signal<'idle' | 'loading' | 'ready' | 'error'>('idle');
+  private readonly confirmation = signal<ConfirmInvoicePaymentResponse | null>(null);
+  /** #791: the 3DS step answered — hide it until the reload settles the invoice. */
+  private readonly challengeDone = signal(false);
+
+  /** #791: the simulated PaymentIntent to authenticate, or null (never for Stripe). */
+  protected readonly simulatedPaymentIntentId = computed(() => {
+    const c = this.confirmation();
+    if (this.invoice()?.status !== 'action_required' || this.challengeDone()) return null;
+    return c?.provider === 'simulated' ? c.paymentIntentId : null;
+  });
+  protected readonly confirmLoadFailed = computed(
+    () => this.invoice()?.status === 'action_required' && this.confirmStatus() === 'error',
+  );
+
   protected readonly editable = computed(() => {
     const inv = this.invoice();
     return !!inv && paymentMethodEditable(inv);
@@ -172,6 +218,43 @@ export class BuilderInvoiceDrawerComponent {
     if (!card?.hasCard) return '—';
     return `${card.brand ?? ''} •••• ${card.last4 ?? ''}`.trim();
   });
+
+  constructor() {
+    // #791: look up the PaymentIntent once the invoice shows it waits on 3DS.
+    effect(() => {
+      const needsConfirm = this.invoice()?.status === 'action_required';
+      untracked(() => {
+        if (needsConfirm && this.confirmStatus() === 'idle') this.loadConfirmation();
+      });
+    });
+  }
+
+  /** #791: POST confirm-payment — also the retry path. */
+  protected loadConfirmation(): void {
+    this.confirmStatus.set('loading');
+    this.billingApi
+      .confirmInvoicePayment(this.data.invoiceId)
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe({
+        next: (confirmation) => {
+          this.confirmation.set(confirmation);
+          this.confirmStatus.set('ready');
+        },
+        error: () => this.confirmStatus.set('error'),
+      });
+  }
+
+  /** #791: the dev-only 3DS step answered; reload what the webhook settled. */
+  protected onChallengeResolved(result: SimulatedIntentResponse): void {
+    this.challengeDone.set(true);
+    const ok = result.status === 'succeeded' || result.status === 'processing';
+    this.toasts.show({
+      message: ok ? this.simCopy.paymentCompletedToast : this.simCopy.paymentFailedToast,
+      tone: ok ? 'success' : 'danger',
+    });
+    const page = this.store.selectSnapshot(BuilderInvoicesState.page);
+    this.store.dispatch([new SelectInvoice(this.data.invoiceId), new LoadInvoices(page), new LoadBillingOverview()]);
+  }
 
   protected date(iso: string | null): string {
     return formatEdmontonMediumDate(iso);

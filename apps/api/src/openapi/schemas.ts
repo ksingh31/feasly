@@ -202,6 +202,12 @@ export const LeadRequestSchema = z
       .string()
       .optional()
       .describe('Honeypot anti-spam field — leave empty'),
+    elapsedMs: z
+      .number()
+      .optional()
+      .describe(
+        'Milliseconds the form was on screen before submit (browser clients). Optional for API callers.',
+      ),
   })
   .openapi('LeadRequest');
 
