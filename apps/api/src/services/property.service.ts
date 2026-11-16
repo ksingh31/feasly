@@ -41,6 +41,7 @@ import { HttpError, ErrorCodes } from '../middleware/errors';
 import { detectCoverageSignal } from '../lib/coverage';
 import { normalizeAddressQuery, type NormalizedAddressQuery } from '../lib/address-query';
 import { parcelInteriorPoint, type LonLat } from '../lib/geo';
+import { propertySteer } from '../lib/property-steer';
 import type { PropertyDataConfig } from '../config';
 import type { LandUseDistrict, LandUseProvider } from './land-use.service';
 import type { CityDataCacheStore } from './city-data-cache.store';
@@ -300,8 +301,11 @@ function cityUnavailable(): HttpError {
   );
 }
 
-/** Maps one verified Socrata row onto the PropertyRecord contract. */
-function toPropertyRecord(row: AssessmentRow): PropertyRecord {
+/**
+ * Maps one verified Socrata row onto the PropertyRecord contract.
+ * `redevelopmentMinAgeYears` is the market's age rule (#755).
+ */
+function toPropertyRecord(row: AssessmentRow, redevelopmentMinAgeYears: number): PropertyRecord {
   const address = (row.address ?? '').trim();
   const assessedValue = toNumber(row.assessed_value) ?? 0;
   const rollYear = toNumber(row.roll_year);
@@ -309,6 +313,7 @@ function toPropertyRecord(row: AssessmentRow): PropertyRecord {
   // `assessmentYearInferred` tells them the year was not read from the City.
   const assessmentYear = rollYear ?? new Date().getFullYear();
   const modDate = row.mod_date?.split('T')[0] ?? '';
+  const yearBuilt = toNumber(row.year_of_construction);
   return {
     addressKey: address,
     address: `${formatAddress(address)}, Calgary, AB`,
@@ -318,7 +323,8 @@ function toPropertyRecord(row: AssessmentRow): PropertyRecord {
     assessedValue: Math.round(assessedValue),
     assessmentYear,
     assessmentYearInferred: rollYear === null,
-    yearBuilt: toNumber(row.year_of_construction),
+    yearBuilt,
+    steer: propertySteer(yearBuilt, redevelopmentMinAgeYears, new Date().getFullYear()),
     assessmentClass: row.assessment_class?.trim() ?? '',
     isNonResidential: isNonResidentialRow(row),
     dataAsOf: modDate || new Date().toISOString().split('T')[0],
@@ -635,7 +641,7 @@ export function createPropertyService(
       }
     }
     if (!best || bestValue < 0) miss(key, key, deps.onLookupMiss);
-    return { record: toPropertyRecord(best), point: parcelInteriorPoint(best.multipolygon) };
+    return { record: toPropertyRecord(best, config.redevelopmentMinAgeYears), point: parcelInteriorPoint(best.multipolygon) };
   }
 
   /** City autocomplete for a normalized query (one request, plus the #701 fallback). */

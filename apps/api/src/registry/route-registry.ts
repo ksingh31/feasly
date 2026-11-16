@@ -1340,7 +1340,22 @@ export const ROUTE_REGISTRY: readonly ApiRouteEntry[] = [
     status: 'live',
     summary:
       'Builder reads their card-on-file status (brand/last4/expiry only — ' +
-      'the PAN never leaves Stripe). Commission model.',
+      'the PAN never leaves Stripe) plus expiresSoon/expired flags (#716). ' +
+      'One card per builder: the newest saved card is the default the ' +
+      'charge uses. Commission model.',
+  },
+  {
+    method: 'DELETE',
+    path: '/api/v1/billing/card',
+    auth: 'builder-session',
+    permissions: ['builder:billing'] as const,
+    rateLimit: '100/min per session',
+    status: 'live',
+    summary:
+      'Builder admin removes the card on file (#716); 403 for builder ' +
+      'members. 409 while an unpaid invoice is set to be charged to the ' +
+      'card (switch it to a manual method or save a new card first). ' +
+      'Idempotent: no card → hasCard false. Commission model.',
   },
   {
     method: 'GET',

@@ -206,6 +206,9 @@ describe('commission card-on-file (BILL-02)', () => {
       last4: '4242',
       expMonth: 12,
       expYear: 2028,
+      // #716 expiry flags (a 12/2028 card is far from expiry).
+      expiresSoon: false,
+      expired: false,
     });
     expect(JSON.stringify(status)).not.toContain('4242424242424242');
   });

@@ -1253,6 +1253,15 @@ export interface AppConfig {
       renoComingSoonBadge: string;
       /** #520: secondary action under the reno waitlist — back to the working flow. */
       renoNewBuildCta: string;
+      /**
+       * #755: reason shown when the API steers a younger home to renovation.
+       * `{year}` is the City's year of construction. "Usually", never "must".
+       */
+      steerRenovationReason: string;
+      /** #755: reason shown when the API marks the home a redevelopment candidate. `{year}` as above. */
+      steerNewBuildReason: string;
+      /** #755: override for a home steered to renovation — continue with a new build. */
+      steerOverrideCta: string;
       /** Placeholder for the reno scope-inputs step until RENO-03 builds it. */
       renoScopePendingTitle: string;
       renoScopePendingBody: string;
