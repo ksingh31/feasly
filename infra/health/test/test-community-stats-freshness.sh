@@ -38,8 +38,27 @@ EOF
 cat >"$BIN/az" <<'EOF'
 #!/usr/bin/env bash
 echo "$*" >>"$STATE/az.log"
-rule=""; prev=""
-for a in "$@"; do [[ "$prev" == "--rule-name" ]] && rule="$a"; prev="$a"; done
+rule=""; server=""; prev=""
+for a in "$@"; do
+  case "$prev" in
+    --name|-n) rule="$a" ;;
+    --server-name|-s) server="$a" ;;
+  esac
+  prev="$a"
+done
+# Mirror the real CLI (azure-cli 2.92): firewall-rule takes --server-name/-s
+# for the server and --name/-n for the rule; --rule-name does not exist (#959).
+if [[ "$*" == *"firewall-rule"* ]]; then
+  if [[ " $* " == *" --rule-name "* ]]; then
+    echo "az: error: unrecognized arguments: --rule-name" >&2; exit 2
+  fi
+  if [[ -z "$server" ]]; then
+    echo "az: error: the following arguments are required: --server-name/-s" >&2; exit 2
+  fi
+  if [[ "$*" != *"firewall-rule list"* && -z "$rule" ]]; then
+    echo "az: error: stub requires --name/-n for the rule" >&2; exit 2
+  fi
+fi
 case "$*" in
   *"firewall-rule create"*)
     [[ "${AZ_CREATE_FAILS:-0}" == 1 ]] && exit 1
@@ -77,7 +96,7 @@ grep -q firewall-rule "$STATE/az.log" \
 run blocked GITHUB_ACTIONS=true GITHUB_RUN_ID=42 GITHUB_RUN_ATTEMPT=1
 [[ $RC -eq 0 && "$OUT" == *"OK: community_stats fresh"* ]] \
   && ok "blocked runner: passes via temporary rule" || bad "blocked runner: rc=$RC out=$OUT"
-grep -Eq 'firewall-rule create -g rg-test -n feasly-dev-pg-test --rule-name ci-freshness-[0-9]+-42-1 --start-ip-address 203.0.113.7 --end-ip-address 203.0.113.7' "$STATE/az.log" \
+grep -Eq 'firewall-rule create -g rg-test --server-name feasly-dev-pg-test --name ci-freshness-[0-9]+-42-1 --start-ip-address 203.0.113.7 --end-ip-address 203.0.113.7' "$STATE/az.log" \
   && ok "blocked runner: rule is /32 for the runner IP on the right server" \
   || bad "blocked runner: unexpected create call: $(cat "$STATE/az.log")"
 ls "$STATE"/rule-* >/dev/null 2>&1 \
@@ -108,15 +127,24 @@ run denied GITHUB_ACTIONS=true AZ_CREATE_FAILS=1
 [[ $RC -eq 1 && "$OUT" == *"could not create temporary firewall rule"* && "$OUT" == *"FAIL: could not query"* ]] \
   && ok "create denied: fails loudly" || bad "create denied: rc=$RC out=$OUT"
 
+# 6b. Every firewall call uses --server-name/--name, never -n <server> --rule-name (#959).
+run flags GITHUB_ACTIONS=true EXTRA_RULES="ci-freshness-1-1-1"
+grep -q -- "--rule-name" "$STATE/az.log" \
+  && bad "flags: used nonexistent --rule-name" || ok "flags: no --rule-name"
+[[ "$(grep -c firewall-rule "$STATE/az.log")" -ge 3 ]] \
+  && ! grep firewall-rule "$STATE/az.log" | grep -vq -- "--server-name feasly-dev-pg-test" \
+  && ok "flags: create/delete/list all pass --server-name" \
+  || bad "flags: a firewall call lacks --server-name: $(cat "$STATE/az.log")"
+
 # 7. Sweep: rules from killed jobs older than an hour go; recent ones stay.
 OLD="ci-freshness-$(( $(date +%s) - 7200 ))-1-1"
 RECENT="ci-freshness-$(( $(date +%s) - 60 ))-2-1"
 run sweep GITHUB_ACTIONS=true EXTRA_RULES="$OLD $RECENT"
-grep -q -- "delete .*--rule-name $OLD" "$STATE/az.log" \
+grep -q -- "delete .*--name $OLD" "$STATE/az.log" \
   && ok "sweep: deletes a stale ci-freshness rule" || bad "sweep: stale rule kept: $(cat "$STATE/az.log")"
-grep -q -- "--rule-name $RECENT" "$STATE/az.log" \
+grep -q -- "--name $RECENT" "$STATE/az.log" \
   && bad "sweep: deleted a recent rule (another job's)" || ok "sweep: keeps recent rules"
-grep -q -- "--rule-name AllowAzureServices" "$STATE/az.log" \
+grep -q -- "--name AllowAzureServices" "$STATE/az.log" \
   && bad "sweep: touched AllowAzureServices" || ok "sweep: never touches AllowAzureServices"
 
 echo

@@ -495,6 +495,107 @@ export interface BuilderCopy {
   cardModalClose: string;
   /** #791: test-mode (simulated payment provider) card picker + 3DS step. */
   simulated: BuilderSimulatedPaymentsCopy;
+  /** #871: builder Settings page (Profile & branding, Embed, Help). */
+  settings: BuilderSettingsCopy;
+}
+
+/** One link on the builder Settings Help tab. */
+export interface BuilderHelpLink {
+  label: string;
+  /** App route (starts with '/') or absolute https URL. */
+  href: string;
+}
+
+/**
+ * #871: builder Settings copy. Support email + response time come from the
+ * API (`BuilderSupportContact`), never from here.
+ */
+export interface BuilderSettingsCopy {
+  navLabel: string;
+  heading: string;
+  description: string;
+  tabsLabel: string;
+  tabProfile: string;
+  tabEmbed: string;
+  tabHelp: string;
+  /** Profile tab. */
+  profileLoading: string;
+  profileLoadError: string;
+  profileReadOnlyNote: string;
+  profileViewAsNote: string;
+  businessNameLabel: string;
+  businessNameHint: string;
+  displayNameLabel: string;
+  displayNameHint: string;
+  contactEmailLabel: string;
+  contactPhoneLabel: string;
+  logoUrlLabel: string;
+  logoUrlHint: string;
+  accentColorLabel: string;
+  accentColorHint: string;
+  accentPickerLabel: string;
+  previewHeading: string;
+  previewLogoNone: string;
+  previewLogoBroken: string;
+  previewButton: string;
+  previewAccentNone: string;
+  saveLabel: string;
+  resetLabel: string;
+  savedToast: string;
+  saveError: string;
+  errorRequired: string;
+  errorEmail: string;
+  errorHttps: string;
+  errorHex: string;
+  /** {max} = character limit. */
+  errorTooLong: string;
+  /** Embed tab. */
+  embedLoading: string;
+  embedLoadError: string;
+  snippetHeading: string;
+  snippetIntro: string;
+  copyLabel: string;
+  copiedToast: string;
+  copyFailedToast: string;
+  originsHeading: string;
+  /** {days} = live window in days. */
+  originsIntro: string;
+  originsEmpty: string;
+  originColOrigin: string;
+  originColStatus: string;
+  originColLastSeen: string;
+  originLive: string;
+  originStale: string;
+  originNever: string;
+  requestChangeLabel: string;
+  requestChangeOwnerOnly: string;
+  openRequestsHeading: string;
+  openRequestAdd: string;
+  openRequestRemove: string;
+  /** {date} = request date. */
+  openRequestFiled: string;
+  /** Request-a-change dialog. */
+  requestHeading: string;
+  requestIntro: string;
+  requestAddLabel: string;
+  requestAddHint: string;
+  requestRemoveLegend: string;
+  requestNoteLabel: string;
+  requestNoteHint: string;
+  requestSubmit: string;
+  requestCancel: string;
+  requestEmptyError: string;
+  requestError: string;
+  requestCreatedToast: string;
+  requestDuplicateToast: string;
+  /** Help tab. */
+  helpHeading: string;
+  helpIntro: string;
+  helpEmailLabel: string;
+  /** {time} = response time from the API. */
+  helpResponseTime: string;
+  helpLinksHeading: string;
+  helpLinks: BuilderHelpLink[];
 }
 
 /**
@@ -643,6 +744,16 @@ export interface BuilderInvoiceDrawerCopy {
   pdfFilename: string;
   /** Toast after a method change: `{method}`. */
   methodChangedToast: string;
+  /** #867: primary button for an invoice waiting on the bank (`action_required`). */
+  confirmPaymentCta: string;
+  /** #867: the button while the confirm is in flight. */
+  confirmPaymentBusy: string;
+  /** #867: status note while waiting for the webhook to settle the invoice. */
+  confirmPaymentPending: string;
+  /** #867: the invoice still waits after the poll window — offer a re-check. */
+  confirmPaymentStalled: string;
+  /** #867: re-check button after the poll window. */
+  confirmPaymentCheckAgain: string;
   modalHeading: string;
   /** "Before" label in the modal. */
   modalBefore: string;
@@ -931,6 +1042,13 @@ export interface AppConfig {
      * the minted invoice's own `reviewDueAt` is shown once it does.
      */
     chargeDelayDays: number;
+    /**
+     * #867: after the builder confirms a payment with their bank, the
+     * invoice drawer re-fetches the invoice every `confirmPollIntervalMs`
+     * (at most `confirmPollAttempts` times) until the webhook settles it.
+     */
+    confirmPollIntervalMs: number;
+    confirmPollAttempts: number;
   };
   /** Property-data wiring (FE1-002): autocomplete + property records. */
   propertyData: {
@@ -1054,6 +1172,16 @@ export interface AppConfig {
     callbackDateWindowDays: number;
     /** #836: callback notes cap (characters); the API enforces the same. */
     callbackNotesMaxLength: number;
+    /**
+     * #871: builder Settings field caps — mirror the API's profile /
+     * origin-request validation (builder-settings.service.ts); the API
+     * re-validates.
+     */
+    builderDisplayNameMaxLength: number;
+    builderContactEmailMaxLength: number;
+    builderLogoUrlMaxLength: number;
+    builderOriginRequestMaxOrigins: number;
+    builderOriginRequestNoteMaxLength: number;
   };
   /**
    * What a new-build estimate includes and leaves out (#824, owner decision

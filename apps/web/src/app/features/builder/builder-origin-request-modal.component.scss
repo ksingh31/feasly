@@ -1,0 +1,54 @@
+@use '../../shared/ui/fields/field-control' as *;
+
+.origin-request {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+}
+.origin-request__intro {
+  margin: 0;
+  color: var(--muted);
+  font: var(--type-body-sm);
+}
+.origin-request__control {
+  @include ui-field-control;
+  resize: vertical;
+}
+.origin-request__remove {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  margin: 0;
+  padding: 0;
+  border: 0;
+  min-width: 0;
+}
+.origin-request__remove legend {
+  margin-bottom: var(--space-2);
+  padding: 0;
+  font: var(--type-body-sm);
+  font-weight: 600;
+  color: var(--text);
+}
+.origin-request__check {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  min-height: 44px;
+  font: var(--type-body-sm);
+  color: var(--text);
+  overflow-wrap: anywhere;
+}
+.origin-request__check input {
+  width: 20px;
+  height: 20px;
+  flex: 0 0 auto;
+}
+.origin-request__alert {
+  margin: 0;
+  padding: var(--space-3);
+  border-radius: var(--radius-sm);
+  background: var(--status-danger-bg);
+  color: var(--status-danger-fg);
+  font: var(--type-body-sm);
+}
