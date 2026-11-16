@@ -425,6 +425,16 @@ const DISTRICTS: readonly ZoningDistrictSource[] = [
     category: 'grade-oriented',
     coverage: 'covered',
     forms: [
+      // Owner decision (#898, 2026-11-15): s. 1387 lists the generic use
+      // "Dwelling Unit", which covers a single dwelling; keeps the catalogue
+      // in step with the estimator's eligibility list (Karan, 2026-10-02).
+      form(
+        'single-detached',
+        'permitted',
+        's. 1387(b)',
+        true,
+        'Listed as the generic use "Dwelling Unit" rather than by name; typically allowed, confirm with the City.',
+      ),
       form(
         'rowhouse',
         'permitted',
