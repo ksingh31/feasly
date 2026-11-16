@@ -88,6 +88,11 @@ import {
 } from './services/sandbox-purge.service';
 import { createDrizzleSandboxPurgeStore } from './services/sandbox-purge.store';
 import {
+  createCardExpiryReminderService,
+  type CardExpiryReminderService,
+} from './services/billing/card-expiry-reminder.service';
+import { createDrizzleCardExpiryReminderStore } from './services/billing/card-expiry-reminder.store';
+import {
   createSheetsSyncService,
   type SheetsSyncService,
 } from './services/sheets-sync.service';
@@ -964,6 +969,8 @@ export interface AppComposition {
   readonly billingWebhookService: BillingWebhookService;
   /** billing/02: daily review-window finalizer. */
   readonly invoiceReviewerService: InvoiceReviewerService;
+  /** #880: one-time card-expiry reminder (runs in the invoice-reviewer timer). */
+  readonly cardExpiryReminderService: CardExpiryReminderService;
   readonly stripeWebhooksRoute: StripeWebhooksRoute;
   /** #753: simulated-provider dev actions (404 unless PAYMENTS_PROVIDER=simulated). */
   readonly simulatedPaymentsService: SimulatedPaymentsService;
@@ -2574,6 +2581,17 @@ export function createComposition(
       // #860: hold auto-charges for builders whose status pauses them.
       builderStatus: builderStatusByTenantKey,
     });
+  // #880: one-time card-expiry reminder, run by the invoice-reviewer timer.
+  const cardExpiryReminderService: CardExpiryReminderService =
+    createCardExpiryReminderService({
+      billing: config.billing,
+      stripe: stripeService,
+      store: createDrizzleCardExpiryReminderStore({ db: db.db }),
+      email: emailService,
+      builders: builderService,
+      memberships: membershipStore,
+      audit: billingAuditService,
+    });
   const stripeWebhooksRoute: StripeWebhooksRoute = createStripeWebhooksRoute({
     billingWebhooks: billingWebhookService,
   });
@@ -2795,6 +2813,7 @@ export function createComposition(
     commissionCardService,
     billingWebhookService,
     invoiceReviewerService,
+    cardExpiryReminderService,
     stripeWebhooksRoute,
     simulatedPaymentsService,
     simulatedPaymentsRoute,

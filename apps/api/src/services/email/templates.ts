@@ -803,6 +803,77 @@ ${fallbackLink(invoiceUrl)}`;
   return { subject, html: layout(ctx, 'Confirm your payment', body), text };
 }
 
+/* ── #880: one-time "your card expires soon" reminder ───────────────────
+ *
+ * Sent once per saved card (dedupe by payment method id) to the builder
+ * org's admins when the card first enters the expiry warning window. The
+ * CTA opens portal Billing, where "Replace card" saves a new card. Account
+ * notice — no unsubscribe footer, no figures.
+ */
+
+export interface CardExpiryReminderTemplateInput {
+  readonly businessName: string;
+  /** Card brand as the provider reports it (`visa`, `mastercard`, …). */
+  readonly brand: string;
+  readonly last4: string;
+  /** 1-12. */
+  readonly expMonth: number;
+  readonly expYear: number;
+}
+
+const MONTH_NAMES = [
+  'January',
+  'February',
+  'March',
+  'April',
+  'May',
+  'June',
+  'July',
+  'August',
+  'September',
+  'October',
+  'November',
+  'December',
+] as const;
+
+function cardBrandLabel(brand: string): string {
+  const known: Record<string, string> = {
+    visa: 'Visa',
+    mastercard: 'Mastercard',
+    amex: 'American Express',
+    discover: 'Discover',
+    jcb: 'JCB',
+    diners: 'Diners Club',
+    unionpay: 'UnionPay',
+  };
+  const key = brand.trim().toLowerCase();
+  return known[key] ?? (key ? key.charAt(0).toUpperCase() + key.slice(1) : 'card');
+}
+
+export function renderCardExpiryReminderEmail(
+  ctx: TemplateContext,
+  input: CardExpiryReminderTemplateInput,
+): RenderedEmail {
+  const billingUrl = `${ctx.appBaseUrl}/builder/billing`;
+  const brand = cardBrandLabel(input.brand);
+  const month = MONTH_NAMES[input.expMonth - 1] ?? `month ${input.expMonth}`;
+  const expiry = `${month} ${input.expYear}`;
+  const subject = `Your ${brand} ending in ${input.last4} expires soon — replace your card`;
+  const body = `<p>Hi there,</p>
+<p>The ${esc(brand)} ending in <strong>${esc(input.last4)}</strong> that ${esc(input.businessName)} keeps on file with ${esc(ctx.brandName)} expires at the end of <strong>${esc(expiry)}</strong>.</p>
+<p>Commission invoices are charged to this card. To keep payments going through, sign in to your builder portal, open <strong>Billing</strong> and choose <strong>Replace card</strong>.</p>
+<p>This is a one-time reminder for this card.</p>
+${ctaButton(billingUrl, 'Replace card')}
+${fallbackLink(billingUrl)}`;
+  const text =
+    `Hi there,\n\nThe ${brand} ending in ${input.last4} that ${input.businessName} keeps on file with ${ctx.brandName} ` +
+    `expires at the end of ${expiry}.\n\n` +
+    `Commission invoices are charged to this card. To keep payments going through, sign in to your builder portal, ` +
+    `open Billing and choose "Replace card".\n\nThis is a one-time reminder for this card.\n\n` +
+    `Replace card: ${billingUrl}\n\n— ${ctx.brandName}`;
+  return { subject, html: layout(ctx, 'Your card expires soon', body), text };
+}
+
 /* ── Issue #530: "Mark won" → admin asked to record the contract ─────────
  *
  * Transactional org notice to a builder admin: a teammate marked a lead
