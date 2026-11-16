@@ -163,6 +163,44 @@ describe('lead assignment (#721)', () => {
     expect(auditEntries.map((e) => e.action)).toEqual(['admin_lead_builder_assigned']);
   });
 
+  it('first assignment 409s instead of overwriting a move that committed after the read', async () => {
+    const leadId = await seedLead({ builder: null });
+    // The service reads the lead as unassigned; an admin's move to A commits
+    // before the write. Simulate by serving a stale (unassigned) read.
+    const staleDb = new Proxy(testDb.db, {
+      get(target, prop, receiver) {
+        if (prop !== 'query') return Reflect.get(target, prop, receiver);
+        const q = Reflect.get(target, prop, receiver);
+        return new Proxy(q, {
+          get(qt, qp, qr) {
+            if (qp !== 'leads') return Reflect.get(qt, qp, qr);
+            return {
+              findFirst: async (args: unknown) => {
+                const row = await qt.leads.findFirst(args);
+                await testDb.db
+                  .update(leads)
+                  .set({ builderId: builderA.id, tenantKey: builderA.tenantKey })
+                  .where(eq(leads.id, leadId));
+                return row;
+              },
+            };
+          },
+        });
+      },
+    });
+    const racing = createLeadAssignmentService({
+      db: staleDb,
+      audit,
+      now: () => new Date(NOW),
+    });
+    await expect(racing.assignLead(leadId, builderB.id, ADMIN)).rejects.toMatchObject({
+      status: 409,
+      code: ErrorCodes.CONFLICT,
+    });
+    expect((await leadRow(leadId)).builderId).toBe(builderA.id);
+    expect(auditEntries).toHaveLength(0);
+  });
+
   it('A→B with no invoice closes A, opens B dated now, resets status, records the move', async () => {
     const leadId = await seedLead({ builder: builderA, status: 'contacted' });
     const oldIntro = await introduce(leadId, builderA.tenantKey);

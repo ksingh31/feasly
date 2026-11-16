@@ -28,7 +28,7 @@
  * test/boundaries.test.ts. No homeowner PII in logs or audit details.
  */
 import { randomUUID } from 'node:crypto';
-import { and, desc, eq, sql } from 'drizzle-orm';
+import { and, desc, eq, isNull, sql } from 'drizzle-orm';
 import type {
   BuilderReassignedLead,
   LeadAssignBuilderResponse,
@@ -146,10 +146,21 @@ export function createLeadAssignmentService(
       if (fromBuilderId === null) {
         // First assignment: nothing to move away from. tenant_key follows
         // the builder (the deploy-time repair SQL aligns it the same way).
-        await db
+        // Conditional on builder_id IS NULL: if a concurrent X→Y move
+        // committed since the read above, this must not overwrite it.
+        const claimed = await db
           .update(leads)
           .set({ builderId, tenantKey: target!.tenantKey, updatedAt: now() })
-          .where(eq(leads.id, leadId));
+          .where(and(eq(leads.id, leadId), isNull(leads.builderId)))
+          .returning({ id: leads.id });
+        if (claimed.length === 0) {
+          throw new HttpError(
+            409,
+            ErrorCodes.CONFLICT,
+            'The lead was reassigned by someone else. Reload and try again.',
+            false,
+          );
+        }
         await audit.log({
           actorEmail: adminEmail,
           action: 'admin_lead_builder_assigned',
