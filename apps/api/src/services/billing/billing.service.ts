@@ -32,7 +32,10 @@ import type {
   CommissionInvoiceRecord,
   CommissionService,
 } from './commission.service';
-import type { BuilderPaymentMethod } from '@feasly/contracts';
+import type {
+  BuilderPaymentMethod,
+  ConfirmInvoicePaymentResponse,
+} from '@feasly/contracts';
 import type { DisputeService } from './dispute.service';
 import type { LeadStore } from '../lead.store';
 import type { BuilderService } from '../builder.service';
@@ -117,6 +120,16 @@ export interface BillingService {
     tenantKey: string,
     method: BuilderPaymentMethod,
   ): Promise<CommissionInvoiceRecord>;
+  /**
+   * #712 SCA recovery: client secret + card for the builder to confirm an
+   * `action_required` invoice's payment with their bank. Builders may only
+   * confirm their own tenant's invoices (403 otherwise); 409 when the
+   * invoice is not waiting for confirmation.
+   */
+  confirmInvoicePayment(
+    invoiceId: string,
+    tenantKey: string,
+  ): Promise<ConfirmInvoicePaymentResponse>;
 }
 
 export interface BillingServiceDeps {
@@ -286,6 +299,14 @@ export function createBillingService(
       // commission.setInvoicePaymentMethod: 403 for another tenant's
       // invoice, 404 for an unknown invoice.
       return commission.setInvoicePaymentMethod(tenantKey, invoiceId, method);
+    },
+
+    async confirmInvoicePayment(
+      invoiceId: string,
+      tenantKey: string,
+    ): Promise<ConfirmInvoicePaymentResponse> {
+      await requireTenantInvoice(invoiceId, tenantKey);
+      return commission.createPaymentConfirmation(invoiceId);
     },
   };
 }

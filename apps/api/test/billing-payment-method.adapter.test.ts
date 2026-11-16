@@ -88,6 +88,7 @@ vi.mock('../src/index', () => ({
 // Imported after the mock.
 import { billingPaymentMethodHandler } from '../src/functions/billing-payment-method';
 import { billingInvoicePaymentMethodHandler } from '../src/functions/billing-invoice-payment-method';
+import { billingInvoiceConfirmPaymentHandler } from '../src/functions/billing-invoice-confirm-payment';
 
 const INVOICE_ID = '00000000-0000-4000-8000-000000000021';
 
@@ -127,6 +128,13 @@ function wireRoute(): {
         method: 'card' | 'cheque' | 'e_transfer' | 'bank_draft',
       ) => ({ id: invoiceId, tenantKey, paymentMethod: method }),
     ),
+    confirmInvoicePayment: vi.fn(async (invoiceId: string) => ({
+      invoiceId,
+      paymentIntentId: 'pi_1',
+      clientSecret: 'pi_1_secret_x',
+      paymentMethodId: 'pm_1',
+      provider: 'stripe' as const,
+    })),
   } as unknown as BillingService;
   const builderGuard = {
     getBuilderSession: async () =>
@@ -250,6 +258,47 @@ describe('billing-invoice-payment-method adapter (billing/12)', () => {
     );
 
     expect(billing.setInvoicePaymentMethod).not.toHaveBeenCalled();
+    expect(context.res).toMatchObject({ status: 401 });
+  });
+});
+
+describe('billing-invoice-confirm-payment adapter (#712)', () => {
+  beforeEach(() => {
+    authed = true;
+    vi.clearAllMocks();
+  });
+
+  it('POST plumbs the {id} route parameter and the session tenant to the service', async () => {
+    const { billing } = wireRoute();
+    const context = makeContext();
+    context.bindingData = { id: INVOICE_ID };
+    await billingInvoiceConfirmPaymentHandler(context, makeReq('POST'));
+
+    expect(billing.confirmInvoicePayment).toHaveBeenCalledWith(INVOICE_ID, 'elite-craft');
+    expect(context.res).toMatchObject({
+      status: 200,
+      body: { invoiceId: INVOICE_ID, clientSecret: 'pi_1_secret_x', provider: 'stripe' },
+    });
+  });
+
+  it('returns a 400 problem for a non-uuid id and never reaches the service', async () => {
+    const { billing } = wireRoute();
+    const context = makeContext();
+    context.bindingData = { id: 'not-a-uuid' };
+    await billingInvoiceConfirmPaymentHandler(context, makeReq('POST'));
+
+    expect(billing.confirmInvoicePayment).not.toHaveBeenCalled();
+    expect(context.res).toMatchObject({ status: 400 });
+  });
+
+  it('returns a 401 problem without a builder session', async () => {
+    authed = false;
+    const { billing } = wireRoute();
+    const context = makeContext();
+    context.bindingData = { id: INVOICE_ID };
+    await billingInvoiceConfirmPaymentHandler(context, makeReq('POST'));
+
+    expect(billing.confirmInvoicePayment).not.toHaveBeenCalled();
     expect(context.res).toMatchObject({ status: 401 });
   });
 });

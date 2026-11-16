@@ -30,6 +30,7 @@ import {
   normalizeStripeEvent,
   type CardSummary,
   type NormalizedStripeEvent,
+  type OffSessionChargeResult,
   type PaymentProvider,
 } from './payment-provider';
 import type { SimulatedObject, SimulatedPaymentStore } from './simulated-payment.store';
@@ -311,6 +312,21 @@ export function createSimulatedPaymentProvider(
     };
   }
 
+  /** A stored PaymentIntent as an off-session charge result (#712). */
+  function chargeResult(data: Record<string, unknown>): OffSessionChargeResult {
+    const err = data['last_payment_error'] as Record<string, unknown> | null | undefined;
+    const errorCode = err ? str(err['code']) : undefined;
+    const declineCode = err ? str(err['decline_code']) : undefined;
+    const failureMessage = err ? str(err['message']) : undefined;
+    return {
+      id: str(data['id']) ?? '',
+      status: str(data['status']) ?? 'unknown',
+      ...(errorCode ? { errorCode } : {}),
+      ...(declineCode ? { declineCode } : {}),
+      ...(failureMessage ? { failureMessage } : {}),
+    };
+  }
+
   /** Settle a PaymentIntent as succeeded (charge object + event). */
   function succeedPayment(pi: Record<string, unknown>): Record<string, unknown> {
     return {
@@ -410,7 +426,7 @@ export function createSimulatedPaymentProvider(
       const id = keyedId('pi', idempotencyKey);
       const existing = await store.get(id);
       if (existing) {
-        return { id, status: str(existing.data['status']) ?? 'unknown' };
+        return chargeResult(existing.data);
       }
       await requireObject(input.customerId, 'customer');
       const pm = await newestCard(input.customerId);
@@ -432,6 +448,7 @@ export function createSimulatedPaymentProvider(
         customer: input.customerId,
         payment_method: pm.id,
         description: input.description,
+        metadata: { ...(input.metadata ?? {}) },
         off_session: true,
         confirmation_method: 'automatic',
         livemode: false,
@@ -459,11 +476,24 @@ export function createSimulatedPaymentProvider(
       if (!inserted) {
         // Lost an idempotency race — replay the winner's result.
         const winner = await requireObject(id, 'payment_intent');
-        return { id, status: str(winner.data['status']) ?? 'unknown' };
+        return chargeResult(winner.data);
       }
       await emit(eventType, data);
       deliverLater();
-      return { id, status: str(data['status']) ?? 'unknown' };
+      return chargeResult(data);
+    },
+
+    async getPaymentIntentConfirmation(paymentIntentId) {
+      const pi = await requireObject(paymentIntentId, 'payment_intent');
+      const paymentMethodId = str(pi.data['payment_method']);
+      return {
+        id: paymentIntentId,
+        status: str(pi.data['status']) ?? 'unknown',
+        // Stripe's shape (`pi_…_secret_…`); the simulated confirm step
+        // (POST /billing/simulated/authenticate) takes the intent id.
+        clientSecret: `${paymentIntentId}_secret_sim`,
+        ...(paymentMethodId ? { paymentMethodId } : {}),
+      };
     },
 
     async refundPaymentIntent(paymentIntentId, idempotencyKey, amountCents) {

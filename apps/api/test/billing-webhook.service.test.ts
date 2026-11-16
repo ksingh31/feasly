@@ -90,6 +90,7 @@ function fakeStripe(): StripeService {
     cancelSubscription: async (id) => ({ id }),
     refundPaymentIntent: async (paymentIntentId) => ({ id: 're_test', status: 'succeeded' }),
     retrievePaymentIntent: async (id: string) => ({ id, status: 'processing' }),
+    getPaymentIntentConfirmation: async (id: string) => ({ id, status: 'requires_action', clientSecret: `${id}_secret_test` }),
     verifyWebhook: (rawBody: Buffer, signature: string | undefined) => {
       if (!signature) {
         const error = new Error('Missing stripe signature') as Error & {
@@ -116,6 +117,8 @@ function fakeStripe(): StripeService {
         type: payload.type,
         paymentIntentId:
           payload.data?.object?.id ?? payload.data?.object?.payment_intent,
+        commissionInvoiceId:
+          payload.data?.object?.metadata?.feasly_commission_invoice_id,
       };
     },
     getCustomerId: async () => 'cus_test_123',
@@ -564,5 +567,111 @@ describe('billing webhook service', () => {
     });
     const result = await webhook.handleWebhook(body, signature);
     expect(result.received).toBe(true);
+  });
+  // ── #712: requires_action / processing + webhook-before-response ──────
+
+  async function seedInReviewInvoice(tenantKey: string) {
+    await testDb.db.insert(tenants).values({
+      tenantKey,
+      businessName: `${tenantKey} Builder`,
+      displayName: tenantKey,
+      accentColor: '#B08D57',
+      allowedOrigins: ['https://example.com'],
+      stripeCustomerId: 'cus_test_123',
+    });
+    const estimateId = nextId();
+    await testDb.db.insert(estimates).values({
+      id: estimateId,
+      projectType: 'new_build',
+      addressKey: `${tenantKey}-st`,
+      inputs: {},
+      figures: {},
+      rows: [],
+      costDataVersion: 'v0.2.0',
+    });
+    const leadId = nextId();
+    await testDb.db.insert(leads).values({
+      id: leadId,
+      estimateId,
+      addressKey: `${tenantKey}-st`,
+      email: `${tenantKey}@example.com`,
+      name: 'Homeowner',
+      timeline: '6-12 months',
+      consentTs: new Date('2026-03-01T09:00:00.000Z'),
+    });
+    const intro = await attribution.recordIntroduction({
+      leadId,
+      tenantKey,
+      introducedAt: new Date('2026-03-01T10:00:00.000Z'),
+    });
+    const reported = await attribution.reportContract({
+      attributionId: intro.id,
+      contractValueCents: 60_000_000,
+      contractSignedAt: new Date('2026-06-01T10:00:00.000Z'),
+      reportedAt: new Date('2026-06-05T10:00:00.000Z'),
+    });
+    const draft = await commission.createDraftInvoice(reported.id);
+    return commission.submitForReview(draft.id);
+  }
+
+  it('moves a finalized invoice to action_required on payment_intent.requires_action (#712)', async () => {
+    const inReview = await seedInReviewInvoice('webhook-3ds-builder');
+    const finalized = await commission.finalizeInvoice(inReview.id);
+    expect(finalized.status).toBe('finalized');
+    const event = {
+      id: 'evt_3ds_1',
+      type: 'payment_intent.requires_action',
+      data: { object: { id: finalized.stripePaymentIntentId, object: 'payment_intent' } },
+    };
+    const { body, signature } = signPayload(event);
+    await expect(webhook.handleWebhook(body, signature)).resolves.toEqual({ received: true, duplicate: false });
+    expect((await commission.getById(inReview.id)).status).toBe('action_required');
+    // A second requires_action event (new id) for the same intent: unchanged.
+    const second = signPayload({ ...event, id: 'evt_3ds_2' });
+    await webhook.handleWebhook(second.body, second.signature);
+    const rows = (await auditRowsFor(inReview.id)).filter((r) => r.eventType === 'invoice.action_required');
+    expect(rows).toHaveLength(1);
+  });
+
+  it('audits payment_intent.processing without moving the invoice (#712)', async () => {
+    const inReview = await seedInReviewInvoice('webhook-processing-builder');
+    const finalized = await commission.finalizeInvoice(inReview.id);
+    const { body, signature } = signPayload({
+      id: 'evt_processing_1',
+      type: 'payment_intent.processing',
+      data: { object: { id: finalized.stripePaymentIntentId, object: 'payment_intent' } },
+    });
+    await webhook.handleWebhook(body, signature);
+    expect((await commission.getById(inReview.id)).status).toBe('finalized');
+    expect((await auditRowsFor('evt_processing_1')).map((r) => r.eventType)).toContain('webhook.payment_processing');
+  });
+
+  it('a webhook that beats the charge response fails retryably, then settles on redelivery (#712 AC6)', async () => {
+    const inReview = await seedInReviewInvoice('webhook-early-builder');
+    const piId = 'pi_early_1';
+    const event = {
+      id: 'evt_early_1',
+      type: 'payment_intent.succeeded',
+      data: {
+        object: { id: piId, object: 'payment_intent', metadata: { feasly_commission_invoice_id: inReview.id } },
+      },
+    };
+    const { body, signature } = signPayload(event);
+    // The charge call has not returned yet: the invoice is still in_review.
+    await expect(webhook.handleWebhook(body, signature)).rejects.toMatchObject({ status: 409 });
+    expect((await auditRowsFor('evt_early_1')).map((r) => r.eventType)).not.toContain('webhook.orphan_payment_intent');
+
+    // The charge call returns and records the PaymentIntent.
+    const original = stripe.createOffSessionPaymentIntent;
+    stripe.createOffSessionPaymentIntent = async () => ({ id: piId, status: 'succeeded' });
+    try {
+      await commission.finalizeInvoice(inReview.id);
+    } finally {
+      stripe.createOffSessionPaymentIntent = original;
+    }
+
+    // Redelivery of the same (unprocessed) event settles it.
+    await expect(webhook.handleWebhook(body, signature)).resolves.toEqual({ received: true, duplicate: false });
+    expect((await commission.getById(inReview.id)).status).toBe('paid');
   });
 });

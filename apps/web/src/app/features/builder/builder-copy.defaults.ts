@@ -156,6 +156,7 @@ export const DEFAULT_BUILDER_COPY: BuilderCopy = {
   invoiceStatusDraft: 'Draft',
   invoiceStatusInReview: 'In review',
   invoiceStatusFinalized: 'Finalized',
+  invoiceStatusActionRequired: 'Needs your confirmation',
   invoiceStatusPaid: 'Paid',
   invoiceStatusFailed: 'Failed',
   invoiceStatusDisputed: 'Disputed',

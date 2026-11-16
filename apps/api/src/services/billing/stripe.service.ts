@@ -24,6 +24,8 @@ import {
   normalizeStripeEvent,
   type CardSummary,
   type NormalizedStripeEvent,
+  type OffSessionChargeResult,
+  type PaymentIntentConfirmation,
   type PaymentIntentStatus,
   type PaymentProvider,
 } from './payment-provider';
@@ -31,6 +33,8 @@ import {
 export type {
   CardSummary,
   NormalizedStripeEvent,
+  OffSessionChargeResult,
+  PaymentIntentConfirmation,
   PaymentIntentStatus,
   PaymentProvider,
 } from './payment-provider';
@@ -74,9 +78,17 @@ export interface StripeService {
       currency: string;
       customerId: string;
       description: string;
+      metadata?: Readonly<Record<string, string>>;
     },
     idempotencyKey: string,
-  ): Promise<{ id: string; status: string }>;
+  ): Promise<OffSessionChargeResult>;
+  /**
+   * #712: client secret + card for an on-session 3DS confirmation.
+   * Read-only — never confirms.
+   */
+  getPaymentIntentConfirmation(
+    paymentIntentId: string,
+  ): Promise<PaymentIntentConfirmation>;
   createSubscription(input: {
     customerId: string;
     priceId: string;
@@ -128,20 +140,41 @@ export interface StripeServiceDeps {
 }
 
 /**
- * The PaymentIntent a declined off-session confirm created, read from the
- * StripeCardError (`error.payment_intent`). Null for any other error.
+ * The PaymentIntent a rejected off-session confirm created, read from the
+ * StripeCardError (`error.payment_intent`), with the card-error details
+ * (#712): `code` (`card_declined`, `authentication_required`, …),
+ * `decline_code` and the display-safe `message`. Null for any other error —
+ * network / 5xx / rate-limit errors keep throwing so the invoice stays in
+ * review for the next cycle.
  */
-function declinedPaymentIntent(
+export function declinedPaymentIntent(
   error: unknown,
-): { id: string; status: string } | null {
+): OffSessionChargeResult | null {
   if (typeof error !== 'object' || error === null) return null;
-  const e = error as { type?: unknown; payment_intent?: unknown };
+  const e = error as {
+    type?: unknown;
+    payment_intent?: unknown;
+    code?: unknown;
+    decline_code?: unknown;
+    message?: unknown;
+  };
   if (e.type !== 'StripeCardError') return null;
   const pi = e.payment_intent as { id?: unknown; status?: unknown } | undefined;
   if (!pi || typeof pi.id !== 'string' || typeof pi.status !== 'string') {
     return null;
   }
-  return { id: pi.id, status: pi.status };
+  const text = (v: unknown): string | undefined =>
+    typeof v === 'string' && v.length > 0 ? v : undefined;
+  const errorCode = text(e.code);
+  const declineCode = text(e.decline_code);
+  const failureMessage = text(e.message);
+  return {
+    id: pi.id,
+    status: pi.status,
+    ...(errorCode ? { errorCode } : {}),
+    ...(declineCode ? { declineCode } : {}),
+    ...(failureMessage ? { failureMessage } : {}),
+  };
 }
 
 /**
@@ -218,6 +251,7 @@ export function createStripeSdkClient(secretKey: string): StripeClient {
             customer: input.customerId,
             payment_method: pm.id,
             description: input.description,
+            ...(input.metadata ? { metadata: { ...input.metadata } } : {}),
             off_session: true,
             confirm: true,
           },
@@ -266,6 +300,21 @@ export function createStripeSdkClient(secretKey: string): StripeClient {
         ...(typeof message === 'string' && message.length > 0
           ? { lastPaymentErrorMessage: message }
           : {}),
+      };
+    },
+    async getPaymentIntentConfirmation(paymentIntentId) {
+      const intent = await stripe.paymentIntents.retrieve(paymentIntentId);
+      // After an off-session `authentication_required` rejection Stripe
+      // detaches the card from the intent; it survives on the last error.
+      const pmRef =
+        intent.payment_method ?? intent.last_payment_error?.payment_method ?? null;
+      const paymentMethodId =
+        typeof pmRef === 'string' ? pmRef : (pmRef?.id ?? undefined);
+      return {
+        id: intent.id,
+        status: intent.status,
+        clientSecret: intent.client_secret ?? '',
+        ...(paymentMethodId ? { paymentMethodId } : {}),
       };
     },
     constructWebhookEvent(rawBody, signature, webhookSecret) {
@@ -326,6 +375,8 @@ export function createStripeService(deps: StripeServiceDeps): StripeService {
       ),
     retrievePaymentIntent: (paymentIntentId) =>
       requireClient().retrievePaymentIntent(paymentIntentId),
+    getPaymentIntentConfirmation: (paymentIntentId) =>
+      requireClient().getPaymentIntentConfirmation(paymentIntentId),
 
     verifyWebhook(rawBody: Buffer, signature: string): NormalizedStripeEvent {
       const webhookSecret = deps.webhookSecret ?? billing.stripeWebhookSecret;

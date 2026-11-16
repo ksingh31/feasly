@@ -33,6 +33,8 @@ const OUTSTANDING_STATUSES: ReadonlySet<string> = new Set([
   'draft',
   'in_review',
   'finalized',
+  // #712: waiting for the builder to confirm the charge with their bank.
+  'action_required',
   'failed',
 ]);
 

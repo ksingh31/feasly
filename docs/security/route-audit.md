@@ -153,6 +153,7 @@ Related: [rate-limits.md](rate-limits.md) · [asvs-l1.md](asvs-l1.md) ·
 | GET | `/api/v1/billing/payment-method` | builder-session | builder:billing | 100/min per session | live |  |
 | PUT | `/api/v1/billing/payment-method` | builder-session | builder:billing | 100/min per session | live |  |
 | PUT | `/api/v1/billing/invoices/{id}/payment-method` | builder-session | builder:billing | 100/min per session | live |  |
+| POST | `/api/v1/billing/invoices/{id}/confirm-payment` | builder-session | builder:billing | 100/min per session | live |  |
 | GET | `/api/v1/billing/invoices/{id}` | builder-session | builder:billing | 100/min per session | live |  |
 | GET | `/api/v1/billing/invoices/{id}/pdf` | builder-session | builder:billing | 100/min per session | live |  |
 | GET | `/api/v1/billing/invoices` | builder-session | builder:billing | 100/min per session | live |  |

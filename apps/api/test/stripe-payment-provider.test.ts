@@ -9,6 +9,7 @@ const mocks = vi.hoisted(() => ({
   paymentMethodsList: vi.fn(),
   paymentMethodsDetach: vi.fn(),
   paymentIntentsCreate: vi.fn(),
+  paymentIntentsRetrieve: vi.fn(),
   refundsCreate: vi.fn(),
   constructEvent: vi.fn(),
 }));
@@ -16,7 +17,7 @@ const mocks = vi.hoisted(() => ({
 vi.mock('stripe', () => {
   class FakeStripe {
     paymentMethods = { list: mocks.paymentMethodsList, detach: mocks.paymentMethodsDetach };
-    paymentIntents = { create: mocks.paymentIntentsCreate };
+    paymentIntents = { create: mocks.paymentIntentsCreate, retrieve: mocks.paymentIntentsRetrieve };
     refunds = { create: mocks.refundsCreate };
     webhooks = { constructEvent: mocks.constructEvent };
     constructor() {}
@@ -70,7 +71,71 @@ describe('StripePaymentProvider (createStripeSdkClient)', () => {
     );
     await expect(
       createStripeSdkClient('sk_test_fake').createOffSessionPaymentIntent(INPUT, 'k'),
-    ).resolves.toEqual({ id: 'pi_declined', status: 'requires_payment_method' });
+    ).resolves.toEqual({
+      id: 'pi_declined',
+      status: 'requires_payment_method',
+      errorCode: 'card_declined',
+      failureMessage: 'Your card was declined.',
+    });
+  });
+
+  it('returns the decline code and an authentication_required rejection with its PaymentIntent (#712)', async () => {
+    const client = createStripeSdkClient('sk_test_fake');
+    mocks.paymentIntentsCreate.mockRejectedValueOnce(
+      Object.assign(new Error('Your card has insufficient funds.'), {
+        type: 'StripeCardError',
+        code: 'card_declined',
+        decline_code: 'insufficient_funds',
+        payment_intent: { id: 'pi_nofunds', status: 'requires_payment_method' },
+      }),
+    );
+    await expect(client.createOffSessionPaymentIntent(INPUT, 'k')).resolves.toMatchObject({
+      id: 'pi_nofunds',
+      errorCode: 'card_declined',
+      declineCode: 'insufficient_funds',
+    });
+    mocks.paymentIntentsCreate.mockRejectedValueOnce(
+      Object.assign(new Error('This payment requires authentication.'), {
+        type: 'StripeCardError',
+        code: 'authentication_required',
+        payment_intent: { id: 'pi_3ds', status: 'requires_payment_method' },
+      }),
+    );
+    await expect(client.createOffSessionPaymentIntent(INPUT, 'k')).resolves.toMatchObject({
+      id: 'pi_3ds',
+      status: 'requires_payment_method',
+      errorCode: 'authentication_required',
+    });
+  });
+
+  it('passes PaymentIntent metadata through to Stripe (#712)', async () => {
+    mocks.paymentIntentsCreate.mockResolvedValueOnce({ id: 'pi_ok', status: 'succeeded' });
+    await createStripeSdkClient('sk_test_fake').createOffSessionPaymentIntent(
+      { ...INPUT, metadata: { feasly_commission_invoice_id: 'inv-1' } },
+      'k',
+    );
+    expect(mocks.paymentIntentsCreate).toHaveBeenLastCalledWith(
+      expect.objectContaining({ metadata: { feasly_commission_invoice_id: 'inv-1' } }),
+      { idempotencyKey: 'k' },
+    );
+  });
+
+  it('reads the client secret and the card for an on-session 3DS confirmation (#712)', async () => {
+    mocks.paymentIntentsRetrieve.mockResolvedValueOnce({
+      id: 'pi_3ds',
+      status: 'requires_payment_method',
+      client_secret: 'pi_3ds_secret_x',
+      payment_method: null,
+      last_payment_error: { payment_method: { id: 'pm_1' } },
+    });
+    await expect(
+      createStripeSdkClient('sk_test_fake').getPaymentIntentConfirmation('pi_3ds'),
+    ).resolves.toEqual({
+      id: 'pi_3ds',
+      status: 'requires_payment_method',
+      clientSecret: 'pi_3ds_secret_x',
+      paymentMethodId: 'pm_1',
+    });
   });
 
   it('still throws non-card errors (network, auth, a card error with no PaymentIntent)', async () => {
@@ -126,5 +191,34 @@ describe('normalizeStripeEvent', () => {
         data: { object: { id: 'pi_2', last_payment_error: { message: 'Your card was declined.' } } },
       }),
     ).toMatchObject({ paymentIntentId: 'pi_2', failureMessage: 'Your card was declined.' });
+  });
+
+  it('reads the decline code and the invoice id from PaymentIntent metadata (#712)', () => {
+    expect(
+      normalizeStripeEvent({
+        id: 'evt_g',
+        type: 'payment_intent.payment_failed',
+        data: {
+          object: {
+            id: 'pi_3',
+            metadata: { feasly_commission_invoice_id: 'inv-9', feasly_charge_attempt: '2' },
+            last_payment_error: { message: 'Insufficient funds.', decline_code: 'insufficient_funds' },
+          },
+        },
+      }),
+    ).toMatchObject({
+      paymentIntentId: 'pi_3',
+      declineCode: 'insufficient_funds',
+      commissionInvoiceId: 'inv-9',
+      chargeAttempt: 2,
+    });
+    // Metadata on non-PaymentIntent objects is ignored.
+    expect(
+      normalizeStripeEvent({
+        id: 'evt_h',
+        type: 'charge.refunded',
+        data: { object: { id: 'ch_1', payment_intent: 'pi_4', metadata: { feasly_commission_invoice_id: 'inv-9' } } },
+      }).commissionInvoiceId,
+    ).toBeUndefined();
   });
 });

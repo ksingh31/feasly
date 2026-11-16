@@ -54,6 +54,7 @@ import type {
   CommissionCardStatus,
 } from '../services/billing/commission-card.service';
 import type { CommissionInvoiceRecord } from '../services/billing/commission.service';
+import type { ConfirmInvoicePaymentResponse } from '@feasly/contracts';
 import type {
   InvoicePdfResult,
   InvoicePdfService,
@@ -136,6 +137,11 @@ export interface BillingRoute {
     id: unknown,
     body: unknown,
   ): Promise<CommissionInvoiceRecord>;
+  /** POST /api/v1/billing/invoices/{id}/confirm-payment (#712) */
+  confirmInvoicePayment(
+    headers: Record<string, string | string[] | undefined>,
+    id: unknown,
+  ): Promise<ConfirmInvoicePaymentResponse>;
 }
 
 const uuidSchema = z.string().trim().uuid();
@@ -145,6 +151,7 @@ const invoiceStatusFilterSchema = z.enum([
   'draft',
   'in_review',
   'finalized',
+  'action_required',
   'paid',
   'failed',
   'disputed',
@@ -340,6 +347,17 @@ export function createBillingRoute(deps: BillingRouteDeps): BillingRoute {
         parseInvoiceId(id),
         session.tenantKey,
         parsed.data.method,
+      );
+    },
+
+    async confirmInvoicePayment(
+      headers: Record<string, string | string[] | undefined>,
+      id: unknown,
+    ): Promise<ConfirmInvoicePaymentResponse> {
+      const session = await requireBuilderSession(builderGuard, headers);
+      return billing.confirmInvoicePayment(
+        parseInvoiceId(id),
+        session.tenantKey,
       );
     },
 
