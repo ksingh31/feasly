@@ -13,7 +13,11 @@ import { provideRouter } from '@angular/router';
 import { Store, provideStore } from '@ngxs/store';
 import { Subject, of, throwError } from 'rxjs';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import type { BuilderEmbedResponse, BuilderProfileResponse } from '@feasly/contracts';
+import type {
+  BuilderEmbedResponse,
+  BuilderNotificationPreferencesResponse,
+  BuilderProfileResponse,
+} from '@feasly/contracts';
 import { UiModalService, UiToastService } from '@app/shared/ui';
 import { BuilderSettingsComponent, originInstallState } from './builder-settings.component';
 import { BuilderSettingsState } from './builder-settings.state';
@@ -66,7 +70,18 @@ const EMBED: BuilderEmbedResponse = {
   ],
 };
 
+const NOTIFICATIONS: BuilderNotificationPreferencesResponse = {
+  channel: 'email',
+  preferences: { newLeadEmail: true, needsYouDigest: false, billingEmail: true },
+  role: 'builder_admin',
+  canDisableBillingEmail: true,
+};
+
 interface SetupOptions {
+  notifications?: BuilderNotificationPreferencesResponse;
+  notificationsError?: boolean;
+  updateNotifications?: ReturnType<typeof vi.fn>;
+  viewingAs?: boolean;
   profile?: BuilderProfileResponse;
   profileError?: boolean;
   tab?: string;
@@ -90,6 +105,19 @@ async function setup(opts: SetupOptions = {}) {
       ),
     getEmbed: vi.fn().mockReturnValue(of(EMBED)),
     requestOriginChange: vi.fn(),
+    getNotificationPreferences: vi
+      .fn()
+      .mockReturnValue(
+        opts.notificationsError
+          ? throwError(() => ({ message: 'boom' }))
+          : of(opts.notifications ?? NOTIFICATIONS),
+      ),
+    updateNotificationPreferences:
+      opts.updateNotifications ??
+      vi.fn().mockImplementation((body: object) => {
+        const base = opts.notifications ?? NOTIFICATIONS;
+        return of({ ...base, preferences: { ...base.preferences, ...body } });
+      }),
   };
   const toasts = { show: vi.fn() };
   const closed = new Subject<unknown>();
@@ -114,6 +142,27 @@ async function setup(opts: SetupOptions = {}) {
       { provide: UiModalService, useValue: modals },
     ],
   });
+  if (opts.viewingAs) {
+    const store = TestBed.inject(Store);
+    store.reset({
+      ...store.snapshot(),
+      builder: {
+        ...store.snapshot().builder,
+        session: {
+          authenticated: true,
+          email: 'member@example.com',
+          name: null,
+          builderId: 'org-1',
+          builderName: 'Elite Craft',
+          role: 'builder_admin',
+          memberships: [],
+          viewAs: { userId: 'u-2' },
+          viewAsDisplayName: 'Teammate',
+          realEmail: 'owner@example.com',
+        },
+      },
+    });
+  }
   if (opts.tab) {
     const { Router } = await import('@angular/router');
     await TestBed.inject(Router).navigateByUrl(`/?tab=${opts.tab}`);
@@ -144,11 +193,12 @@ function click(el: HTMLElement, testId: string): void {
 describe('BuilderSettingsComponent (#871)', () => {
   afterEach(() => vi.restoreAllMocks());
 
-  it('renders three tabs, Profile selected by default', async () => {
+  it('renders four tabs, Profile selected by default', async () => {
     const { el } = await setup();
     const tabs = Array.from(el.querySelectorAll('[role="tab"]'));
     expect(tabs.map((t) => t.textContent?.trim())).toEqual([
       COPY.tabProfile,
+      COPY.tabNotifications,
       COPY.tabEmbed,
       COPY.tabHelp,
     ]);
@@ -164,6 +214,9 @@ describe('BuilderSettingsComponent (#871)', () => {
   it('moves between tabs with the arrow keys', async () => {
     const { el, fixture } = await setup();
     const list = el.querySelector('[role="tablist"]') as HTMLElement;
+    list.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowRight', bubbles: true }));
+    fixture.detectChanges();
+    expect(el.querySelector('[data-testid="panel-notifications"]')).not.toBeNull();
     list.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowRight', bubbles: true }));
     fixture.detectChanges();
     expect(el.querySelector('[data-testid="panel-embed"]')).not.toBeNull();
@@ -348,6 +401,115 @@ describe('BuilderSettingsComponent (#871)', () => {
       expect(el.querySelector('[data-testid="close-account-request"]')).toBeNull();
       expect(el.textContent).toContain(COPY.closeOwnerOnly);
     });
+  });
+});
+
+describe('BuilderSettingsComponent Notifications (#864)', () => {
+  afterEach(() => vi.restoreAllMocks());
+
+  function toggle(el: HTMLElement, key: string): HTMLInputElement | null {
+    return el.querySelector(`[data-testid="toggle-${key}"]`);
+  }
+
+  async function flip(
+    fixture: ComponentFixture<BuilderSettingsComponent>,
+    control: HTMLInputElement,
+  ): Promise<void> {
+    control.click();
+    await fixture.whenStable();
+    fixture.detectChanges();
+  }
+
+  it('toggles reflect server state', async () => {
+    const { el } = await setup({ tab: 'notifications' });
+    expect(toggle(el, 'newLeadEmail')?.checked).toBe(true);
+    expect(toggle(el, 'needsYouDigest')?.checked).toBe(false);
+    expect(toggle(el, 'billingEmail')?.checked).toBe(true);
+    for (const key of ['newLeadEmail', 'needsYouDigest', 'billingEmail']) {
+      expect(toggle(el, key)?.getAttribute('role')).toBe('switch');
+      expect(toggle(el, key)?.disabled).toBe(false);
+    }
+  });
+
+  it('saving updates the toggle and toasts', async () => {
+    const { el, fixture, api, toasts } = await setup({ tab: 'notifications' });
+    await flip(fixture, toggle(el, 'needsYouDigest')!);
+    expect(api.updateNotificationPreferences).toHaveBeenCalledWith({ needsYouDigest: true });
+    expect(toggle(el, 'needsYouDigest')?.checked).toBe(true);
+    expect(toasts.show).toHaveBeenCalledWith({ message: COPY.notificationsSavedToast });
+  });
+
+  it('shows the 409 LAST_ADMIN message and snaps the toggle back', async () => {
+    const message =
+      'Billing emails must reach at least one admin. Ask another admin to turn them on before you turn them off.';
+    const { el, fixture, toasts } = await setup({
+      tab: 'notifications',
+      updateNotifications: vi
+        .fn()
+        .mockReturnValue(throwError(() => ({ code: 'LAST_ADMIN', message, retryable: false }))),
+    });
+    await flip(fixture, toggle(el, 'billingEmail')!);
+    expect(toggle(el, 'billingEmail')?.checked).toBe(true);
+    expect(el.querySelector('[data-testid="notifications-error"]')?.textContent).toContain(message);
+    expect(toasts.show).not.toHaveBeenCalled();
+  });
+
+  it('locks the billing toggle and says why when it cannot be turned off', async () => {
+    const { el } = await setup({
+      tab: 'notifications',
+      notifications: { ...NOTIFICATIONS, canDisableBillingEmail: false },
+    });
+    expect(toggle(el, 'billingEmail')?.disabled).toBe(true);
+    expect(el.querySelector('[data-testid="billing-locked-note"]')?.textContent).toContain(
+      COPY.notifyBillingLockedNote,
+    );
+    expect(toggle(el, 'billingEmail')?.getAttribute('aria-describedby')).toContain(
+      'notify-billingEmail-locked',
+    );
+  });
+
+  it('hides the billing toggle from members and explains why', async () => {
+    const { el } = await setup({
+      tab: 'notifications',
+      notifications: { ...NOTIFICATIONS, role: 'builder_member' },
+    });
+    expect(toggle(el, 'billingEmail')).toBeNull();
+    expect(el.querySelector('[data-testid="billing-member-note"]')?.textContent).toContain(
+      COPY.notifyBillingMemberNote,
+    );
+  });
+
+  it('is read-only while viewing as a teammate', async () => {
+    const { el, fixture, api } = await setup({ tab: 'notifications', viewingAs: true });
+    expect(el.querySelector('[data-testid="notifications-view-as-note"]')).not.toBeNull();
+    for (const key of ['newLeadEmail', 'needsYouDigest', 'billingEmail']) {
+      expect(toggle(el, key)?.disabled).toBe(true);
+    }
+    await flip(fixture, toggle(el, 'newLeadEmail')!);
+    expect(api.updateNotificationPreferences).not.toHaveBeenCalled();
+  });
+
+  it('shows a 403 message if the API refuses the save', async () => {
+    const message = "You can't change a teammate's notification preferences while viewing as them.";
+    const { el, fixture } = await setup({
+      tab: 'notifications',
+      updateNotifications: vi
+        .fn()
+        .mockReturnValue(throwError(() => ({ code: 'FORBIDDEN', message, retryable: false }))),
+    });
+    await flip(fixture, toggle(el, 'newLeadEmail')!);
+    expect(toggle(el, 'newLeadEmail')?.checked).toBe(true);
+    expect(el.querySelector('[data-testid="notifications-error"]')?.textContent).toContain(message);
+  });
+
+  it('offers retry when the preferences fail to load', async () => {
+    const { el, fixture, api } = await setup({ tab: 'notifications', notificationsError: true });
+    expect(el.textContent).toContain(COPY.notificationsLoadError);
+    api.getNotificationPreferences.mockReturnValue(of(NOTIFICATIONS));
+    (el.querySelector('[data-testid="panel-notifications"] button') as HTMLButtonElement).click();
+    await fixture.whenStable();
+    fixture.detectChanges();
+    expect(toggle(el, 'newLeadEmail')).not.toBeNull();
   });
 });
 

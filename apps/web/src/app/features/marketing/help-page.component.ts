@@ -5,7 +5,9 @@ import { ConfigService } from '../../core/config';
 import { SeoService } from '../../core/seo';
 import { buildWebPageSchema } from '../../core/seo/jsonld-schemas';
 import { SiteFooterComponent, SiteNavComponent } from '../../shared/components';
+import { injectZoningGuideCopy } from '@app/core/config/zoning-guide-copy';
 import { HELP_COPY, provideHelpCopy } from './help-copy';
+import { injectPillarGuideCopy } from './pillar-guide-copy';
 
 /** One resolved help answer, ready to render. */
 export interface HelpAnswer {
@@ -52,6 +54,9 @@ export class HelpPageComponent implements OnInit {
   private readonly config = inject(ConfigService);
 
   private readonly allCopy = this.config.get('copy');
+  /** #980: guide copy is lazy (not in the root config). */
+  private readonly pillarGuide = injectPillarGuideCopy();
+  private readonly zoningGuide = injectZoningGuideCopy();
   /** Help copy (config-owned, lazy: see help-copy.ts). */
   readonly copy = inject(HELP_COPY);
   /** Public status page; the link is omitted while unconfigured (no dead links). */
@@ -111,8 +116,8 @@ export class HelpPageComponent implements OnInit {
   private resolveTopics(): HelpTopic[] {
     const sources: Record<HelpAnswerSource, readonly HelpAnswer[]> = {
       faq: this.allCopy.marketing.faq?.items ?? [],
-      pillarGuide: this.allCopy.marketing.pillarGuide?.faqs ?? [],
-      zoningGuide: this.allCopy.marketing.zoningGuide?.faqs ?? [],
+      pillarGuide: this.pillarGuide.faqs,
+      zoningGuide: this.zoningGuide.faqs,
       communities: this.allCopy.communities?.faqItems ?? [],
     };
     return this.copy.topics

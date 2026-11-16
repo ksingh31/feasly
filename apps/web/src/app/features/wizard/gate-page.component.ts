@@ -1,4 +1,4 @@
-import { Component, DestroyRef, inject, OnInit } from '@angular/core';
+import { Component, DestroyRef, inject, OnInit, signal } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
 import type { AbstractControl } from '@angular/forms';
@@ -104,7 +104,12 @@ export class GatePageComponent implements OnInit {
     website: [''],
   });
 
-  protected status: GateStatus = 'idle';
+  /**
+   * A signal (#905): the submit can settle from a Turnstile callback rather
+   * than an HTTP response, and only a signal re-renders the zoneless view
+   * then (a plain field left the button stuck on "Sending…").
+   */
+  protected readonly status = signal<GateStatus>('idle');
 
   /**
    * #788 minimum time-to-submit: when the form was rendered (monotonic
@@ -198,7 +203,7 @@ export class GatePageComponent implements OnInit {
   }
 
   onSubmit(): void {
-    if (this.status === 'sending') {
+    if (this.status() === 'sending') {
       return;
     }
     if (this.form.invalid) {
@@ -214,12 +219,12 @@ export class GatePageComponent implements OnInit {
       this.submitComparisonLead();
       return;
     }
-    this.status = 'sending';
+    this.status.set('sending');
     const property = this.store.selectSnapshot(WizardState.property);
     const inputs = this.store.selectSnapshot(WizardState.inputs);
     if (!property) {
       // Unreachable behind wizardScopeGuard; fail honestly if it ever happens.
-      this.status = 'error';
+      this.status.set('error');
       return;
     }
     const values = this.form.getRawValue();
@@ -303,7 +308,7 @@ export class GatePageComponent implements OnInit {
           void this.router.navigate(['/estimate/analyzing']);
         },
         error: () => {
-          this.status = 'error';
+          this.status.set('error');
         },
       });
   }
@@ -329,10 +334,10 @@ export class GatePageComponent implements OnInit {
     const result = this.store.selectSnapshot(ComparisonState.result);
     if (!result) {
       // Unreachable behind leadGateGuard; fail honestly if it ever happens.
-      this.status = 'error';
+      this.status.set('error');
       return;
     }
-    this.status = 'sending';
+    this.status.set('sending');
     const values = this.form.getRawValue();
     this.api
       .submitLead({
@@ -366,7 +371,7 @@ export class GatePageComponent implements OnInit {
           void this.router.navigate(['/estimate/compare']);
         },
         error: () => {
-          this.status = 'error';
+          this.status.set('error');
         },
       });
   }

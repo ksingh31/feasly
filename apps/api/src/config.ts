@@ -19,6 +19,11 @@
 import { z } from 'zod';
 import { version as packageVersion } from '../package.json';
 import { API_LEAD_CONSENT_VERSION, WAITLIST_CONSENT_VERSION } from './lib/legal-copy';
+import {
+  DEFAULT_DUNNING_GRACE_DAYS,
+  MAX_DUNNING_GRACE_DAYS,
+  MIN_DUNNING_GRACE_DAYS,
+} from './lib/dunning-schedule';
 
 export type NodeEnv = 'development' | 'test' | 'staging' | 'production';
 
@@ -755,6 +760,17 @@ const EnvSchema = z.object({
   // reconciled against Stripe by the daily reviewer and flagged on
   // /admin/webhooks. 24h default (open owner question on #711 — tunable).
   BILLING_SETTLEMENT_THRESHOLD_HOURS: z.coerce.number().int().positive().default(24),
+  // #718 dunning: default per-invoice grace period in days (admin can edit
+  // it per invoice). Card invoices: days between a failed charge and the
+  // next automatic retry. Manual-method invoices: days after the review
+  // window closes before the invoice is overdue. 7 matches the "update your
+  // card within 7 days" copy the declined email already carried.
+  BILLING_DUNNING_GRACE_DAYS: z.coerce
+    .number()
+    .int()
+    .min(MIN_DUNNING_GRACE_DAYS)
+    .max(MAX_DUNNING_GRACE_DAYS)
+    .default(DEFAULT_DUNNING_GRACE_DAYS),
   // --- Card lifecycle (#716) ---
   // Text on the builder's bank statement for a commission charge. Sent as
   // Stripe's statement_descriptor_suffix (card PaymentIntents reject a full
@@ -1390,6 +1406,13 @@ export interface BillingConfig {
    * webhooks page flags it (#711). Default 24.
    */
   readonly settlementThresholdHours?: number;
+  /**
+   * #718: default per-invoice dunning grace period in days (7). Card
+   * invoices retry this long after a failed charge; manual-method invoices
+   * are overdue this long after the review window closes. Admin can
+   * override it per invoice.
+   */
+  readonly dunningGraceDays?: number;
   /**
    * Sales tax on commission invoices (#714). Absent or `enabled: false` =
    * no tax: every invoice figure and document matches the pre-tax output.
@@ -2375,6 +2398,7 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): ApiConfig {
       reportingSlaDays: e.BILLING_REPORTING_SLA_DAYS,
       maxChargeRetries: e.BILLING_MAX_CHARGE_RETRIES,
       settlementThresholdHours: e.BILLING_SETTLEMENT_THRESHOLD_HOURS,
+      dunningGraceDays: e.BILLING_DUNNING_GRACE_DAYS,
       tax: buildTaxConfig(e),
       ...(e.BILLING_STATEMENT_DESCRIPTOR
         ? { statementDescriptor: e.BILLING_STATEMENT_DESCRIPTOR }

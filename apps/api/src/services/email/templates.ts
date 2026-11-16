@@ -741,9 +741,51 @@ export interface CommissionPaymentFailedTemplateInput {
   readonly currency: string;
   /** Days the builder has to update the card before collection steps. */
   readonly updateWithinDays: number;
+  /**
+   * #718: when the next automatic retry runs (rendered in
+   * America/Edmonton). Omitted/null = no retry scheduled.
+   */
+  readonly nextRetryAt?: Date | null;
+  /**
+   * #718: the retry budget (BILLING_MAX_CHARGE_RETRIES) is used up — the
+   * final notice. Builder Pay now attempts count toward that budget, so
+   * the copy never claims the failed attempt itself was automatic.
+   */
+  readonly finalNotice?: boolean;
   /** 'chargeback_lost' renders the #873 "payment reversed" variant. */
   readonly reason?: 'declined' | 'chargeback_lost';
   readonly tax?: CommissionEmailTax;
+}
+
+/**
+ * #718 dunning copy: what happens next after a declined charge. Plain
+ * facts only — the date of the next automatic attempt, or that there is
+ * none — and the builder's one action (update the card, Pay now).
+ */
+function paymentFailedNextStep(
+  input: CommissionPaymentFailedTemplateInput,
+): { html: string; text: string } {
+  if (input.finalNotice === true) {
+    const line =
+      "We won't try this charge again automatically. Please update your card and choose Pay now on your billing page to settle the invoice.";
+    return { html: `<p>${esc(line)}</p>`, text: line };
+  }
+  if (input.nextRetryAt) {
+    const date = formatEdmontonDate(input.nextRetryAt);
+    return {
+      html: `<p>We&apos;ll try the charge again on <strong>${esc(date)}</strong>. To settle it sooner, update your card and choose Pay now on your billing page.</p>`,
+      text: `We'll try the charge again on ${date}. To settle it sooner, update your card and choose Pay now on your billing page.`,
+    };
+  }
+  if (input.nextRetryAt === null) {
+    const line =
+      'Please update your card and choose Pay now on your billing page to settle the invoice.';
+    return { html: `<p>${esc(line)}</p>`, text: line };
+  }
+  return {
+    html: `<p>Please update your card within <strong>${input.updateWithinDays} days</strong> — we&apos;ll retry the charge automatically once a valid card is on file.</p>`,
+    text: `Please update your card within ${input.updateWithinDays} days — we'll retry the charge automatically once a valid card is on file.`,
+  };
 }
 
 export function renderCommissionPaymentFailedEmail(
@@ -756,18 +798,61 @@ export function renderCommissionPaymentFailedEmail(
   if (input.reason === 'chargeback_lost') {
     return renderChargebackLostEmail(ctx, input.invoiceRef, commission, input.currency, cardUrl);
   }
-  const subject = `Your card was declined — update it to settle invoice ${input.invoiceRef}`;
+  const subject =
+    input.finalNotice === true
+      ? `Final notice: invoice ${input.invoiceRef} is unpaid`
+      : `Your card was declined — update it to settle invoice ${input.invoiceRef}`;
+  const next = paymentFailedNextStep(input);
   const body = `<p>Hi there,</p>
 <p>We tried to charge your card on file for commission invoice <strong>${esc(input.invoiceRef)}</strong> ($${commission} ${esc(input.currency)}) but the charge was declined.</p>
-<p>Please update your card within <strong>${input.updateWithinDays} days</strong> — we&apos;ll retry the charge automatically once a valid card is on file.</p>
-${ctaButton(cardUrl, 'Update card')}
+${next.html}
+${ctaButton(cardUrl, input.finalNotice === true ? 'Pay now' : 'Update card')}
 ${fallbackLink(cardUrl)}`;
   const text =
     `Hi there,\n\nWe tried to charge your card on file for commission invoice ${input.invoiceRef} ` +
     `($${commission} ${input.currency}) but the charge was declined.\n\n` +
-    `Please update your card within ${input.updateWithinDays} days — we'll retry the charge automatically once a valid card is on file.\n\n` +
+    `${next.text}\n\n` +
     `Update card: ${cardUrl}\n\n— ${ctx.brandName}\nDeterministic cost math · not a contractor quote · cost data currently uncalibrated.`;
-  return { subject, html: layout(ctx, 'Card declined', body), text };
+  return {
+    subject,
+    html: layout(ctx, input.finalNotice === true ? 'Final notice' : 'Card declined', body),
+    text,
+  };
+}
+
+/* ── #718: a manual-method invoice (cheque, e-transfer, bank draft) is past
+ * its due date (review window end + the invoice's grace period). Sent once.
+ */
+
+export interface CommissionInvoiceOverdueTemplateInput {
+  readonly invoiceRef: string;
+  readonly commissionCents: number;
+  readonly currency: string;
+  /** Due date — rendered in America/Edmonton. */
+  readonly dueAt: Date;
+  readonly tax?: CommissionEmailTax;
+}
+
+export function renderCommissionInvoiceOverdueEmail(
+  ctx: TemplateContext,
+  input: CommissionInvoiceOverdueTemplateInput,
+): RenderedEmail {
+  const invoicesUrl = `${ctx.appBaseUrl}/builder/billing`;
+  const dueDate = formatEdmontonDate(input.dueAt);
+  const amount = formatMoney(input.tax?.totalCents ?? input.commissionCents);
+  const subject = `Invoice ${input.invoiceRef} is past due`;
+  const body = `<p>Hi there,</p>
+<p>Commission invoice <strong>${esc(input.invoiceRef)}</strong> ($${amount} ${esc(input.currency)}) was due on <strong>${esc(dueDate)}</strong> and we haven&apos;t recorded your payment yet.</p>
+<p>If you&apos;ve already sent it, thank you — you can ignore this email. Otherwise, please send your payment, or open your billing page to switch this invoice to your card on file.</p>
+${ctaButton(invoicesUrl, 'View invoice')}
+${fallbackLink(invoicesUrl)}`;
+  const text =
+    `Hi there,\n\nCommission invoice ${input.invoiceRef} ($${amount} ${input.currency}) was due on ${dueDate} ` +
+    `and we haven't recorded your payment yet.\n\n` +
+    `If you've already sent it, thank you — you can ignore this email. Otherwise, please send your payment, ` +
+    `or open your billing page to switch this invoice to your card on file.\n\n` +
+    `View invoice: ${invoicesUrl}\n\n— ${ctx.brandName}\nDeterministic cost math · not a contractor quote · cost data currently uncalibrated.`;
+  return { subject, html: layout(ctx, 'Payment past due', body), text };
 }
 
 /**

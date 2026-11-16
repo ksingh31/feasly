@@ -11,7 +11,11 @@
         routerLinkActive="active"
         ariaCurrentWhenActive="page"
         [routerLinkActiveOptions]="{ exact: true }"
-      >{{ copy.shellNavDashboard }}</a>
+      >{{ copy.shellNavDashboard }}@if (leadsBadge() > 0) {<span
+          class="builder-shell__badge"
+          data-testid="leads-badge"
+          aria-hidden="true"
+        >{{ leadsBadge() }}</span><span class="sr-only">, {{ leadsBadgeLabel() }}</span>}</a>
       @if (isBuilderAdmin()) {
         <a
           routerLink="/builder/money"
@@ -120,6 +124,12 @@
         <path d="M4 6h16M4 12h16M4 18h10" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" />
       </svg>
       <span>{{ copy.shellNavDashboard }}</span>
+      @if (leadsBadge() > 0) {
+        <span class="builder-shell__badge builder-shell__badge--tab" data-testid="leads-badge-tab" aria-hidden="true">{{
+          leadsBadge()
+        }}</span>
+        <span class="sr-only">, {{ leadsBadgeLabel() }}</span>
+      }
     </a>
     @if (isBuilderAdmin()) {
       <a

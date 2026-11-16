@@ -20,6 +20,26 @@ import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
 import { DEFAULT_APP_CONFIG } from './app-config.defaults';
 import { ZONING_ELIGIBILITY } from './zoning-eligibility.generated';
+import { DEFAULT_ZONING_GUIDE_COPY } from './zoning-guide-copy.defaults';
+import { DEFAULT_ADMIN_COPY } from '../../features/admin/admin-copy.defaults';
+import { DEFAULT_HOW_IT_WORKS_COPY } from '../../features/marketing/how-it-works-copy.defaults';
+import { DEFAULT_PILLAR_GUIDE_COPY } from '../../features/marketing/pillar-guide-copy.defaults';
+
+/**
+ * #980: lazy copy sections live outside DEFAULT_APP_CONFIG (in their feature
+ * chunks) but are still overridden from the same served-JSON paths, so the
+ * drift check compares against the full compiled tree.
+ */
+const COMPILED_COPY = {
+  ...DEFAULT_APP_CONFIG.copy,
+  admin: DEFAULT_ADMIN_COPY,
+  marketing: {
+    ...DEFAULT_APP_CONFIG.copy.marketing,
+    howItWorks: DEFAULT_HOW_IT_WORKS_COPY,
+    pillarGuide: DEFAULT_PILLAR_GUIDE_COPY,
+    zoningGuide: DEFAULT_ZONING_GUIDE_COPY,
+  },
+};
 
 const here = dirname(fileURLToPath(import.meta.url));
 // apps/web/src/app/core/config -> apps/web/public/assets/config/app-config.json
@@ -49,7 +69,7 @@ describe('served app-config.json copy drift', () => {
     const servedStrings = new Map<string, string>();
     const defaultStrings = new Map<string, string>();
     collectStrings(served.copy, 'copy', servedStrings);
-    collectStrings(DEFAULT_APP_CONFIG.copy as unknown as Json, 'copy', defaultStrings);
+    collectStrings(COMPILED_COPY as unknown as Json, 'copy', defaultStrings);
 
     /**
      * Explicit allowlist (auth/05, 2026-09-28). `copy.builder.entra` carries
@@ -104,7 +124,7 @@ describe('served app-config.json copy drift', () => {
  * "allowed" / a "listed use" without the approval wording.
  */
 describe('zoning guide copy vs. catalogue', () => {
-  const guide = DEFAULT_APP_CONFIG.copy.marketing.zoningGuide;
+  const guide = DEFAULT_ZONING_GUIDE_COPY;
   const discretionary = ZONING_ELIGIBILITY.calgary.discretionary as readonly string[];
   const mentions = (text: string, code: string): boolean =>
     new RegExp(`(^|[^A-Za-z0-9-])${code.replace(/[-]/g, '\\-')}(?![A-Za-z0-9-])`).test(text);

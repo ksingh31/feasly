@@ -3,6 +3,7 @@ import { ActivatedRoute } from '@angular/router';
 import { SeoService } from '../../core/seo/seo.service';
 import { ConfigService } from '../../core/config/config.service';
 import { AdminEntraAuthService } from './admin-entra-auth.service';
+import { injectAdminCopy } from './admin-copy';
 
 /**
  * Admin login (auth/02): Microsoft Entra External ID — the only admin
@@ -37,7 +38,7 @@ export class AdminLoginComponent {
    * Buyer-grade login copy (ConfigService, `copy.admin.auth`) — exact
    * story wording, deploy-tunable, keeps the no-hardcode tripwire green.
    */
-  protected readonly copy = inject(ConfigService).get('copy').admin.auth;
+  protected readonly copy = injectAdminCopy().auth;
 
   protected readonly entraStarting = signal(false);
   /** False while the deployed app-config still carries ENTRA_* placeholders. */

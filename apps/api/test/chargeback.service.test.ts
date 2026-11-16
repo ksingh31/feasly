@@ -559,6 +559,12 @@ describe('Stripe chargebacks + dashboard refunds (#719)', () => {
 
     const reopened = await commission.getById(invoiceId);
     expect(reopened).toMatchObject({ status: 'failed', chargebackStatus: 'lost', paidAt: null });
+    // #718: the reopened invoice re-enters the dunning schedule — without a
+    // due next_retry_at the timer would never retry it.
+    const graceDays = (BILLING as { dunningGraceDays?: number }).dunningGraceDays ?? 7;
+    expect(reopened.nextRetryAt?.toISOString()).toBe(
+      new Date(NOW.getTime() + graceDays * 24 * 60 * 60 * 1000).toISOString(),
+    );
     const [cb] = await chargebackRows(invoiceId);
     const rows = await invoiceAuditRows(invoiceId);
     const failedRow = rows.find(

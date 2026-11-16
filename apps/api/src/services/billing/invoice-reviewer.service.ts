@@ -19,6 +19,12 @@
  * (`processing`, `requires_action`, …) stays pending. Settlement audit rows
  * carry `source: 'reconciliation'`. Read-only against Stripe.
  *
+ * Dunning (#718): failed card invoices whose automatic retry is due (one
+ * grace period after the failure, schedule active, retries left) are
+ * re-charged with a fresh idempotency key per attempt; a transient error
+ * leaves the invoice due, so the next cycle replays the same key. Manual-
+ * method invoices past their due date get one overdue reminder.
+ *
  * Never lets one bad invoice kill the batch: per-invoice errors are
  * collected and returned (the timer logs aggregates, never PII).
  */
@@ -52,6 +58,10 @@ export interface InvoiceReviewerResult {
    * now waiting on the builder's 3DS confirmation.
    */
   readonly stillPending: number;
+  /** #718: failed card invoices re-charged on their dunning schedule. */
+  readonly retried: number;
+  /** #718: manual-method invoices sent their overdue reminder. */
+  readonly overdueReminded: number;
   readonly errors: ReadonlyArray<{ invoiceId: string; message: string }>;
 }
 
@@ -165,6 +175,8 @@ export function createInvoiceReviewerService(
           reconciledPaid: 0,
           reconciledFailed: 0,
           stillPending: 0,
+          retried: 0,
+          overdueReminded: 0,
           errors: [],
         };
       }
@@ -197,6 +209,38 @@ export function createInvoiceReviewerService(
         }
       }
 
+      // #718: automatic retries due on the dunning schedule.
+      let retried = 0;
+      for (const invoice of await commission.findDueRetries(reviewNow)) {
+        try {
+          await commission.retryCharge(invoice.id, { trigger: 'schedule' });
+          justFinalized.add(invoice.id);
+          retried += 1;
+        } catch (error) {
+          failed += 1;
+          errors.push({
+            invoiceId: invoice.id,
+            message: error instanceof Error ? error.message : 'Unknown error',
+          });
+        }
+      }
+
+      // #718: one overdue reminder per manual-method invoice.
+      let overdueReminded = 0;
+      for (const invoice of await commission.findOverdueManualInvoices(reviewNow)) {
+        try {
+          if ((await commission.sendOverdueReminder(invoice.id)) !== null) {
+            overdueReminded += 1;
+          }
+        } catch (error) {
+          failed += 1;
+          errors.push({
+            invoiceId: invoice.id,
+            message: error instanceof Error ? error.message : 'Unknown error',
+          });
+        }
+      }
+
       const skipped = skippedManual + heldByStatus;
       const reconciled = await reconcile(reviewNow, justFinalized);
       failed += reconciled.failed;
@@ -217,6 +261,8 @@ export function createInvoiceReviewerService(
           reconciledPaid,
           reconciledFailed,
           stillPending,
+          retried,
+          overdueReminded,
         },
       });
 
@@ -227,6 +273,8 @@ export function createInvoiceReviewerService(
         reconciledPaid,
         reconciledFailed,
         stillPending,
+        retried,
+        overdueReminded,
         errors,
       };
     },

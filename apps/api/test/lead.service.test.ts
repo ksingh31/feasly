@@ -110,6 +110,7 @@ function fakeEmailService(): EmailService & {
     sendCommissionPaymentReceived: async () => ok,
     sendCommissionPaymentFailed: async () => ok,
     sendCommissionPaymentActionRequired: async () => ok,
+    sendCommissionInvoiceOverdue: async () => ok,
     sendCardExpiryReminder: async () => ok,
     sendContractNeedsRecording: async () => ok,
     sendBuilderNewLead: async () => ok,

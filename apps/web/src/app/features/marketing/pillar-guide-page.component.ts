@@ -6,6 +6,7 @@ import { SeoService } from '../../core/seo';
 import { buildArticleSchema, buildFaqPageSchema } from '../../core/seo/jsonld-schemas';
 import { EstimateScopeComponent, SiteFooterComponent, SiteNavComponent } from '../../shared/components';
 import { ResetWizard } from '../wizard/wizard.actions';
+import { injectPillarGuideCopy } from './pillar-guide-copy';
 
 /**
  * Pillar guide (SEO pillar): long-form "cost to build a house in Calgary"
@@ -32,7 +33,7 @@ export class PillarGuidePageComponent implements OnInit {
   private readonly router = inject(Router);
 
   /** Pillar-guide copy (config-owned). */
-  readonly copy = this.config.get('copy').marketing.pillarGuide;
+  readonly copy = injectPillarGuideCopy();
 
   /** Index of the open FAQ accordion item; -1 collapses all. No leaked state: a plain signal. */
   readonly openIndex = signal(-1);

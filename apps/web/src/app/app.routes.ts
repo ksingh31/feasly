@@ -6,8 +6,6 @@ import { ErrorPageComponent } from './features/error/error-page.component';
 import { LandingPageComponent } from './features/landing/landing-page.component';
 import { NotFoundPageComponent } from './features/not-found/not-found-page.component';
 import { reportEstimateGuard } from './features/report/report-estimate.guard';
-import { FaqPageComponent } from './features/marketing/faq-page.component';
-import { HowItWorksPageComponent } from './features/marketing/how-it-works-page.component';
 import { wizardPropertyGuard } from './features/wizard/wizard-property.guard';
 import { robotsGuard } from './core/seo/robots.guard';
 import { wizardScopeGuard } from './features/wizard/wizard-scope.guard';
@@ -141,8 +139,19 @@ export const routes: Routes = [
   },
   // Marketing pages (SEO-010): indexable — no `noindex` data, so the SEO
   // table + check-prerender-seo.mjs treat them as crawlable like privacy/terms.
-  { path: 'how-it-works', component: HowItWorksPageComponent, canActivate: [robotsGuard] },
-  { path: 'faq', component: FaqPageComponent, canActivate: [robotsGuard] },
+  // #980: lazy-loaded to keep their templates out of the initial bundle
+  // (Lighthouse script budget); prerender follows loadComponent routes.
+  {
+    path: 'how-it-works',
+    loadComponent: () =>
+      import('./features/marketing/how-it-works-page.component').then((m) => m.HowItWorksPageComponent),
+    canActivate: [robotsGuard],
+  },
+  {
+    path: 'faq',
+    loadComponent: () => import('./features/marketing/faq-page.component').then((m) => m.FaqPageComponent),
+    canActivate: [robotsGuard],
+  },
   // Help + contact (#834): indexable, lazy-loaded (prerender follows
   // loadComponent routes, same as the guides).
   {
@@ -607,6 +616,23 @@ export const routes: Routes = [
           (await import('./features/builder/builder-invoices.state'))
             .builderInvoicesStateProvider,
       ),
+      // #864: the shell's Leads unread badge reads BuilderLeadsSeenState
+      // (storage-plugin persisted under 'builderLeadsSeen'). Lazy-provided
+      // so it stays out of the initial bundle.
+      lazyProvider(
+        async () =>
+          (await import('./features/builder/builder-leads-seen.state'))
+            .builderLeadsSeenStateProvider,
+      ),
+      // #980: card-on-file / default-method / overview state read by the
+      // shell, dashboard banners, Money, Billing, Invoices and the lead
+      // drawer. Memory-only; lazy-provided so it stays out of the initial
+      // bundle.
+      lazyProvider(
+        async () =>
+          (await import('./features/builder/builder-billing.state'))
+            .builderBillingStateProvider,
+      ),
     ],
     data: { noindex: true },
     children: [
@@ -621,7 +647,7 @@ export const routes: Routes = [
           // The dashboard's due-invoice banners read BuilderInvoicesState
           // (lazy-loaded here so it stays out of the initial bundle,
           // mirroring the invoices route) while BuilderBillingState is
-          // already root-provided for the banner's card summary.
+          // already provided by the shell route for the banner's card summary.
           // DueInvoiceBannersState (banner dismissal/expansion/collapse UI
           // state, storage-plugin persisted) lazy-loads here too.
           lazyProvider(
@@ -640,7 +666,7 @@ export const routes: Routes = [
         // Builder Money overview (#532): KPIs, recent invoices with the
         // lifecycle stepper, card panel, how charges work. The shell
         // already lazy-provides BuilderInvoicesState; BuilderBillingState
-        // is root-provided. Admin-only like every billing page.
+        // is provided by the shell route too. Admin-only like every billing page.
         path: 'money',
         loadComponent: () =>
           import('./features/builder/builder-money.component').then(

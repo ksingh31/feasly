@@ -1013,6 +1013,29 @@ export const commissionInvoices = pgTable(
      * commission_cents. Readers fall back to commission + tax when null.
      */
     totalCents: integer('total_cents'),
+    /*
+     * Dunning (#718, migration 0057). Owner decision 2026-11-15: the
+     * retry schedule follows each invoice's grace period; admin can edit
+     * it per invoice and pause / resume / cancel retries; the builder can
+     * only pay now.
+     */
+    /**
+     * Per-invoice grace period in days. Null = the configured default
+     * (BILLING_DUNNING_GRACE_DAYS). Card invoices: days between a failed
+     * charge and the next automatic retry. Manual invoices: days after the
+     * review window closes before the invoice is overdue.
+     */
+    retryGraceDays: integer('retry_grace_days'),
+    /** When the daily timer next retries a failed card charge. Null = none scheduled. */
+    nextRetryAt: timestamp('next_retry_at', { withTimezone: true }),
+    /** When the latest charge attempt failed — the base of the retry schedule. */
+    lastChargeFailedAt: timestamp('last_charge_failed_at', { withTimezone: true }),
+    /** 'active' | 'paused' | 'cancelled' — admin control over automatic retries and reminders. */
+    dunningState: text('dunning_state').notNull().default('active'),
+    /** Set once when the final automatic retry failed — flagged for collections. */
+    collectionsAt: timestamp('collections_at', { withTimezone: true }),
+    /** Set once when the overdue reminder for a manual-method invoice was sent. */
+    overdueRemindedAt: timestamp('overdue_reminded_at', { withTimezone: true }),
     /**
      * Bank chargeback state (#719, migration 0055): null = never disputed
      * with the bank; 'open' while Stripe's dispute is live (no further
@@ -1037,6 +1060,7 @@ export const commissionInvoices = pgTable(
   (t) => [
     index('commission_invoices_tenant_status_idx').on(t.tenantKey, t.status),
     index('commission_invoices_review_due_idx').on(t.reviewDueAt),
+    index('commission_invoices_next_retry_idx').on(t.nextRetryAt),
   ],
 );
 
