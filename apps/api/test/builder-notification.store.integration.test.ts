@@ -1,6 +1,6 @@
 /**
  * Builder notification store (#725) against PGlite with every migration
- * applied (including 0053): preference defaults, upsert, the send-once
+ * applied (including 0054): preference defaults, upsert, the send-once
  * dedupe, the claim lease, pending-row filters and the digest builder list.
  */
 import { randomUUID } from 'node:crypto';

@@ -59,6 +59,12 @@ export interface ApiRouteEntry {
    * permission strings by the conformance test.
    */
   readonly permissionsAnyOf?: readonly Permission[];
+  /**
+   * #730: dangerous action — the session's sign-in must be no older than
+   * SESSION_REAUTH_WINDOW_SECONDS (401 REAUTH_REQUIRED otherwise). Only
+   * valid on session routes that declare permissions (conformance test).
+   */
+  readonly recentAuth?: true;
   /** Frozen human-readable limit, e.g. '20/hr per IP'. */
   readonly rateLimit: string;
   readonly status: 'live' | 'planned';
@@ -413,7 +419,7 @@ export const ROUTE_REGISTRY: readonly ApiRouteEntry[] = [
     status: 'live',
     summary:
       'Entra PKCE callback: exchange the code, validate the id_token ' +
-      '(JWKS, aud, iss, exp), resolve/link the user row, mint a 7-day ' +
+      '(JWKS, aud, iss, exp), resolve/link the user row, mint a 12-hour ' +
       'admin session. Unknown account → 403, no enumeration.',
   },
   {
@@ -421,6 +427,7 @@ export const ROUTE_REGISTRY: readonly ApiRouteEntry[] = [
     path: '/api/v1/admin/view-as',
     auth: 'admin',
     permissions: ['view_as'] as const,
+    recentAuth: true,
     rateLimit: '60/min per session',
     status: 'live',
     summary:
@@ -495,6 +502,7 @@ export const ROUTE_REGISTRY: readonly ApiRouteEntry[] = [
     auth: 'admin',
     permissions: [] as const,
     permissionsAnyOf: ['users:manage', 'builder:users:manage'] as const,
+    recentAuth: true,
     rateLimit: '60/min per session',
     status: 'live',
     summary:
@@ -507,6 +515,7 @@ export const ROUTE_REGISTRY: readonly ApiRouteEntry[] = [
     path: '/api/v1/admin/users/{id}',
     auth: 'admin',
     permissions: ['users:manage'] as const,
+    recentAuth: true,
     rateLimit: '20/min per session',
     status: 'live',
     summary:
@@ -631,6 +640,7 @@ export const ROUTE_REGISTRY: readonly ApiRouteEntry[] = [
     path: '/api/v1/builder/view-as',
     auth: 'builder-session',
     permissions: ['view_as'] as const,
+    recentAuth: true,
     rateLimit: '60/min per session',
     status: 'live',
     summary:
@@ -668,6 +678,7 @@ export const ROUTE_REGISTRY: readonly ApiRouteEntry[] = [
     path: '/api/v1/builder/users/{id}',
     auth: 'builder-session',
     permissions: ['builder:users:manage'] as const,
+    recentAuth: true,
     rateLimit: '60/min per session',
     status: 'live',
     summary:
@@ -692,6 +703,7 @@ export const ROUTE_REGISTRY: readonly ApiRouteEntry[] = [
     path: '/api/v1/builder/users/{id}',
     auth: 'builder-session',
     permissions: ['builder:users:manage'] as const,
+    recentAuth: true,
     rateLimit: '60/min per session',
     status: 'live',
     summary:
@@ -867,6 +879,7 @@ export const ROUTE_REGISTRY: readonly ApiRouteEntry[] = [
     path: '/api/v1/admin/api-keys',
     auth: 'admin',
     permissions: ['api_keys:manage'] as const,
+    recentAuth: true,
     rateLimit: '10/min per session',
     status: 'live',
     summary:
@@ -878,6 +891,7 @@ export const ROUTE_REGISTRY: readonly ApiRouteEntry[] = [
     path: '/api/v1/admin/api-keys/{id}/rotate',
     auth: 'admin',
     permissions: ['api_keys:manage'] as const,
+    recentAuth: true,
     rateLimit: '10/min per session',
     status: 'live',
     summary: 'Rotate a key (old key stays valid for a grace window).',
@@ -1109,6 +1123,7 @@ export const ROUTE_REGISTRY: readonly ApiRouteEntry[] = [
     path: '/api/v1/admin/billing/invoices/{id}/mark-paid',
     auth: 'admin',
     permissions: ['billing:manage'] as const,
+    recentAuth: true,
     rateLimit: '300/min per session',
     status: 'live',
     summary:

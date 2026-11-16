@@ -669,3 +669,48 @@ describe('builder-side view-as context resolution (2026-09-30, Karan)', () => {
     expect(ctx!.realUser?.email).toBe('builderadmin@example.com');
   });
 });
+
+describe('sign-in time for the re-auth window (#730)', () => {
+  it('an admin context carries the session created_at as authenticatedAt', async () => {
+    const fx = makeService();
+    seedAdmin(fx);
+    const signedIn = new Date(NOW.getTime() - 45 * 60_000);
+    fx.adminSessions.set(
+      hashSessionToken('admin-token'),
+      adminSession('admin-token', { createdAt: signedIn }),
+    );
+    const ctx = await fx.service.resolve(HEADERS('admin-token'));
+    expect(ctx!.authenticatedAt).toEqual(signedIn);
+  });
+
+  it('a view-as context keeps the REAL session sign-in time', async () => {
+    const fx = makeService();
+    seedAdmin(fx);
+    fx.adminSessions.set(
+      hashSessionToken('admin-token'),
+      adminSession('admin-token', { viewAs: { builderId: 'builder-1' } }),
+    );
+    const ctx = await fx.service.resolve(HEADERS('admin-token'));
+    expect(ctx!.viewAs).toEqual({ builderId: 'builder-1' });
+    expect(ctx!.authenticatedAt).toEqual(NOW);
+  });
+
+  it('a builder context carries the builder session created_at', async () => {
+    const fx = makeService();
+    fx.buildersById.set('builder-7', {
+      id: 'builder-7',
+      displayName: 'North Homes',
+      status: 'active',
+    });
+    const signedIn = new Date(NOW.getTime() - 5 * 60_000);
+    fx.builderSessions.set('builder-token', {
+      email: 'portal@example.com',
+      tenantKey: 'north-homes',
+      viewAs: null,
+      builderId: 'builder-7',
+      createdAt: signedIn,
+    });
+    const ctx = await fx.service.resolve(BUILDER_HEADERS('builder-token'));
+    expect(ctx!.authenticatedAt).toEqual(signedIn);
+  });
+});

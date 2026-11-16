@@ -1164,6 +1164,12 @@ export const adminSessions = pgTable(
      * real admin's identity is preserved for the audit trail.
      */
     viewAs: jsonb('view_as').$type<{ builderId?: string; userId?: string } | null>(),
+    /**
+     * #730: last time the session validated (throttled by
+     * SESSION_ACTIVITY_TOUCH_INTERVAL_SECONDS). Drives the idle timeout.
+     * Null for rows minted before the column — created_at stands in.
+     */
+    lastSeenAt: timestamp('last_seen_at', { withTimezone: true }),
     /** Null = active. Set on logout/expiry. */
     revokedAt: timestamp('revoked_at', { withTimezone: true }),
     expiresAt: timestamp('expires_at', { withTimezone: true }).notNull(),
@@ -1244,6 +1250,12 @@ export const builderSessions = pgTable(
     userId: uuid('user_id').references(() => users.id, {
       onDelete: 'cascade',
     }),
+    /**
+     * #730: last time the session validated (throttled by
+     * SESSION_ACTIVITY_TOUCH_INTERVAL_SECONDS). Drives the idle timeout.
+     * Null for rows minted before the column — created_at stands in.
+     */
+    lastSeenAt: timestamp('last_seen_at', { withTimezone: true }),
     /** Null = active. Set on logout. */
     revokedAt: timestamp('revoked_at', { withTimezone: true }),
     expiresAt: timestamp('expires_at', { withTimezone: true }).notNull(),

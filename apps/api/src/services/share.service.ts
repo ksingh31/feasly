@@ -23,6 +23,7 @@ import type {
 import { ErrorCodes, HttpError } from '../middleware/errors';
 import type { EmailService } from './email';
 import { EmailProviderError } from './email';
+import { createSandboxSuppressingEmailService } from './email/sandbox-email.service';
 import type { LeadStore } from './lead.store';
 import { isMagicLinkLive } from './magic-link.service';
 import {
@@ -133,12 +134,20 @@ export function createShareService(deps: ShareServiceDeps): ShareService {
         purpose: PARTNER_SHARE_LINK_PURPOSE,
         ttlSeconds: deps.magicLinkTtlSeconds,
         clock,
+        // #840: a sandbox lead's partner link is sandbox test data too, so
+        // the sandbox-purge timer removes it with the lead.
+        sandbox: lead.sandbox,
       });
       const shareUrl = `${deps.appBaseUrl}/r/${issued.token}`;
       // The email service never throws on send failure — a failed delivery
       // arrives as { sent: false }. Partner share stays fail-loud: a share
       // recorded as sent when the email never went out would be a lie.
-      const delivery = await deps.email.sendPartnerShare({
+      // #840: sandbox (test API key) leads never trigger a real send —
+      // route through the no-send decorator.
+      const email = lead.sandbox
+        ? createSandboxSuppressingEmailService({ inner: deps.email })
+        : deps.email;
+      const delivery = await email.sendPartnerShare({
         to: partnerEmail,
         ownerName: lead.name,
         shareUrl,
