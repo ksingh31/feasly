@@ -135,6 +135,9 @@ These need owner input and are not implemented yet:
 | POST | `/api/v1/waitlist` | none | 10/min per IP | live |
 | POST | `/api/v1/shares` | magic-token | 10/min per IP | live |
 | GET | `/api/v1/shares/verify` | magic-token | 100/min per IP | live |
+| POST | `/api/v1/shares/link` | magic-token | 10/min per IP | live |
+| POST | `/api/v1/shares/link/list` | magic-token | 10/min per IP | live |
+| POST | `/api/v1/shares/link/revoke` | magic-token | 10/min per IP | live |
 | GET | `/api/v1/properties/autocomplete` | none | 60/min per IP | live |
 | GET | `/api/v1/properties/lookup` | none | 60/min per IP | live |
 | POST | `/api/v1/events` | none | 300/min per IP (dedicated analytics limiter) | live |
@@ -232,6 +235,7 @@ These need owner input and are not implemented yet:
 | GET | `/api/v1/admin/usage` | admin | 300/min per session | planned |
 | GET | `/api/v1/admin/calibration` | admin | 300/min per session | live |
 | GET | `/api/v1/admin/ops/sheets-status` | admin | 300/min per session | live |
+| GET | `/api/v1/admin/ops/jobs` | admin | 300/min per session | live |
 | POST | `/api/v1/admin/ops/sheets-sync-now` | admin | 10/min per session | live |
 | POST | `/api/v1/builder/agreement/accept` | none | 10/min per IP | planned |
 | GET | `/api/v1/builder/leads/{id}` | builder-session | 300/min per session | planned |

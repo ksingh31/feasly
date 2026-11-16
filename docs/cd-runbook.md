@@ -94,3 +94,27 @@ the staging-auto-deploy question when staging infra is provisioned.
 - **`::add-mask::` note**: the Postgres password is masked in logs, but
   avoid passing it on command lines where possible; here it is required by
   the Bicep `postgresAdminPassword` secure parameter and is never printed.
+
+## CORS
+
+The in-app middleware (`apps/api/src/middleware/cors.ts`, allowlist from the
+`CORS_ORIGINS` app setting) is the **only** CORS enforcement point (#844).
+Platform CORS on the Function App is pinned empty in
+`infra/bicep/modules/function-app.bicep` (`siteConfig.cors`: no origins,
+`supportCredentials: false`), so CD resets any manual portal change.
+
+Check after a deploy (read-only):
+
+```bash
+az functionapp cors show -g rg-feasly-dev -n <function-app>
+# expect: "allowedOrigins": [], "supportCredentials": false
+
+API=https://<function-app>.azurewebsites.net/api/health
+# allowlisted origin -> 204 with Access-Control-Allow-Origin/-Headers from the middleware
+curl -si -X OPTIONS "$API" -H "Origin: https://<swa-hostname>" \
+  -H "Access-Control-Request-Method: POST" \
+  -H "Access-Control-Request-Headers: content-type" | grep -i '^access-control'
+# any other origin -> no Access-Control-* headers at all
+curl -si -X OPTIONS "$API" -H "Origin: https://evil.example" \
+  -H "Access-Control-Request-Method: POST" | grep -i '^access-control' || echo "none (ok)"
+```

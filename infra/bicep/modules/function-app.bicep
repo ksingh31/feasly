@@ -573,10 +573,18 @@ resource app 'Microsoft.Web/sites@2024-04-01' = {
           }
         ]
       )
-      // In-app CORS is the single CORS source: platform-level siteConfig.cors
-      // is deliberately NOT set — the two layers would each emit
-      // Access-Control-Allow-Origin and browsers would reject credentialed
-      // requests on the duplicate header. Never re-add cors here.
+      // In-app CORS is the single CORS source (#844): platform-level CORS is
+      // pinned explicitly EMPTY. Omitting the property is not enough — an
+      // ARM PUT that leaves siteConfig.cors out keeps whatever the live site
+      // already has (dev carried supportCredentials: true from a manual
+      // change), so Bicep and `az functionapp config show` drifted. With no
+      // allowed origins the platform never emits Access-Control-* headers,
+      // so it cannot duplicate or shadow the middleware's headers (which
+      // browsers reject on credentialed requests). Never add origins here.
+      cors: {
+        allowedOrigins: []
+        supportCredentials: false
+      }
     }
     // functionAppConfig MUST be a direct child of properties (sibling of
     // siteConfig) — Flex Consumption requires it on site create. The Bicep

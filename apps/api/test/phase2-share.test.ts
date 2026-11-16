@@ -77,6 +77,7 @@ function fakeStores(opts?: {
       leadId: LEAD_ID,
       magicLinkId: `recent-link-${i}`,
       partnerEmail: `recent${i}@example.com`,
+      kind: 'email',
       sent: true,
       createdAt: new Date('2026-09-26T04:30:00Z'),
     }),
@@ -88,6 +89,7 @@ function fakeStores(opts?: {
       leadId: LEAD_ID,
       magicLinkId: `stale-link-${i}`,
       partnerEmail: `stale${i}@example.com`,
+      kind: 'email',
       sent: true,
       createdAt: new Date('2026-09-25T03:00:00Z'),
     }),
@@ -170,6 +172,7 @@ function fakeStores(opts?: {
     leadId: LEAD_ID,
     magicLinkId: PARTNER_LINK_ID,
     partnerEmail: 'partner@example.com',
+    kind: 'email',
     sent: true,
     createdAt: new Date('2026-09-26T05:00:00Z'),
   };

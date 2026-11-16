@@ -12,6 +12,18 @@ real backend. Changing them has a cost, so:
 - **Never** widen a type to `any` to "unblock" something — the no-`any` lint exists
   precisely to stop that.
 
+## Unreleased — 2026-11-16 — job queue, link-only shares (#838)
+
+- **Added** link-only report share contracts: `ShareLinkCreateRequest`,
+  `ShareLinkCreateResponse`, `ShareLinkStatus`, `ShareLinkSummary`,
+  `ShareLinkListRequest`, `ShareLinkListResponse`, `ShareLinkRevokeRequest`,
+  `ShareLinkRevokeResponse`.
+- **Added** `QueueJobStatus`, `AdminJobSummary`, `AdminJobsResponse` (admin
+  view of failed queue jobs).
+- **Changed** `PartnerShareVerifySuccess.partnerEmail` to optional — a
+  link-only share has no recipient. Migration: no consumer reads the field
+  today (the web report page never did); treat it as `string | undefined`.
+
 ## Unreleased — 2026-11-16 (additive) — funnel tracking + campaign source
 
 Issue #814 (API half of #702):

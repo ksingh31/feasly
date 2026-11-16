@@ -268,7 +268,8 @@ module functionApp 'modules/function-app.bicep' = {
     appBaseUrl: 'https://${staticWebApp.outputs.hostname}'
     // CORS allowlist for the in-app middleware (ADM-10): the web app calls
     // the API cross-origin (SWA Free SKU rejects linked backends). The
-    // middleware is the single CORS source — no platform-level siteConfig.cors.
+    // middleware is the single CORS source — platform siteConfig.cors is
+    // pinned empty in the module (#844).
     // Allowed: the live SWA hostname + local dev. Never '*' — credentials
     // are required.
     corsAllowedOrigins: [
