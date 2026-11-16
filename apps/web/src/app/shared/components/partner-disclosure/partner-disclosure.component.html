@@ -1,0 +1,13 @@
+<!-- Names and separators sit on one line per item so no stray space lands
+     before the separator ("A, B", not "A , B"). -->
+<p class="partner-disclosure" role="note">
+  @if (partners().length > 0) {
+    {{ copy.disclosureLead }}
+    @for (p of partners(); track p.id; let last = $last) {
+      @if (p.websiteUrl) {<a [href]="p.websiteUrl" target="_blank" rel="noopener noreferrer">{{ p.name }}<span class="sr-only"> {{ copy.newTabLabel }}</span></a>} @else {<span class="partner-name">{{ p.name }}</span>}@if (!last) {<span class="sep">{{ copy.nameSeparator }}</span>}
+    }
+  } @else {
+    {{ copy.disclosureFallbackLead }}
+    <a routerLink="/how-it-works" fragment="partners">{{ copy.howItWorksLinkLabel }}</a>.
+  }
+</p>

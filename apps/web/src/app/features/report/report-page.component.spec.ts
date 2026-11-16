@@ -17,6 +17,9 @@ import {
   UpdateRenoInputs,
 } from '../wizard/wizard.actions';
 import { AnalyticsService } from '../consent';
+import { EmbedState } from '../embed/embed.state';
+import { LoadEmbedConfig } from '../embed/embed.actions';
+import { PartnersState } from '../../core/partners';
 import { LoadLeadEstimate, ReviseReport, SetPartnerView, SetReportToken, UnlockReport } from './report.actions';
 import { ReportState, serializeReportState } from './report.state';
 import { ReportPageComponent } from './report-page.component';
@@ -104,6 +107,8 @@ describe('ReportPageComponent', () => {
      * endpoint) instead of the token. Defaults to true.
      */
     withReportToken?: boolean;
+    /** #918: render inside a builder embed (tenant key set before mount). */
+    embedTenantKey?: string;
   }): Promise<void> {
     TestBed.resetTestingModule();
     TestBed.configureTestingModule({
@@ -116,7 +121,7 @@ describe('ReportPageComponent', () => {
           { path: 'estimate/report', component: ReportPageComponent },
           { path: 'estimate/gate', component: BlankComponent },
         ]),
-        provideStore([WizardState, ReportState, LeadState]),
+        provideStore([WizardState, ReportState, LeadState, EmbedState, PartnersState]),
         providePropertyData(),
         { provide: API_SERVICE, useClass: MockApiService },
         // The report fires consent-gated analytics events on share/callback/
@@ -178,6 +183,9 @@ describe('ReportPageComponent', () => {
       } else {
         store.dispatch(new SetReportToken(leadToken!));
       }
+    }
+    if (options?.embedTenantKey) {
+      store.dispatch(new LoadEmbedConfig(options.embedTenantKey));
     }
     fixture = TestBed.createComponent(ReportPageComponent);
     fixture.detectChanges();
@@ -837,6 +845,28 @@ describe('ReportPageComponent', () => {
         expect(fixture.nativeElement.querySelectorAll('app-builder-matching-explainer')).toHaveLength(1);
         // No matched-builder promises anywhere on the report (M1 honesty).
         expect(text()).not.toContain('match scores');
+      });
+
+      it('#918: own site — the callback block names the builder partner(s)', async () => {
+        await setup({ leadSubmitted: true });
+        await pollFor(() => store.selectSnapshot(PartnersState.status) === 'ready', 'partners load');
+        fixture.detectChanges();
+        const block = fixture.nativeElement.querySelector('section[aria-label="Talk to a builder"]') as HTMLElement;
+        const disclosure = block.querySelector('app-partner-disclosure');
+        expect(disclosure).not.toBeNull();
+        expect(disclosure?.textContent).toContain('Leads from Feasly’s site go to our builder partner(s):');
+        expect(disclosure?.textContent).toContain('Elite Craft Builders');
+      });
+
+      it('#918: embed — no partner disclosure and no partners request', async () => {
+        const getPartners = vi.spyOn(MockApiService.prototype, 'getPartners');
+        await setup({ leadSubmitted: true, embedTenantKey: 'acme-builders' });
+        const block = fixture.nativeElement.querySelector('section[aria-label="Talk to a builder"]') as HTMLElement;
+        expect(block.querySelector('form')).not.toBeNull();
+        expect(block.querySelector('app-partner-disclosure')).toBeNull();
+        expect(block.querySelector('app-builder-matching-explainer')).toBeNull();
+        expect(getPartners).not.toHaveBeenCalled();
+        getPartners.mockRestore();
       });
 
       it('groups Share, PDF and New estimate in one action row', async () => {

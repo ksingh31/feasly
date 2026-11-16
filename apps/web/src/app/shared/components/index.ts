@@ -20,6 +20,7 @@ export type {
 } from './comment-thread';
 export { LegalReviewBannerComponent } from './legal-review-banner';
 export { InfoTooltipComponent } from './info-tooltip';
+export { PartnerDisclosureComponent } from './partner-disclosure';
 export { PrivacyDataLinkComponent } from './privacy-data-link';
 export { PropertyCardComponent } from './property-card';
 export { SiteFooterComponent } from './site-footer';

@@ -1266,6 +1266,20 @@ export const DEFAULT_APP_CONFIG: AppConfig = {
         'It never changes your estimate, and you’re never obliged to hire anyone. You can opt out anytime.',
       ],
     },
+    // #918: partner disclosure at own-site lead capture + How it works.
+    // Same draft-pending-lawyer status as builderMatching above; names come
+    // from GET /api/v1/partners, never from copy.
+    partners: {
+      disclosureLead: 'Leads from Feasly’s site go to our builder partner(s):',
+      disclosureFallbackLead: 'Leads from Feasly’s site go to our builder partner(s), listed on',
+      howItWorksLinkLabel: 'How it works',
+      nameSeparator: ', ',
+      newTabLabel: '(opens in a new tab)',
+      sectionTitle: 'Our builder partners',
+      sectionIntro:
+        'If you ask to be contacted, leads from Feasly’s own site go to these builder companies. A partner pays Feasly a referral commission only if you sign a contract with them. It never changes your estimate, and you’re never obliged to hire anyone.',
+      sectionUnavailable: 'The partner list isn’t available right now. Please try again later.',
+    },
     consent: {
       title: 'A quick word on analytics.',
       body: 'We measure which pages people visit so we can improve Feasly. First-party only — no cookies, no trackers, no selling data. Accept or decline; the site works the same either way.',

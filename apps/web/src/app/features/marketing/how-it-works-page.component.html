@@ -32,6 +32,31 @@
     </p>
   </aside>
 
+  <!-- #918: builder partners — the companies that receive leads from
+       Feasly's own site. Names come from GET /api/v1/partners (data). -->
+  <section id="partners" class="math-note partners" aria-labelledby="partners-title">
+    <h2 id="partners-title">{{ partnersCopy.sectionTitle }}</h2>
+    <p>{{ partnersCopy.sectionIntro }}</p>
+    @if (partners().length > 0) {
+      <ul class="partner-list">
+        @for (p of partners(); track p.id) {
+          <li class="partner">
+            @if (p.websiteUrl) {
+              <a class="partner-name" [href]="p.websiteUrl" target="_blank" rel="noopener noreferrer">{{ p.name }}<span class="sr-only"> {{ partnersCopy.newTabLabel }}</span></a>
+            } @else {
+              <span class="partner-name">{{ p.name }}</span>
+            }
+            @if (p.description) {
+              <span class="partner-desc">{{ p.description }}</span>
+            }
+          </li>
+        }
+      </ul>
+    } @else if (partnersStatus() === 'error') {
+      <p class="partner-unavailable" role="status">{{ partnersCopy.sectionUnavailable }}</p>
+    }
+  </section>
+
   <div class="cta-row">
     <button type="button" class="cta" (click)="startEstimate('new-build')">{{ copy.ctaNewBuild }}</button>
     <button type="button" class="cta cta-secondary" (click)="startEstimate('renovation')">{{ copy.ctaReno }}</button>

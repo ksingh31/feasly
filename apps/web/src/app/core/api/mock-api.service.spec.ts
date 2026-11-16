@@ -61,6 +61,16 @@ describe('MockApiService', () => {
     });
   });
 
+  describe('getPartners', () => {
+    it('returns a contract-shaped partner list with no contact details', async () => {
+      const res = await firstValueFrom(service.getPartners());
+      expect(res.partners.length).toBeGreaterThan(0);
+      for (const p of res.partners) {
+        expect(Object.keys(p).sort()).toEqual(['description', 'id', 'logoUrl', 'name', 'websiteUrl']);
+      }
+    });
+  });
+
   describe('autocomplete', () => {
     it('returns matching suggestions for 3+ chars', async () => {
       const res = await firstValueFrom(service.autocomplete('14 st'));
