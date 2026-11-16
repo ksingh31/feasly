@@ -681,6 +681,8 @@ describe('ReportState', () => {
         expect(snapshot.addressKey).toBe(fakeProperty.addressKey);
         expect(store.selectSnapshot(WizardState.inputs)).toEqual(snapshot.inputs);
         expect(store.selectSnapshot(WizardState.projectType)).toBe('new-build');
+        // #755: the restored pick counts as an applied steer for this address.
+        expect(store.selectSnapshot(WizardState.steerAppliedFor)).toBe(fakeProperty.addressKey);
       } finally {
         propertySpy.mockRestore();
       }
