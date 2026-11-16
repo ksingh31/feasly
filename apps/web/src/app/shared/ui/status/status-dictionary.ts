@@ -12,7 +12,9 @@ import type {
   AdminUserStatus,
   BuilderLeadStatus,
   BuilderStatus,
+  ChargebackStatus,
   CommissionInvoiceStatus,
+  DisputeSource,
 } from '@feasly/contracts';
 
 /** Semantic tones; each maps to a `--status-<tone>-bg/-fg` token pair. */
@@ -52,6 +54,10 @@ export type OpsFlagKey = 'ok' | 'attention' | 'problem';
 export type BillingModelKey = 'commission' | 'flat';
 /** Admin Billing header: which Stripe key is configured (#544). */
 export type StripeModeKey = 'test' | 'live' | 'not_configured';
+/** Who raised a dispute (#719/#872): a builder, or the card holder's bank. */
+export type DisputeSourceKey = DisputeSource;
+/** Bank chargeback state on an invoice (#719/#872). */
+export type ChargebackStatusKey = ChargebackStatus;
 
 type Dictionary<K extends string> = Readonly<Record<K, StatusPresentation>>;
 
@@ -141,6 +147,18 @@ const STRIPE_MODE: Dictionary<StripeModeKey> = {
   not_configured: { label: 'Stripe not configured', tone: 'danger' },
 };
 
+const DISPUTE_SOURCE: Dictionary<DisputeSourceKey> = {
+  builder: { label: 'Builder dispute', tone: 'neutral' },
+  chargeback: { label: 'Chargeback', tone: 'danger' },
+};
+
+const CHARGEBACK: Dictionary<ChargebackStatusKey> = {
+  open: { label: 'Chargeback open', tone: 'danger' },
+  won: { label: 'Chargeback won', tone: 'success' },
+  lost: { label: 'Chargeback lost', tone: 'danger' },
+  warning_closed: { label: 'Chargeback warning closed', tone: 'neutral' },
+};
+
 export const STATUS_DICTIONARY = {
   lead: LEAD,
   invoice: INVOICE,
@@ -154,6 +172,8 @@ export const STATUS_DICTIONARY = {
   opsFlag: OPS_FLAG,
   billingModel: BILLING_MODEL,
   stripeMode: STRIPE_MODE,
+  disputeSource: DISPUTE_SOURCE,
+  chargeback: CHARGEBACK,
 } as const;
 
 export type StatusDomain = keyof typeof STATUS_DICTIONARY;

@@ -27,6 +27,7 @@ import { ConfigService } from '../../core/config/config.service';
 import { formatCentsToCad, formatRatePercent } from '../../shared/utils/money';
 import { formatEdmontonMediumDate } from '../../shared/utils/edmonton';
 import { formatInvoiceTax } from '../../shared/utils/invoice-tax';
+import { invoiceRecoveryState } from '../../shared/utils/invoice-recovery';
 import { BuilderBillingApiService } from './builder-billing-api.service';
 import { LoadBillingOverview } from './builder-billing.actions';
 import { BuilderBillingState } from './builder-billing.state';
@@ -175,6 +176,17 @@ export class BuilderInvoiceDrawerComponent {
   protected readonly timeline = computed(() => {
     const inv = this.invoice();
     return inv ? invoiceTimelineEvents(inv, this.copy) : [];
+  });
+
+  /** #872: refund total + bank chargeback state; null when neither applies. */
+  protected readonly recovery = computed(() => {
+    const inv = this.invoice();
+    const state = inv ? invoiceRecoveryState(inv) : null;
+    if (!state) return null;
+    return {
+      refunded: state.refundedCents === null ? null : formatCentsToCad(state.refundedCents),
+      chargebackStatus: state.chargebackStatus,
+    };
   });
 
   /** Breakdown rows: server figures, formatted only. */

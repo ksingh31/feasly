@@ -730,6 +730,12 @@ export interface BuilderInvoiceDrawerCopy {
   changeMethodAria: string;
   timelineHeading: string;
   timelineEmpty: string;
+  /** #872: refunds + bank-dispute section heading. */
+  recoveryHeading: string;
+  /** #872: cumulative refunded amount row label. */
+  refundedLabel: string;
+  /** #872: bank chargeback state row label. */
+  chargebackLabel: string;
   actionsHeading: string;
   questionInvoice: string;
   /** #661: invoice PDF/receipt download button. */
@@ -1042,6 +1048,12 @@ export interface AppConfig {
      * the minted invoice's own `reviewDueAt` is shown once it does.
      */
     chargeDelayDays: number;
+    /**
+     * Stripe dashboard origin for the admin "View in Stripe" chargeback
+     * link (#872). Live disputes open `<base>/disputes/<dp_…>`; test-mode
+     * disputes open `<base>/test/disputes/<dp_…>`.
+     */
+    stripeDashboardBaseUrl: string;
     /**
      * #867: after the builder confirms a payment with their bank, the
      * invoice drawer re-fetches the invoice every `confirmPollIntervalMs`

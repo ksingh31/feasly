@@ -181,6 +181,20 @@ describe('AdminInvoiceDrawerComponent', () => {
     expect(q('invoice-tax')?.textContent).toContain('$990');
   });
 
+  it('#872: shows the refunded amount and the chargeback state on a charged-back invoice', async () => {
+    const { q } = await setup({
+      invoice: { ...INVOICE, status: 'paid', refundedCents: 250_000, chargebackStatus: 'open' },
+    });
+    expect(q('invoice-refunded')?.textContent).toContain('$2,500');
+    expect(q('invoice-chargeback')?.textContent).toContain('Chargeback open');
+  });
+
+  it('#872: no refund / chargeback rows when refundedCents is 0 and there is no chargeback', async () => {
+    const { q } = await setup({ invoice: { ...INVOICE, refundedCents: 0, chargebackStatus: null } });
+    expect(q('invoice-refunded')).toBeNull();
+    expect(q('invoice-chargeback')).toBeNull();
+  });
+
   it('#764 AC2: an untaxed invoice shows no tax rows', async () => {
     const { q, el } = await setup();
     expect(q('invoice-tax')).toBeNull();
