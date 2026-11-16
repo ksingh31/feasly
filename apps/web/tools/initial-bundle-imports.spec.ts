@@ -16,6 +16,9 @@
  *      import a feature barrel that re-exports a component.
  *   2. The funnel pages reached only after the landing step are lazy in
  *      app.routes.ts (`loadComponent`), never eager `component:` routes.
+ *   3. (#980) The eagerly routed pages never import the shared components
+ *      barrel — it re-exports every shared component, none tree-shake.
+ *   4. (#980) The /how-it-works and /faq pages are lazy routes too.
  */
 import { readFileSync, existsSync } from 'node:fs';
 import { dirname, join } from 'node:path';
@@ -59,6 +62,9 @@ describe('initial bundle imports (#612)', () => {
     'AnalyzingPageComponent',
     'PreviewPageComponent',
     'ReportPageComponent',
+    // #980: marketing pages are lazy so community pages don't carry them.
+    'HowItWorksPageComponent',
+    'FaqPageComponent',
   ];
 
   it('funnel pages after the landing step are lazy-loaded routes', () => {
@@ -68,4 +74,20 @@ describe('initial bundle imports (#612)', () => {
       expect(routes, `${page} must be loaded via loadComponent`).toContain(`m.${page}`);
     }
   });
+
+  // #980: eager route components (app.routes.ts `component:` routes).
+  const EAGER_PAGES = [
+    'features/landing/landing-page.component.ts',
+    'features/error/error-page.component.ts',
+    'features/error/offline-page.component.ts',
+    'features/not-found/not-found-page.component.ts',
+  ];
+
+  for (const file of EAGER_PAGES) {
+    it(`${file} imports shared components by subpath, not the barrel`, () => {
+      const source = readFileSync(join(APP, file), 'utf8');
+      expect(source).not.toMatch(/from '(\.\.\/)+shared\/components'/);
+      expect(source).not.toMatch(/from '@app\/shared(\/components)?'/);
+    });
+  }
 });

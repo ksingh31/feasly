@@ -6,8 +6,6 @@ import { ErrorPageComponent } from './features/error/error-page.component';
 import { LandingPageComponent } from './features/landing/landing-page.component';
 import { NotFoundPageComponent } from './features/not-found/not-found-page.component';
 import { reportEstimateGuard } from './features/report/report-estimate.guard';
-import { FaqPageComponent } from './features/marketing/faq-page.component';
-import { HowItWorksPageComponent } from './features/marketing/how-it-works-page.component';
 import { wizardPropertyGuard } from './features/wizard/wizard-property.guard';
 import { robotsGuard } from './core/seo/robots.guard';
 import { wizardScopeGuard } from './features/wizard/wizard-scope.guard';
@@ -141,8 +139,19 @@ export const routes: Routes = [
   },
   // Marketing pages (SEO-010): indexable — no `noindex` data, so the SEO
   // table + check-prerender-seo.mjs treat them as crawlable like privacy/terms.
-  { path: 'how-it-works', component: HowItWorksPageComponent, canActivate: [robotsGuard] },
-  { path: 'faq', component: FaqPageComponent, canActivate: [robotsGuard] },
+  // #980: lazy-loaded to keep their templates out of the initial bundle
+  // (Lighthouse script budget); prerender follows loadComponent routes.
+  {
+    path: 'how-it-works',
+    loadComponent: () =>
+      import('./features/marketing/how-it-works-page.component').then((m) => m.HowItWorksPageComponent),
+    canActivate: [robotsGuard],
+  },
+  {
+    path: 'faq',
+    loadComponent: () => import('./features/marketing/faq-page.component').then((m) => m.FaqPageComponent),
+    canActivate: [robotsGuard],
+  },
   // Help + contact (#834): indexable, lazy-loaded (prerender follows
   // loadComponent routes, same as the guides).
   {

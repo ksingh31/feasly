@@ -1,7 +1,6 @@
 import { Component, computed, DestroyRef, inject, OnInit, signal } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { FormsModule } from '@angular/forms';
-import { ConfigService } from '../../core/config/config.service';
 import { API_SERVICE } from '../../core/api/api.service';
 import { localDateStringDaysAgo } from '../../shared/utils/datetime';
 import {
@@ -22,6 +21,7 @@ import type {
   FunnelSourceGroup,
   FunnelTenantFilter,
 } from '../../core/api/funnel.types';
+import { injectAdminCopy } from './admin-copy';
 
 /**
  * Admin funnel dashboard (admin/07 frontend).
@@ -57,10 +57,9 @@ import type {
 })
 export class FunnelsPageComponent implements OnInit {
   private readonly api = inject(API_SERVICE);
-  private readonly config = inject(ConfigService);
   private readonly destroyRef = inject(DestroyRef);
 
-  protected readonly copy = this.config.get('copy').admin.funnels;
+  protected readonly copy = injectAdminCopy().funnels;
   private readonly count = new KitCountPipe();
 
   /** Inclusive start date (YYYY-MM-DD). Empty = unbounded. */
