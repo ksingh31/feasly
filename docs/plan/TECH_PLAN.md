@@ -745,7 +745,7 @@ Event → `stripe_events` insert (idempotency) → handler:
 | `charge.dispute.created` | Bank chargeback (#719): `billing_disputes` row (`source='chargeback'`, SLA = evidence deadline), `commission_invoices.chargeback_status='open'` (retries refused), one ops alert naming the deadline |
 | `charge.dispute.updated` | Sync Stripe status / evidence deadline onto the chargeback row |
 | `charge.dispute.funds_withdrawn` / `funds_reinstated` | Audit row on the chargeback |
-| `charge.dispute.closed` | Chargeback closed with outcome `won` / `lost` / `warning_closed`; invoice `chargeback_status` = outcome, `status` unchanged (lost → ops alert, manual re-collect/write-off decision) |
+| `charge.dispute.closed` | Chargeback closed with outcome `won` / `lost` / `warning_closed`; invoice `chargeback_status` = outcome. won / warning_closed → `status` unchanged. lost (#873) → the commission is still owed: `paid → failed` (dunning queue, admin retry, builder emailed "payment reversed"), ops alert; a partial chargeback or partly refunded invoice keeps its status for manual follow-up. Write-off = admin void. No automatic embed pause; open chargebacks show as `openChargebacks` on the admin builders list |
 | `charge.refunded` | `commission_invoices.refunded_cents` = Stripe's cumulative `amount_refunded` + `invoice.refunded` timeline row (covers Stripe-dashboard refunds) |
 
 ### 5.3 Draft → review → auto-charge (commission)

@@ -741,6 +741,8 @@ export interface CommissionPaymentFailedTemplateInput {
   readonly currency: string;
   /** Days the builder has to update the card before collection steps. */
   readonly updateWithinDays: number;
+  /** 'chargeback_lost' renders the #873 "payment reversed" variant. */
+  readonly reason?: 'declined' | 'chargeback_lost';
   readonly tax?: CommissionEmailTax;
 }
 
@@ -751,6 +753,9 @@ export function renderCommissionPaymentFailedEmail(
   const cardUrl = `${ctx.appBaseUrl}/builder/billing`;
   // #714: the declined amount is what we tried to charge (incl. tax).
   const commission = formatMoney(input.tax?.totalCents ?? input.commissionCents);
+  if (input.reason === 'chargeback_lost') {
+    return renderChargebackLostEmail(ctx, input.invoiceRef, commission, input.currency, cardUrl);
+  }
   const subject = `Your card was declined — update it to settle invoice ${input.invoiceRef}`;
   const body = `<p>Hi there,</p>
 <p>We tried to charge your card on file for commission invoice <strong>${esc(input.invoiceRef)}</strong> ($${commission} ${esc(input.currency)}) but the charge was declined.</p>
@@ -763,6 +768,33 @@ ${fallbackLink(cardUrl)}`;
     `Please update your card within ${input.updateWithinDays} days — we'll retry the charge automatically once a valid card is on file.\n\n` +
     `Update card: ${cardUrl}\n\n— ${ctx.brandName}\nDeterministic cost math · not a contractor quote · cost data currently uncalibrated.`;
   return { subject, html: layout(ctx, 'Card declined', body), text };
+}
+
+/**
+ * #873: Stripe closed a bank chargeback as lost — the builder's bank took
+ * the commission payment back, but the commission is still owed (owner
+ * decision 2026-11-15), so the invoice is unpaid again and goes through
+ * normal collection.
+ */
+function renderChargebackLostEmail(
+  ctx: TemplateContext,
+  invoiceRef: string,
+  commission: string,
+  currency: string,
+  billingUrl: string,
+): RenderedEmail {
+  const subject = `Your bank reversed a payment — invoice ${invoiceRef} is unpaid again`;
+  const body = `<p>Hi there,</p>
+<p>Your bank reversed your card payment for commission invoice <strong>${esc(invoiceRef)}</strong> ($${commission} ${esc(currency)}) after a chargeback. The commission is still owed, so the invoice is now unpaid.</p>
+<p>Please check that your card on file is up to date. We&apos;ll collect the payment again from it.</p>
+${ctaButton(billingUrl, 'Review invoice')}
+${fallbackLink(billingUrl)}`;
+  const text =
+    `Hi there,\n\nYour bank reversed your card payment for commission invoice ${invoiceRef} ` +
+    `($${commission} ${currency}) after a chargeback. The commission is still owed, so the invoice is now unpaid.\n\n` +
+    `Please check that your card on file is up to date. We'll collect the payment again from it.\n\n` +
+    `Review invoice: ${billingUrl}\n\n— ${ctx.brandName}\nDeterministic cost math · not a contractor quote · cost data currently uncalibrated.`;
+  return { subject, html: layout(ctx, 'Payment reversed', body), text };
 }
 
 /* ── #712: the bank wants the builder to confirm the charge (3DS / SCA) ──

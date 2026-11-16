@@ -15,9 +15,18 @@
  * - The invoice carries `chargeback_status`: 'open' while the dispute is
  *   live (commission.retryCharge refuses — no further charge attempts),
  *   then the outcome. A WON chargeback leaves the invoice 'paid'. A LOST
- *   chargeback leaves `status` unchanged and alerts ops: whether the
- *   builder still owes the commission is an open owner decision, so it is
- *   handled manually rather than auto-voided or auto-recharged.
+ *   chargeback (owner decision #873, 2026-11-15): the builder still owes
+ *   the commission, so the invoice moves `paid → failed` and is collected
+ *   again through the normal dunning queue / retry / builder pay flow, and
+ *   the builder is emailed (commission.reopenAfterLostChargeback). Never
+ *   auto-voided — a write-off is an admin's manual void. When re-charging
+ *   the full invoice would over-collect (a partial chargeback, or the
+ *   invoice was already partly refunded) or the invoice is no longer
+ *   'paid', the status is left alone and ops is alerted to handle it.
+ * - An open chargeback pauses nothing but charge retries on that invoice
+ *   (#873): no automatic embed / lead-flow pause. The builder shows the
+ *   open-chargeback flag in the admin builders list, and an admin can
+ *   pause the builder by hand.
  * - `charge.refunded` mirrors Stripe's cumulative `amount_refunded` onto
  *   `commission_invoices.refunded_cents` (monotonic) with a timeline row.
  * - Every state change appends a `billing_events` row. Each handler is
@@ -27,7 +36,9 @@
  *   invoice is reconciled to a closed row's outcome, letting a redelivery
  *   finish a handler that failed partway.
  * - A PaymentIntent no invoice owns throws 404 NOT_FOUND; the webhook turns
- *   that into the orphan-PaymentIntent audit + ops alert (#711).
+ *   that into the orphan-PaymentIntent audit + ops alert (#711). A dispute
+ *   event whose PaymentIntent was replaced by a re-collection retry still
+ *   finds its invoice through the recorded chargeback row.
  *
  * Only services and composition.ts may import from src/db/ — enforced by
  * test/boundaries.test.ts.
@@ -53,7 +64,7 @@ import {
 import type { EmailService } from '../email/email.service';
 import { ensureOpsAlertDelivered } from '../ops-alerts.service';
 import type { BillingAuditService } from './billing-audit.service';
-import { invoiceTotalCents } from './commission.service';
+import { invoiceTotalCents, type CommissionService } from './commission.service';
 import type { NormalizedDispute } from './payment-provider';
 
 /** The `charge.dispute.*` event types this service handles. */
@@ -115,6 +126,8 @@ export interface ChargebackService {
 export interface ChargebackServiceDeps {
   readonly db: AppDb;
   readonly audit: BillingAuditService;
+  /** #873: a lost chargeback re-opens the invoice for collection. */
+  readonly commission: Pick<CommissionService, 'reopenAfterLostChargeback'>;
   readonly email: Pick<EmailService, 'sendOpsAlert'>;
   readonly opsInbox: string;
   /** Defaults to () => new Date(); tests inject a fixed clock. */
@@ -166,7 +179,7 @@ function snapshotFor(
 export function createChargebackService(
   deps: ChargebackServiceDeps,
 ): ChargebackService {
-  const { db, audit, email, opsInbox } = deps;
+  const { db, audit, commission, email, opsInbox } = deps;
   const now = deps.now ?? (() => new Date());
   const newId = deps.newId ?? randomUUID;
   const logWarning =
@@ -186,6 +199,43 @@ export function createChargebackService(
       );
     }
     return row;
+  }
+
+  /**
+   * The invoice a dispute event belongs to. A lost chargeback's
+   * re-collection retry gives the invoice a fresh PaymentIntent, so a late
+   * event for the original charge falls back to the chargeback row already
+   * recorded for this Stripe dispute.
+   */
+  async function requireInvoiceForDispute(
+    paymentIntentId: string,
+    stripeDisputeId: string,
+  ): Promise<InvoiceRow> {
+    try {
+      return await requireInvoiceByPaymentIntent(paymentIntentId);
+    } catch (error) {
+      if (!(error instanceof HttpError) || error.status !== 404) throw error;
+      const known = await db.query.billingDisputes.findFirst({
+        columns: { invoiceId: true },
+        where: eq(billingDisputes.stripeDisputeId, stripeDisputeId),
+      });
+      if (known === undefined) throw error;
+      const row = await db.query.commissionInvoices.findFirst({
+        where: eq(commissionInvoices.id, known.invoiceId),
+      });
+      if (row === undefined) throw error;
+      return row;
+    }
+  }
+
+  /**
+   * True when re-charging the whole invoice collects exactly what the lost
+   * chargeback took back. A partial chargeback or an invoice that was
+   * already (partly) refunded would be over-collected — ops handles those.
+   */
+  function canRecollectInFull(invoice: InvoiceRow, chargebackCents: number | null): boolean {
+    if (invoice.refundedCents > 0) return false;
+    return chargebackCents === null || chargebackCents === invoiceTotalCents(invoice);
   }
 
   /**
@@ -462,6 +512,25 @@ export function createChargebackService(
       .returning({ id: commissionInvoices.id });
     if (reconciled !== undefined) changed = true;
 
+    // #873: a lost chargeback re-opens the invoice for collection. Runs on
+    // every delivery (idempotent per dispute) so a redelivery finishes a
+    // move that failed partway, before the keyed timeline row below.
+    let recollecting = false;
+    if (finalOutcome === 'lost' && canRecollectInFull(invoice, closed.amountCents)) {
+      const { reopened } = await commission.reopenAfterLostChargeback({
+        invoiceId: invoice.id,
+        disputeId: row.id,
+        stripeDisputeId: row.stripeDisputeId,
+        stripeEventId,
+      });
+      if (reopened) changed = true;
+      const fresh = await db.query.commissionInvoices.findFirst({
+        columns: { status: true },
+        where: eq(commissionInvoices.id, invoice.id),
+      });
+      recollecting = fresh?.status === 'failed';
+    }
+
     // The invoice timeline row + ops alert are keyed on this dispute, not on
     // the transition above, so they are written even when the invoice was
     // reconciled by an earlier, partially failed delivery.
@@ -476,13 +545,24 @@ export function createChargebackService(
     const amount = formatCents(closed.amountCents, invoice.currency);
     // Alert before the audit row: if the audit write fails, the redelivery
     // alerts again (at-least-once) rather than never.
-    if (finalOutcome === 'lost') {
+    if (finalOutcome === 'lost' && recollecting) {
       await alertOps(
-        `Chargeback lost on ${invoice.invoiceNumber}`,
+        `Chargeback lost on ${invoice.invoiceNumber} — commission due again`,
         `Stripe closed chargeback ${row.stripeDisputeId} on invoice ` +
-          `${invoice.invoiceNumber} as LOST (${amount}). The invoice still ` +
-          `shows its original status; decide manually whether to re-collect ` +
-          `the commission or write it off.`,
+          `${invoice.invoiceNumber} as LOST (${amount}). The builder still ` +
+          `owes the commission: the invoice is now 'failed' and in the ` +
+          `dunning queue, and the builder has been emailed. Retry the charge ` +
+          `from the dunning queue, or void the invoice by hand to write it off.`,
+      );
+    } else if (finalOutcome === 'lost') {
+      await alertOps(
+        `Chargeback lost on ${invoice.invoiceNumber} — manual follow-up`,
+        `Stripe closed chargeback ${row.stripeDisputeId} on invoice ` +
+          `${invoice.invoiceNumber} as LOST (${amount}). It was not re-opened ` +
+          `for collection automatically (invoice status '${invoice.status}', ` +
+          `refunded ${formatCents(invoice.refundedCents, invoice.currency)}): ` +
+          `re-charging the full invoice could over-collect. Decide the amount ` +
+          `still owed and collect or void it by hand.`,
       );
     } else {
       await alertOps(
@@ -498,13 +578,18 @@ export function createChargebackService(
       entityType: 'commission_invoice',
       entityId: invoice.id,
       payload: {
-        // The invoice status is unchanged either way: won → it stays paid;
-        // lost → ops decides re-collection vs write-off manually.
-        status: invoice.status,
+        // won / warning_closed → the status is unchanged (stays paid);
+        // lost → 'failed' when re-opened for collection (#873), otherwise
+        // unchanged and flagged for manual follow-up.
+        status: recollecting ? 'failed' : invoice.status,
         chargebackStatus: finalOutcome,
         disputeId: row.id,
         stripeDisputeId: row.stripeDisputeId,
-        ...(finalOutcome === 'lost' ? { manualFollowUpRequired: true } : {}),
+        ...(finalOutcome === 'lost'
+          ? recollecting
+            ? { recollect: true }
+            : { manualFollowUpRequired: true }
+          : {}),
         stripeEventId,
       },
     });
@@ -535,7 +620,8 @@ export function createChargebackService(
           `${formatCents(row.amountCents, invoice.currency)}. Stripe dispute ` +
           `${row.stripeDisputeId}. Evidence is due ${deadline} (America/Edmonton) ` +
           `— submit it in the Stripe dashboard. Further charges on this ` +
-          `invoice are paused until Stripe closes the dispute.`,
+          `invoice are paused until Stripe closes the dispute. The builder's ` +
+          `embed and leads keep running; pause the builder by hand if needed.`,
       );
     }
     await audit.append({
@@ -557,7 +643,10 @@ export function createChargebackService(
 
   return {
     async handleDisputeEvent(input): Promise<ChargebackEventResult> {
-      const invoice = await requireInvoiceByPaymentIntent(input.paymentIntentId);
+      const invoice = await requireInvoiceForDispute(
+        input.paymentIntentId,
+        input.dispute.id,
+      );
       const { row: initial, created } = await upsertChargeback(invoice, input);
       let row = initial;
       let changed = created;

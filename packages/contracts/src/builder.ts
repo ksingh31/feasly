@@ -472,6 +472,13 @@ export interface Builder {
    * only.
    */
   readonly commissionRatePercent: number;
+  /**
+   * #873: commission invoices of this builder with a live bank chargeback
+   * (`chargeback_status = 'open'`). Sent by the admin builders list only;
+   * > 0 flags the builder for the admin, who can pause it by hand —
+   * nothing is paused automatically. Absent elsewhere.
+   */
+  readonly openChargebacks?: number;
   readonly createdAt: string;
   readonly updatedAt: string;
 }

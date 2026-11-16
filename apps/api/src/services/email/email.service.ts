@@ -180,6 +180,12 @@ export interface CommissionPaymentFailedEmailInput {
   readonly currency: string;
   /** Days the builder has to update the card before collection steps. */
   readonly updateWithinDays: number;
+  /**
+   * Why the invoice is unpaid. Absent / 'declined' = the card was declined
+   * (BILL-04). 'chargeback_lost' = the bank reversed a paid charge after a
+   * lost chargeback and the commission is due again (#873).
+   */
+  readonly reason?: 'declined' | 'chargeback_lost';
   readonly tax?: CommissionEmailTax;
 }
 
@@ -525,6 +531,7 @@ export function createEmailService(deps: EmailServiceDeps): EmailService {
         commissionCents: input.commissionCents,
         currency: input.currency,
         updateWithinDays: input.updateWithinDays,
+        ...(input.reason ? { reason: input.reason } : {}),
         ...(input.tax ? { tax: input.tax } : {}),
       });
       return deliver({ ...rendered, to: input.to });
