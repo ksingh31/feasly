@@ -60,6 +60,13 @@ describe('resolve — Calgary districts (AC2)', () => {
     expect(r.district?.rules.maxHeightM?.value).toBe(12);
   });
 
+  it('H-GO: single-detached is listed, citing the "Dwelling Unit" use (#898)', () => {
+    expect(forms('H-GO')).toContain('single-detached:permitted');
+    const sd = resolver.resolve('calgary', 'H-GO').district?.forms.find((f) => f.form === 'single-detached');
+    expect(sd?.section).toBe('s. 1387(b)');
+    expect(sd?.note).toMatch(/confirm with the City/);
+  });
+
   it('M-C1: multi-residential with 148 units/ha', () => {
     const r = resolver.resolve('calgary', 'M-C1');
     expect(r.district?.category).toBe('multi-residential');
