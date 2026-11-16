@@ -910,6 +910,27 @@ ALTER TABLE "builder_notifications" ADD COLUMN IF NOT EXISTS "created_at" timest
 CREATE UNIQUE INDEX IF NOT EXISTS "builder_notifications_dedupe_key_idx" ON "builder_notifications" USING btree ("dedupe_key");
 CREATE INDEX IF NOT EXISTS "builder_notifications_status_created_idx" ON "builder_notifications" USING btree ("status","created_at");
 CREATE INDEX IF NOT EXISTS "builder_notifications_lead_idx" ON "builder_notifications" USING btree ("lead_id");
+CREATE TABLE IF NOT EXISTS "email_outbox" (
+
+	"id" uuid PRIMARY KEY NOT NULL,
+	"to_address" text NOT NULL,
+	"subject" text NOT NULL,
+	"html" text NOT NULL,
+	"body_text" text NOT NULL,
+	"headers" jsonb,
+	"attempts" integer DEFAULT 0 NOT NULL,
+	"last_error" text,
+	"created_at" timestamp with time zone DEFAULT now() NOT NULL
+);
+ALTER TABLE "email_outbox" ADD COLUMN IF NOT EXISTS "to_address" text;
+ALTER TABLE "email_outbox" ADD COLUMN IF NOT EXISTS "subject" text;
+ALTER TABLE "email_outbox" ADD COLUMN IF NOT EXISTS "html" text;
+ALTER TABLE "email_outbox" ADD COLUMN IF NOT EXISTS "body_text" text;
+ALTER TABLE "email_outbox" ADD COLUMN IF NOT EXISTS "headers" jsonb;
+ALTER TABLE "email_outbox" ADD COLUMN IF NOT EXISTS "attempts" integer DEFAULT 0 NOT NULL;
+ALTER TABLE "email_outbox" ADD COLUMN IF NOT EXISTS "last_error" text;
+ALTER TABLE "email_outbox" ADD COLUMN IF NOT EXISTS "created_at" timestamp with time zone DEFAULT now() NOT NULL;
+CREATE INDEX IF NOT EXISTS "email_outbox_created_at_idx" ON "email_outbox" USING btree ("created_at");
 CREATE TABLE IF NOT EXISTS "partner_shares" (
 
 	"id" uuid PRIMARY KEY NOT NULL,

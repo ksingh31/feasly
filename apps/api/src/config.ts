@@ -344,6 +344,10 @@ const EnvSchema = z.object({
   // console.groq.com/docs/models as of 2026-09-28). Overridable without
   // a code change.
   NARRATIVE_FALLBACK_MODELS: z.string().default('openai/gpt-oss-120b'),
+  // #750 global daily circuit breaker for LLM narrative calls (owner
+  // 2026-11-15: 300/day). Past the cap every request gets the static guide
+  // (all dollar figures still come from the engine) and one ops alert fires.
+  NARRATIVE_DAILY_LLM_CAP: z.coerce.number().int().min(0).default(300),
   // Service-account email — placeholder until provisioned in Key Vault.
   // Empty = sync disabled (worker fails closed, alert fires).
   SHEETS_SERVICE_ACCOUNT_EMAIL: z.string().default(''),
@@ -553,6 +557,16 @@ const EnvSchema = z.object({
   // Only retryable failures (timeouts, 429, 5xx, network errors) are
   // retried — a wrong email address fails immediately.
   EMAIL_SEND_MAX_ATTEMPTS: z.coerce.number().int().min(1).default(3),
+  // #750 global daily circuit breaker for outbound email (owner 2026-11-15:
+  // 300/day, queue beyond, alert at 80%). Ops alerts and billing notices
+  // count toward the cap but are never queued.
+  EMAIL_DAILY_CAP: z.coerce.number().int().min(0).default(300),
+  // Fraction of EMAIL_DAILY_CAP at which the one ops alert fires.
+  EMAIL_DAILY_CAP_ALERT_RATIO: z.coerce.number().gt(0).max(1).default(0.8),
+  // Queued (over-cap) emails older than this are dropped, not sent: the
+  // links they carry are stale by then. Rows hold a recipient address, so
+  // they are also deleted as soon as they are sent.
+  EMAIL_OUTBOX_MAX_AGE_HOURS: z.coerce.number().int().positive().default(48),
   // Base URL the web app lives at — magic-link / resume links are built
   // from this. Placeholder until the production domain is confirmed.
   APP_BASE_URL: z.string().url().default('https://feasly.example'),
@@ -818,6 +832,12 @@ export interface EmailConfig {
    * EMAIL_SEND_MAX_ATTEMPTS. Only retryable failures are retried.
    */
   readonly sendMaxAttempts: number;
+  /** #750: max outbound emails per UTC day before mail is queued. */
+  readonly dailyCap: number;
+  /** #750: fraction of dailyCap at which one ops alert fires. */
+  readonly dailyCapAlertRatio: number;
+  /** #750: queued emails older than this (ms) are dropped unsent. */
+  readonly outboxMaxAgeMs: number;
   /** Web-app base URL that magic-link / resume links are built from. */
   readonly appBaseUrl: string;
   /** One-click unsubscribe links are built from this (email/03). */
@@ -1182,6 +1202,11 @@ export interface NarrativeConfig {
   readonly models: readonly string[];
   /** Per-attempt timeout (ms) for each model in the narrative chain. */
   readonly timeoutMs: number;
+  /**
+   * #750: max LLM generations per UTC day across all instances. Past it
+   * the static guide is served and one ops alert fires.
+   */
+  readonly dailyLlmCap: number;
   /** Base URL of the OpenAI-compatible endpoint (chat/completions appended if missing). */
   readonly endpoint: string;
   /**
@@ -1690,6 +1715,9 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): ApiConfig {
       acsConnectionString: e.EMAIL_ACS_CONNECTION_STRING,
       acsSendTimeoutMs: e.EMAIL_ACS_SEND_TIMEOUT_MS,
       sendMaxAttempts: e.EMAIL_SEND_MAX_ATTEMPTS,
+      dailyCap: e.EMAIL_DAILY_CAP,
+      dailyCapAlertRatio: e.EMAIL_DAILY_CAP_ALERT_RATIO,
+      outboxMaxAgeMs: e.EMAIL_OUTBOX_MAX_AGE_HOURS * 60 * 60 * 1000,
       appBaseUrl: e.APP_BASE_URL,
       unsubscribeUrlBase: e.UNSUBSCRIBE_URL_BASE,
       unsubscribeTokenSecret: e.UNSUBSCRIBE_TOKEN_SECRET,
@@ -1779,6 +1807,7 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): ApiConfig {
       apiKey: e.NARRATIVE_API_KEY,
       models: parseNarrativeModels(e.NARRATIVE_MODELS),
       timeoutMs: e.NARRATIVE_TIMEOUT_MS,
+      dailyLlmCap: e.NARRATIVE_DAILY_LLM_CAP,
       endpoint: e.NARRATIVE_ENDPOINT,
       fallback: {
         endpoint: e.NARRATIVE_FALLBACK_ENDPOINT,

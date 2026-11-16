@@ -164,6 +164,10 @@ const targets = [
     out: 'backup-check-timer/index.js',
   },
   {
+    entry: 'src/functions/email-outbox-timer.ts',
+    out: 'email-outbox-timer/index.js',
+  },
+  {
     entry: 'src/functions/admin-auth-logout.ts',
     out: 'admin-auth-logout/index.js',
   },

@@ -10,6 +10,7 @@
       "Function.builder-notifications-timer.User": "Information",
       "Function.community-stats-refresh-timer.User": "Information",
       "Function.dispute-sla-timer.User": "Information",
+      "Function.email-outbox-timer.User": "Information",
       "Function.follow-up-timer.User": "Information",
       "Function.invoice-reviewer-timer.User": "Information",
       "Function.nudge-timer.User": "Information",

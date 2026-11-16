@@ -610,6 +610,13 @@ import {
   createDrizzleCityDataCacheStore,
   type CityDataCacheStore,
 } from './services/city-data-cache.store';
+import { createDailyCap, type DailyCap } from './services/daily-cap.service';
+import { createDrizzleEmailOutboxStore } from './services/email-outbox.store';
+import {
+  createEmailOutboxService,
+  type EmailOutboxService,
+} from './services/email-outbox.service';
+import { deliverWithRetry } from './services/email/email.service';
 import { MAGIC_LINK_SEND_BUDGET_WINDOW_MS } from './services/magic-link.service';
 import {
   createRequestPipeline,
@@ -684,6 +691,8 @@ export interface AppComposition {
   readonly sheetsSyncService: SheetsSyncService;
   /** admin/06: ops alerting (worker failures → deduped email). */
   readonly opsAlertsService: OpsAlertsService;
+  /** #750: drains over-cap email (email-outbox timer). */
+  readonly emailOutboxService: EmailOutboxService;
   /**
    * admin/06: daily Postgres backup freshness probe (`backup_missed`).
    * Undefined when BACKUP_CHECK_ENABLED is false or the server details are
@@ -1148,6 +1157,28 @@ export function createComposition(
   // Built before the lead service: consumer/02 wires the magic-link email
   // into lead capture and the dedupe reissue path.
   const emailProvider: EmailProvider = createEmailProvider(config);
+  // #750 global daily email cap (owner 2026-11-15: 300/day, queue beyond,
+  // one ops alert at 80%). Counts in the shared counter table so the cap
+  // holds across instances. The alert hook resolves opsAlertsService at
+  // call time (it is built after the email service it sends through); ops
+  // alerts are cap-exempt, so the alert can never be queued behind the cap.
+  const emailDailyCap: DailyCap = createDailyCap({
+    store: rateLimitStore,
+    scope: 'email',
+    limit: config.email.dailyCap,
+    alertAt: Math.max(1, Math.ceil(config.email.dailyCap * config.email.dailyCapAlertRatio)),
+    onThreshold: (count) =>
+      opsAlertsService.notifyFailure('email_daily_cap_near', {
+        consecutiveFailures: 1,
+        firstFailureAt: new Date(),
+        title: 'Daily email cap almost reached',
+        summary:
+          `Feasly has sent ${count} of its ${config.email.dailyCap} emails allowed today (UTC). ` +
+          `Past the cap, emails are queued and sent after midnight UTC; ops alerts and billing notices still go out. ` +
+          `This is an automated ops alert from Feasly.`,
+      }),
+  });
+  const emailOutboxStore = createDrizzleEmailOutboxStore({ db: db.db });
   const emailService: EmailService = createEmailService({
     provider: emailProvider,
     fromAddress: config.email.fromAddress,
@@ -1157,6 +1188,16 @@ export function createComposition(
     opsInbox: config.email.opsInbox,
     // In-code retry budget (Karan 2026-09-27: at least 2 retries, no queue).
     maxAttempts: config.email.sendMaxAttempts,
+    dailyCap: { cap: emailDailyCap, outbox: emailOutboxStore },
+  });
+  const emailOutboxService: EmailOutboxService = createEmailOutboxService({
+    store: emailOutboxStore,
+    cap: emailDailyCap,
+    send: (message) =>
+      deliverWithRetry(emailProvider, message, {
+        maxAttempts: config.email.sendMaxAttempts,
+      }),
+    maxAgeMs: config.email.outboxMaxAgeMs,
   });
   // email/03 — one-click unsubscribe center. The HMAC secret arrives via
   // config (Key Vault in staging/production); the service fails closed
@@ -1885,6 +1926,23 @@ export function createComposition(
     opsAlerts: opsAlertsService,
     properties: propertyService,
     communityStats: communityStatsService,
+    // #750 global daily LLM cap (owner 2026-11-15: 300/day). Past it every
+    // request gets the static guide; one ops alert on the first refusal.
+    llmDailyCap: createDailyCap({
+      store: rateLimitStore,
+      scope: 'llm',
+      limit: config.narrative.dailyLlmCap,
+      onThreshold: () =>
+        opsAlertsService.notifyFailure('llm_daily_cap_reached', {
+          consecutiveFailures: 1,
+          firstFailureAt: new Date(),
+          title: 'Daily AI narrative cap reached',
+          summary:
+            `Feasly reached its ${config.narrative.dailyLlmCap} AI narrative generations for today (UTC). ` +
+            `Until midnight UTC, reports show the static Calgary guide instead; every dollar figure is unaffected. ` +
+            `This is an automated ops alert from Feasly.`,
+        }),
+    }),
   });
   const narrativeRoute: NarrativeRoute = createNarrativeRoute({
     narrative: narrativeService,
@@ -2270,6 +2328,7 @@ export function createComposition(
     sandboxPurgeService,
     sheetsSyncService,
     opsAlertsService,
+    emailOutboxService,
     backupCheckService,
     apiKeyService,
     apiKeyRoute,

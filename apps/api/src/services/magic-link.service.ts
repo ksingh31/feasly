@@ -354,9 +354,13 @@ export function createMagicLinkService(
         addressKey: lead.addressKey,
         clock,
       });
-      // Only a delivered resend starts the cooldown — a failed send leaves
-      // the window open so the user can retry immediately.
-      if (delivery.sent) await reissueCooldown.start(lead.email);
+      // A delivered resend — or one accepted/queued for later delivery
+      // (#750 daily email cap → outbox) — starts the cooldown, matching
+      // lead.service: resending would only stack duplicate tokens/outbox
+      // rows. A genuinely failed send leaves the window open for a retry.
+      if (delivery.sent || delivery.acceptedByProvider) {
+        await reissueCooldown.start(lead.email);
+      }
       return { sent: delivery.sent };
     },
   };

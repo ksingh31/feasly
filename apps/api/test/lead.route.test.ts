@@ -13,6 +13,7 @@ import { createLeadService } from '../src/services/lead.service';
 import { createDrizzleEstimateStore } from '../src/services/estimate.store';
 import { createDrizzleLeadStore } from '../src/services/lead.store';
 import { createDrizzleMagicLinkStore } from '../src/services/magic-link.store';
+import { createDrizzleRateLimitStore } from '../src/services/rate-limit.store';
 import { createDrizzlePrivacyStore } from '../src/services/privacy.store';
 import { isProblemDetails } from '../src/middleware/errors';
 import { createTestDb, type TestDb } from './pglite-db';
@@ -160,6 +161,9 @@ describe('leads through the lead pipeline (PGlite-backed stores)', () => {
       // database and every issuance would fail the FK check.
       magicLinkStore: createDrizzleMagicLinkStore({ db: testDb.db }),
       privacyStore: createDrizzlePrivacyStore({ db: testDb.db }),
+      // #750: the daily email cap counts here and fails closed (queues)
+      // when its store is unreachable, so it must share the PGlite DB too.
+      rateLimitStore: createDrizzleRateLimitStore({ db: testDb.db }),
     });
     // Seed one estimate for the lead to attach to (real store path).
     const estimate = await app.estimateRoute.handle({

@@ -466,6 +466,64 @@ describe('magic-link reissue', () => {
     expect(email.sends).toHaveLength(1);
   });
 
+  it('#750: a resend queued by the daily email cap starts the cooldown (no stacked tokens/outbox rows)', async () => {
+    const base = fakeEmail();
+    const queued: EmailDelivery = {
+      sent: false,
+      provider: 'log',
+      failureReason: 'daily email cap reached — queued',
+      emailError: 'delivery-failed',
+      acceptedByProvider: true,
+      queued: true,
+    };
+    const email = {
+      ...base,
+      sendMagicLink: async (input: MagicLinkEmailInput) => {
+        base.sends.push(input);
+        return queued;
+      },
+    };
+    let nowMs = NOW.getTime();
+    const { service } = makeService({
+      email,
+      reissueCooldownMs: 60_000,
+      clock: () => new Date(nowMs),
+    });
+    expect(await service.reissue({ email: 'sam@example.com' })).toEqual({
+      sent: false,
+    });
+    expect(base.sends).toHaveLength(1);
+    // Repeated resends inside the cooldown issue nothing new.
+    for (let i = 0; i < 3; i++) {
+      nowMs += 10_000;
+      expect(await service.reissue({ email: 'sam@example.com' })).toEqual({
+        sent: false,
+      });
+    }
+    expect(base.sends).toHaveLength(1);
+  });
+
+  it('a genuinely failed resend leaves the cooldown open for an immediate retry', async () => {
+    const base = fakeEmail();
+    const failed: EmailDelivery = {
+      sent: false,
+      provider: 'log',
+      failureReason: 'transient',
+      emailError: 'delivery-failed',
+    };
+    const email = {
+      ...base,
+      sendMagicLink: async (input: MagicLinkEmailInput) => {
+        base.sends.push(input);
+        return failed;
+      },
+    };
+    const { service } = makeService({ email, reissueCooldownMs: 60_000 });
+    await service.reissue({ email: 'sam@example.com' });
+    await service.reissue({ email: 'sam@example.com' });
+    expect(base.sends).toHaveLength(2);
+  });
+
   it('HRD-03: allows a resend after the per-email cooldown elapses', async () => {
     const email = fakeEmail();
     let nowMs = NOW.getTime();

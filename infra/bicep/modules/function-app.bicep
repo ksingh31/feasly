@@ -576,7 +576,7 @@ resource app 'Microsoft.Web/sites@2024-04-01' = {
         }
       }
       scaleAndConcurrency: {
-        // #733: capped (was 100) — see the param description.
+        // #733/#750: capped (was 100) — see the param description.
         maximumInstanceCount: maximumInstanceCount
         instanceMemoryMB: 2048
       }

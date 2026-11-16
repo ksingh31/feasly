@@ -19,6 +19,7 @@ import type {
 } from './email.types';
 import { EmailProviderError, type EmailFailureCode } from './email.types';
 import { sanitizeErrorMessage } from '../../lib/sanitize-error';
+import type { DailyCap } from '../daily-cap.service';
 import {
   renderCallbackTeamEmail,
   renderCommissionInvoiceReadyEmail,
@@ -275,6 +276,23 @@ export interface EmailServiceDeps {
   readonly maxAttempts?: number;
   /** Backoff between attempts, ms. Default 1000. */
   readonly retryBackoffMs?: number;
+  /**
+   * #750 global daily email circuit breaker (owner 2026-11-15: 300/day,
+   * queue beyond). Every send takes one unit. Over the cap — or when the
+   * counter store is unreachable (fail closed) — the rendered message goes
+   * to the outbox and the email-outbox timer sends it once budget frees up.
+   * Ops alerts and billing notices are cap-exempt: counted, never queued.
+   * Absent = no global cap (tests, dev).
+   */
+  readonly dailyCap?: {
+    readonly cap: DailyCap;
+    readonly outbox: EmailOutboxQueue;
+  };
+}
+
+/** Where over-cap messages wait (#750). Drizzle impl: email-outbox.store.ts. */
+export interface EmailOutboxQueue {
+  enqueue(message: EmailMessage, now: Date): Promise<void>;
 }
 
 /**
@@ -310,6 +328,13 @@ export type EmailDelivery =
        * resubmit suppression: a user retry must not start a second send.
        */
       readonly acceptedByProvider?: boolean;
+      /**
+       * #750: the daily email cap was reached, so the message was queued
+       * and will be sent by the email-outbox timer. Always paired with
+       * `acceptedByProvider: true` — callers treat it as "on its way" and
+       * suppress resubmits.
+       */
+      readonly queued?: boolean;
     };
 
 /** Default max attempts: initial try + 2 retries. */
@@ -321,6 +346,72 @@ function sleep(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
+/**
+ * The one funnel every send path goes through. Retries retryable
+ * failures (provider-classified: timeouts, 429, 5xx, network errors)
+ * with a short backoff; permanent failures (wrong address, rejected
+ * sender) skip retries and go straight to the failure result. Never
+ * throws on send failure — exhaustion returns `{ sent: false, ... }`
+ * so callers degrade gracefully instead of 500ing.
+ *
+ * Duplicate-email safety (P0 2026-09-27): a retry NEVER re-sends a
+ * message the provider already accepted. Providers signal that with
+ * `EmailProviderError.sendAccepted` (ACS: beginSend succeeded, delivery
+ * polling timed out) — such errors are never retried, and the returned
+ * failure carries `acceptedByProvider: true` so callers can suppress
+ * resubmits. Retries only re-attempt sends that never reached the
+ * provider, where a duplicate is impossible.
+ */
+export async function deliverWithRetry(
+  provider: EmailProvider,
+  message: EmailMessage,
+  opts: { readonly maxAttempts?: number; readonly retryBackoffMs?: number } = {},
+): Promise<EmailDelivery> {
+  const maxAttempts = Math.max(
+    1,
+    Math.floor(opts.maxAttempts ?? DEFAULT_MAX_ATTEMPTS),
+  );
+  const backoffMs = Math.max(0, opts.retryBackoffMs ?? DEFAULT_RETRY_BACKOFF_MS);
+  let attempt = 0;
+  for (;;) {
+    attempt += 1;
+    try {
+      const result = await provider.send(message);
+      return {
+        sent: true,
+        provider: result.provider,
+        messageId: result.messageId,
+      };
+    } catch (error) {
+      // Classification lives with the provider (EmailProviderError):
+      // unknown/non-provider errors default to retryable — retried, never
+      // silently dropped as permanent.
+      const retryable =
+        error instanceof EmailProviderError ? error.retryable : true;
+      const emailError: EmailFailureCode =
+        error instanceof EmailProviderError
+          ? error.failureCode
+          : 'delivery-failed';
+      if (retryable && attempt < maxAttempts) {
+        await sleep(backoffMs);
+        continue;
+      }
+      return {
+        sent: false,
+        provider: provider.name,
+        failureReason: sanitizeErrorMessage(error),
+        emailError,
+        // Accepted-but-unconfirmed: the provider has the message (a
+        // re-send would likely duplicate it), so this failure is never
+        // retried and the caller must suppress resubmits.
+        ...(error instanceof EmailProviderError && error.sendAccepted
+          ? { acceptedByProvider: true as const }
+          : {}),
+      };
+    }
+  }
+}
+
 export function createEmailService(deps: EmailServiceDeps): EmailService {
   const ctx: TemplateContext = {
     appBaseUrl: deps.appBaseUrl,
@@ -329,65 +420,48 @@ export function createEmailService(deps: EmailServiceDeps): EmailService {
   };
 
   /**
-   * The one funnel every send path goes through. Retries retryable
-   * failures (provider-classified: timeouts, 429, 5xx, network errors)
-   * with a short backoff; permanent failures (wrong address, rejected
-   * sender) skip retries and go straight to the failure result. Never
-   * throws on send failure — exhaustion returns `{ sent: false, ... }`
-   * so callers degrade gracefully instead of 500ing.
-   *
-   * Duplicate-email safety (P0 2026-09-27): a retry NEVER re-sends a
-   * message the provider already accepted. Providers signal that with
-   * `EmailProviderError.sendAccepted` (ACS: beginSend succeeded, delivery
-   * polling timed out) — such errors are never retried, and the returned
-   * failure carries `acceptedByProvider: true` so callers can suppress
-   * resubmits. Retries only re-attempt sends that never reached the
-   * provider, where a duplicate is impossible.
+   * Every send path funnels through here. #750: the daily cap gate runs
+   * first; over the cap a non-exempt message is queued instead of sent.
    */
-  async function deliver(message: EmailMessage): Promise<EmailDelivery> {
-    const maxAttempts = Math.max(
-      1,
-      Math.floor(deps.maxAttempts ?? DEFAULT_MAX_ATTEMPTS),
-    );
-    const backoffMs = Math.max(0, deps.retryBackoffMs ?? DEFAULT_RETRY_BACKOFF_MS);
-    let attempt = 0;
-    for (;;) {
-      attempt += 1;
+  async function deliver(
+    message: EmailMessage,
+    options: { readonly capExempt?: boolean } = {},
+  ): Promise<EmailDelivery> {
+    const gate = deps.dailyCap;
+    if (gate) {
+      let allowed: boolean;
       try {
-        const result = await deps.provider.send(message);
-        return {
-          sent: true,
-          provider: result.provider,
-          messageId: result.messageId,
-        };
+        allowed = (await gate.cap.take()).allowed;
       } catch (error) {
-        // Classification lives with the provider (EmailProviderError):
-        // unknown/non-provider errors default to retryable — retried, never
-        // silently dropped as permanent.
-        const retryable =
-          error instanceof EmailProviderError ? error.retryable : true;
-        const emailError: EmailFailureCode =
-          error instanceof EmailProviderError
-            ? error.failureCode
-            : 'delivery-failed';
-        if (retryable && attempt < maxAttempts) {
-          await sleep(backoffMs);
-          continue;
+        console.error(
+          `email: daily cap store failed (error=${sanitizeErrorMessage(error)})`,
+        );
+        // Fail closed for capped mail (queue it); exempt mail still goes.
+        allowed = options.capExempt === true;
+      }
+      if (!allowed && !options.capExempt) {
+        try {
+          await gate.outbox.enqueue(message, new Date());
+        } catch (error) {
+          return {
+            sent: false,
+            provider: deps.provider.name,
+            failureReason: `daily email cap reached; queueing failed: ${sanitizeErrorMessage(error)}`,
+            emailError: 'delivery-failed',
+          };
         }
+        console.warn('email: daily cap reached; message queued');
         return {
           sent: false,
           provider: deps.provider.name,
-          failureReason: sanitizeErrorMessage(error),
-          emailError,
-          // Accepted-but-unconfirmed: the provider has the message (a
-          // re-send would likely duplicate it), so this failure is never
-          // retried and the caller must suppress resubmits.
-          ...(error instanceof EmailProviderError && error.sendAccepted
-            ? { acceptedByProvider: true as const }
-            : {}),
+          failureReason: 'daily email cap reached; message queued',
+          emailError: 'delivery-failed',
+          acceptedByProvider: true,
+          queued: true,
         };
       }
     }
+    return deliverWithRetry(deps.provider, message, deps);
   }
 
   return {
@@ -462,7 +536,7 @@ export function createEmailService(deps: EmailServiceDeps): EmailService {
         detailsUrl: input.detailsUrl,
         firedAt: input.firedAt,
       });
-      return deliver({ ...rendered, to: input.to });
+      return deliver({ ...rendered, to: input.to }, { capExempt: true });
     },
 
     async sendCommissionInvoiceReady(
@@ -477,7 +551,7 @@ export function createEmailService(deps: EmailServiceDeps): EmailService {
         reviewDueAt: input.reviewDueAt,
         ...(input.tax ? { tax: input.tax } : {}),
       });
-      return deliver({ ...rendered, to: input.to });
+      return deliver({ ...rendered, to: input.to }, { capExempt: true });
     },
 
     async sendCommissionPaymentReceived(
@@ -490,7 +564,7 @@ export function createEmailService(deps: EmailServiceDeps): EmailService {
         paidAt: input.paidAt,
         ...(input.tax ? { tax: input.tax } : {}),
       });
-      return deliver({ ...rendered, to: input.to });
+      return deliver({ ...rendered, to: input.to }, { capExempt: true });
     },
 
     async sendCommissionPaymentFailed(
@@ -503,7 +577,7 @@ export function createEmailService(deps: EmailServiceDeps): EmailService {
         updateWithinDays: input.updateWithinDays,
         ...(input.tax ? { tax: input.tax } : {}),
       });
-      return deliver({ ...rendered, to: input.to });
+      return deliver({ ...rendered, to: input.to }, { capExempt: true });
     },
 
     async sendCommissionPaymentActionRequired(

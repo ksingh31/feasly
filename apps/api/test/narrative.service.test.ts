@@ -15,7 +15,10 @@ import { createNarrativeService } from '../src/services/narrative.service';
 import { createLogNarrativeProvider } from '../src/services/narrative/providers/log.provider';
 import { createOpenAiCompatibleNarrativeProvider, chatCompletionsUrl } from '../src/services/narrative/providers/openai-compatible.provider';
 import { buildStaticGuideNarrative } from '../src/services/narrative/static-guide';
-import { NarrativeProviderError } from '../src/services/narrative/narrative.types';
+import {
+  NARRATIVE_SYNTHETIC_MARKER,
+  NarrativeProviderError,
+} from '../src/services/narrative/narrative.types';
 import type {
   NarrativeProvider,
   NarrativeProviderResult,
@@ -1232,5 +1235,125 @@ describe('narrative static-guide fallback (BE-9)', () => {
       .generateNarrative(TOKEN, ESTIMATE_ID)
       .catch((e) => e);
     expect(error.status).toBe(429);
+  });
+});
+
+describe('global daily LLM cap (#750)', () => {
+  function capFrom(verdicts: boolean[] | 'fail') {
+    let i = 0;
+    return {
+      take: vi.fn(async () => {
+        if (verdicts === 'fail') throw new Error('store down');
+        const allowed = verdicts[i] ?? false;
+        i += 1;
+        return { allowed, count: i };
+      }),
+      remaining: vi.fn(async () => 0),
+    };
+  }
+
+  it('serves the static guide without calling the LLM once the cap is reached', async () => {
+    const stores = makeStores();
+    const provider = makeProvider(VALID_TEXT);
+    const llmDailyCap = capFrom([false]);
+    const service = createNarrativeService({ ...stores, provider, llmDailyCap });
+    const result = await service.generateNarrative(TOKEN, ESTIMATE_ID);
+    expect(result.narrativeSource).toBe('static-guide');
+    expect(result.narrative).toBe(buildStaticGuideNarrative());
+    expect(provider.calls).toBe(0);
+    expect(stores.records.get(ESTIMATE_ID)?.narrative).toBeNull();
+    // The cap's own threshold hook alerts — not a per-request failure alert.
+    expect(stores.opsAlerts.notifyFailure).not.toHaveBeenCalled();
+  });
+
+  it('fails closed to the static guide when the counter store is down', async () => {
+    const stores = makeStores();
+    const provider = makeProvider(VALID_TEXT);
+    const service = createNarrativeService({ ...stores, provider, llmDailyCap: capFrom('fail') });
+    const result = await service.generateNarrative(TOKEN, ESTIMATE_ID);
+    expect(result.narrativeSource).toBe('static-guide');
+    expect(provider.calls).toBe(0);
+  });
+
+  it('counts the repair retry: no second LLM call when the cap is hit in between', async () => {
+    const stores = makeStores();
+    const provider = makeProvider('Invalid: it will cost $999,999. ' + NARRATIVE_FOOTER);
+    const llmDailyCap = capFrom([true, false]);
+    const service = createNarrativeService({ ...stores, provider, llmDailyCap });
+    const result = await service.generateNarrative(TOKEN, ESTIMATE_ID);
+    expect(result.narrativeSource).toBe('static-guide');
+    expect(provider.calls).toBe(1);
+    expect(llmDailyCap.take).toHaveBeenCalledTimes(2);
+  });
+
+  it('takes one unit per LLM call under the cap', async () => {
+    const stores = makeStores();
+    const provider = makeProvider(VALID_TEXT);
+    const llmDailyCap = capFrom([true]);
+    const service = createNarrativeService({ ...stores, provider, llmDailyCap });
+    const result = await service.generateNarrative(TOKEN, ESTIMATE_ID);
+    expect(result.narrativeSource).toBe('ai');
+    expect(llmDailyCap.take).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe('narrative reuse per address + inputs (#750)', () => {
+  const SIBLING_TEXT = `Earlier narrative for the same inputs. ${NARRATIVE_FOOTER}`;
+
+  function withSibling(sibling: Partial<EstimateRecord>) {
+    const stores = makeStores();
+    const base = stores.records.get(ESTIMATE_ID);
+    if (!base) throw new Error('missing estimate');
+    const siblingRecord: EstimateRecord = {
+      ...base,
+      id: 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb',
+      // Same values, different key order — must still match.
+      inputs: { scope: { tier: 'standard', buildSqft: 2200 }, address: '123 Fake St NW' },
+      narrative: SIBLING_TEXT,
+      narrativeGeneratedAt: new Date('2026-09-20T00:00:00Z'),
+      ...sibling,
+    };
+    stores.estimates.findByAddressKey = async () => [siblingRecord, base];
+    return stores;
+  }
+
+  it('reuses a sibling narrative with identical inputs — no LLM call, no budget used', async () => {
+    const stores = withSibling({});
+    const provider = makeProvider(VALID_TEXT);
+    const llmDailyCap = { take: vi.fn(), remaining: vi.fn() };
+    const service = createNarrativeService({ ...stores, provider, llmDailyCap });
+    const result = await service.generateNarrative(TOKEN, ESTIMATE_ID);
+    expect(result.narrative).toBe(SIBLING_TEXT);
+    expect(result.cached).toBe(true);
+    expect(result.narrativeSource).toBe('ai');
+    expect(provider.calls).toBe(0);
+    expect(llmDailyCap.take).not.toHaveBeenCalled();
+    expect(stores.records.get(ESTIMATE_ID)?.narrative).toBe(SIBLING_TEXT);
+  });
+
+  it.each([
+    ['different inputs', { inputs: { address: '123 Fake St NW', scope: { buildSqft: 2400, tier: 'standard' } } }],
+    ['different figures', { figures: { build: { low: 1, base: 2, high: 3 }, total: { low: 1, base: 2, high: 3 }, land: { value: 1 } } }],
+    ['different cost data version', { costDataVersion: 'v0.2.0' }],
+    ['different project type', { projectType: 'renovation' }],
+    ['synthetic placeholder', { narrative: `${NARRATIVE_SYNTHETIC_MARKER} placeholder` }],
+  ] as const)('does not reuse a sibling with %s', async (_label, override) => {
+    const stores = withSibling(override as Partial<EstimateRecord>);
+    const provider = makeProvider(VALID_TEXT);
+    const service = createNarrativeService({ ...stores, provider });
+    const result = await service.generateNarrative(TOKEN, ESTIMATE_ID);
+    expect(result.narrative).toBe(VALID_TEXT);
+    expect(provider.calls).toBe(1);
+  });
+
+  it('falls through to generation when the sibling lookup fails', async () => {
+    const stores = makeStores();
+    stores.estimates.findByAddressKey = async () => {
+      throw new Error('db down');
+    };
+    const provider = makeProvider(VALID_TEXT);
+    const service = createNarrativeService({ ...stores, provider });
+    const result = await service.generateNarrative(TOKEN, ESTIMATE_ID);
+    expect(result.narrative).toBe(VALID_TEXT);
   });
 });

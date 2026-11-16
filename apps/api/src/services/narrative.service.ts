@@ -43,6 +43,7 @@ import type { NarrativeResponse } from '@feasly/contracts';
 import { ErrorCodes, HttpError } from '../middleware/errors';
 import { toSlug } from './community-stats/socrata-aggregates';
 import type { CommunityStatsService } from './community-stats.service';
+import type { DailyCap } from './daily-cap.service';
 import type { EstimateRecord, EstimateStore } from './estimate.store';
 import type { LeadStore } from './lead.store';
 import type { MagicLinkStore } from './magic-link.store';
@@ -88,6 +89,13 @@ export interface NarrativeServiceDeps {
   readonly clock?: () => Date;
   /** Injected rate-limit store for tests; defaults to in-memory. */
   readonly rateLimitStore?: NarrativeRateLimitStore;
+  /**
+   * #750 global daily LLM circuit breaker (shared across instances). Each
+   * provider call takes one unit; past the cap — or when the counter store
+   * is unreachable (fail closed) — the static guide is served. Absent = no
+   * global cap (tests, dev).
+   */
+  readonly llmDailyCap?: DailyCap;
 }
 
 /** Minimal rate-limit store — production uses the shared throttler. */
@@ -114,6 +122,19 @@ function createMemoryRateLimitStore(): NarrativeRateLimitStore {
       return times.length;
     },
   };
+}
+
+/** JSON with sorted object keys, so equal values compare equal. */
+function canonicalJson(value: unknown): string {
+  return JSON.stringify(value, (_key, v: unknown) =>
+    v && typeof v === 'object' && !Array.isArray(v)
+      ? Object.fromEntries(
+          Object.entries(v as Record<string, unknown>).sort(([a], [b]) =>
+            a < b ? -1 : a > b ? 1 : 0,
+          ),
+        )
+      : v,
+  );
 }
 
 /** Reconstruct the engine output shape from the persisted record. */
@@ -307,6 +328,64 @@ export function createNarrativeService(
   }
 
   /**
+   * #750 narrative cache per address + inputs. Estimates are immutable and
+   * a re-run inserts a new row, so a repeat visit with the same inputs
+   * would otherwise pay for a fresh LLM call. A sibling qualifies only when
+   * its project type, cost-data version, inputs AND persisted figures are
+   * identical — the narrative was validated against exactly these figures.
+   * The text is copied onto this estimate (compare-and-set, best effort).
+   * Any lookup failure just falls through to normal generation.
+   */
+  async function reuseSiblingNarrative(
+    record: EstimateRecord,
+  ): Promise<NarrativeResponse | null> {
+    let siblings: EstimateRecord[];
+    try {
+      siblings = await deps.estimates.findByAddressKey(record.addressKey);
+    } catch {
+      return null;
+    }
+    const inputsKey = canonicalJson(record.inputs);
+    const figuresKey = canonicalJson(record.figures);
+    const match = siblings.find(
+      (s) =>
+        s.id !== record.id &&
+        s.narrative &&
+        s.narrativeGeneratedAt &&
+        !isSyntheticNarrative(s.narrative) &&
+        s.projectType === record.projectType &&
+        s.costDataVersion === record.costDataVersion &&
+        canonicalJson(s.inputs) === inputsKey &&
+        canonicalJson(s.figures) === figuresKey,
+    );
+    if (!match?.narrative) return null;
+    const now = clock();
+    try {
+      await deps.estimates.setNarrative({
+        id: record.id,
+        narrative: match.narrative,
+        generatedAt: now,
+      });
+    } catch {
+      // Best effort: the response is still correct; a later visit reuses again.
+    }
+    console.info(
+      JSON.stringify({
+        event: 'narrative.reused',
+        estimateId: record.id,
+        sourceEstimateId: match.id,
+      }),
+    );
+    return {
+      estimateId: record.id,
+      narrative: match.narrative,
+      narrativeGeneratedAt: now.toISOString(),
+      cached: true,
+      narrativeSource: 'ai',
+    };
+  }
+
+  /**
    * Shared generation core: cache → rate limit → provider chain →
    * static-guide fallback. Called by the consumer entry point (after
    * magic-link auth + ownership) and the admin entry point (after the
@@ -333,6 +412,11 @@ export function createNarrativeService(
       narrativeSource: 'ai',
     };
   }
+  // #750: repeats are free — an earlier estimate for the same address with
+  // identical inputs, figures and cost data already has a validated
+  // narrative, so reuse it instead of calling the LLM.
+  const reused = await reuseSiblingNarrative(record);
+  if (reused) return reused;
   // Cost guard.
   const now = clock();
   let count: number;
@@ -396,6 +480,31 @@ export function createNarrativeService(
   // prose: serve the static guide instead of the old empty state.
   const emptyForSynthetic = (): Promise<NarrativeResponse> =>
     staticGuide('synthetic provider output', false);
+  /**
+   * #750 global daily LLM cap: one unit per provider call. Fails closed —
+   * an unreachable counter store serves the static guide, never an
+   * uncounted LLM call. The cap's own threshold hook raises the one ops
+   * alert, so the guide served here does not alert again. Synthetic (dev
+   * log) providers cost nothing and are not counted.
+   */
+  const withinLlmBudget = async (): Promise<boolean> => {
+    if (!deps.llmDailyCap || deps.provider.synthetic) return true;
+    try {
+      return (await deps.llmDailyCap.take()).allowed;
+    } catch (error) {
+      console.error(
+        JSON.stringify({
+          event: 'narrative.daily-cap-store-failed',
+          estimateId: record.id,
+          error: error instanceof Error ? error.message : String(error),
+        }),
+      );
+      return false;
+    }
+  };
+  const capReached = (): Promise<NarrativeResponse> =>
+    staticGuide('daily LLM cap reached', false);
+  if (!(await withinLlmBudget())) return capReached();
   try {
     const generation = await generateReal(output, record);
     if (!generation) return emptyForSynthetic();
@@ -411,6 +520,7 @@ export function createNarrativeService(
   if (!validation.ok) {
     // One repair retry: ask the provider again (the prompt already
     // constrains the output; a second sample often fixes it).
+    if (!(await withinLlmBudget())) return capReached();
     try {
       const retry = await generateReal(output, record);
       if (!retry) return emptyForSynthetic();

@@ -23,6 +23,8 @@ export const OPS_ALERT_TYPES = [
   'narrative_worker_failed',
   'backup_missed',
   'billing_dispute_sla_breached',
+  'llm_daily_cap_reached',
+  'email_daily_cap_near',
 ] as const;
 
 export type OpsAlertType = (typeof OPS_ALERT_TYPES)[number];
@@ -58,6 +60,16 @@ const ALERT_COPY: Record<OpsAlertType, AlertCopy> = {
   billing_dispute_sla_breached: {
     name: 'Billing dispute SLA',
     detailsPath: '/admin/disputes',
+  },
+  // #750 daily circuit breakers — callers pass a `summary` (these are
+  // budget events, not failure streaks).
+  llm_daily_cap_reached: {
+    name: 'Daily AI narrative cap',
+    detailsPath: '/admin/ops/narrative',
+  },
+  email_daily_cap_near: {
+    name: 'Daily email cap',
+    detailsPath: '/admin/ops',
   },
 };
 
@@ -101,6 +113,13 @@ export interface OpsAlertFailureContext {
   readonly consecutiveFailures: number;
   /** When the failure streak started (rendered as "since when"). */
   readonly firstFailureAt: Date;
+  /**
+   * Replaces the default "has failed N time(s)" body (#750 budget alerts).
+   * Counts and timestamps only — no PII, no secrets.
+   */
+  readonly summary?: string;
+  /** Replaces the default "<name> is failing" title (#750 budget alerts). */
+  readonly title?: string;
 }
 
 export interface OpsAlertsServiceDeps {
@@ -157,11 +176,12 @@ export function createOpsAlertsService(
       ) {
         return; // deduped: already alerted inside the window
       }
-      const failureTitle = `${copy.name} is failing`;
+      const failureTitle = context.title ?? `${copy.name} is failing`;
       const failureDelivery = await email.sendOpsAlert({
         to: opsAlertEmail,
         title: failureTitle,
         summary:
+          context.summary ??
           `The ${copy.name.toLowerCase()} has failed ` +
           `${context.consecutiveFailures} time(s) in a row ` +
           `(first failure at ${context.firstFailureAt.toISOString()}). ` +
