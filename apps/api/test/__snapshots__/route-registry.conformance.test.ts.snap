@@ -75,6 +75,10 @@ exports[`route registry > exhaustive role x route permission matrix (auth/04 acc
     "super_admin",
     "admin",
   ],
+  "GET /api/v1/admin/builders/{id}/offboarding-blockers": [
+    "super_admin",
+    "admin",
+  ],
   "GET /api/v1/admin/calibration": [
     "super_admin",
     "admin",

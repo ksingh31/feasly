@@ -221,6 +221,7 @@ These need owner input and are not implemented yet:
 | GET | `/api/v1/admin/builders/{id}` | admin | 300/min per session | live |
 | PATCH | `/api/v1/admin/builders/{id}` | admin | 60/min per session | live |
 | POST | `/api/v1/admin/builders/{id}/status` | admin | 60/min per session | live |
+| GET | `/api/v1/admin/builders/{id}/offboarding-blockers` | admin | 60/min per session | live |
 | GET | `/api/v1/admin/builders/{id}/export.csv` | admin | 10/min per session | live |
 | GET | `/api/v1/admin/partners` | admin | 300/min per session | live |
 | POST | `/api/v1/admin/partners` | admin | 60/min per session | live |

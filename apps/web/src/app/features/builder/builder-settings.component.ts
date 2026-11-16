@@ -47,6 +47,10 @@ import {
   type BuilderOriginRequestModalData,
   type BuilderOriginRequestModalResult,
 } from './builder-origin-request-modal.component';
+import {
+  BuilderAccountClosureModalComponent,
+  type BuilderAccountClosureModalResult,
+} from './builder-account-closure-modal.component';
 
 export type BuilderSettingsTab = 'profile' | 'embed' | 'help';
 
@@ -90,7 +94,9 @@ export function originInstallState(origin: BuilderEmbedOriginStatus): OriginInst
  *   with a per-origin install check, open origin-change requests, and
  *   "Request a change" (owners) opening a dialog that files an admin task.
  * - **Help** — support email and response time (both from the API, never
- *   hardcoded) plus config-owned links to the guides.
+ *   hardcoded) plus config-owned links to the guides, and (#861) "Ask to
+ *   close my account" for owners — a request to Feasly staff, never a
+ *   self-serve deletion.
  *
  * Every string comes from BUILDER_COPY; field caps from ConfigService.
  * noindex via the robots guard on the builder route group.
@@ -362,6 +368,22 @@ export class BuilderSettingsComponent {
       if (outcome === 'created') this.toasts.show({ message: this.copy.requestCreatedToast });
       else if (outcome === 'duplicate') {
         this.toasts.show({ message: this.copy.requestDuplicateToast, tone: 'info' });
+      }
+    });
+  }
+
+  /** #861: "Ask to close my account" (owners; the API enforces it too). */
+  protected openCloseAccount(): void {
+    if (!this.canEdit()) return;
+    this.store.dispatch(new ClearBuilderSettingsErrors());
+    const ref = this.modals.open<BuilderAccountClosureModalComponent, BuilderAccountClosureModalResult>(
+      BuilderAccountClosureModalComponent,
+      { injector: this.injector, size: 'sm' },
+    );
+    ref.closed.pipe(takeUntilDestroyed(this.destroyRef)).subscribe((outcome) => {
+      if (outcome === 'created') this.toasts.show({ message: this.copy.closeCreatedToast });
+      else if (outcome === 'duplicate') {
+        this.toasts.show({ message: this.copy.closeDuplicateToast, tone: 'info' });
       }
     });
   }

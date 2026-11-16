@@ -134,6 +134,7 @@ export const DEFAULT_APP_CONFIG: AppConfig = {
     builderLogoUrlMaxLength: 2048,
     builderOriginRequestMaxOrigins: 10,
     builderOriginRequestNoteMaxLength: 500,
+    builderAccountClosureNoteMaxLength: 1000,
   },
   howWeEstimate: {
     /**

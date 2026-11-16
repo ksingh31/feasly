@@ -3,6 +3,8 @@ import { inject, Injectable } from '@angular/core';
 import { catchError, timeout } from 'rxjs';
 import type { Observable } from 'rxjs';
 import type {
+  BuilderAccountClosureBody,
+  BuilderAccountClosureResponse,
   BuilderEmbedResponse,
   BuilderOriginRequestBody,
   BuilderOriginRequestResponse,
@@ -19,6 +21,8 @@ import { toApiError } from '../../core/api/api-error';
  * - `GET /api/v1/builder/embed` — install snippet, read-only allowed
  *   origins with a per-origin install check.
  * - `POST /api/v1/builder/embed/origin-requests` — "Request a change".
+ * - `POST /api/v1/builder/account/close-request` — "Close my account"
+ *   (#861; one admin task, no self-serve deletion).
  *
  * Org-scoped server-side (the session's builder); writes are owner-only
  * and refused while viewing as a teammate — the UI mirrors `canEdit`.
@@ -64,6 +68,14 @@ export class BuilderSettingsApiService {
         body,
         { withCredentials: true },
       ),
+    );
+  }
+
+  requestAccountClosure(body: BuilderAccountClosureBody): Observable<BuilderAccountClosureResponse> {
+    return this.call(
+      this.http.post<BuilderAccountClosureResponse>(`${this.base}/account/close-request`, body, {
+        withCredentials: true,
+      }),
     );
   }
 }

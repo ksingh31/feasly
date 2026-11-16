@@ -20,6 +20,7 @@ import { BuilderBillingState } from './builder-billing.state';
 import { BuilderState } from './builder.state';
 import { BuilderInvoicesState } from './builder-invoices.state';
 import {
+  DismissBuilderAccountPaused,
   ExitBuilderViewAs,
   LoadBuilderMemberships,
   LogoutBuilder,
@@ -29,6 +30,9 @@ import { SeoService } from '../../core/seo/seo.service';
 import { ConfigService } from '../../core/config/config.service';
 import { DEFAULT_APP_CONFIG } from '../../core/config/app-config.defaults';
 import type { BuilderSessionIdentity } from './builder-auth.contracts';
+import { DEFAULT_BUILDER_COPY } from './builder-copy.defaults';
+
+const DEFAULT_APP_CONFIG_BUILDER_PAUSED_BODY = DEFAULT_BUILDER_COPY.paused.body;
 
 /** Blank route target. */
 @Component({ standalone: true, template: '' })
@@ -53,6 +57,7 @@ interface SetupOptions {
   invoices?: readonly { id: string; status: string }[];
   url?: string;
   orgName?: string | null;
+  paused?: { message: string | null } | null;
 }
 
 async function setup(opts: SetupOptions = {}) {
@@ -76,6 +81,7 @@ async function setup(opts: SetupOptions = {}) {
         return signal(orgName);
       if (selector === BuilderState.isBuilderAdmin) return signal(isAdmin);
       if (selector === BuilderState.viewAsBanner) return signal(viewAsBanner);
+      if (selector === BuilderState.accountPaused) return signal(opts.paused ?? null);
       if (selector === BuilderInvoicesState.actionableInvoices)
         return signal(invoices);
       if (selector === BuilderInvoicesState.actionableStatus)
@@ -363,5 +369,51 @@ describe('BuilderShellComponent', () => {
     q<HTMLButtonElement>(fixture, '.view-as-banner__exit')!.click();
     await fixture.whenStable();
     expect(store.dispatch).toHaveBeenCalledWith(expect.any(ExitBuilderViewAs));
+  });
+});
+
+/** #861: the "Your account is paused" screen instead of a generic error. */
+describe('BuilderShellComponent — account paused (#861)', () => {
+  it('swaps the page for the paused screen with the server message', async () => {
+    const { fixture } = await setup({
+      url: '/builder',
+      paused: { message: 'This builder account is paused. Contact Feasly to restore access.' },
+    });
+    const screen = q(fixture, '[data-testid="account-paused"]');
+    expect(screen).not.toBeNull();
+    expect(screen?.querySelector('h1')?.textContent?.trim()).toBe('Your account is paused');
+    expect(q(fixture, '[data-testid="account-paused-message"]')?.textContent?.trim()).toBe(
+      'This builder account is paused. Contact Feasly to restore access.',
+    );
+    expect(q<HTMLElement>(fixture, '.builder-shell__page')?.hidden).toBe(true);
+    expect(q(fixture, '[data-testid="paused-contact"]')?.getAttribute('href')).toBe('/builder/settings?tab=help');
+    expect(q(fixture, '[data-testid="paused-invoices"]')?.getAttribute('href')).toBe('/builder/invoices');
+  });
+
+  it('falls back to the copy default and hides invoices for members', async () => {
+    const { fixture } = await setup({ url: '/builder', isAdmin: false, paused: { message: null } });
+    expect(q(fixture, '[data-testid="account-paused-message"]')?.textContent?.trim()).toBe(
+      DEFAULT_APP_CONFIG_BUILDER_PAUSED_BODY,
+    );
+    expect(q(fixture, '[data-testid="paused-invoices"]')).toBeNull();
+  });
+
+  it('shows the page normally when not paused', async () => {
+    const { fixture } = await setup({ url: '/builder' });
+    expect(q(fixture, '[data-testid="account-paused"]')).toBeNull();
+    expect(q<HTMLElement>(fixture, '.builder-shell__page')?.hidden).toBe(false);
+  });
+
+  it('leaving the page dismisses the paused screen; a query-only change does not', async () => {
+    const { fixture, store } = await setup({ url: '/builder', paused: { message: null } });
+    const router = TestBed.inject(Router);
+    const dismissed = () =>
+      store.dispatch.mock.calls.filter(([a]) => a instanceof DismissBuilderAccountPaused).length;
+    await router.navigateByUrl('/builder?open=lead-1');
+    await fixture.whenStable();
+    expect(dismissed()).toBe(0);
+    await router.navigateByUrl('/builder/invoices');
+    await fixture.whenStable();
+    expect(dismissed()).toBe(1);
   });
 });

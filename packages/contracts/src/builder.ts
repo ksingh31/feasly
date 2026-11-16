@@ -406,6 +406,12 @@ export interface BuilderOffboardingBlocker {
   readonly status: string;
 }
 
+/** `GET /api/v1/admin/builders/{id}/offboarding-blockers` response (#861). */
+export interface BuilderOffboardingBlockersResponse {
+  /** Empty = nothing blocks "complete offboarding" right now. */
+  readonly blockers: readonly BuilderOffboardingBlocker[];
+}
+
 /** `POST /api/v1/admin/builders/{id}/status` response (#860). */
 export interface BuilderLifecycleResponse {
   readonly builder: Builder;

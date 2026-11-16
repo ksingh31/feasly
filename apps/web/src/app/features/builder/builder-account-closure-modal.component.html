@@ -1,0 +1,40 @@
+<ui-modal
+  asForm
+  [heading]="copy.closeModalHeading"
+  [closeLabel]="copy.closeCancel"
+  [closeLocked]="closing()"
+  (submitted)="submit()"
+>
+  <div class="origin-request" [formGroup]="form">
+    <p class="origin-request__intro">{{ copy.closeModalIntro }}</p>
+    <ui-field-shell
+      [label]="copy.closeNoteLabel"
+      controlId="account-closure-note"
+      hintId="account-closure-note-hint"
+      errorId="account-closure-note-error"
+      [hint]="noteHint"
+    >
+      <textarea
+        id="account-closure-note"
+        class="origin-request__control"
+        rows="3"
+        formControlName="note"
+        data-testid="closure-note"
+        aria-describedby="account-closure-note-hint"
+        [attr.maxlength]="noteMax"
+      ></textarea>
+    </ui-field-shell>
+
+    @if (errorText(); as err) {
+      <p class="origin-request__alert" role="alert" data-testid="closure-error">{{ err }}</p>
+    }
+  </div>
+  <ng-container uiModalFooter>
+    <button type="button" ui-button variant="secondary" [disabled]="closing()" (click)="cancel()">
+      {{ copy.closeCancel }}
+    </button>
+    <button type="submit" ui-button data-testid="closure-submit" [loading]="closing()">
+      {{ copy.closeSubmit }}
+    </button>
+  </ng-container>
+</ui-modal>

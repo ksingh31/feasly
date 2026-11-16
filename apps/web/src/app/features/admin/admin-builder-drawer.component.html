@@ -1,5 +1,5 @@
 <ui-drawer [heading]="heading()" asForm [dirty]="form.dirty" (submitted)="save()">
-  @if (builder; as b) {
+  @if (current(); as b) {
     <ui-status-chip uiDrawerChip domain="builder" [status]="b.status" />
   }
   @if (builder; as b) {
@@ -38,14 +38,97 @@
           [hint]="tenantKeyHint"
           [error]="fieldError('tenantKey')"
         />
-        <ui-select
-          label="Status"
-          formControlName="status"
-          [options]="statusOptions"
-          hint="Suspended builders get no new leads and a read-only portal."
-        />
       </div>
     </section>
+
+    @if (current(); as b) {
+      <section class="builder-drawer__section" aria-labelledby="builder-drawer-account" data-testid="account-status">
+        <h3 class="builder-drawer__heading" id="builder-drawer-account">Account status</h3>
+        <div class="builder-drawer__status-row">
+          <ui-status-chip domain="builder" [status]="b.status" />
+          @if (b.statusChangedAt) {
+            <span class="builder-drawer__status-meta">
+              Changed {{ b.statusChangedAt | kitDateTime }}@if (b.statusChangedBy) { by {{ b.statusChangedBy }}}
+            </span>
+          }
+        </div>
+        @if (b.statusReason) {
+          <p class="builder-drawer__status-reason" data-testid="status-reason">
+            <span class="builder-drawer__sr">Reason: </span>“{{ b.statusReason }}”
+          </p>
+        }
+        @if (lifecycleActions().length > 0) {
+          <div class="builder-drawer__lifecycle" role="group" aria-label="Change account status">
+            @for (a of lifecycleActions(); track a.action) {
+              <button
+                type="button"
+                ui-button
+                size="sm"
+                [variant]="a.danger ? 'secondary' : 'primary'"
+                [attr.data-testid]="'lifecycle-' + a.action"
+                (click)="openLifecycle(a.action)"
+              >
+                {{ a.label }}
+              </button>
+            }
+          </div>
+        } @else {
+          <p class="builder-drawer__status-note">
+            Offboarding is complete. Sessions and API keys were revoked; invoices and lead attribution are kept.
+          </p>
+        }
+
+        @if (offboarding()) {
+          <div class="builder-drawer__checklist" data-testid="offboarding-checklist">
+            <h4 class="builder-drawer__subheading">Offboarding checklist</h4>
+            @switch (checklist()?.status) {
+              @case ('error') {
+                <div class="builder-drawer__alert" role="alert">
+                  <span>{{ checklist()?.error }}</span>
+                  <button type="button" ui-button variant="ghost" size="sm" (click)="loadBlockers()">Try again</button>
+                </div>
+              }
+              @case ('ready') {
+                @if (checklist()?.items?.length) {
+                  <p class="builder-drawer__checklist-lead" data-testid="checklist-blocked">
+                    Settle these before completing offboarding:
+                  </p>
+                  <ul class="builder-drawer__blockers">
+                    @for (blocker of checklist()?.items ?? []; track blocker.kind + blocker.invoiceId) {
+                      <li>
+                        <a
+                          class="builder-drawer__blocker-link"
+                          data-testid="checklist-blocker"
+                          [routerLink]="blockerLink(blocker).commands"
+                          [queryParams]="blockerLink(blocker).queryParams"
+                          (click)="ref.close()"
+                        >{{ blockerText(blocker) }}</a>
+                      </li>
+                    }
+                  </ul>
+                } @else {
+                  <p class="builder-drawer__checklist-clear" data-testid="checklist-clear">
+                    <span aria-hidden="true">✓ </span>No unpaid invoices or open disputes.
+                  </p>
+                }
+              }
+              @default {
+                <p class="builder-drawer__status-note" role="status">Checking invoices and disputes…</p>
+              }
+            }
+            <ul class="builder-drawer__steps">
+              <li>Export their leads and invoices below to hand over.</li>
+              <li>Ask them to remove the estimator from their site. It already stops loading.</li>
+              <li>
+                Completing revokes every team session and API key and removes the saved card. Commission
+                on leads already introduced still applies for 12 months, invoiced with a pay-now link.
+              </li>
+            </ul>
+          </div>
+        }
+      </section>
+
+    }
 
     <section class="builder-drawer__section" aria-labelledby="builder-drawer-contact">
       <h3 class="builder-drawer__heading" id="builder-drawer-contact">Contact</h3>
@@ -176,6 +259,34 @@
         ></textarea>
       </ui-field-shell>
     </section>
+
+    @if (current()) {
+    <section class="builder-drawer__section" aria-labelledby="builder-drawer-export">
+      <h3 class="builder-drawer__heading" id="builder-drawer-export">Export builder data</h3>
+      @if (exportError(); as err) {
+        <div class="builder-drawer__alert" role="alert">
+          <span>{{ err }}</span>
+          <button type="button" ui-button variant="ghost" size="sm" (click)="dismissExportError()">Dismiss</button>
+        </div>
+      }
+      <div class="builder-drawer__lifecycle">
+        @for (k of exportKinds; track k.kind) {
+          <button
+            type="button"
+            ui-button
+            variant="secondary"
+            size="sm"
+            [attr.data-testid]="'export-' + k.kind"
+            [loading]="exporting() === k.kind"
+            [disabled]="exporting() !== null && exporting() !== k.kind"
+            (click)="exportData(k.kind)"
+          >
+            {{ k.label }}
+          </button>
+        }
+      </div>
+    </section>
+    }
 
     <details
       class="builder-drawer__advanced"

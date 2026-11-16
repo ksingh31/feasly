@@ -12,6 +12,8 @@
  * - `PATCH /api/v1/admin/builders/{id}` — update a builder.
  * - `POST /api/v1/admin/builders/{id}/status` — lifecycle action (#860):
  *   suspend / reactivate / start or complete offboarding, reason required.
+ * - `GET /api/v1/admin/builders/{id}/offboarding-blockers` — what blocks
+ *   "complete offboarding" right now (#861 checklist).
  * - `GET /api/v1/admin/builders/{id}/export.csv?kind=leads|invoices` —
  *   the builder's data for hand-over on exit (#860).
  *
@@ -27,6 +29,7 @@ import {
   type BuilderCreateBody,
   type BuilderLifecycleResponse,
   type BuilderListResponse,
+  type BuilderOffboardingBlockersResponse,
   type BuilderStatus,
   type BuilderUpdateBody,
 } from '@feasly/contracts';
@@ -74,6 +77,11 @@ export interface AdminBuildersRoute {
     id: unknown,
     body: unknown,
   ): Promise<BuilderLifecycleResponse>;
+  /** GET /api/v1/admin/builders/{id}/offboarding-blockers (#861) */
+  offboardingBlockers(
+    headers: Record<string, string | string[] | undefined>,
+    id: unknown,
+  ): Promise<BuilderOffboardingBlockersResponse>;
   /** GET /api/v1/admin/builders/{id}/export.csv (#860) */
   exportCsv(
     headers: Record<string, string | string[] | undefined>,
@@ -297,6 +305,12 @@ export function createAdminBuildersRoute(
         parsed.data.reason,
         adminEmail,
       );
+    },
+
+    async offboardingBlockers(headers, id): Promise<BuilderOffboardingBlockersResponse> {
+      await requireAdminEmail(adminGuard, headers);
+      const blockers = await lifecycle.offboardingBlockers(parseBuilderId(id));
+      return { blockers: [...blockers] };
     },
 
     async exportCsv(headers, id, query) {

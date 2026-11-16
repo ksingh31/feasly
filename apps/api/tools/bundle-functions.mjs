@@ -259,6 +259,10 @@ const targets = [
     out: 'admin-builders-status/index.js',
   },
   {
+    entry: 'src/functions/admin-builders-offboarding-blockers.ts',
+    out: 'admin-builders-offboarding-blockers/index.js',
+  },
+  {
     entry: 'src/functions/admin-builders-export.ts',
     out: 'admin-builders-export/index.js',
   },
