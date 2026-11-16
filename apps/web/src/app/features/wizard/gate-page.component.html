@@ -135,7 +135,7 @@
           <p class="field-error" id="gate-consent-error" role="alert">{{ copy.consentRequired }}</p>
         }
 
-        @if (status === 'error') {
+        @if (status() === 'error') {
           <div class="form-error" role="alert">
             <p>{{ copy.submitError }}</p>
             <button type="button" class="retry" (click)="onSubmit()">{{ copy.retryLabel }}</button>
@@ -143,8 +143,8 @@
         }
 
         <div class="actions">
-          <button class="cta" type="submit" [disabled]="status === 'sending'">
-            {{ status === 'sending' ? copy.submittingLabel : copy.submitLabel }}
+          <button class="cta" type="submit" [disabled]="status() === 'sending'">
+            {{ status() === 'sending' ? copy.submittingLabel : copy.submitLabel }}
           </button>
         </div>
 

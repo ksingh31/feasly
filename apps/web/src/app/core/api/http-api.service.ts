@@ -1,7 +1,7 @@
 import { HttpHeaders, HttpParams } from '@angular/common/http';
 import { HttpClient } from '@angular/common/http';
 import { inject, Injectable } from '@angular/core';
-import { catchError, timeout } from 'rxjs';
+import { catchError, switchMap, throwError, timeout } from 'rxjs';
 import type { Observable } from 'rxjs';
 import type {
   AnalyticsEvent,
@@ -42,10 +42,12 @@ import type {
   UnsubscribeResultResponse,
   UnsubscribeStateResponse,
 } from '@feasly/contracts';
+import { BOT_CHALLENGE_HEADER } from '@feasly/contracts';
 import type { FunnelQuery, FunnelReport } from './funnel.types';
 import { ConfigService } from '../config/config.service';
 import type { ApiKeyUpdatePatch, ApiKeyUsageAggregate, ApiService, CommunityStats } from './api.service';
-import { toApiError } from './api-error';
+import { challengeSiteKey, toApiError } from './api-error';
+import { TurnstileChallengeService } from './turnstile-challenge.service';
 import { PROPERTY_DATA_SERVICE } from './property-data.service';
 
 /**
@@ -65,6 +67,7 @@ export class HttpApiService implements ApiService {
   private readonly http = inject(HttpClient);
   private readonly config = inject(ConfigService);
   private readonly propertyData = inject(PROPERTY_DATA_SERVICE);
+  private readonly botChallenge = inject(TurnstileChallengeService);
 
   private get base(): string {
     return `${this.config.get('api').baseUrl}/api/v1`;
@@ -79,6 +82,38 @@ export class HttpApiService implements ApiService {
     return request.pipe(timeout(effectiveTimeoutMs), catchError(toApiError));
   }
 
+  /**
+   * #905: like {@link call}, for the lead and estimate routes that may
+   * answer 403 CHALLENGE_REQUIRED / CHALLENGE_FAILED (#788). On that 403
+   * the invisible Turnstile challenge runs with the site key from the
+   * response, then the request is retried exactly once with the token. If
+   * the challenge can't complete, the original 403 surfaces; a failed retry
+   * surfaces as-is. Each attempt gets its own timeout; the challenge has its
+   * own (`botChallenge.timeoutMs`).
+   */
+  private callWithChallenge<T>(
+    send: (headers?: HttpHeaders) => Observable<T>,
+    timeoutMs?: number,
+  ): Observable<T> {
+    const effectiveTimeoutMs = timeoutMs ?? this.config.get('api').timeoutMs;
+    return send().pipe(
+      timeout(effectiveTimeoutMs),
+      catchError((error: unknown) => {
+        const siteKey = challengeSiteKey(error);
+        if (siteKey === null) return throwError(() => error);
+        return this.botChallenge.solve(siteKey).pipe(
+          catchError(() => throwError(() => error)),
+          switchMap((token) =>
+            send(new HttpHeaders().set(BOT_CHALLENGE_HEADER, token)).pipe(
+              timeout(effectiveTimeoutMs),
+            ),
+          ),
+        );
+      }),
+      catchError(toApiError),
+    );
+  }
+
   autocomplete(query: string): Observable<AutocompleteResponse> {
     return this.propertyData.autocomplete(query);
   }
@@ -88,8 +123,10 @@ export class HttpApiService implements ApiService {
   }
 
   getPreviewEstimate(request: AnyEstimateRequest): Observable<PreviewEstimateResponse> {
-    return this.call(
-      this.http.post<PreviewEstimateResponse>(`${this.base}/estimates/preview`, request),
+    return this.callWithChallenge((headers) =>
+      this.http.post<PreviewEstimateResponse>(`${this.base}/estimates/preview`, request, {
+        headers,
+      }),
     );
   }
 
@@ -98,7 +135,9 @@ export class HttpApiService implements ApiService {
    * (singular — the function adapter discriminates on `projectType`).
    */
   getEstimate(request: AnyEstimateRequest): Observable<EstimateResponse> {
-    return this.call(this.http.post<EstimateResponse>(`${this.base}/estimate`, request));
+    return this.callWithChallenge((headers) =>
+      this.http.post<EstimateResponse>(`${this.base}/estimate`, request, { headers }),
+    );
   }
 
   /**
@@ -108,8 +147,8 @@ export class HttpApiService implements ApiService {
   getComparisonEstimate(
     request: ComparisonEstimateRequest,
   ): Observable<ComparisonEstimateResponse> {
-    return this.call(
-      this.http.post<ComparisonEstimateResponse>(`${this.base}/estimate`, request),
+    return this.callWithChallenge((headers) =>
+      this.http.post<ComparisonEstimateResponse>(`${this.base}/estimate`, request, { headers }),
     );
   }
 
@@ -141,8 +180,8 @@ export class HttpApiService implements ApiService {
     // The gate submit waits on the synchronous email send (worst case ~20s
     // with in-code retries), so it uses the gate-specific timeout — the
     // global api.timeoutMs stays tight for every other call.
-    return this.call(
-      this.http.post<LeadResponse>(`${this.base}/leads`, request),
+    return this.callWithChallenge(
+      (headers) => this.http.post<LeadResponse>(`${this.base}/leads`, request, { headers }),
       this.config.get('api').gateTimeoutMs,
     );
   }

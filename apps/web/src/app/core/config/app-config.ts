@@ -1418,6 +1418,18 @@ export interface AppConfig {
     /** Most items per beacon (mirrors the API's batch cap). */
     maxBatchItems: number;
   };
+  /**
+   * Invisible bot challenge (#905, API half #788). Used only when the lead or
+   * estimate API answers 403 CHALLENGE_REQUIRED / CHALLENGE_FAILED; the
+   * script is never loaded on the normal path. The site key always comes
+   * from that 403 body, never from here.
+   */
+  botChallenge: {
+    /** Cloudflare Turnstile loader (explicit render). Origin must be in the CSP. */
+    turnstileScriptUrl: string;
+    /** Most time to wait for the script + token before giving up. */
+    timeoutMs: number;
+  };
   /** User-facing copy, namespaced by area. Extended by FE1-001. */
   admin: {
     /** Default per-minute rate limit prefilled in the issue form. */
