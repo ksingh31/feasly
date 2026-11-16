@@ -109,6 +109,42 @@
   margin: 0;
 }
 
+/* #918: builder partners list on How it works. */
+.partner-list {
+  list-style: none;
+  margin: 16px 0 0;
+  padding: 0;
+  display: grid;
+  gap: 12px;
+}
+
+.partner {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.partner-name {
+  font-weight: 700;
+  color: var(--text);
+  overflow-wrap: anywhere;
+}
+
+a.partner-name {
+  color: var(--accent-text);
+}
+
+.partner-desc {
+  font-size: 15px;
+  line-height: 1.6;
+  color: var(--muted);
+}
+
+.math-note p.partner-unavailable {
+  margin-top: 12px;
+  color: var(--muted);
+}
+
 /* Pillar guide sections. */
 .guide-h2 {
   font-family: var(--font-ui);

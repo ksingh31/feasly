@@ -1909,6 +1909,31 @@ export interface AppConfig {
       paragraphs: string[];
     };
     /**
+     * Builder partner disclosure (#918). Shown at every lead capture point on
+     * Feasly's own site (lead gate, report callback) and as a section on How
+     * it works. Partner names come from `GET /api/v1/partners` (data, not
+     * copy); only the framing lives here. Embeds never render it — on a
+     * builder's own site the lead goes to that builder.
+     */
+    partners: {
+      /** Disclosure lead-in, followed by the linked partner names. */
+      disclosureLead: string;
+      /** Fallback lead-in while the list is unavailable, followed by a link to How it works. */
+      disclosureFallbackLead: string;
+      /** Link label for the How it works partners section. */
+      howItWorksLinkLabel: string;
+      /** Joins partner names, e.g. ", ". */
+      nameSeparator: string;
+      /** Screen-reader suffix on external partner links. */
+      newTabLabel: string;
+      /** How it works section heading. */
+      sectionTitle: string;
+      /** How it works section intro. */
+      sectionIntro: string;
+      /** Shown on How it works when the list can't be loaded. */
+      sectionUnavailable: string;
+    };
+    /**
      * Consent banner (story consumer/01). All user-facing banner copy lives
      * here so the no-hardcode tripwire stays green and copy is
      * deploy-tunable. No dark patterns: accept and decline are worded as
