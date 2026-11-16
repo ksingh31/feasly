@@ -4,7 +4,7 @@ import { provideRouter } from '@angular/router';
 import { ActivatedRoute, Router } from '@angular/router';
 import { provideStore, Store } from '@ngxs/store';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { of } from 'rxjs';
+import { BehaviorSubject, of } from 'rxjs';
 import { ConfigService } from '../../core/config';
 import { DEFAULT_APP_CONFIG } from '../../core/config/app-config.defaults';
 import { CommunityPageComponent } from './community-page.component';
@@ -113,8 +113,11 @@ describe('CommunityPageComponent', () => {
 
   const baseConfig = {
     site: { url: 'https://feasly.com', name: 'Feasly', socialImage: '/assets/og/og-default.png' },
-    copy: { seo: {}, communities: communitiesCopy },
+    copy: { seo: {}, communities: communitiesCopy, search: DEFAULT_APP_CONFIG.copy.search },
     limits: DEFAULT_APP_CONFIG.limits,
+    // #783: the nav search reads these.
+    features: DEFAULT_APP_CONFIG.features,
+    timings: DEFAULT_APP_CONFIG.timings,
   };
 
   /**
@@ -184,23 +187,30 @@ describe('CommunityPageComponent', () => {
     };
   }
 
+  /** Mirror the resolver: profile slugs get the preloaded component + copy. */
+  function resolvedFor(slug: string): unknown {
+    const pageData = mockPageData(slug) as { type: string };
+    return pageData.type === 'profile'
+      ? {
+          pageData,
+          profileComponent: CommunityProfilePageComponent,
+          resolveProfileCopy,
+          profileCopyRaw: mockProfileCopy,
+        }
+      : { pageData };
+  }
+
+  /** Route `data` stream — `next()` on it mimics the router reusing the page for another slug. */
+  let routeData: BehaviorSubject<Record<string, unknown>>;
+
   async function setup(
     slug: string,
     opts?: { propertyContext?: { address: string; assessedValue: number } },
   ): Promise<void> {
     TestBed.resetTestingModule();
     const navigate = vi.fn();
-    const pageData = mockPageData(slug) as { type: string };
-    // Mirror the resolver: profile slugs get the preloaded component + copy.
-    const resolved =
-      pageData.type === 'profile'
-        ? {
-            pageData,
-            profileComponent: CommunityProfilePageComponent,
-            resolveProfileCopy,
-            profileCopyRaw: mockProfileCopy,
-          }
-        : { pageData };
+    const resolved = resolvedFor(slug);
+    routeData = new BehaviorSubject<Record<string, unknown>>({ pageData: resolved });
     TestBed.configureTestingModule({
       imports: [CommunityPageComponent],
       providers: [
@@ -209,7 +219,7 @@ describe('CommunityPageComponent', () => {
         { provide: ConfigService, useValue: { get: (key: string) => (baseConfig as never)[key] } },
         {
           provide: ActivatedRoute,
-          useValue: { snapshot: { data: { pageData: resolved } } },
+          useValue: { snapshot: { data: { pageData: resolved } }, data: routeData },
         },
         // SeoService subscribes to router.events in its constructor — the stub
         // must expose an events observable (empty here; no navigation in these tests).
@@ -356,6 +366,41 @@ describe('CommunityPageComponent', () => {
     const banner = fixture.nativeElement.querySelector('.banner');
     // The checked-in ranges are uncalibrated (placeholder cost data).
     expect(banner?.textContent).toContain('Illustrative ranges');
+  });
+
+  describe('reused for another slug (#783 nav search)', () => {
+    async function navigateTo(slug: string): Promise<void> {
+      routeData.next({ pageData: resolvedFor(slug) });
+      fixture.detectChanges();
+      await fixture.whenStable();
+      fixture.detectChanges();
+    }
+
+    it('re-renders the H1, title and canonical for the new community', async () => {
+      await setup('mahogany');
+      await navigateTo('altadore');
+      const h1 = fixture.nativeElement.querySelector('h1');
+      expect(h1?.textContent).toContain('Altadore');
+      expect(h1?.textContent).not.toContain('Mahogany');
+      expect(TestBed.inject(Title).getTitle()).toBe('Feasly — Cost to build a home in Altadore, Calgary');
+      const canonical = document.querySelector('link[rel="canonical"]');
+      expect(canonical?.getAttribute('href')).toContain('/communities/altadore/');
+    });
+
+    it('switches from a guide to a profile page and back', async () => {
+      await setup('mahogany');
+      await navigateTo('beltline');
+      expect(fixture.componentInstance.community).toBeNull();
+      expect(fixture.componentInstance.profileView?.slug).toBe('beltline');
+      expect(fixture.nativeElement.querySelector('app-community-profile-page')).toBeTruthy();
+      expect(TestBed.inject(Title).getTitle()).toBe(
+        'Feasly — Beltline, Calgary property values & assessed values',
+      );
+      await navigateTo('altadore');
+      expect(fixture.componentInstance.profileView).toBeNull();
+      expect(fixture.nativeElement.querySelector('app-community-profile-page')).toBeNull();
+      expect(fixture.nativeElement.querySelector('h1')?.textContent).toContain('Altadore');
+    });
   });
 
   describe('guide-variant coverage redirect (QA 2026-10-04)', () => {

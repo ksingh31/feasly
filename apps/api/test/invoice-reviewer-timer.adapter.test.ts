@@ -103,6 +103,7 @@ function fakeStripe(failOnAmount?: number): StripeService {
     createSubscription: async () => ({ id: 'sub_test', status: 'active' }),
     cancelSubscription: async (id) => ({ id }),
     retrievePaymentIntent: async (id: string) => ({ id, status: 'processing' }),
+    getPaymentIntentConfirmation: async (id: string) => ({ id, status: 'requires_action', clientSecret: `${id}_secret_test` }),
     refundPaymentIntent: async (paymentIntentId) => ({
       id: 're_test',
       status: 'succeeded',
