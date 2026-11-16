@@ -14,12 +14,12 @@ import { ClearLead, DismissResume, GoToStep, ResetWizard, SelectProperty, SetEnt
 import { ClearReport } from '../report/report.actions';
 import { ReportState } from '../report/report.state';
 import { AnalyticsService } from '../consent/analytics.service';
-import {
-  AddressAutocompleteComponent,
-  type AddressSearchOutcome,
-  SiteFooterComponent,
-  SiteNavComponent,
-} from '../../shared/components';
+// #980: direct subpaths, not the shared barrel — this page is eager, and the
+// barrel re-exports every shared component (none tree-shake), which pulled
+// them all into the initial bundle.
+import { AddressAutocompleteComponent, type AddressSearchOutcome } from '../../shared/components/address-autocomplete';
+import { SiteFooterComponent } from '../../shared/components/site-footer';
+import { SiteNavComponent } from '../../shared/components/site-nav';
 import {
   DEEP_LINK_ADDRESS_PARAM,
   DEEP_LINK_SOURCE_PARAM,

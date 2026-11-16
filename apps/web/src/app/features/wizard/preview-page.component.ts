@@ -21,6 +21,7 @@ import { LoadPreview } from '../report/report.actions';
 import { ReportState } from '../report/report.state';
 import { GoToStep } from './wizard.actions';
 import { WizardState } from './wizard.state';
+import { injectZoningGuideCopy } from '@app/core/config/zoning-guide-copy';
 
 /**
  * S5 estimate preview step — the single lead-gate point.
@@ -89,7 +90,7 @@ export class PreviewPageComponent implements OnInit {
   /** Tier and reno-type display names live with the wizard copy — reused, never duplicated. */
   protected readonly wizardCopy = this.config.get('copy').wizard;
   /** #835: district "what it allows" lines live with the zoning guide — reused, never duplicated. */
-  private readonly zoningZones = this.config.get('copy').marketing.zoningGuide.zones;
+  private readonly zoningZones = injectZoningGuideCopy().zones;
 
   protected readonly property = this.store.selectSignal(WizardState.property);
   protected readonly inputs = this.store.selectSignal(WizardState.inputs);

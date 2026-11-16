@@ -2,7 +2,10 @@ import { Component, inject, OnInit } from '@angular/core';
 import { RouterLink } from '@angular/router';
 import { ErrorRecoveryService } from '../../core/errors/error-recovery.service';
 import { SeoService } from '../../core/seo/seo.service';
-import { SiteFooterComponent, SiteNavComponent } from '../../shared/components';
+// #980: direct subpaths, not the shared barrel (keeps every shared
+// component out of the initial bundle).
+import { SiteFooterComponent } from '../../shared/components/site-footer';
+import { SiteNavComponent } from '../../shared/components/site-nav';
 
 /**
  * Branded 500/error page (HRD-02).

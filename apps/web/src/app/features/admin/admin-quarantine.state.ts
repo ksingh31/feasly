@@ -12,6 +12,7 @@ import {
   type QuarantineDecision,
   RefreshQuarantineCount,
 } from './admin-quarantine.actions';
+import { injectAdminCopy } from './admin-copy';
 
 export type QuarantineListStatus = 'idle' | 'loading' | 'loading-more' | 'error';
 
@@ -81,7 +82,7 @@ export function quarantineFilters(search: string): AdminLeadFilters {
 export class AdminQuarantineState {
   private readonly api = inject(AdminLeadsApiService);
   private readonly config = inject(ConfigService);
-  private readonly copy = this.config.get('copy').admin.quarantine;
+  private readonly copy = injectAdminCopy().quarantine;
 
   @Selector()
   static leads(state: AdminQuarantineStateModel): AdminLeadListItem[] {

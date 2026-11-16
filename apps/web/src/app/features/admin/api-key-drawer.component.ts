@@ -31,6 +31,7 @@ import {
   rateLimitValidator,
   scopesValidator,
 } from './api-keys-view';
+import { injectAdminCopy } from './admin-copy';
 
 export interface ApiKeyDrawerData {
   readonly keyId: string;
@@ -72,7 +73,7 @@ export class ApiKeyDrawerComponent {
   private readonly data = inject<ApiKeyDrawerData>(DIALOG_DATA);
   protected readonly ref = inject(UiDrawerRef);
 
-  protected readonly copy = this.config.get('copy').admin.apiKeys;
+  protected readonly copy = injectAdminCopy().apiKeys;
   private readonly rateLimitMax = this.config.get('admin').rateLimitMax;
   protected readonly scopes: readonly ApiKeyScope[] = API_KEY_SCOPES;
   protected readonly canManage = this.data.canManage;

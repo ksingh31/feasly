@@ -1,6 +1,9 @@
 import { Component, inject } from '@angular/core';
 import { ConnectivityService } from '../../core/errors/connectivity.service';
-import { SiteFooterComponent, SiteNavComponent } from '../../shared/components';
+// #980: direct subpaths, not the shared barrel (keeps every shared
+// component out of the initial bundle).
+import { SiteFooterComponent } from '../../shared/components/site-footer';
+import { SiteNavComponent } from '../../shared/components/site-nav';
 
 /**
  * Branded offline page (HRD-02).

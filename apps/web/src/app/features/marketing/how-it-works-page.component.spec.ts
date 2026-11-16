@@ -15,6 +15,7 @@ import { WizardState } from '../wizard/wizard.state';
 import { ESTIMATE_WORKED_EXAMPLE } from '../../core/config/estimate-scope.generated';
 import { formatWholeCad } from '../../shared/utils/money';
 import { formatIsoDate, HowItWorksPageComponent } from './how-it-works-page.component';
+import { DEFAULT_HOW_IT_WORKS_COPY } from './how-it-works-copy.defaults';
 
 /**
  * SEO-010: /how-it-works renders the 4-step flow, the deterministic-math
@@ -150,7 +151,7 @@ describe('HowItWorksPageComponent', () => {
 
   describe('#827: transparency sections', () => {
     const el = (): HTMLElement => fixture.nativeElement as HTMLElement;
-    const copy = DEFAULT_APP_CONFIG.copy.marketing.howItWorks;
+    const copy = DEFAULT_HOW_IT_WORKS_COPY;
     const engineRows = DEFAULT_APP_CONFIG.howWeEstimate.workedExample.groups.flatMap((g) => g.rows);
     const range = (b: { low: number; high: number }): string => `${formatWholeCad(b.low)} – ${formatWholeCad(b.high)}`;
 
