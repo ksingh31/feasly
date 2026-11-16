@@ -126,6 +126,11 @@ export const DEFAULT_APP_CONFIG: AppConfig = {
     /** #836: mirrors the API's LEAD_CALLBACK_DATE_WINDOW_DAYS default. */
     callbackDateWindowDays: 14,
     callbackNotesMaxLength: 500,
+    builderDisplayNameMaxLength: 120,
+    builderContactEmailMaxLength: 254,
+    builderLogoUrlMaxLength: 2048,
+    builderOriginRequestMaxOrigins: 10,
+    builderOriginRequestNoteMaxLength: 500,
   },
   howWeEstimate: {
     /**

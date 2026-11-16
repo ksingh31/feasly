@@ -688,6 +688,23 @@ export const routes: Routes = [
         canActivate: [builderTeamGuard],
       },
       {
+        // Builder Settings (#871): Profile & branding, Embed, Help. Any org
+        // member may open it (members see read-only fields; the API
+        // enforces owner-only writes). State lazy-provided here.
+        path: 'settings',
+        loadComponent: () =>
+          import('./features/builder/builder-settings.component').then(
+            (m) => m.BuilderSettingsComponent,
+          ),
+        canActivate: [
+          lazyProvider(
+            async () =>
+              (await import('./features/builder/builder-settings.state'))
+                .builderSettingsStateProvider,
+          ),
+        ],
+      },
+      {
         // Retired page (#529): contracts are recorded from the lead drawer's
         // Won panel. Old links land on the Leads home, opening that lead's
         // drawer when `?lead=<id>` is present.
