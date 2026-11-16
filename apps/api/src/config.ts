@@ -1016,7 +1016,9 @@ const EnvSchema = z.object({
   IDENTITY_ENDPOINT: z.string().url().optional(),
   IDENTITY_HEADER: z.string().min(1).optional(),
   BACKUP_CHECK_ARM_BASE_URL: z.string().url().default('https://management.azure.com'),
-  // Same thresholds as CI's check-postgres-backup.sh.
+  // Same thresholds as CI's check-postgres-backup.sh. MAX_STALE_HOURS is the
+  // grace: the newest completed backup may be at most this old, and the
+  // earliest restore point at most retentionDays*24 + this (#991).
   BACKUP_CHECK_MIN_RETENTION_DAYS: z.coerce.number().int().positive().default(7),
   BACKUP_CHECK_MAX_STALE_HOURS: z.coerce.number().int().positive().default(48),
   // Dev/test behavior: the log provider logs full links so magic-link flows

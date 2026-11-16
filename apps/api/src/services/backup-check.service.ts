@@ -3,11 +3,25 @@
  *
  * Reads the flexible server's backup config through the Azure Resource
  * Manager API using the Function App's system-assigned managed identity
- * (no secrets, no az CLI). Applies the same thresholds as CI's
- * `infra/health/check-postgres-backup.sh`: retention >= minRetentionDays
- * and earliest restore point < maxStaleHours old. A stale/missing backup
- * chain is the "scheduled backup missed" signal that HRD-04's runbook
- * documents.
+ * (no secrets, no az CLI). Two freshness rules (#991):
+ *
+ * 1. Newest completed backup — lists `.../flexibleServers/{name}/backups`
+ *    and flags the chain stale when the newest `completedTime` is older
+ *    than `maxStaleHours` (48h default). This catches a stopped chain
+ *    within ~2 days. If the backup list call fails, the check falls back
+ *    to rule 2 alone (`newestBackupError` says why) — the server query
+ *    already succeeded, so this is not a probe failure.
+ * 2. Earliest restore point — the same rule as CI's
+ *    `infra/health/check-postgres-backup.sh`: retention >= minRetentionDays
+ *    and the earliest restore point is no older than
+ *    `retentionDays*24 + maxStaleHours` (retention window + grace). The
+ *    earliest restore point is the OLDEST point in the PITR window: on a
+ *    healthy server it ages until it reaches the retention window and then
+ *    stays there, so its age alone is not a staleness signal — only an age
+ *    beyond the whole window is.
+ *
+ * A stale/missing backup chain is the "scheduled backup missed" signal that
+ * HRD-04's runbook documents.
  *
  * Token acquisition order: the platform-injected `IDENTITY_ENDPOINT` /
  * `IDENTITY_HEADER` env vars (the documented managed-identity token path
@@ -44,7 +58,16 @@ export interface BackupFreshness {
   readonly earliestRestore: Date | null;
   /** Age of the earliest restore point in hours (null when unknown). */
   readonly staleHours: number | null;
-  /** When the chain is stale: earliestRestore + maxStaleHours (the moment it crossed the threshold). */
+  /** Newest completed backup (null when unknown or the list call failed). */
+  readonly newestBackup: Date | null;
+  /** Age of the newest completed backup in hours (null when unknown). */
+  readonly newestBackupHours: number | null;
+  /**
+   * Why the newest-backup rule could not run (backup list call failed);
+   * null when it ran. The check then relied on the earliest-restore rule.
+   */
+  readonly newestBackupError: string | null;
+  /** When the chain is stale: the moment it crossed the threshold that failed. */
   readonly staleSince: Date | null;
   /** Human-readable reason when unhealthy (for logs/alerts — no PII). */
   readonly reason: string | null;
@@ -55,6 +78,10 @@ export interface BackupCheckServiceDeps {
   readonly resourceGroup: string;
   readonly serverName: string;
   readonly minRetentionDays: number;
+  /**
+   * Grace in hours: the newest completed backup may be at most this old,
+   * and the earliest restore point at most `retentionDays*24 + maxStaleHours`.
+   */
   readonly maxStaleHours: number;
   /** IMDS token endpoint URL (from config — services never hardcode URLs). */
   readonly imdsTokenUrl: string;
@@ -86,6 +113,46 @@ export interface BackupCheckService {
 const ARM_API_VERSION = '2023-12-01-preview';
 /** Token API version for the platform identity endpoint (2019-08-01). */
 const IDENTITY_ENDPOINT_API_VERSION = '2019-08-01';
+
+/** Safety cap on `nextLink` pages followed in the backup list. */
+const MAX_BACKUP_LIST_PAGES = 10;
+const MS_PER_HOUR = 3_600_000;
+
+interface ArmBackupListPage {
+  readonly value?: ReadonlyArray<{ properties?: { completedTime?: string } }>;
+  readonly nextLink?: string;
+}
+
+/**
+ * Newest `completedTime` across the server's completed backups (follows
+ * `nextLink`, capped). Returns null when the server has no completed
+ * backups. Throws on an HTTP error so the caller can fall back.
+ */
+async function getNewestBackup(
+  fetchImpl: typeof fetch,
+  firstUrl: string,
+  token: string,
+): Promise<Date | null> {
+  let newest: number | null = null;
+  let url: string | undefined = firstUrl;
+  for (let page = 0; url && page < MAX_BACKUP_LIST_PAGES; page++) {
+    const res = await fetchImpl(url, {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    if (!res.ok) {
+      throw new Error(`ARM backup list query failed (status ${res.status})`);
+    }
+    const body = (await res.json()) as ArmBackupListPage;
+    for (const item of body.value ?? []) {
+      const completed = item.properties?.completedTime;
+      if (!completed) continue;
+      const t = new Date(completed).getTime();
+      if (Number.isFinite(t) && (newest === null || t > newest)) newest = t;
+    }
+    url = body.nextLink;
+  }
+  return newest === null ? null : new Date(newest);
+}
 
 interface ArmBackupProperties {
   readonly backupRetentionDays?: number;
@@ -175,6 +242,9 @@ export function createBackupCheckService(
         retentionDays: null,
         earliestRestore: null,
         staleHours: null,
+        newestBackup: null,
+        newestBackupHours: null,
+        newestBackupError: null,
         staleSince: null,
         reason,
         ...partial,
@@ -200,11 +270,11 @@ export function createBackupCheckService(
         );
       }
 
-      const url =
+      const serverUrl =
         `${armBaseUrl}/subscriptions/${subscriptionId}` +
         `/resourceGroups/${resourceGroup}` +
-        `/providers/Microsoft.DBforPostgreSQL/flexibleServers/${serverName}` +
-        `?api-version=${ARM_API_VERSION}`;
+        `/providers/Microsoft.DBforPostgreSQL/flexibleServers/${serverName}`;
+      const url = `${serverUrl}?api-version=${ARM_API_VERSION}`;
       let backup: ArmBackupProperties;
       try {
         const res = await fetchImpl(url, {
@@ -227,39 +297,100 @@ export function createBackupCheckService(
         : null;
       const staleHours =
         earliestRestore !== null
-          ? (now.getTime() - earliestRestore.getTime()) / 3_600_000
+          ? (now.getTime() - earliestRestore.getTime()) / MS_PER_HOUR
           : null;
+
+      // Rule 1 input: newest completed backup. A failed list call is not a
+      // probe failure (the server query worked) — fall back to rule 2.
+      let newestBackup: Date | null = null;
+      let newestBackupError: string | null = null;
+      let newestBackupListed = false;
+      try {
+        newestBackup = await getNewestBackup(
+          fetchImpl,
+          `${serverUrl}/backups?api-version=${ARM_API_VERSION}`,
+          token,
+        );
+        newestBackupListed = true;
+      } catch (error) {
+        newestBackupError = (error as Error).message;
+      }
+      const newestBackupHours =
+        newestBackup !== null
+          ? (now.getTime() - newestBackup.getTime()) / MS_PER_HOUR
+          : null;
+      const facts = {
+        retentionDays,
+        earliestRestore,
+        staleHours,
+        newestBackup,
+        newestBackupHours,
+        newestBackupError,
+      };
 
       if (retentionDays !== null && retentionDays < minRetentionDays) {
         return fail(
           `backup retention is ${retentionDays}d (minimum ${minRetentionDays}d)`,
-          { retentionDays, earliestRestore, staleHours },
+          facts,
         );
       }
-      if (staleHours !== null && staleHours > maxStaleHours) {
+      if (newestBackupHours !== null && newestBackupHours > maxStaleHours) {
+        return fail(
+          `newest completed backup is ${newestBackupHours.toFixed(1)}h old ` +
+            `(threshold ${maxStaleHours}h) — backup chain may be stale`,
+          {
+            ...facts,
+            staleSince: new Date(
+              (newestBackup as Date).getTime() + maxStaleHours * MS_PER_HOUR,
+            ),
+          },
+        );
+      }
+      if (
+        newestBackupListed &&
+        newestBackup === null &&
+        staleHours !== null &&
+        staleHours > maxStaleHours
+      ) {
+        // The server is past the grace period and has never completed a
+        // backup. (A brand-new server gets the grace before this fires.)
+        return fail(
+          `no completed backups listed and the server's earliest restore ` +
+            `point is ${staleHours.toFixed(1)}h old (threshold ${maxStaleHours}h)`,
+          {
+            ...facts,
+            staleSince: new Date(
+              (earliestRestore as Date).getTime() + maxStaleHours * MS_PER_HOUR,
+            ),
+          },
+        );
+      }
+      // Rule 2 (same as CI): stale only when the earliest restore point is
+      // older than the whole retention window + grace.
+      const maxEarliestAgeHours =
+        retentionDays !== null
+          ? retentionDays * 24 + maxStaleHours
+          : maxStaleHours;
+      if (staleHours !== null && staleHours > maxEarliestAgeHours) {
         const staleSince = new Date(
-          (earliestRestore as Date).getTime() + maxStaleHours * 3_600_000,
+          (earliestRestore as Date).getTime() + maxEarliestAgeHours * MS_PER_HOUR,
         );
         return fail(
           `earliest restore point is ${staleHours.toFixed(1)}h old ` +
-            `(threshold ${maxStaleHours}h) — backup chain may be stale`,
-          { retentionDays, earliestRestore, staleHours, staleSince },
+            `(threshold ${maxEarliestAgeHours}h = ` +
+            `${retentionDays ?? 0}d retention + ${maxStaleHours}h grace) ` +
+            `— backup chain may be stale`,
+          { ...facts, staleSince },
         );
       }
       if (earliestRestore === null) {
-        return fail('ARM returned no earliest restore point', {
-          retentionDays,
-          earliestRestore,
-          staleHours,
-        });
+        return fail('ARM returned no earliest restore point', facts);
       }
       return {
         healthy: true,
         probeError: false,
         server: serverName,
-        retentionDays,
-        earliestRestore,
-        staleHours,
+        ...facts,
         staleSince: null,
         reason: null,
       };
