@@ -966,6 +966,13 @@ export function createCommissionService(
     };
   }
 
+  type BuilderNotificationKind =
+    | 'invoice_ready'
+    | 'payment_received'
+    | 'payment_failed'
+    | 'payment_action_required'
+    | 'invoice_overdue';
+
   /**
    * BILL-04: send a builder billing notification. Never throws — a failed
    * notification is audited (the invoice transition already happened; the
@@ -974,12 +981,7 @@ export function createCommissionService(
    */
   async function notifyBuilder(
     invoice: CommissionInvoiceRecord,
-    kind:
-      | 'invoice_ready'
-      | 'payment_received'
-      | 'payment_failed'
-      | 'payment_action_required'
-      | 'invoice_overdue',
+    kind: BuilderNotificationKind,
     options: { readonly finalNotice?: boolean } = {},
   ): Promise<void> {
     let recipients: readonly string[] = [];
@@ -996,17 +998,18 @@ export function createCommissionService(
       recipients = contact === null ? [] : [contact];
     }
     for (const to of recipients) {
-      await notifyBuilderRecipient(invoice, kind, to);
+      await notifyBuilderRecipient(invoice, kind, to, options);
     }
     if (recipients.length === 0) {
-      await notifyBuilderRecipient(invoice, kind, null);
+      await notifyBuilderRecipient(invoice, kind, null, options);
     }
   }
 
   async function notifyBuilderRecipient(
     invoice: CommissionInvoiceRecord,
-    kind: 'invoice_ready' | 'payment_received' | 'payment_failed' | 'payment_action_required',
+    kind: BuilderNotificationKind,
     to: string | null,
+    options: { readonly finalNotice?: boolean },
   ): Promise<void> {
     // Short public reference: first 8 of the uuid (stable, non-sensitive).
     const invoiceRef = invoice.id.slice(0, 8);
