@@ -380,6 +380,8 @@ describe('admin invoice corrections (#715)', () => {
         netCents: 0,
         refundState: 'refunded',
         adminEmail: ADMIN,
+        // The provider's own refund status is recorded for #719 reconciliation.
+        providerStatus: 'succeeded',
       });
       expect(
         h.adminAudit.entries.filter((e) => e.action === 'billing.invoice_refunded'),

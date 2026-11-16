@@ -1194,7 +1194,11 @@ export function createCommissionService(
   async function completeCardRefund(
     refund: typeof billingRefunds.$inferSelect,
     paymentIntentId: string,
-  ): Promise<{ row: typeof billingRefunds.$inferSelect; completed: boolean }> {
+  ): Promise<{
+    row: typeof billingRefunds.$inferSelect;
+    completed: boolean;
+    providerStatus?: string;
+  }> {
     let providerRefund: { id: string; status: string };
     try {
       providerRefund = await stripe.refundPaymentIntent(
@@ -1252,7 +1256,17 @@ export function createCommissionService(
         ),
       )
       .returning();
-    if (succeeded !== undefined) return { row: succeeded, completed: true };
+    // The provider may report the refund as 'pending' (settling
+    // asynchronously). We store it as succeeded and record the provider's
+    // status in the audit trail so the webhook reconciliation (#719) has
+    // the true starting state.
+    if (succeeded !== undefined) {
+      return {
+        row: succeeded,
+        completed: true,
+        providerStatus: providerRefund.status,
+      };
+    }
     // A concurrent replay may have completed it first — re-read.
     return {
       row:
@@ -1273,6 +1287,7 @@ export function createCommissionService(
     refundRow: typeof billingRefunds.$inferSelect,
     adminEmail: string | null,
     resumed: boolean,
+    providerStatus?: string,
   ): Promise<CommissionInvoiceRecord> {
     const invoice = await detailRecord(await requireInvoice(refundRow.invoiceId));
     await audit.append({
@@ -1292,6 +1307,7 @@ export function createCommissionService(
         ...(refundRow.stripeRefundId
           ? { stripeRefundId: refundRow.stripeRefundId }
           : {}),
+        ...(providerStatus ? { providerStatus } : {}),
         totalCents: invoice.totalCents,
         refundedCents: invoice.refundedCents,
         netCents: invoice.totalCents - invoice.refundedCents,
@@ -1347,7 +1363,12 @@ export function createCommissionService(
       // This retry finished the provider refund — it owns the audit trail.
       if (result.completed) {
         return {
-          invoice: await recordRefunded(refundRow, adminEmail, true),
+          invoice: await recordRefunded(
+            refundRow,
+            adminEmail,
+            true,
+            result.providerStatus,
+          ),
           refund: toRefundRecord(refundRow),
           replayed: true,
         };
@@ -2424,12 +2445,14 @@ export function createCommissionService(
       // 3. Card refund on the provider (manual refunds are already final).
       //    If a concurrent replay finalised it first, that call wrote the
       //    audit trail.
+      let providerStatus: string | undefined;
       if (method === 'stripe') {
         const result = await completeCardRefund(
           refundRow,
           row.stripePaymentIntentId as string,
         );
         refundRow = result.row;
+        providerStatus = result.providerStatus;
         if (!result.completed) {
           return {
             invoice: await detailRecord(await requireInvoice(invoiceId)),
@@ -2439,7 +2462,12 @@ export function createCommissionService(
         }
       }
 
-      const invoice = await recordRefunded(refundRow, input.adminEmail, false);
+      const invoice = await recordRefunded(
+        refundRow,
+        input.adminEmail,
+        false,
+        providerStatus,
+      );
       return { invoice, refund: toRefundRecord(refundRow), replayed: false };
     },
 
