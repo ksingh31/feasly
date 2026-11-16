@@ -6,6 +6,7 @@ import { Action, Selector, State, StateContext } from '@ngxs/store';
 import type {
   BuilderLeadListItem,
   BuilderLeadListResponse,
+  BuilderReassignedLead,
   BuilderLeadsNeedsYouResponse,
   BuilderLeadStatus,
 } from '@feasly/contracts';
@@ -72,6 +73,11 @@ export interface BuilderStateModel {
   /** Tenant-scoped leads, memory-only (homeowner PII — never persisted). */
   leads: readonly BuilderLeadListItem[];
   summary: BuilderLeadListResponse['summary'];
+  /**
+   * Leads Feasly moved away from this builder (#721/#803), newest first.
+   * Memory-only (names are homeowner PII). Shown read-only.
+   */
+  reassigned: readonly BuilderReassignedLead[];
   leadsStatus: BuilderLeadsStatus;
   /**
    * Leads home "Needs you" feed (#527), memory-only (homeowner PII).
@@ -116,6 +122,7 @@ const defaults: BuilderStateModel = {
   lastEntraError: null,
   leads: [],
   summary: EMPTY_SUMMARY,
+  reassigned: [],
   leadsStatus: 'idle',
   needsYou: null,
   needsYouStatus: 'idle',
@@ -246,6 +253,11 @@ export class BuilderState {
   @Selector()
   static summary(state: BuilderStateModel): BuilderLeadListResponse['summary'] {
     return state.summary;
+  }
+
+  @Selector()
+  static reassigned(state: BuilderStateModel): readonly BuilderReassignedLead[] {
+    return state.reassigned;
   }
 
   @Selector()
@@ -450,6 +462,7 @@ export class BuilderState {
         ctx.patchState({
           leads: response.leads,
           summary: response.summary,
+          reassigned: response.reassigned ?? [],
           leadsStatus: 'ready',
         });
       }),
@@ -549,7 +562,13 @@ export class BuilderState {
    */
   private refreshLeadsQuietly(ctx: StateContext<BuilderStateModel>): Observable<unknown> {
     return this.leadsApi.listLeads().pipe(
-      tap((response) => ctx.patchState({ leads: response.leads, summary: response.summary })),
+      tap((response) =>
+        ctx.patchState({
+          leads: response.leads,
+          summary: response.summary,
+          reassigned: response.reassigned ?? [],
+        }),
+      ),
       catchError(() => of(null)),
     );
   }

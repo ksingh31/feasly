@@ -9,7 +9,7 @@ import { of } from 'rxjs';
 import { describe, expect, it, vi } from 'vitest';
 import type { AdminLeadDetail } from '@feasly/contracts';
 import { ConfigService } from '../../core/config/config.service';
-import { UiDrawerRef, UiToastService } from '@app/shared/ui';
+import { UiConfirmService, UiDrawerRef, UiToastService } from '@app/shared/ui';
 import { AdminLeadDrawerComponent } from './admin-lead-drawer.component';
 import { AdminLeadsState } from './admin-leads.state';
 import { AdminBuildersState } from './admin-builders.state';
@@ -80,6 +80,7 @@ describe('AdminLeadDrawerComponent', () => {
   async function setup(
     permissions: string[] = [ADMIN_PERMISSIONS.leadsManage, ADMIN_PERMISSIONS.leadsAssign],
     detail: AdminLeadDetail = DETAIL,
+    builders: { id: string; displayName: string }[] = [{ id: 'b-1', displayName: 'Elite Craft' }],
   ): Promise<void> {
     TestBed.resetTestingModule();
     ref = { titleId: 'drawer-title', setDirty: vi.fn(), requestClose: vi.fn(() => of(true)) };
@@ -112,7 +113,7 @@ describe('AdminLeadDrawerComponent', () => {
     http.expectOne((r) => r.url.endsWith('/api/v1/admin/leads/a1') && r.method === 'GET').flush(detail);
     http
       .match((r) => r.url.endsWith('/api/v1/admin/builders'))
-      .forEach((r) => r.flush({ builders: [{ id: 'b-1', displayName: 'Elite Craft' }] }));
+      .forEach((r) => r.flush({ builders }));
     http.match((r) => r.url.includes('/comments')).forEach((r) => r.flush({ comments: [] }));
     await fixture.whenStable();
     fixture.detectChanges();
@@ -259,5 +260,116 @@ describe('AdminLeadDrawerComponent', () => {
   it('renders the chip in the drawer header slot', async () => {
     await setup();
     expect(fixture.debugElement.query(By.css('.ui-drawer__sub ui-status-chip'))).toBeTruthy();
+  });
+
+  describe('reassignment (#803)', () => {
+    const BUILDERS = [
+      { id: 'b-1', displayName: 'Elite Craft' },
+      { id: 'b-2', displayName: 'Oak Homes' },
+    ];
+    const ASSIGNED: AdminLeadDetail = { ...DETAIL, builderId: 'b-1' };
+
+    function spyConfirm(answer: boolean): ReturnType<typeof vi.fn> {
+      const spy = vi.fn(() => of(answer));
+      vi.spyOn(TestBed.inject(UiConfirmService), 'confirm').mockImplementation(spy as never);
+      return spy;
+    }
+
+    it('asks for confirmation that states the consequences before moving a lead', async () => {
+      await setup(undefined, ASSIGNED, BUILDERS);
+      const confirm = spyConfirm(false);
+      choose(selects()[1], 'b-2');
+      saveButton()!.click();
+      fixture.detectChanges();
+
+      expect(confirm).toHaveBeenCalledTimes(1);
+      const options = confirm.mock.calls[0][0] as { title: string; body: string; verb: string; tone: string };
+      expect(options.title).toBe('Move Ava Smith to Oak Homes?');
+      expect(options.body).toContain('Elite Craft will lose access to this lead.');
+      expect(options.body).toContain('Reassigned by Feasly');
+      expect(options.body).toContain('Oak Homes gets it as a new lead.');
+      expect(options.tone).toBe('danger');
+      // Cancelled → nothing sent.
+      http.expectNone((r) => r.url.endsWith('/assign-builder'));
+    });
+
+    it('sends the move once confirmed', async () => {
+      await setup(undefined, ASSIGNED, BUILDERS);
+      spyConfirm(true);
+      choose(selects()[1], 'b-2');
+      saveButton()!.click();
+      fixture.detectChanges();
+      const assign = http.expectOne((r) => r.url.endsWith('/api/v1/admin/leads/a1/assign-builder'));
+      expect(assign.request.body).toEqual({ builderId: 'b-2' });
+      assign.flush({ ok: true, changed: true, fromBuilderId: 'b-1', toBuilderId: 'b-2' });
+      await until(() => toast.mock.calls.length > 0, 'saved toast');
+    });
+
+    it('uses the unassign wording when the builder is cleared', async () => {
+      await setup(undefined, ASSIGNED, BUILDERS);
+      const confirm = spyConfirm(false);
+      choose(selects()[1], '');
+      saveButton()!.click();
+      expect(confirm).toHaveBeenCalledTimes(1);
+      const options = confirm.mock.calls[0][0] as { title: string; verb: string };
+      expect(options.title).toBe('Unassign Ava Smith?');
+      expect(options.verb).toBe('Unassign');
+    });
+
+    it('does not confirm a first assignment', async () => {
+      await setup(undefined, DETAIL, BUILDERS);
+      const confirm = spyConfirm(true);
+      choose(selects()[1], 'b-2');
+      saveButton()!.click();
+      expect(confirm).not.toHaveBeenCalled();
+      http.expectOne((r) => r.url.endsWith('/assign-builder')).flush({ ok: true });
+    });
+
+    it('shows the 409 LEAD_HAS_INVOICE message inline when the move is blocked', async () => {
+      await setup(undefined, ASSIGNED, BUILDERS);
+      spyConfirm(true);
+      choose(selects()[1], 'b-2');
+      saveButton()!.click();
+      fixture.detectChanges();
+      const message = 'Invoice INV-0042 exists for this lead. Void or refund it first.';
+      http
+        .expectOne((r) => r.url.endsWith('/assign-builder'))
+        .flush({ code: 'LEAD_HAS_INVOICE', message }, { status: 409, statusText: 'Conflict' });
+      http.match((r) => r.url.endsWith('/api/v1/admin/leads/a1') && r.method === 'GET').forEach((r) => r.flush(ASSIGNED));
+      await fixture.whenStable();
+      fixture.detectChanges();
+      const alerts = Array.from(root().querySelectorAll('.lead-drawer__error[role="alert"]')).map((el) =>
+        el.textContent?.trim(),
+      );
+      expect(alerts).toContain(message);
+      expect(toast).not.toHaveBeenCalled();
+    });
+
+    it('lists reassignment history newest first with builder names', async () => {
+      await setup(
+        undefined,
+        {
+          ...DETAIL,
+          builderId: 'b-2',
+          reassignments: [
+            { fromBuilderId: null, toBuilderId: 'b-1', changedBy: 'ops@feasly.ca', changedAt: '2026-11-01T10:00:00.000Z' },
+            { fromBuilderId: 'b-1', toBuilderId: 'b-2', changedBy: 'admin@feasly.ca', changedAt: '2026-11-10T10:00:00.000Z' },
+          ],
+        },
+        BUILDERS,
+      );
+      const items = Array.from(root().querySelectorAll('[data-testid="lead-reassignments"] li')).map((li) =>
+        li.textContent?.replace(/\s+/g, ' ').trim(),
+      );
+      expect(items).toHaveLength(2);
+      expect(items[0]).toContain('Elite Craft → Oak Homes');
+      expect(items[0]).toContain('admin@feasly.ca');
+      expect(items[1]).toContain('Unassigned → Elite Craft');
+    });
+
+    it('hides the history list when there are no reassignments', async () => {
+      await setup();
+      expect(root().querySelector('[data-testid="lead-reassignments"]')).toBeNull();
+    });
   });
 });
