@@ -35,6 +35,7 @@ const ERASE: ErasureRequestResponse = {
   status: 'requested',
   consequences: ['Your leads are deleted.'],
   createdAt: '2026-11-15T00:00:00.000Z',
+  confirmationEmailSent: true,
 };
 
 const err = (code: string, message = 'x') => throwError(() => ({ code, message, retryable: false }));

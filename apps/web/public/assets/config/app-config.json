@@ -397,6 +397,7 @@
   },
   "features": {
     "cityWaitlist": true,
+    "privacyEraseConfirmInPage": false,
     "renovationWaitlist": true,
     "sampleReport": false
   },

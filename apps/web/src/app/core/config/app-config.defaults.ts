@@ -59,8 +59,9 @@ export const DEFAULT_APP_CONFIG: AppConfig = {
     // scope step with an email capture; other cities get a notify-me.
     renovationWaitlist: true,
     cityWaitlist: true,
-    // #706: in-page erasure confirm until the API emails the link (#806).
-    privacyEraseConfirmInPage: true,
+    // #706/#806: the API now emails the erase-confirmation link, so the
+    // page says "check your email" instead of offering an in-page delete.
+    privacyEraseConfirmInPage: false,
   },
   // legal/01 AC3: draft until the lawyer reviews and approves the
   // privacy/terms copy. Flip to false only together with removing every

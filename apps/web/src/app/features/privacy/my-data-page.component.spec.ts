@@ -74,11 +74,11 @@ describe('MyDataPageComponent', () => {
     expect(text()).not.toContain('jane@example.com');
   });
 
-  it('pending erasure: shows the consequences and routes to the confirm page', async () => {
+  it('pending erasure (in-page flag on): shows the consequences and routes to the confirm page', async () => {
     api.requestErasure.mockReturnValue(
       of({ requestId: REQUEST_ID, status: 'requested', consequences: ['Leads are deleted.'], createdAt: 'now' }),
     );
-    await setup('tok');
+    await setup('tok', { features: { privacyEraseConfirmInPage: true } });
     const navigate = vi.spyOn(TestBed.inject(Router), 'navigate').mockResolvedValue(true);
     await click('[data-action="delete"]');
     expect(q('[data-state="pending"]')).not.toBeNull();
