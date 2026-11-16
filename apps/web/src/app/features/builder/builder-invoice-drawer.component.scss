@@ -117,3 +117,8 @@
   font: var(--type-body-sm);
   color: var(--text);
 }
+
+.invoice-drawer__section app-builder-simulated-challenge {
+  display: block;
+  margin-top: var(--space-3);
+}

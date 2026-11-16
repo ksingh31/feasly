@@ -78,3 +78,86 @@ describe('composition root', () => {
     });
   });
 });
+
+describe('composition root — #788 bot challenge wiring', () => {
+  /** In-memory SharedCounterStore so the shared limiters/cooldowns run without Postgres. */
+  function memoryStore() {
+    const rows = new Map<string, { count: number; windowStart: Date; expiresAt: Date }>();
+    return {
+      async increment(args: { key: string; windowStart: Date; expiresAt: Date }) {
+        const row = rows.get(args.key);
+        const count =
+          row && row.windowStart.getTime() >= args.windowStart.getTime() ? row.count + 1 : 1;
+        rows.set(args.key, { count, windowStart: args.windowStart, expiresAt: args.expiresAt });
+        return count;
+      },
+      async read(key: string, now: Date) {
+        const row = rows.get(key);
+        return row && row.expiresAt > now ? row.count : 0;
+      },
+      async set(args: { key: string; windowStart: Date; expiresAt: Date }) {
+        rows.set(args.key, { count: 1, windowStart: args.windowStart, expiresAt: args.expiresAt });
+      },
+      async deleteExpired() {
+        return 0;
+      },
+    };
+  }
+
+  const ok = async () => 'ok';
+
+  it('leaves the lead pipeline unchallenged while Turnstile is unconfigured', async () => {
+    const app = createComposition(
+      { ...TEST_ENV, LEAD_RATE_LIMIT_MAX_REQUESTS: '1' } as NodeJS.ProcessEnv,
+      { rateLimitStore: memoryStore() },
+    );
+    const req = { headers: {}, clientIp: '203.0.113.9' };
+    await app.leadPipeline.run(req, ok);
+    const limited = await app.leadPipeline.run(req, ok);
+    expect((limited as { code?: string }).code).toBe('RATE_LIMITED');
+    expect(((await app.leadPipeline.run(req, ok)) as { code?: string }).code).toBe('RATE_LIMITED');
+    await app.db.close();
+  });
+
+  it('challenges a tripped IP on the lead AND estimate pipelines once configured', async () => {
+    const verified: string[] = [];
+    const app = createComposition(
+      {
+        ...TEST_ENV,
+        LEAD_RATE_LIMIT_MAX_REQUESTS: '1',
+        TURNSTILE_SITE_KEY: 'site-key-test',
+        TURNSTILE_SECRET_KEY: 'secret-test',
+      } as NodeJS.ProcessEnv,
+      {
+        rateLimitStore: memoryStore(),
+        challengeVerifier: {
+          async verify(token) {
+            verified.push(token);
+            return token === 'good';
+          },
+        },
+      },
+    );
+    const req = { headers: {}, clientIp: '203.0.113.10' };
+    await app.leadPipeline.run(req, ok);
+    await app.leadPipeline.run(req, ok); // trips the lead limiter
+    const lead = (await app.leadPipeline.run(req, ok)) as {
+      code?: string;
+      challenge?: { siteKey: string };
+    };
+    expect(lead.code).toBe('CHALLENGE_REQUIRED');
+    expect(lead.challenge?.siteKey).toBe('site-key-test');
+    // The trip is per IP across the money/mail pipelines.
+    const estimate = (await app.estimatePipeline.run(req, ok)) as { code?: string };
+    expect(estimate.code).toBe('CHALLENGE_REQUIRED');
+    // A verified token gets past the challenge (the estimate limiter is fresh).
+    expect(
+      await app.estimatePipeline.run(
+        { headers: { 'x-turnstile-token': 'good' }, clientIp: '203.0.113.10' },
+        ok,
+      ),
+    ).toBe('ok');
+    expect(verified).toEqual(['good']);
+    await app.db.close();
+  });
+});

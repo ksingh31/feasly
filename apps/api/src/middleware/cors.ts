@@ -30,7 +30,7 @@ export const ALLOW_ORIGIN = 'Access-Control-Allow-Origin';
 export const ALLOW_CREDENTIALS = 'Access-Control-Allow-Credentials';
 
 const ALLOW_METHODS = 'GET, POST, OPTIONS';
-const ALLOW_HEADERS = 'Content-Type, Authorization, X-Correlation-Id';
+const ALLOW_HEADERS = 'Content-Type, Authorization, X-Correlation-Id, X-Turnstile-Token';
 const MAX_AGE_SECONDS = '86400';
 
 export type HeaderInput = string | string[] | undefined;

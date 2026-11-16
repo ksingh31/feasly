@@ -1260,6 +1260,19 @@ export const ROUTE_REGISTRY: readonly ApiRouteEntry[] = [
       'Audit-logged.',
   },
   {
+    method: 'POST',
+    path: '/api/v1/admin/neighbourhood-data/{provider}/refresh',
+    auth: 'admin',
+    permissions: ['ops:manage'] as const,
+    rateLimit: '10/min per session',
+    status: 'live',
+    summary:
+      'Run one neighbourhood data provider refresh now (#773): ' +
+      'school-directory, school-designation, school-ratings, reviews, ' +
+      'amenities or commute. Keeps the previous data on failure. ' +
+      'Audit-logged.',
+  },
+  {
     method: 'GET',
     path: '/api/v1/admin/usage',
     auth: 'admin',

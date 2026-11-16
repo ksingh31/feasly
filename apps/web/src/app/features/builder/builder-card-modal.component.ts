@@ -18,7 +18,8 @@ import { Store } from '@ngxs/store';
 import { loadStripe } from '@stripe/stripe-js';
 import type { Stripe, StripeCardElement, StripeElementStyle } from '@stripe/stripe-js';
 import { firstValueFrom } from 'rxjs';
-import type { CardOnFileStatus } from '@feasly/contracts';
+import { SIMULATED_PAYMENTS_NOTICE, SIMULATED_TEST_CARDS } from '@feasly/contracts';
+import type { CardOnFileStatus, SetupIntentResponse, SimulatedIntentResponse } from '@feasly/contracts';
 import {
   UiButtonComponent,
   UiModalComponent,
@@ -31,6 +32,7 @@ import { BUILDER_COPY } from './builder-copy';
 import { CHARGE_TIMING_COPY } from './builder-copy.defaults';
 import { BuilderBillingApiService } from './builder-billing-api.service';
 import { LoadBillingCard, LoadBillingOverview } from './builder-billing.actions';
+import { BuilderSimulatedChallengeComponent } from './builder-simulated-challenge.component';
 
 /**
  * Loads Stripe.js for a publishable key. A token (not a direct import call)
@@ -48,12 +50,15 @@ export interface BuilderCardModalData {
 
 /**
  * Modal lifecycle:
- * - `unavailable`: no publishable key — calm "contact us" copy, no form.
- * - `loading`: Stripe.js + SetupIntent in flight.
- * - `ready`: card Element mounted; `saving` while Stripe confirms.
+ * - `unavailable`: no publishable key and no simulated provider — calm
+ *   "contact us" copy, no form.
+ * - `loading`: SetupIntent (+ Stripe.js) in flight.
+ * - `ready`: card Element mounted (or the test-card picker, #791);
+ *   `saving` while the provider confirms.
+ * - `challenge`: simulated provider only — the dev-only 3DS step (#791).
  * - `load-error`: Stripe.js or the SetupIntent failed — retry offered.
  */
-export type BuilderCardModalPhase = 'unavailable' | 'loading' | 'ready' | 'saving' | 'load-error';
+export type BuilderCardModalPhase = 'unavailable' | 'loading' | 'ready' | 'saving' | 'challenge' | 'load-error';
 
 /** Design tokens the Stripe card Element mirrors (its iframe can't read our CSS). */
 export const STRIPE_STYLE_TOKENS = {
@@ -103,6 +108,12 @@ export function stripeCardStyle(token: (name: string) => string): StripeElementS
  * contacting Feasly — it never claims an outage while a saved card still
  * works (review bug B5).
  *
+ * Simulated provider (#753/#791): when the SetupIntent comes back with
+ * `provider: 'simulated'`, Stripe.js is never loaded. The builder picks one
+ * of `SIMULATED_TEST_CARDS` under the "Test mode — no real charges" banner;
+ * the 3DS test card adds the dev-only "Complete 3DS challenge" step. With
+ * the Stripe provider the picker never renders.
+ *
  * On success it refreshes the billing slices, shows a toast and closes with
  * `true`; any other close yields `undefined`.
  */
@@ -110,7 +121,7 @@ export function stripeCardStyle(token: (name: string) => string): StripeElementS
   selector: 'app-builder-card-modal',
   standalone: true,
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [UiModalComponent, UiButtonComponent],
+  imports: [UiModalComponent, UiButtonComponent, BuilderSimulatedChallengeComponent],
   templateUrl: './builder-card-modal.component.html',
   styleUrl: './builder-card-modal.component.scss',
 })
@@ -137,6 +148,22 @@ export class BuilderCardModalComponent implements OnInit {
   /** Stripe's inline validation message (e.g. "Your card number is incomplete"); '' when valid. */
   protected readonly inlineError = signal('');
 
+  /** #791: which provider issued the SetupIntent; `simulated` shows the test-card picker. */
+  protected readonly provider = signal<'stripe' | 'simulated'>('stripe');
+  protected readonly testCards = SIMULATED_TEST_CARDS;
+  protected readonly testModeNotice = SIMULATED_PAYMENTS_NOTICE;
+  protected readonly simCopy = this.copy.simulated;
+  /** #791: the picked test card number, or null. */
+  protected readonly selectedTestCard = signal<string | null>(null);
+  /** #791: the SetupIntent waiting on the dev-only 3DS step. */
+  protected readonly challengeIntentId = signal<string | null>(null);
+  /** #791: the last 3DS check failed — the card was not saved. */
+  protected readonly challengeFailed = signal(false);
+  /** Save is possible: a complete Stripe card, or a picked test card. */
+  protected readonly canSave = computed(() =>
+    this.provider() === 'simulated' ? this.selectedTestCard() !== null : this.complete(),
+  );
+
   private readonly cardHost = viewChild<ElementRef<HTMLElement>>('cardHost');
 
   private readonly card = this.data?.card;
@@ -161,6 +188,7 @@ export class BuilderCardModalComponent implements OnInit {
   private stripe: Stripe | null = null;
   private element: StripeCardElement | null = null;
   private clientSecret: string | null = null;
+  private setupIntentId: string | null = null;
 
   constructor() {
     // Mount once the ready template has rendered the host.
@@ -180,27 +208,60 @@ export class BuilderCardModalComponent implements OnInit {
     void this.start();
   }
 
-  /** Loads Stripe.js and a SetupIntent; also the retry path. */
+  /**
+   * Creates a SetupIntent, then loads Stripe.js unless the API runs the
+   * simulated provider (#791); also the retry path.
+   *
+   * Without a publishable key only the simulated provider can take a card:
+   * the modal asks for a SetupIntent and shows the calm "contact us" copy
+   * for anything but `provider: 'simulated'` (including a failed call).
+   */
   protected async start(): Promise<void> {
     const key = this.config.get('billing').stripePublishableKey;
+    this.phase.set('loading');
     if (!key) {
+      try {
+        const intent = await firstValueFrom(this.api.createSetupIntent());
+        if (intent.provider === 'simulated') {
+          this.useSimulated(intent);
+          return;
+        }
+      } catch {
+        // Fall through to the calm contact copy — never an outage claim.
+      }
       this.phase.set('unavailable');
       return;
     }
-    this.phase.set('loading');
     try {
+      const intent = await firstValueFrom(this.api.createSetupIntent());
+      if (intent.provider === 'simulated') {
+        this.useSimulated(intent);
+        return;
+      }
       const stripe = await this.loadStripe(key);
       if (!stripe) {
         this.phase.set('load-error');
         return;
       }
-      const intent = await firstValueFrom(this.api.createSetupIntent());
       this.stripe = stripe;
       this.clientSecret = intent.clientSecret;
       this.phase.set('ready');
     } catch {
       this.phase.set('load-error');
     }
+  }
+
+  private useSimulated(intent: SetupIntentResponse): void {
+    this.provider.set('simulated');
+    this.setupIntentId = intent.setupIntentId;
+    this.phase.set('ready');
+  }
+
+  /** #791: a test card was picked; clears stale error banners. */
+  protected pickTestCard(number: string): void {
+    this.selectedTestCard.set(number);
+    this.saveError.set(false);
+    this.challengeFailed.set(false);
   }
 
   private mount(host: HTMLElement): void {
@@ -218,6 +279,10 @@ export class BuilderCardModalComponent implements OnInit {
   }
 
   protected async save(): Promise<void> {
+    if (this.provider() === 'simulated') {
+      await this.saveSimulated();
+      return;
+    }
     if (this.phase() !== 'ready' || !this.stripe || !this.element || !this.clientSecret) {
       return;
     }
@@ -232,13 +297,64 @@ export class BuilderCardModalComponent implements OnInit {
         this.phase.set('ready');
         return;
       }
-      this.store.dispatch([new LoadBillingCard(), new LoadBillingOverview()]);
-      this.toasts.show({ message: this.copy.billingCardSaved, tone: 'success' });
-      this.ref.close(true);
+      this.saved();
     } catch {
       this.saveError.set(true);
       this.phase.set('ready');
     }
+  }
+
+  /** #791: confirm the picked test card against the simulated SetupIntent. */
+  private async saveSimulated(): Promise<void> {
+    const cardNumber = this.selectedTestCard();
+    if (this.phase() !== 'ready' || !this.setupIntentId || cardNumber === null) {
+      return;
+    }
+    this.phase.set('saving');
+    this.saveError.set(false);
+    this.challengeFailed.set(false);
+    try {
+      const result = await firstValueFrom(
+        this.api.simulatedConfirmSetup({ setupIntentId: this.setupIntentId, cardNumber }),
+      );
+      this.onSimulatedResult(result);
+    } catch {
+      this.saveError.set(true);
+      this.phase.set('ready');
+    }
+  }
+
+  /** #791: the 3DS step answered for the SetupIntent. */
+  protected onChallengeResolved(result: SimulatedIntentResponse): void {
+    this.challengeIntentId.set(null);
+    if (result.status === 'succeeded') {
+      this.saved();
+      return;
+    }
+    // Failed check: the SetupIntent is back to requires_payment_method and
+    // can be confirmed again with a (new) card.
+    this.challengeFailed.set(true);
+    this.phase.set('ready');
+  }
+
+  private onSimulatedResult(result: SimulatedIntentResponse): void {
+    if (result.status === 'succeeded') {
+      this.saved();
+      return;
+    }
+    if (result.status === 'requires_action') {
+      this.challengeIntentId.set(result.intentId);
+      this.phase.set('challenge');
+      return;
+    }
+    this.saveError.set(true);
+    this.phase.set('ready');
+  }
+
+  private saved(): void {
+    this.store.dispatch([new LoadBillingCard(), new LoadBillingOverview()]);
+    this.toasts.show({ message: this.copy.billingCardSaved, tone: 'success' });
+    this.ref.close(true);
   }
 
   protected cancel(): void {

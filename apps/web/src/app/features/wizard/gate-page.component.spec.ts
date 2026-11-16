@@ -289,6 +289,20 @@ describe('GatePageComponent', () => {
       expect(submitSpy.mock.calls[0][0].website).toBe('');
     });
 
+    it('#788: sends the elapsed form time so the API can quarantine too-fast submissions', async () => {
+      const mockApi = TestBed.inject(MockApiService);
+      const submitSpy = vi.spyOn(mockApi, 'submitLead');
+      fillValidForm();
+      submit();
+      await pollUrl('/estimate/analyzing');
+      expect(submitSpy).toHaveBeenCalledOnce();
+      const elapsedMs = submitSpy.mock.calls[0][0].elapsedMs;
+      // A whole, non-negative ms count. The threshold lives in API config,
+      // so the client only reports the measurement.
+      expect(Number.isInteger(elapsedMs)).toBe(true);
+      expect(elapsedMs).toBeGreaterThanOrEqual(0);
+    });
+
     it('HRD-03: forwards a filled honeypot value for the backend to quarantine', async () => {
       const mockApi = TestBed.inject(MockApiService);
       const submitSpy = vi.spyOn(mockApi, 'submitLead');

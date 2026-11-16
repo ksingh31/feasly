@@ -843,6 +843,10 @@ exports[`OpenAPI drift > generated spec matches the snapshot 1`] = `
       },
       "LeadRequest": {
         "properties": {
+          "elapsedMs": {
+            "description": "Milliseconds the form was on screen before submit (browser clients). Optional for API callers.",
+            "type": "number",
+          },
           "email": {
             "format": "email",
             "type": "string",
