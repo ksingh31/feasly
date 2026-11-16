@@ -741,6 +741,8 @@ export interface CommissionPaymentFailedTemplateInput {
   readonly currency: string;
   /** Days the builder has to update the card before collection steps. */
   readonly updateWithinDays: number;
+  /** 'chargeback_lost' renders the #873 "payment reversed" variant. */
+  readonly reason?: 'declined' | 'chargeback_lost';
   readonly tax?: CommissionEmailTax;
 }
 
@@ -751,6 +753,9 @@ export function renderCommissionPaymentFailedEmail(
   const cardUrl = `${ctx.appBaseUrl}/builder/billing`;
   // #714: the declined amount is what we tried to charge (incl. tax).
   const commission = formatMoney(input.tax?.totalCents ?? input.commissionCents);
+  if (input.reason === 'chargeback_lost') {
+    return renderChargebackLostEmail(ctx, input.invoiceRef, commission, input.currency, cardUrl);
+  }
   const subject = `Your card was declined — update it to settle invoice ${input.invoiceRef}`;
   const body = `<p>Hi there,</p>
 <p>We tried to charge your card on file for commission invoice <strong>${esc(input.invoiceRef)}</strong> ($${commission} ${esc(input.currency)}) but the charge was declined.</p>
@@ -763,6 +768,33 @@ ${fallbackLink(cardUrl)}`;
     `Please update your card within ${input.updateWithinDays} days — we'll retry the charge automatically once a valid card is on file.\n\n` +
     `Update card: ${cardUrl}\n\n— ${ctx.brandName}\nDeterministic cost math · not a contractor quote · cost data currently uncalibrated.`;
   return { subject, html: layout(ctx, 'Card declined', body), text };
+}
+
+/**
+ * #873: Stripe closed a bank chargeback as lost — the builder's bank took
+ * the commission payment back, but the commission is still owed (owner
+ * decision 2026-11-15), so the invoice is unpaid again and goes through
+ * normal collection.
+ */
+function renderChargebackLostEmail(
+  ctx: TemplateContext,
+  invoiceRef: string,
+  commission: string,
+  currency: string,
+  billingUrl: string,
+): RenderedEmail {
+  const subject = `Your bank reversed a payment — invoice ${invoiceRef} is unpaid again`;
+  const body = `<p>Hi there,</p>
+<p>Your bank reversed your card payment for commission invoice <strong>${esc(invoiceRef)}</strong> ($${commission} ${esc(currency)}) after a chargeback. The commission is still owed, so the invoice is now unpaid.</p>
+<p>Please check that your card on file is up to date. We&apos;ll collect the payment again from it.</p>
+${ctaButton(billingUrl, 'Review invoice')}
+${fallbackLink(billingUrl)}`;
+  const text =
+    `Hi there,\n\nYour bank reversed your card payment for commission invoice ${invoiceRef} ` +
+    `($${commission} ${currency}) after a chargeback. The commission is still owed, so the invoice is now unpaid.\n\n` +
+    `Please check that your card on file is up to date. We'll collect the payment again from it.\n\n` +
+    `Review invoice: ${billingUrl}\n\n— ${ctx.brandName}\nDeterministic cost math · not a contractor quote · cost data currently uncalibrated.`;
+  return { subject, html: layout(ctx, 'Payment reversed', body), text };
 }
 
 /* ── #712: the bank wants the builder to confirm the charge (3DS / SCA) ──
@@ -801,6 +833,77 @@ ${fallbackLink(invoiceUrl)}`;
     `Your card was not declined. Open the invoice and choose "Confirm payment with your bank" to finish.\n\n` +
     `Confirm payment: ${invoiceUrl}\n\n— ${ctx.brandName}\nDeterministic cost math · not a contractor quote · cost data currently uncalibrated.`;
   return { subject, html: layout(ctx, 'Confirm your payment', body), text };
+}
+
+/* ── #880: one-time "your card expires soon" reminder ───────────────────
+ *
+ * Sent once per saved card (dedupe by payment method id) to the builder
+ * org's admins when the card first enters the expiry warning window. The
+ * CTA opens portal Billing, where "Replace card" saves a new card. Account
+ * notice — no unsubscribe footer, no figures.
+ */
+
+export interface CardExpiryReminderTemplateInput {
+  readonly businessName: string;
+  /** Card brand as the provider reports it (`visa`, `mastercard`, …). */
+  readonly brand: string;
+  readonly last4: string;
+  /** 1-12. */
+  readonly expMonth: number;
+  readonly expYear: number;
+}
+
+const MONTH_NAMES = [
+  'January',
+  'February',
+  'March',
+  'April',
+  'May',
+  'June',
+  'July',
+  'August',
+  'September',
+  'October',
+  'November',
+  'December',
+] as const;
+
+function cardBrandLabel(brand: string): string {
+  const known: Record<string, string> = {
+    visa: 'Visa',
+    mastercard: 'Mastercard',
+    amex: 'American Express',
+    discover: 'Discover',
+    jcb: 'JCB',
+    diners: 'Diners Club',
+    unionpay: 'UnionPay',
+  };
+  const key = brand.trim().toLowerCase();
+  return known[key] ?? (key ? key.charAt(0).toUpperCase() + key.slice(1) : 'card');
+}
+
+export function renderCardExpiryReminderEmail(
+  ctx: TemplateContext,
+  input: CardExpiryReminderTemplateInput,
+): RenderedEmail {
+  const billingUrl = `${ctx.appBaseUrl}/builder/billing`;
+  const brand = cardBrandLabel(input.brand);
+  const month = MONTH_NAMES[input.expMonth - 1] ?? `month ${input.expMonth}`;
+  const expiry = `${month} ${input.expYear}`;
+  const subject = `Your ${brand} ending in ${input.last4} expires soon — replace your card`;
+  const body = `<p>Hi there,</p>
+<p>The ${esc(brand)} ending in <strong>${esc(input.last4)}</strong> that ${esc(input.businessName)} keeps on file with ${esc(ctx.brandName)} expires at the end of <strong>${esc(expiry)}</strong>.</p>
+<p>Commission invoices are charged to this card. To keep payments going through, sign in to your builder portal, open <strong>Billing</strong> and choose <strong>Replace card</strong>.</p>
+<p>This is a one-time reminder for this card.</p>
+${ctaButton(billingUrl, 'Replace card')}
+${fallbackLink(billingUrl)}`;
+  const text =
+    `Hi there,\n\nThe ${brand} ending in ${input.last4} that ${input.businessName} keeps on file with ${ctx.brandName} ` +
+    `expires at the end of ${expiry}.\n\n` +
+    `Commission invoices are charged to this card. To keep payments going through, sign in to your builder portal, ` +
+    `open Billing and choose "Replace card".\n\nThis is a one-time reminder for this card.\n\n` +
+    `Replace card: ${billingUrl}\n\n— ${ctx.brandName}`;
+  return { subject, html: layout(ctx, 'Your card expires soon', body), text };
 }
 
 /* ── Issue #530: "Mark won" → admin asked to record the contract ─────────

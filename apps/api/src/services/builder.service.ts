@@ -13,7 +13,7 @@
  * or audit details — only ids and tenant keys.
  */
 import { randomUUID } from 'node:crypto';
-import { eq } from 'drizzle-orm';
+import { count, eq } from 'drizzle-orm';
 import type {
   Builder,
   BuilderCreateBody,
@@ -21,11 +21,12 @@ import type {
   LeadAssignBuilderResponse,
 } from '@feasly/contracts';
 import type { AppDb } from '../db/client';
-import { builders, tenants } from '../db/schema';
+import { builders, commissionInvoices, tenants } from '../db/schema';
 import { ErrorCodes, HttpError } from '../middleware/errors';
 import { isUniqueViolation } from './pg-errors';
 import { readDefaultPaymentMethod } from '../lib/payment-method';
 import type { AdminAuditStore } from './admin-audit.store';
+import { normalizeBuilderStatus } from '../lib/builder-status-policy';
 import {
   createLeadAssignmentService,
   type LeadAssignmentService,
@@ -121,7 +122,20 @@ export interface BuilderServiceDeps {
 
 type BuilderRow = typeof builders.$inferSelect;
 
-const BUILDER_STATUS_RE = /^(active|inactive)$/;
+/**
+ * #860: status changes go through the lifecycle endpoint
+ * (`POST /api/v1/admin/builders/{id}/status`, reason required, audited).
+ * Create/update only accept the status the builder already has (a new
+ * builder is always 'active').
+ */
+function statusChangeRefused(): HttpError {
+  return new HttpError(
+    400,
+    ErrorCodes.VALIDATION_FAILED,
+    'Builder status changes need a reason: use POST /api/v1/admin/builders/{id}/status.',
+    false,
+  );
+}
 
 /** The default commission rate (percent) — Karan 2026-09-24: 1%. */
 const DEFAULT_COMMISSION_RATE_PERCENT = 1;
@@ -153,7 +167,7 @@ function parseCommissionRatePercent(value: unknown): number | undefined {
   return value;
 }
 
-function toContract(row: BuilderRow): Builder {
+export function toBuilderContract(row: BuilderRow): Builder {
   return {
     id: row.id,
     tenantKey: row.tenantKey,
@@ -165,7 +179,11 @@ function toContract(row: BuilderRow): Builder {
     accentColor: row.accentColor,
     allowedOrigins: [...row.allowedOrigins],
     plan: row.plan,
-    status: row.status === 'inactive' ? 'inactive' : 'active',
+    // Unknown values fail closed (read as suspended).
+    status: normalizeBuilderStatus(row.status) ?? 'suspended',
+    statusReason: row.statusReason ?? null,
+    statusChangedAt: row.statusChangedAt ? row.statusChangedAt.toISOString() : null,
+    statusChangedBy: row.statusChangedBy ?? null,
     settings: { ...row.settings },
     commissionRatePercent: row.commissionRatePercent,
     createdAt: row.createdAt.toISOString(),
@@ -285,18 +303,28 @@ export function createBuilderService(deps: BuilderServiceDeps): BuilderService {
       const rows = await db.query.builders.findMany({
         orderBy: (t, { desc }) => [desc(t.createdAt)],
       });
-      return rows.map(toContract);
+      // #873: flag builders with a live bank chargeback (one grouped query).
+      const open = await db
+        .select({ tenantKey: commissionInvoices.tenantKey, n: count() })
+        .from(commissionInvoices)
+        .where(eq(commissionInvoices.chargebackStatus, 'open'))
+        .groupBy(commissionInvoices.tenantKey);
+      const openByTenant = new Map(open.map((r) => [r.tenantKey, Number(r.n)]));
+      return rows.map((row) => ({
+        ...toBuilderContract(row),
+        openChargebacks: openByTenant.get(row.tenantKey) ?? 0,
+      }));
     },
 
     async getBuilder(id: string): Promise<Builder> {
-      return toContract(await getRowById(id));
+      return toBuilderContract(await getRowById(id));
     },
 
     async getByTenantKey(tenantKey: string): Promise<Builder | null> {
       const row = await db.query.builders.findFirst({
         where: eq(builders.tenantKey, tenantKey),
       });
-      return row === undefined ? null : toContract(row);
+      return row === undefined ? null : toBuilderContract(row);
     },
 
     async createBuilder(
@@ -315,14 +343,7 @@ export function createBuilderService(deps: BuilderServiceDeps): BuilderService {
         );
       }
       const status = input.status ?? 'active';
-      if (!BUILDER_STATUS_RE.test(status)) {
-        throw new HttpError(
-          400,
-          ErrorCodes.VALIDATION_FAILED,
-          'status must be "active" or "inactive".',
-          false,
-        );
-      }
+      if (status !== 'active') throw statusChangeRefused();
       // Check-then-insert race: the pre-check above catches the common
       // case, but two concurrent creates can both pass it. Map the
       // insert-time unique violation to the same 409 as the pre-check
@@ -375,7 +396,7 @@ export function createBuilderService(deps: BuilderServiceDeps): BuilderService {
         action: 'admin_builder_created',
         detail: `builderId=${row.id} tenantKey=${row.tenantKey} commissionRatePercent=${row.commissionRatePercent}`,
       });
-      return toContract(row);
+      return toBuilderContract(row);
     },
 
     async updateBuilder(
@@ -398,16 +419,11 @@ export function createBuilderService(deps: BuilderServiceDeps): BuilderService {
       if (input.allowedOrigins !== undefined)
         patch.allowedOrigins = normalizeOrigins(input.allowedOrigins);
       if (input.plan !== undefined) patch.plan = input.plan?.trim() || null;
-      if (input.status !== undefined) {
-        if (!BUILDER_STATUS_RE.test(input.status)) {
-          throw new HttpError(
-            400,
-            ErrorCodes.VALIDATION_FAILED,
-            'status must be "active" or "inactive".',
-            false,
-          );
-        }
-        patch.status = input.status;
+      if (
+        input.status !== undefined &&
+        input.status !== normalizeBuilderStatus(current.status)
+      ) {
+        throw statusChangeRefused();
       }
       if (input.settings !== undefined) patch.settings = { ...input.settings };
       const newRatePercent = parseCommissionRatePercent(
@@ -455,7 +471,7 @@ export function createBuilderService(deps: BuilderServiceDeps): BuilderService {
             `from=${fromDefaultMethod} to=${input.defaultPaymentMethod}`,
         });
       }
-      const builder = toContract(row);
+      const builder = toBuilderContract(row);
       await syncBillingProfile(current, row, builder);
       if (
         deps.onAllowedOriginsChanged &&
@@ -506,7 +522,7 @@ export function createBuilderService(deps: BuilderServiceDeps): BuilderService {
           `builderId=${row.id} tenantKey=${row.tenantKey} ` +
           `fields=${changed.length > 0 ? changed.join(',') : 'none'}`,
       });
-      const builder = toContract(row);
+      const builder = toBuilderContract(row);
       await syncBillingProfile(current, row, builder);
       return builder;
     },

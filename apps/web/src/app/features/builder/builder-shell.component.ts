@@ -21,7 +21,9 @@ import { SeoService } from '../../core/seo/seo.service';
 import { BUILDER_COPY, provideBuilderCopy } from './builder-copy';
 import { BrandMarkComponent } from '../../shared/components/brand-mark';
 import { ViewAsBannerComponent } from '../../shared/view-as-banner';
+import { BuilderPausedComponent } from './builder-paused.component';
 import {
+  DismissBuilderAccountPaused,
   ExitBuilderViewAs,
   LoadBuilderLeads,
   LoadBuilderMemberships,
@@ -40,6 +42,11 @@ const MONEY_PATHS = [
   '/builder/invoices',
   '/builder/billing',
 ] as const;
+
+/** A router URL without its query string or fragment. */
+function urlPath(url: string): string {
+  return url.split(/[?#]/)[0];
+}
 
 /** Whether a router URL sits inside the Money section. */
 export function isMoneyUrl(url: string): boolean {
@@ -70,6 +77,10 @@ export function isLeadsUrl(url: string): boolean {
  * - A failed-card danger strip persists across every shell page (admins —
  *   billing is admin-only backend-side) until the failed invoice resolves.
  *
+ * - #861: when the API refuses a call with 403 BUILDER_PAUSED, the page
+ *   is swapped for the "Your account is paused" screen until the builder
+ *   navigates to another page (e.g. invoices, which stay viewable).
+ *
  * noindex,nofollow via the robots guard; excluded from prerendering.
  */
 @Component({
@@ -77,6 +88,7 @@ export function isLeadsUrl(url: string): boolean {
   standalone: true,
   imports: [
     BrandMarkComponent,
+    BuilderPausedComponent,
     RouterLink,
     RouterLinkActive,
     RouterOutlet,
@@ -114,6 +126,9 @@ export class BuilderShellComponent {
   protected readonly viewAsBanner = this.store.selectSignal(
     BuilderState.viewAsBanner,
   );
+
+  /** #861: the org's account is paused (403 BUILDER_PAUSED seen). */
+  protected readonly accountPaused = this.store.selectSignal(BuilderState.accountPaused);
 
   private readonly actionableInvoices = this.store.selectSignal(
     BuilderInvoicesState.actionableInvoices,
@@ -190,7 +205,13 @@ export class BuilderShellComponent {
       )
       .subscribe((event) => {
         const wasInLeads = this.inLeads();
-        this.url.set((event as NavigationEnd).urlAfterRedirects);
+        const next = (event as NavigationEnd).urlAfterRedirects;
+        // #861: leaving the page leaves the paused screen. Query-only
+        // changes (a drawer's ?open= closing) keep it up.
+        if (urlPath(next) !== urlPath(this.url())) {
+          this.store.dispatch(new DismissBuilderAccountPaused());
+        }
+        this.url.set(next);
         this.accountOpen.set(false);
         // Entering Leads clears the badge; leaving it marks leads that
         // arrived during the visit as seen too.

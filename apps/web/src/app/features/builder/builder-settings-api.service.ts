@@ -3,6 +3,8 @@ import { inject, Injectable } from '@angular/core';
 import { catchError, timeout } from 'rxjs';
 import type { Observable } from 'rxjs';
 import type {
+  BuilderAccountClosureBody,
+  BuilderAccountClosureResponse,
   BuilderEmbedResponse,
   BuilderNotificationPreferencesResponse,
   BuilderNotificationPreferencesUpdateBody,
@@ -24,6 +26,8 @@ import { toApiError } from '../../core/api/api-error';
  * - `GET/PUT /api/v1/builder/notifications/preferences` — the signed-in
  *   member's email preferences (#864; API in #725). `PUT` → 409
  *   LAST_ADMIN for the last billing admin, 403 while viewing as a teammate.
+ * - `POST /api/v1/builder/account/close-request` — "Close my account"
+ *   (#861; one admin task, no self-serve deletion).
  *
  * Org-scoped server-side (the session's builder); writes are owner-only
  * and refused while viewing as a teammate — the UI mirrors `canEdit`.
@@ -90,6 +94,14 @@ export class BuilderSettingsApiService {
         body,
         { withCredentials: true },
       ),
+    );
+  }
+
+  requestAccountClosure(body: BuilderAccountClosureBody): Observable<BuilderAccountClosureResponse> {
+    return this.call(
+      this.http.post<BuilderAccountClosureResponse>(`${this.base}/account/close-request`, body, {
+        withCredentials: true,
+      }),
     );
   }
 }

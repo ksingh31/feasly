@@ -9,6 +9,7 @@ import { catchError, tap } from 'rxjs/operators';
 import type { Observable } from 'rxjs';
 import { Action, provideStates, Selector, State, StateContext } from '@ngxs/store';
 import type {
+  BuilderAccountClosureBody,
   BuilderEmbedResponse,
   BuilderNotificationPreferencesResponse,
   BuilderNotificationPreferencesUpdateBody,
@@ -53,6 +54,12 @@ export class SaveBuilderNotificationPreferences {
   constructor(public readonly body: BuilderNotificationPreferencesUpdateBody) {}
 }
 
+/** #861: "Close my account" — files one admin task (org owners only). */
+export class RequestBuilderAccountClosure {
+  static readonly type = '[BuilderSettings] Request account closure';
+  constructor(public readonly body: BuilderAccountClosureBody) {}
+}
+
 /** Clear the last save / request error. */
 export class ClearBuilderSettingsErrors {
   static readonly type = '[BuilderSettings] Clear errors';
@@ -87,6 +94,12 @@ export interface BuilderSettingsStateModel {
   notificationsSaving: boolean;
   /** The API's message for the last failed save (409/403…); '' = no message. */
   notificationsError: string | null;
+  /** #861: closure request in flight (busy guard). */
+  closing: boolean;
+  /** The API's message for the last failed closure request; '' = no message. */
+  closeError: string | null;
+  /** Outcome of the last closure request (same shape as origin requests). */
+  closeOutcome: BuilderOriginRequestOutcome;
 }
 
 const defaults: BuilderSettingsStateModel = {
@@ -105,6 +118,9 @@ const defaults: BuilderSettingsStateModel = {
   notificationsStatus: 'idle',
   notificationsSaving: false,
   notificationsError: null,
+  closing: false,
+  closeError: null,
+  closeOutcome: null,
 };
 
 function errorMessage(err: unknown): string {
@@ -205,6 +221,21 @@ export class BuilderSettingsState {
   @Selector()
   static notificationsError(state: BuilderSettingsStateModel): string | null {
     return state.notificationsError;
+  }
+
+  @Selector()
+  static closing(state: BuilderSettingsStateModel): boolean {
+    return state.closing;
+  }
+
+  @Selector()
+  static closeError(state: BuilderSettingsStateModel): string | null {
+    return state.closeError;
+  }
+
+  @Selector()
+  static closeOutcome(state: BuilderSettingsStateModel): BuilderOriginRequestOutcome {
+    return state.closeOutcome;
   }
 
   @Action(LoadBuilderProfile)
@@ -324,6 +355,24 @@ export class BuilderSettingsState {
     );
   }
 
+  @Action(RequestBuilderAccountClosure)
+  requestAccountClosure(
+    ctx: StateContext<BuilderSettingsStateModel>,
+    action: RequestBuilderAccountClosure,
+  ): Observable<unknown> {
+    if (ctx.getState().closing) return of(null);
+    ctx.patchState({ closing: true, closeError: null, closeOutcome: null });
+    return this.api.requestAccountClosure(action.body).pipe(
+      tap((res) => {
+        ctx.patchState({ closing: false, closeOutcome: res.created ? 'created' : 'duplicate' });
+      }),
+      catchError((err: unknown) => {
+        ctx.patchState({ closing: false, closeError: errorMessage(err) });
+        return of(null);
+      }),
+    );
+  }
+
   @Action(ClearBuilderSettingsErrors)
   clearErrors(ctx: StateContext<BuilderSettingsStateModel>): void {
     ctx.patchState({
@@ -331,6 +380,8 @@ export class BuilderSettingsState {
       requestError: null,
       requestOutcome: null,
       notificationsError: null,
+      closeError: null,
+      closeOutcome: null,
     });
   }
 }

@@ -255,6 +255,18 @@ const targets = [
     out: 'admin-builders-detail/index.js',
   },
   {
+    entry: 'src/functions/admin-builders-status.ts',
+    out: 'admin-builders-status/index.js',
+  },
+  {
+    entry: 'src/functions/admin-builders-offboarding-blockers.ts',
+    out: 'admin-builders-offboarding-blockers/index.js',
+  },
+  {
+    entry: 'src/functions/admin-builders-export.ts',
+    out: 'admin-builders-export/index.js',
+  },
+  {
     entry: 'src/functions/admin-partners.ts',
     out: 'admin-partners/index.js',
   },
@@ -416,6 +428,10 @@ const targets = [
   {
     entry: 'src/functions/builder-embed.ts',
     out: 'builder-embed/index.js',
+  },
+  {
+    entry: 'src/functions/builder-account-close-request.ts',
+    out: 'builder-account-close-request/index.js',
   },
   {
     entry: 'src/functions/builder-embed-origin-requests.ts',

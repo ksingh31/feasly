@@ -42,6 +42,7 @@ import type {
 } from './builder-notification.store';
 import type { EmailService } from './email/email.service';
 import type { BuilderDigestLeadLine } from './email/templates';
+import { builderStatusAllows } from '../lib/builder-status-policy';
 
 const MS_PER_HOUR = 3_600_000;
 const MS_PER_DAY = 86_400_000;
@@ -328,7 +329,10 @@ export function createBuilderNotificationsService(
     };
 
     const builder = await lookups.builder(row.builderId);
-    if (builder === null || builder.status !== 'active') return skip('builder-inactive');
+    // #860 policy: a builder that takes no new leads gets no new-lead mail.
+    if (builder === null || !builderStatusAllows(builder.status, 'newLeads')) {
+      return skip('builder-inactive');
+    }
     const member = await store.findActiveMember(row.builderId, { userId: row.userId });
     if (member === null) return skip('not-a-member');
 

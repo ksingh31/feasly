@@ -22,6 +22,30 @@
         ui-button
         variant="secondary"
         size="sm"
+        data-testid="sim-dispute-won"
+        [loading]="busy() === 'dispute_won'"
+        [disabled]="busy() !== null"
+        (click)="fire('dispute_won')"
+      >
+        Close dispute: won
+      </button>
+      <button
+        type="button"
+        ui-button
+        variant="secondary"
+        size="sm"
+        data-testid="sim-dispute-lost"
+        [loading]="busy() === 'dispute_lost'"
+        [disabled]="busy() !== null"
+        (click)="fire('dispute_lost')"
+      >
+        Close dispute: lost
+      </button>
+      <button
+        type="button"
+        ui-button
+        variant="secondary"
+        size="sm"
         data-testid="sim-delayed-failure"
         [loading]="busy() === 'delayed_failure'"
         [disabled]="busy() !== null"

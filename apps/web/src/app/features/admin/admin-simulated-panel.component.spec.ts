@@ -123,6 +123,19 @@ describe('AdminSimulatedPanelComponent (#791)', () => {
     expect(q(el, 'sim-delayed-failure')?.textContent).toContain('Delayed failure');
   });
 
+  it.each([
+    ['sim-dispute-won', 'Close dispute: won', 'dispute_won' as const],
+    ['sim-dispute-lost', 'Close dispute: lost', 'dispute_lost' as const],
+  ])('%s posts { kind: "%s" } (#872)', async (testId, label, kind) => {
+    const { el, fixture, api, fired } = await setup({ provider: 'simulated' });
+    const button = q(el, testId);
+    expect(button?.textContent).toContain(label);
+    button!.click();
+    await settle(fixture);
+    expect(api.fireSimulatedInvoiceEvent).toHaveBeenCalledWith('7b0c8a3e-1f2d-4c5b-9a8e-0d1c2b3a4f5e', { kind });
+    expect(fired).toHaveLength(1);
+  });
+
   it.each([['stripe' as const], [undefined]])('never renders for provider %s (AC2)', async (provider) => {
     const { el } = await setup({ provider });
     expect(q(el, 'simulated-dev-panel')).toBeNull();

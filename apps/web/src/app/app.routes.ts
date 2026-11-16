@@ -143,6 +143,13 @@ export const routes: Routes = [
   // table + check-prerender-seo.mjs treat them as crawlable like privacy/terms.
   { path: 'how-it-works', component: HowItWorksPageComponent, canActivate: [robotsGuard] },
   { path: 'faq', component: FaqPageComponent, canActivate: [robotsGuard] },
+  // Help + contact (#834): indexable, lazy-loaded (prerender follows
+  // loadComponent routes, same as the guides).
+  {
+    path: 'help',
+    loadComponent: () => import('./features/marketing/help-page.component').then((m) => m.HelpPageComponent),
+    canActivate: [robotsGuard],
+  },
   // Pillar guide (SEO pillar): long-form cost guide — indexable like the
   // other marketing pages. Anchors the /guides/ section for future guides.
   // Lazy-loaded: prerendering follows loadComponent routes, so SEO is
@@ -389,12 +396,22 @@ export const routes: Routes = [
       // Dispute console (billing/01 follow-on, was OPS-009): open disputes
       // oldest-first with reason, immutable evidence snapshot, 5-business-day
       // SLA countdown, and accept/reject resolution.
+      // #872: the chargeback drawer reads BillingHealthState's provider
+      // (the "View in Stripe" link hides for the simulated provider) —
+      // lazy-registered here like /billing.
       {
         path: 'disputes',
         loadComponent: () =>
           import('./features/admin/admin-disputes.component').then(
             (m) => m.AdminDisputesComponent,
           ),
+        canActivate: [
+          lazyProvider(
+            async () =>
+              (await import('./features/admin/billing-health.state'))
+                .billingHealthStateProvider,
+          ),
+        ],
       },
       {
         path: 'calibration',

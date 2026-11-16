@@ -226,6 +226,7 @@ describe('billing webhook service', () => {
       chargebacks: createChargebackService({
         db: testDb.db,
         audit,
+        commission,
         email,
         opsInbox: 'ops@example.com',
       }),
@@ -471,6 +472,7 @@ describe('billing webhook service', () => {
       chargebacks: createChargebackService({
         db: testDb.db,
         audit,
+        commission,
         email,
         opsInbox: 'ops@example.com',
       }),
@@ -826,6 +828,7 @@ describe('billing webhook service', () => {
       chargebacks: createChargebackService({
         db: testDb.db,
         audit,
+        commission,
         email,
         opsInbox: 'ops@example.com',
       }),
@@ -876,6 +879,7 @@ describe('billing webhook service', () => {
       chargebacks: createChargebackService({
         db: testDb.db,
         audit,
+        commission,
         email,
         opsInbox: 'ops@example.com',
       }),

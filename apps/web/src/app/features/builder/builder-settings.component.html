@@ -426,6 +426,23 @@
           }
         </ul>
       </div>
+      <div class="settings__block" data-testid="close-account">
+        <h2 class="settings__h2">{{ copy.closeHeading }}</h2>
+        <p class="settings__muted">{{ copy.closeIntro }}</p>
+        @if (canEdit()) {
+          <button
+            type="button"
+            ui-button
+            variant="secondary"
+            data-testid="close-account-request"
+            (click)="openCloseAccount()"
+          >
+            {{ copy.closeButton }}
+          </button>
+        } @else if (profile()) {
+          <p class="settings__note" role="note">{{ copy.closeOwnerOnly }}</p>
+        }
+      </div>
     </section>
   }
 </ui-page-layout>

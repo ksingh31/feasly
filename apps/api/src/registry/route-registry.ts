@@ -885,6 +885,18 @@ export const ROUTE_REGISTRY: readonly ApiRouteEntry[] = [
       'the team inbox. Audit-logged.',
   },
   {
+    method: 'POST',
+    path: '/api/v1/builder/account/close-request',
+    auth: 'builder-session',
+    permissions: ['builder:settings:manage'] as const,
+    rateLimit: '100/min per session',
+    status: 'live',
+    summary:
+      'Org owner asks Feasly to close the builder account (#860). Creates ' +
+      'one open admin task per builder (a repeat returns created: false) ' +
+      'and emails the team inbox. No self-serve deletion. Audit-logged.',
+  },
+  {
     method: 'PATCH',
     path: '/api/v1/builder/leads/{id}',
     auth: 'builder-session',
@@ -1166,6 +1178,43 @@ export const ROUTE_REGISTRY: readonly ApiRouteEntry[] = [
     summary:
       'Update a builder. tenant_key is immutable; 404 when unknown; ' +
       'audit-logged with ids only, no contact PII.',
+  },
+  {
+    method: 'POST',
+    path: '/api/v1/admin/builders/{id}/status',
+    auth: 'admin',
+    permissions: ['builders:manage'] as const,
+    rateLimit: '60/min per session',
+    status: 'live',
+    summary:
+      'Builder lifecycle action (#860): suspend, reactivate, ' +
+      'start_offboarding or complete_offboarding, with a mandatory reason. ' +
+      'Complete is refused (409 OFFBOARDING_BLOCKED) while an invoice is ' +
+      'unpaid or a dispute is open; on success it revokes sessions and API ' +
+      'keys and detaches the card. Audit-logged with the admin identity.',
+  },
+  {
+    method: 'GET',
+    path: '/api/v1/admin/builders/{id}/offboarding-blockers',
+    auth: 'admin',
+    permissions: ['builders:manage'] as const,
+    rateLimit: '60/min per session',
+    status: 'live',
+    summary:
+      'What blocks "complete offboarding" for one builder right now (#861): ' +
+      'unpaid invoices and open disputes, each naming the invoice. Empty ' +
+      'list = nothing blocks. Read-only; drives the admin offboarding checklist.',
+  },
+  {
+    method: 'GET',
+    path: '/api/v1/admin/builders/{id}/export.csv',
+    auth: 'admin',
+    permissions: ['builders:manage'] as const,
+    rateLimit: '10/min per session',
+    status: 'live',
+    summary:
+      'CSV hand-over export of one builder\'s leads (kind=leads) or ' +
+      'invoices (kind=invoices) (#860). Audit-logged with row counts only.',
   },
   {
     method: 'GET',

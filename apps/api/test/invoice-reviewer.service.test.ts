@@ -41,6 +41,7 @@ import {
 import { createTestDb, type TestDb } from './pglite-db';
 
 import type { BillingConfig } from '../src/config';
+import { BUILDER_STATUSES, BUILDER_STATUS_POLICY } from '@feasly/contracts';
 
 const BILLING: BillingConfig = {
   model: 'commission',
@@ -127,6 +128,7 @@ function newFixtures(
   testDb: TestDb,
   stripe: StripeService,
   billing = BILLING,
+  builderStatus?: (tenantKey: string) => Promise<string | null>,
 ): Fixtures {
   const email = fakeEmail();
   const attribution = createAttributionService({
@@ -155,6 +157,7 @@ function newFixtures(
     commission,
     audit,
     stripe,
+    ...(builderStatus ? { builderStatus } : {}),
   });
   return { reviewer, commission, attribution };
 }
@@ -251,6 +254,28 @@ describe('invoice reviewer timer', () => {
     const invoice = await commission.getById(invoiceId);
     expect(invoice.status).toBe('finalized');
     expect(invoice.stripePaymentIntentId).toMatch(/^pi_reviewer_/);
+  });
+
+  // #860: auto-charge enforcement point — one test per builder status.
+  it.each(BUILDER_STATUSES)('a %s builder\'s due invoice follows the autoCharge policy', async (status) => {
+    const { reviewer, commission, attribution } = newFixtures(
+      testDb,
+      fakeStripe(),
+      BILLING,
+      async () => status,
+    );
+    const invoiceId = await seedInvoice(testDb, attribution, commission, 50_000_000);
+    const result = await reviewer.runReviewCycle(new Date('2026-10-02T00:00:00.000Z'));
+    const invoice = await commission.getById(invoiceId);
+    if (BUILDER_STATUS_POLICY[status].autoCharge) {
+      expect(result.finalized).toBe(1);
+      expect(invoice.status).toBe('finalized');
+    } else {
+      expect(result.finalized).toBe(0);
+      expect(result.skipped).toBe(1);
+      expect(invoice.status).toBe('in_review');
+      expect(invoice.stripePaymentIntentId).toBeNull();
+    }
   });
 
   it('skips invoices whose review window has not passed yet', async () => {

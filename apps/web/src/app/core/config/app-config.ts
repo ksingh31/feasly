@@ -497,8 +497,59 @@ export interface BuilderCopy {
   cardModalClose: string;
   /** #791: test-mode (simulated payment provider) card picker + 3DS step. */
   simulated: BuilderSimulatedPaymentsCopy;
+  /** #879: card lifecycle — expiry notices, replace and remove card. */
+  cardLifecycle: BuilderCardLifecycleCopy;
   /** #871: builder Settings page (Profile & branding, Embed, Help). */
   settings: BuilderSettingsCopy;
+  /** #861: the "Your account is paused" screen (403 BUILDER_PAUSED). */
+  paused: BuilderPausedCopy;
+}
+
+/**
+ * #879 card lifecycle copy (Money + Billing pages, card modal). The expiry
+ * window itself is server-side (BILLING_CARD_EXPIRY_WARNING_DAYS) — the
+ * client only renders the API's `expiresSoon` / `expired` flags.
+ */
+export interface BuilderCardLifecycleCopy {
+  /** Notice heading when the card expires within the warning window. */
+  expiresSoonHeading: string;
+  /** Notice body: {last4} = card last 4, {exp} = MM/YY. */
+  expiresSoonBody: string;
+  /** Notice heading when the card's expiry month has ended. */
+  expiredHeading: string;
+  /** Notice body: {last4} = card last 4, {exp} = MM/YY. */
+  expiredBody: string;
+  /** Notice action: opens the card modal. */
+  replace: string;
+  /** Builder-admin action that starts the remove confirm step. */
+  remove: string;
+  /** Confirm step heading. */
+  removeConfirmHeading: string;
+  /** Confirm step body. */
+  removeConfirmBody: string;
+  /** Confirm step: go ahead. */
+  removeConfirm: string;
+  /** Confirm step: back out. */
+  removeCancel: string;
+  /** Confirm button while the DELETE is in flight. */
+  removing: string;
+  /** Toast after removal. */
+  removed: string;
+  /** Any non-409 removal failure. */
+  removeFailed: string;
+  /** Card modal: saving a card replaces the one on file (one card per builder). */
+  modalReplaceNote: string;
+}
+
+/** #861: shown instead of a generic error when the org's account is paused. */
+export interface BuilderPausedCopy {
+  heading: string;
+  /** Fallback body when the API sent no message. */
+  body: string;
+  /** Extra line for org owners: invoices stay viewable and payable. */
+  invoicesNote: string;
+  contactLabel: string;
+  invoicesLabel: string;
 }
 
 /** One link on the builder Settings Help tab. */
@@ -618,6 +669,21 @@ export interface BuilderSettingsCopy {
   notifyBillingLockedNote: string;
   notificationsSavedToast: string;
   notificationsSaveError: string;
+  /** #861 "Close my account" (Help tab, org owners). No self-serve deletion. */
+  closeHeading: string;
+  closeIntro: string;
+  closeOwnerOnly: string;
+  closeButton: string;
+  closeModalHeading: string;
+  closeModalIntro: string;
+  closeNoteLabel: string;
+  /** {max} = character limit. */
+  closeNoteHint: string;
+  closeSubmit: string;
+  closeCancel: string;
+  closeError: string;
+  closeCreatedToast: string;
+  closeDuplicateToast: string;
 }
 
 /**
@@ -752,6 +818,12 @@ export interface BuilderInvoiceDrawerCopy {
   changeMethodAria: string;
   timelineHeading: string;
   timelineEmpty: string;
+  /** #872: refunds + bank-dispute section heading. */
+  recoveryHeading: string;
+  /** #872: cumulative refunded amount row label. */
+  refundedLabel: string;
+  /** #872: bank chargeback state row label. */
+  chargebackLabel: string;
   actionsHeading: string;
   questionInvoice: string;
   /** #661: invoice PDF/receipt download button. */
@@ -953,6 +1025,54 @@ export interface HowWeEstimateBand {
 export type FormulaGroupKey = 'hard' | 'soft' | 'contingency';
 
 /**
+ * Config-owned FAQ lists a help answer (#834) can reuse:
+ * `copy.marketing.faq.items`, `copy.marketing.pillarGuide.faqs`,
+ * `copy.marketing.zoningGuide.faqs`, `copy.communities.faqItems`.
+ */
+export type HelpAnswerSource = 'faq' | 'pillarGuide' | 'zoningGuide' | 'communities';
+
+/**
+ * Help page (#834) at `/help`: answers grouped by topic, reused from
+ * the config-owned FAQ lists (never duplicated here), plus contact.
+ * Each answer references a question by its exact `q` text in one of
+ * the FAQ sources; unknown references are dropped at render and
+ * pinned by `help-page.component.spec.ts`.
+ *
+ * Not part of {@link AppConfig}: lazy-loaded with the help page
+ * (`features/marketing/help-copy.ts`) to keep it out of the initial bundle
+ * (Lighthouse script-size budget). Deploy overrides still live under
+ * `copy.marketing.help` in app-config.json.
+ */
+export interface HelpCopy {
+  eyebrow: string;
+  title: string;
+  /** Answer-first passage (SEO standard §2.1). */
+  answer: string;
+  searchLabel: string;
+  searchPlaceholder: string;
+  /** Live result count. Placeholders: {count}. */
+  resultsTemplate: string;
+  resultsOne: string;
+  noResults: string;
+  clearSearch: string;
+  topics: {
+    id: string;
+    title: string;
+    answers: { source: HelpAnswerSource; q: string }[];
+  }[];
+  linksTitle: string;
+  howWeEstimateLabel: string;
+  faqLabel: string;
+  statusLabel: string;
+  contactTitle: string;
+  contactIntro: string;
+  callbackTitle: string;
+  callbackBody: string;
+  callbackFindReport: string;
+  callbackStartEstimate: string;
+}
+
+/**
  * How it works worked example (#827): a sample home priced by the cost
  * engine at generation time (estimate-scope.generated.ts). Display only.
  */
@@ -1064,6 +1184,12 @@ export interface AppConfig {
      * the minted invoice's own `reviewDueAt` is shown once it does.
      */
     chargeDelayDays: number;
+    /**
+     * Stripe dashboard origin for the admin "View in Stripe" chargeback
+     * link (#872). Live disputes open `<base>/disputes/<dp_…>`; test-mode
+     * disputes open `<base>/test/disputes/<dp_…>`.
+     */
+    stripeDashboardBaseUrl: string;
     /**
      * #867: after the builder confirms a payment with their bank, the
      * invoice drawer re-fetches the invoice every `confirmPollIntervalMs`
@@ -1204,6 +1330,8 @@ export interface AppConfig {
     builderLogoUrlMaxLength: number;
     builderOriginRequestMaxOrigins: number;
     builderOriginRequestNoteMaxLength: number;
+    /** #861: optional note on a "Close my account" request (API max 1000). */
+    builderAccountClosureNoteMaxLength: number;
   };
   /**
    * What a new-build estimate includes and leaves out (#824, owner decision
@@ -2087,6 +2215,8 @@ export interface AppConfig {
       howItWorks: string;
       faqTitle: string;
       faq: string;
+      helpTitle: string;
+      help: string;
       pillarGuideTitle: string;
       pillarGuide: string;
       zoningGuideTitle: string;

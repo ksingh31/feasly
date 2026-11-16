@@ -17,6 +17,7 @@ import { builders } from '../src/db/schema';
 import type { AppDb } from '../src/db/client';
 import { ErrorCodes, HttpError } from '../src/middleware/errors';
 import { createTestDb, type TestDb } from './pglite-db';
+import { BUILDER_STATUSES, BUILDER_STATUS_POLICY } from '@feasly/contracts';
 
 const FILE_CONFIG = {
   tenant_key: 'elite-craft-builders',
@@ -160,6 +161,29 @@ describe('builder-config service', () => {
     expect((error as HttpError).status).toBe(404);
     expect((error as HttpError).code).toBe(ErrorCodes.UNKNOWN_TENANT);
   });
+
+  // #860: embed enforcement point — one test per status.
+  it.each(BUILDER_STATUSES.map((status, i) => [status, i] as const))(
+    'embed config for a %s builder follows the policy',
+    async (status, i) => {
+      const tenantKey = `policy-${status}`;
+      await testDb.db.insert(builders).values({
+        id: `44444444-4444-4444-8444-44444444440${i}`,
+        tenantKey,
+        businessName: 'Policy Builder',
+        displayName: 'Policy',
+        accentColor: '#000000',
+        status,
+      });
+      const service = serviceWith({}, testDb.db);
+      const result = await service.getByKey(tenantKey).catch((e: unknown) => e);
+      if (BUILDER_STATUS_POLICY[status].embed) {
+        expect(result).toMatchObject({ display_name: 'Policy' });
+      } else {
+        expect(result).toMatchObject({ status: 404, code: ErrorCodes.UNKNOWN_TENANT });
+      }
+    },
+  );
 
   it('throws 404 UNKNOWN_TENANT when neither DB nor JSON has the key', async () => {
     const service = serviceWith(

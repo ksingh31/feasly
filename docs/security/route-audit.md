@@ -110,6 +110,7 @@ Related: [rate-limits.md](rate-limits.md) · [asvs-l1.md](asvs-l1.md) ·
 | PUT | `/api/v1/builder/profile` | builder-session | builder:settings:manage | 100/min per session | live |  |
 | GET | `/api/v1/builder/embed` | builder-session | builder:leads:read | 100/min per session | live |  |
 | POST | `/api/v1/builder/embed/origin-requests` | builder-session | builder:settings:manage | 100/min per session | live |  |
+| POST | `/api/v1/builder/account/close-request` | builder-session | builder:settings:manage | 100/min per session | live |  |
 | PATCH | `/api/v1/builder/leads/{id}` | builder-session | builder:leads:manage | 100/min per session | live |  |
 | POST | `/api/v1/builder/leads/{id}/mark-won` | builder-session | builder:leads:manage | 100/min per session | live |  |
 | GET | `/api/v1/builder/leads/{leadId}/comments` | builder-session | builder:leads:read | 100/min per session | live |  |
@@ -136,6 +137,9 @@ Related: [rate-limits.md](rate-limits.md) · [asvs-l1.md](asvs-l1.md) ·
 | POST | `/api/v1/admin/builders` | admin | builders:manage | 60/min per session | live |  |
 | GET | `/api/v1/admin/builders/{id}` | admin | builders:read | 300/min per session | live |  |
 | PATCH | `/api/v1/admin/builders/{id}` | admin | builders:manage | 60/min per session | live |  |
+| POST | `/api/v1/admin/builders/{id}/status` | admin | builders:manage | 60/min per session | live |  |
+| GET | `/api/v1/admin/builders/{id}/offboarding-blockers` | admin | builders:manage | 60/min per session | live |  |
+| GET | `/api/v1/admin/builders/{id}/export.csv` | admin | builders:manage | 10/min per session | live |  |
 | GET | `/api/v1/admin/partners` | admin | builders:read | 300/min per session | live |  |
 | POST | `/api/v1/admin/partners` | admin | builders:manage | 60/min per session | live |  |
 | PATCH | `/api/v1/admin/partners/{id}` | admin | builders:manage | 60/min per session | live |  |

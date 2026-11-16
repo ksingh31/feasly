@@ -540,8 +540,18 @@ export const builders = pgTable('builders', {
     .default([]),
   /** 'flat' | 'commission' | null (undecided). */
   plan: text('plan'),
-  /** 'active' | 'inactive' — inactive builders can't bill or embed. */
+  /**
+   * #860 lifecycle: 'active' | 'suspended' | 'offboarding' | 'offboarded'.
+   * What each allows is lib/builder-status-policy.ts. Legacy 'inactive'
+   * rows were migrated to 'suspended' (migration 0067).
+   */
   status: text('status').notNull().default('active'),
+  /** #860: why the status last changed (admin-entered). Null = never changed. */
+  statusReason: text('status_reason'),
+  /** #860: when the status last changed. */
+  statusChangedAt: timestamp('status_changed_at', { withTimezone: true }),
+  /** #860: admin email that last changed the status. */
+  statusChangedBy: text('status_changed_by'),
   /**
    * Negotiated commission rate, in PERCENT (e.g. 1.5 = 1.5%). Defaults to
    * 1 (Karan 2026-09-24 decision); editable in the admin portal
@@ -1086,6 +1096,29 @@ export const billingEvents = pgTable(
     index('billing_events_entity_idx').on(t.entityType, t.entityId),
   ],
 );
+
+/**
+ * Card-expiry reminders (#880). One row per saved card (payment method id)
+ * that has been sent its one-time "your card expires soon" email.
+ *
+ * The primary key IS the dedupe guarantee: the daily timer claims a card
+ * with `INSERT … ON CONFLICT DO NOTHING RETURNING` before sending, so a
+ * timer retry, a redelivery or two scaled-out instances can never send a
+ * second email for the same card. A replaced card has a new payment method
+ * id, so it gets its own reminder. A claim whose every send failed is
+ * deleted so the next run retries it.
+ */
+export const cardExpiryReminders = pgTable('card_expiry_reminders', {
+  /** Provider payment method id (`pm_…`). */
+  paymentMethodId: text('payment_method_id').primaryKey(),
+  /** Builder tenant that owns the card. */
+  tenantKey: text('tenant_key').notNull(),
+  /** Card expiry month (1-12) at send time. */
+  expMonth: integer('exp_month').notNull(),
+  /** Card expiry year (4 digits) at send time. */
+  expYear: integer('exp_year').notNull(),
+  sentAt: timestamp('sent_at', { withTimezone: true }).notNull().defaultNow(),
+});
 
 /**
  * Billing disputes (billing/01 follow-on: dispute console, was OPS-009).

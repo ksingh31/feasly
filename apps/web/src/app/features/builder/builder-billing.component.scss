@@ -208,8 +208,10 @@
 }
 
 .builder-billing__btn--primary {
-  border-color: var(--accent);
-  background: var(--accent);
+  /* White on --accent is 3.98:1 (axe serious); --accent-deep clears 4.5:1
+     (styles.scss token note). Surfaced by #879's remove-card flow. */
+  border-color: var(--accent-deep);
+  background: var(--accent-deep);
   color: #fff;
 }
 

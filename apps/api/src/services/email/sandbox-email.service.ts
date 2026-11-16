@@ -27,6 +27,7 @@ import type {
   CommissionPaymentFailedEmailInput,
   CommissionPaymentActionRequiredEmailInput,
   ContractNeedsRecordingEmailInput,
+  CardExpiryReminderEmailInput,
   BuilderNewLeadEmailInput,
   BuilderNeedsYouDigestEmailInput,
   ErasureConfirmationEmailInput,
@@ -81,6 +82,8 @@ export function createSandboxSuppressingEmailService(
     sendCommissionPaymentActionRequired: (
       _input: CommissionPaymentActionRequiredEmailInput,
     ) => suppressed('sendCommissionPaymentActionRequired', log),
+    sendCardExpiryReminder: (_input: CardExpiryReminderEmailInput) =>
+      suppressed('sendCardExpiryReminder', log),
     sendContractNeedsRecording: (_input: ContractNeedsRecordingEmailInput) =>
       suppressed('sendContractNeedsRecording', log),
     sendBuilderNewLead: (_input: BuilderNewLeadEmailInput) =>

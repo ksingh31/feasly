@@ -22,6 +22,7 @@ import { sanitizeErrorMessage } from '../../lib/sanitize-error';
 import type { BuildTimeline } from '../../lib/build-timeline';
 import {
   renderCallbackTeamEmail,
+  renderCardExpiryReminderEmail,
   renderCommissionInvoiceReadyEmail,
   renderCommissionPaymentFailedEmail,
   renderCommissionPaymentActionRequiredEmail,
@@ -180,7 +181,23 @@ export interface CommissionPaymentFailedEmailInput {
   readonly currency: string;
   /** Days the builder has to update the card before collection steps. */
   readonly updateWithinDays: number;
+  /**
+   * Why the invoice is unpaid. Absent / 'declined' = the card was declined
+   * (BILL-04). 'chargeback_lost' = the bank reversed a paid charge after a
+   * lost chargeback and the commission is due again (#873).
+   */
+  readonly reason?: 'declined' | 'chargeback_lost';
   readonly tax?: CommissionEmailTax;
+}
+
+/** #880 input: the saved card enters the expiry warning window (once per card). */
+export interface CardExpiryReminderEmailInput {
+  readonly to: string;
+  readonly businessName: string;
+  readonly brand: string;
+  readonly last4: string;
+  readonly expMonth: number;
+  readonly expYear: number;
 }
 
 /** #712 input: the bank wants the builder to confirm the charge (3DS). */
@@ -264,6 +281,10 @@ export interface EmailService {
   /** #712: off-session charge needs 3DS — "confirm this payment" CTA. */
   sendCommissionPaymentActionRequired(
     input: CommissionPaymentActionRequiredEmailInput,
+  ): Promise<EmailDelivery>;
+  /** #880: one-time "your card expires soon" reminder (replace-card CTA). */
+  sendCardExpiryReminder(
+    input: CardExpiryReminderEmailInput,
   ): Promise<EmailDelivery>;
   /** Issue #530: lead marked won — ask an org admin to record the contract. */
   sendContractNeedsRecording(
@@ -525,6 +546,7 @@ export function createEmailService(deps: EmailServiceDeps): EmailService {
         commissionCents: input.commissionCents,
         currency: input.currency,
         updateWithinDays: input.updateWithinDays,
+        ...(input.reason ? { reason: input.reason } : {}),
         ...(input.tax ? { tax: input.tax } : {}),
       });
       return deliver({ ...rendered, to: input.to });
@@ -539,6 +561,19 @@ export function createEmailService(deps: EmailServiceDeps): EmailService {
         commissionCents: input.commissionCents,
         currency: input.currency,
         ...(input.tax ? { tax: input.tax } : {}),
+      });
+      return deliver({ ...rendered, to: input.to });
+    },
+
+    async sendCardExpiryReminder(
+      input: CardExpiryReminderEmailInput,
+    ): Promise<EmailDelivery> {
+      const rendered = renderCardExpiryReminderEmail(ctx, {
+        businessName: input.businessName,
+        brand: input.brand,
+        last4: input.last4,
+        expMonth: input.expMonth,
+        expYear: input.expYear,
       });
       return deliver({ ...rendered, to: input.to });
     },

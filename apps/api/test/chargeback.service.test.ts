@@ -29,7 +29,9 @@ import { normalizeStripeEvent } from '../src/services/billing/payment-provider';
 import type { StripeService } from '../src/services/billing/stripe.service';
 import type { EmailService } from '../src/services/email/email.service';
 import type { OpsAlertsService } from '../src/services/ops-alerts.service';
-import { billingDisputes, billingEvents, commissionInvoices, estimates, leads, tenants } from '../src/db/schema';
+import { billingDisputes, billingEvents, builders, commissionInvoices, estimates, leads, stripeEvents, tenants } from '../src/db/schema';
+import { createBuilderService } from '../src/services/builder.service';
+import type { AdminAuditStore } from '../src/services/admin-audit.store';
 import { createTestDb, type TestDb } from './pglite-db';
 
 const WEBHOOK_SECRET = 'whsec_chargeback_test';
@@ -84,6 +86,8 @@ function fakeStripe(): StripeService {
 }
 
 const alerts: { title: string; summary: string }[] = [];
+/** Builder "payment failed" emails (#873 re-uses it with reason). */
+const failedEmails: { to: string; reason?: string }[] = [];
 function fakeEmail(): EmailService {
   return new Proxy(
     {},
@@ -94,7 +98,12 @@ function fakeEmail(): EmailService {
               alerts.push({ title: input.title, summary: input.summary });
               return { sent: true, provider: 'log' as const };
             }
-          : async () => ({ sent: true, provider: 'log' as const }),
+          : prop === 'sendCommissionPaymentFailed'
+            ? async (input: { to: string; reason?: string }) => {
+                failedEmails.push({ to: input.to, ...(input.reason ? { reason: input.reason } : {}) });
+                return { sent: true, provider: 'log' as const };
+              }
+            : async () => ({ sent: true, provider: 'log' as const }),
     },
   ) as EmailService;
 }
@@ -179,6 +188,7 @@ describe('Stripe chargebacks + dashboard refunds (#719)', () => {
     chargebacks = createChargebackService({
       db: testDb.db,
       audit,
+      commission,
       email,
       opsInbox: 'ops@example.com',
       now,
@@ -214,6 +224,7 @@ describe('Stripe chargebacks + dashboard refunds (#719)', () => {
 
   beforeEach(() => {
     alerts.length = 0;
+    failedEmails.length = 0;
   });
 
   /** A paid commission invoice, settled through the real webhook path. */
@@ -226,6 +237,7 @@ describe('Stripe chargebacks + dashboard refunds (#719)', () => {
       accentColor: '#B08D57',
       allowedOrigins: ['https://example.com'],
       stripeCustomerId: 'cus_cb',
+      fallbackEmail: `billing@${tenantKey}.example.com`,
     });
     const estimateId = nextId();
     await testDb.db.insert(estimates).values({
@@ -391,8 +403,12 @@ describe('Stripe chargebacks + dashboard refunds (#719)', () => {
 
       const invoice = await commission.getById(invoiceId);
       expect(invoice.chargebackStatus).toBe(outcome);
-      // Neither outcome rewrites the invoice status (lost = manual ops).
-      expect(invoice.status).toBe('paid');
+      // #873: lost → the commission is owed again (failed = dunning);
+      // won / warning_closed leave the invoice paid.
+      expect(invoice.status).toBe(outcome === 'lost' ? 'failed' : 'paid');
+      expect(failedEmails.map((e) => e.reason)).toEqual(
+        outcome === 'lost' ? ['chargeback_lost'] : [],
+      );
       const [row] = await chargebackRows(invoiceId);
       expect(row).toMatchObject({ status: 'closed', outcome, resolvedBy: 'stripe' });
       expect(alerts).toHaveLength(1);
@@ -412,6 +428,7 @@ describe('Stripe chargebacks + dashboard refunds (#719)', () => {
       expect(rerun.changed).toBe(false);
       expect((await testDb.db.select().from(billingEvents)).length).toBe(before);
       expect(alerts).toHaveLength(1);
+      expect(failedEmails).toHaveLength(outcome === 'lost' ? 1 : 0);
       // A late, out-of-order update never re-opens it.
       await deliver(disputeEvent('charge.dispute.updated', piId, { status: 'under_review' }));
       expect((await commission.getById(invoiceId)).chargebackStatus).toBe(outcome);
@@ -434,6 +451,7 @@ describe('Stripe chargebacks + dashboard refunds (#719)', () => {
     return createChargebackService({
       db: testDb.db,
       audit: flakyAudit,
+      commission,
       email: fakeEmail(),
       opsInbox: 'ops@example.com',
       now: () => NOW,
@@ -530,6 +548,169 @@ describe('Stripe chargebacks + dashboard refunds (#719)', () => {
     expect(row!.evidenceDueAt?.getTime()).toBe(DUE_BY * 1000);
   });
 
+  async function invoiceAuditRows(invoiceId: string) {
+    return testDb.db.select().from(billingEvents).where(eq(billingEvents.entityId, invoiceId));
+  }
+
+  it('#873: a lost chargeback re-opens the invoice for dunning; retryCharge re-collects; late events still map', async () => {
+    const { invoiceId, piId } = await paidInvoice();
+    await deliver(disputeEvent('charge.dispute.created', piId));
+    await deliver(disputeEvent('charge.dispute.closed', piId, { status: 'lost' }));
+
+    const reopened = await commission.getById(invoiceId);
+    expect(reopened).toMatchObject({ status: 'failed', chargebackStatus: 'lost', paidAt: null });
+    const [cb] = await chargebackRows(invoiceId);
+    const rows = await invoiceAuditRows(invoiceId);
+    const failedRow = rows.find(
+      (r) => r.eventType === 'invoice.charge_failed' &&
+        (r.payload as Record<string, unknown>)['source'] === 'chargeback_lost',
+    );
+    expect(failedRow?.payload).toMatchObject({
+      status: 'failed',
+      previousStatus: 'paid',
+      disputeId: cb!.id,
+      stripeDisputeId: `dp_${piId}`,
+      paymentIntentId: piId,
+    });
+    const closedRow = rows.find((r) => r.eventType === 'invoice.chargeback_closed');
+    expect(closedRow?.payload).toMatchObject({ status: 'failed', recollect: true });
+    expect(alerts.map((a) => a.title)).toEqual(
+      expect.arrayContaining([expect.stringContaining('commission due again')]),
+    );
+    expect(failedEmails).toEqual([
+      { to: expect.stringContaining('@') as unknown as string, reason: 'chargeback_lost' },
+    ]);
+
+    // Normal dunning: an admin retry charges a fresh PaymentIntent.
+    const retried = await commission.retryCharge(invoiceId);
+    expect(retried.status).toBe('finalized');
+    expect(retried.stripePaymentIntentId).not.toBe(piId);
+
+    // A late event for the ORIGINAL charge still finds the invoice through
+    // the chargeback row — not an orphan, and the invoice is untouched.
+    await deliver(disputeEvent('charge.dispute.funds_withdrawn', piId));
+    expect(await auditsFor(cb!.id)).toContain('chargeback.funds_withdrawn');
+    const orphans = (await testDb.db.select().from(billingEvents)).filter(
+      (r) =>
+        r.eventType === 'webhook.orphan_payment_intent' &&
+        (r.payload as Record<string, unknown>)['paymentIntentId'] === piId,
+    );
+    expect(orphans).toEqual([]);
+    expect((await commission.getById(invoiceId)).status).toBe('finalized');
+
+    await commission.markPaidByPaymentIntent(retried.stripePaymentIntentId!);
+    expect((await commission.getById(invoiceId)).status).toBe('paid');
+  });
+
+  it('#873: a partial lost chargeback is left paid for manual follow-up (no over-collection)', async () => {
+    const { invoiceId, piId } = await paidInvoice();
+    await deliver(disputeEvent('charge.dispute.created', piId, { amount: 100_000 }));
+    await deliver(disputeEvent('charge.dispute.closed', piId, { status: 'lost', amount: 100_000 }));
+    const invoice = await commission.getById(invoiceId);
+    expect(invoice).toMatchObject({ status: 'paid', chargebackStatus: 'lost' });
+    expect(failedEmails).toEqual([]);
+    expect(alerts.map((a) => a.title)).toEqual(
+      expect.arrayContaining([expect.stringContaining('manual follow-up')]),
+    );
+    const closedRow = (await invoiceAuditRows(invoiceId)).find(
+      (r) => r.eventType === 'invoice.chargeback_closed',
+    );
+    expect(closedRow?.payload).toMatchObject({ status: 'paid', manualFollowUpRequired: true });
+  });
+
+  it('#873: a lost chargeback on a partly refunded invoice is left for manual follow-up', async () => {
+    const { invoiceId, piId } = await paidInvoice();
+    await deliver(refundEvent(piId, 5_000));
+    await deliver(disputeEvent('charge.dispute.created', piId));
+    await deliver(disputeEvent('charge.dispute.closed', piId, { status: 'lost' }));
+    expect((await commission.getById(invoiceId)).status).toBe('paid');
+    expect(failedEmails).toEqual([]);
+  });
+
+  it('#873: reopenAfterLostChargeback finishes a partly applied move once, then no-ops', async () => {
+    const { invoiceId, piId } = await paidInvoice();
+    await deliver(disputeEvent('charge.dispute.created', piId));
+    const [cb] = await chargebackRows(invoiceId);
+    // Simulate a delivery that moved the invoice but died before the audit.
+    await testDb.db
+      .update(commissionInvoices)
+      .set({ status: 'failed', paidAt: null, chargebackStatus: 'lost' })
+      .where(eq(commissionInvoices.id, invoiceId));
+    const input = {
+      invoiceId,
+      disputeId: cb!.id,
+      stripeDisputeId: cb!.stripeDisputeId,
+      stripeEventId: 'evt_repair',
+    };
+    expect(await commission.reopenAfterLostChargeback(input)).toEqual({ reopened: true });
+    expect(await commission.reopenAfterLostChargeback(input)).toEqual({ reopened: false });
+    const failedRows = (await invoiceAuditRows(invoiceId)).filter(
+      (r) => r.eventType === 'invoice.charge_failed',
+    );
+    expect(failedRows).toHaveLength(1);
+    expect(failedEmails.map((e) => e.reason)).toEqual(['chargeback_lost']);
+
+    // A void (written-off) invoice is never re-opened.
+    await testDb.db
+      .update(commissionInvoices)
+      .set({ status: 'void' })
+      .where(eq(commissionInvoices.id, invoiceId));
+    expect(
+      await commission.reopenAfterLostChargeback({ ...input, disputeId: nextId() }),
+    ).toEqual({ reopened: false });
+  });
+
+  it('#873: a redelivered lost close after the invoice was re-collected does not reopen it again', async () => {
+    const { invoiceId, piId } = await paidInvoice();
+    await deliver(disputeEvent('charge.dispute.created', piId));
+    const closeId = nextEventId();
+    const closed = disputeEvent('charge.dispute.closed', piId, { status: 'lost' }, closeId);
+    await deliver(closed);
+    expect((await commission.getById(invoiceId)).status).toBe('failed');
+    expect(failedEmails.map((e) => e.reason)).toEqual(['chargeback_lost']);
+
+    // Invoice collected again (admin retry / builder pay) while the first
+    // delivery is still unfinished from Stripe's view (processed_at null).
+    await testDb.db
+      .update(commissionInvoices)
+      .set({ status: 'paid', paidAt: NOW })
+      .where(eq(commissionInvoices.id, invoiceId));
+    await testDb.db
+      .update(stripeEvents)
+      .set({ processedAt: null })
+      .where(eq(stripeEvents.eventId, closeId));
+
+    await deliver(closed);
+    expect((await commission.getById(invoiceId)).status).toBe('paid');
+    expect(failedEmails.map((e) => e.reason)).toEqual(['chargeback_lost']);
+    const failedRows = (await invoiceAuditRows(invoiceId)).filter(
+      (r) => r.eventType === 'invoice.charge_failed',
+    );
+    expect(failedRows).toHaveLength(1);
+  });
+
+  it('#873: an open chargeback flags the builder in the admin list (nothing is paused)', async () => {
+    const { tenantKey, piId } = await paidInvoice();
+    await testDb.db.insert(builders).values({
+      id: nextId(),
+      tenantKey,
+      businessName: `${tenantKey} Builder`,
+      displayName: tenantKey,
+    });
+    const builderService = createBuilderService({
+      db: testDb.db,
+      audit: { log: async () => undefined } as unknown as AdminAuditStore,
+    });
+    const flag = async () =>
+      (await builderService.listBuilders()).find((b) => b.tenantKey === tenantKey);
+    expect(await flag()).toMatchObject({ openChargebacks: 0, status: 'active' });
+    await deliver(disputeEvent('charge.dispute.created', piId));
+    expect(await flag()).toMatchObject({ openChargebacks: 1, status: 'active' });
+    expect(alerts[0]!.summary).toContain('pause the builder by hand');
+    await deliver(disputeEvent('charge.dispute.closed', piId, { status: 'won' }));
+    expect(await flag()).toMatchObject({ openChargebacks: 0, status: 'active' });
+  });
+
   it('an out-of-order close (no created seen) still records and closes the chargeback', async () => {
     const { invoiceId, piId } = await paidInvoice();
     await deliver(disputeEvent('charge.dispute.closed', piId, { status: 'lost' }));
@@ -593,7 +774,8 @@ describe('Stripe chargebacks + dashboard refunds (#719)', () => {
     const eventId = nextEventId();
     await deliver({ id: eventId, type: 'charge.refunded', data: { object: { id: 'ch_x', amount_refunded: 5 } } });
     const rows = (await testDb.db.select().from(billingEvents)).filter((r) => r.entityId === eventId);
-    expect(rows.map((r) => r.eventType)).toEqual(['webhook.received', 'webhook.ignored']);
+    // Unordered select + identical frozen timestamps: compare as a set.
+    expect(rows.map((r) => r.eventType).sort()).toEqual(['webhook.ignored', 'webhook.received']);
   });
 
   it('AC2: the disputes console lists the chargeback distinctly and refuses accept/reject', async () => {

@@ -147,8 +147,10 @@ export interface CommissionInvoice {
   /**
    * Bank chargeback state: null/absent = never disputed with the bank;
    * 'open' while Stripe's dispute is live (no further charge attempts).
-   * A lost chargeback does not change `status` — ops decides manually
-   * whether the commission is re-collected or written off.
+   * A lost chargeback (#873): the commission is still owed, so a fully
+   * charged-back invoice moves `paid → failed` and is collected again
+   * through dunning; a partial chargeback or partly refunded invoice keeps
+   * its status for ops to settle by hand. Writing it off = an admin void.
    */
   readonly chargebackStatus?: ChargebackStatus | null;
   /**

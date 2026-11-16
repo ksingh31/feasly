@@ -49,6 +49,7 @@ import type {
   UserRecord,
   UserStore,
 } from './user.service';
+import { builderStatusAllows } from '../lib/builder-status-policy';
 
 export interface AuthContext {
   /** The user the session belongs to (null for legacy magic-link sessions). */
@@ -331,7 +332,9 @@ export function createAuthContextService(
     const builder = session.builderId
       ? await builders.getBuilder(session.builderId).catch(() => null)
       : await builders.getByTenantKey(session.tenantKey);
-    if (!builder || builder.status !== 'active') return null;
+    // #860 policy: suspended/offboarding teams still sign in (read-only
+    // portal, invoices); offboarded builders do not.
+    if (!builder || !builderStatusAllows(builder.status, 'signIn')) return null;
 
     // Prefer the user model's membership role when the builder has one;
     // otherwise the legacy parity mapping (the portal predates per-user
