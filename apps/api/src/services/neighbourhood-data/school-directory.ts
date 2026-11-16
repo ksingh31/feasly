@@ -17,7 +17,8 @@
  *    agree (equal, or one contains the other) and they sit within the
  *    configured radius. Unmatched OSM schools are kept only when OSM marks
  *    them private (`operator:type=private` or `fee=yes`) — anything else
- *    cannot be typed reliably.
+ *    cannot be typed reliably. Unmatched OSM schools are de-duplicated
+ *    among themselves the same way (node + building way for one school).
  *
  * Every field keeps the source it came from (`data.sources`). Community
  * codes come from a point-in-polygon test against City community
@@ -258,6 +259,11 @@ function osmAddress(tags: Readonly<Record<string, string>>): string | null {
   return number ? `${number} ${street}` : street;
 }
 
+/** Dedupe preference: the mapped area (relation/way) over a bare node. */
+function osmTypeRank(type: string): number {
+  return type === 'relation' ? 0 : type === 'way' ? 1 : 2;
+}
+
 function osmIsPrivate(tags: Readonly<Record<string, string>>): boolean {
   return tags['operator:type'] === 'private' || tags['fee'] === 'yes';
 }
@@ -402,13 +408,25 @@ export function buildSchoolDirectory(input: BuildSchoolDirectoryInput): SchoolRe
     });
   }
 
-  // 2) Private schools only OSM knows about.
-  osm.forEach((o, i) => {
-    if (usedOsm.has(i)) return;
+  // 2) Private schools only OSM knows about. Typed only when OSM says private
+  //    and no listed public authority runs it. OSM often maps one school as
+  //    both a node and a building way/relation: keep one per name + location,
+  //    preferring relation > way > node, then the lowest id (deterministic).
+  const osmOnly = osm
+    .filter((o, i) => !usedOsm.has(i) && osmIsPrivate(o.tags) && !classifyAuthority(str(o.tags['operator'])).listed)
+    .sort((a, b) => osmTypeRank(a.el.type) - osmTypeRank(b.el.type) || a.el.id - b.el.id);
+  const keptOsm: typeof osmOnly = [];
+  for (const o of osmOnly) {
+    const duplicate = keptOsm.some(
+      (k) =>
+        namesMatch(k.tags['name']!, o.tags['name']!) &&
+        haversineMeters({ lat: k.point!.lat, lon: k.point!.lng }, { lat: o.point!.lat, lon: o.point!.lng }) <=
+          input.dedupeRadiusM,
+    );
+    if (!duplicate) keptOsm.push(o);
+  }
+  keptOsm.forEach((o) => {
     const operator = str(o.tags['operator']);
-    const classification = classifyAuthority(operator);
-    // Typed only when OSM says private and no listed public authority runs it.
-    if (!osmIsPrivate(o.tags) || classification.listed) return;
     const name = o.tags['name']!;
     const point = o.point!;
     const community = findCommunity(point.lat, point.lng);

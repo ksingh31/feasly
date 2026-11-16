@@ -186,6 +186,19 @@ describe('schools directory builder (#774)', () => {
     });
   });
 
+  it('keeps one OSM-only school when OSM maps it as both a node and a way', () => {
+    const lycee = OSM[2]!;
+    const node: OsmElement = { type: 'node', id: 99, lat: 51.018, lon: -114.1045, tags: lycee.tags };
+    const rows = buildSchoolDirectory({
+      cityRows: CITY_ROWS,
+      osmElements: [node, ...OSM],
+      boundaries: BOUNDARIES,
+      dedupeRadiusM: 300,
+    });
+    const lycees = rows.filter((r) => r.name === 'Lycée International de Calgary');
+    expect(lycees.map((r) => r.externalId)).toEqual(['osm-way-3']);
+  });
+
   it('assigns the City community by point-in-polygon', () => {
     const altadore = byName('Altadore School');
     expect(altadore.communityCode).toBe('ALT');
