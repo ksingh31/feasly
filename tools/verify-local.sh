@@ -46,6 +46,7 @@ step "regenerate route tables" npm run -s gen:route-docs
 step "tests (all workspaces)" npm run test --workspaces --if-present
 step "lint (all workspaces)" npm run lint --workspaces --if-present
 step "secrets-gate self-test" node --test tools/check-secrets.test.mjs
+step "openapi breaking-change guard self-test" node --test tools/check-openapi-breaking.test.mjs
 if compgen -G "tools/agents/*.test.mjs" >/dev/null; then
   step "agent pipeline tests" node --test tools/agents/*.test.mjs
 fi
