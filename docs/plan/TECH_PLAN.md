@@ -742,6 +742,11 @@ Event → `stripe_events` insert (idempotency) → handler:
 | `customer.subscription.updated` | Sync `status` (active/past_due/canceled) to tenant record |
 | `customer.subscription.deleted` | Tenant → `embed_degraded=true`, reason `subscription_canceled` |
 | `payment_method.detached` | If no remaining methods → tenant billing-blocked (no new invoices; dashboard banner) |
+| `charge.dispute.created` | Bank chargeback (#719): `billing_disputes` row (`source='chargeback'`, SLA = evidence deadline), `commission_invoices.chargeback_status='open'` (retries refused), one ops alert naming the deadline |
+| `charge.dispute.updated` | Sync Stripe status / evidence deadline onto the chargeback row |
+| `charge.dispute.funds_withdrawn` / `funds_reinstated` | Audit row on the chargeback |
+| `charge.dispute.closed` | Chargeback closed with outcome `won` / `lost` / `warning_closed`; invoice `chargeback_status` = outcome, `status` unchanged (lost → ops alert, manual re-collect/write-off decision) |
+| `charge.refunded` | `commission_invoices.refunded_cents` = Stripe's cumulative `amount_refunded` + `invoice.refunded` timeline row (covers Stripe-dashboard refunds) |
 
 ### 5.3 Draft → review → auto-charge (commission)
 

@@ -351,11 +351,33 @@ describe('simulated payment provider — refunds, disputes, delayed failures', (
     const res = await h.provider.fireDispute(pi.id);
     expect(res.eventType).toBe('charge.dispute.created');
     // The pending charge event is flushed first, in order.
-    expect(h.delivered.slice(-2).map((e) => e.type)).toEqual([
+    // Stripe withdraws the funds right after opening (#719).
+    expect(h.delivered.slice(-3).map((e) => e.type)).toEqual([
       'payment_intent.succeeded',
       'charge.dispute.created',
+      'charge.dispute.funds_withdrawn',
     ]);
-    expect(h.delivered.at(-1)?.paymentIntentId).toBe(pi.id);
+    const created = h.delivered.at(-2);
+    expect(created?.paymentIntentId).toBe(pi.id);
+    // #719: Stripe-shaped dispute with an evidence deadline.
+    expect(created?.dispute).toMatchObject({ reason: 'fraudulent', status: 'needs_response' });
+    expect(created?.dispute?.evidenceDueAt).toBeInstanceOf(Date);
+  });
+
+  it('fireDisputeClosed closes the open dispute (won reinstates funds first)', async () => {
+    const h = harness();
+    const customerId = await customerWithCard(h, CARD.ok);
+    const pi = await charge(h, customerId);
+    await expect(h.provider.fireDisputeClosed(pi.id, 'won')).rejects.toMatchObject({ status: 409 });
+    await h.provider.fireDispute(pi.id);
+    const res = await h.provider.fireDisputeClosed(pi.id, 'won');
+    expect(res.eventType).toBe('charge.dispute.closed');
+    expect(h.delivered.slice(-2).map((e) => [e.type, e.dispute?.status])).toEqual([
+      ['charge.dispute.funds_reinstated', 'won'],
+      ['charge.dispute.closed', 'won'],
+    ]);
+    // Already closed — nothing left to close.
+    await expect(h.provider.fireDisputeClosed(pi.id, 'lost')).rejects.toMatchObject({ status: 409 });
   });
 
   it('fireDashboardRefund refunds and delivers at once', async () => {

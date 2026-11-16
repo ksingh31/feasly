@@ -70,7 +70,7 @@ const authenticateSchema = z
 
 const invoiceEventSchema = z
   .object({
-    kind: z.enum(['dispute', 'refund', 'delayed_failure']),
+    kind: z.enum(['dispute', 'dispute_won', 'dispute_lost', 'refund', 'delayed_failure']),
     amountCents: z.number().int().positive().optional(),
   })
   .strict()

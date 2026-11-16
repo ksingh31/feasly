@@ -552,6 +552,9 @@ import {
   type InvoiceReviewerService,
 } from './services/billing/invoice-reviewer.service';
 import {
+  createChargebackService,
+} from './services/billing/chargeback.service';
+import {
   createDisputeService,
   type DisputeService,
 } from './services/billing/dispute.service';
@@ -2042,6 +2045,13 @@ export function createComposition(
       audit: billingAuditService,
       commission: commissionService,
       flatPlan: flatPlanService,
+      // #719: bank chargebacks + Stripe-dashboard refunds.
+      chargebacks: createChargebackService({
+        db: db.db,
+        audit: billingAuditService,
+        email: emailService,
+        opsInbox: config.email.opsInbox,
+      }),
       email: emailService,
       opsInbox: config.email.opsInbox,
     });

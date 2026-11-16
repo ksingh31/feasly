@@ -63,6 +63,29 @@ export interface NormalizedStripeEvent {
    * dunning queue as the last failure reason.
    */
   readonly failureMessage?: string;
+  /** charge.dispute.* only (#719): the dispute fields billing records. */
+  readonly dispute?: NormalizedDispute;
+  /**
+   * charge.refunded only (#719): Stripe's cumulative `amount_refunded` on
+   * the charge, integer cents.
+   */
+  readonly amountRefundedCents?: number;
+}
+
+/** A Stripe dispute object, normalized (#719). */
+export interface NormalizedDispute {
+  /** `dp_…` */
+  readonly id: string;
+  /** Disputed amount, integer cents. */
+  readonly amountCents: number | null;
+  readonly currency: string | null;
+  /** Reason code (fraudulent, product_not_received, …). */
+  readonly reason: string | null;
+  /** Raw status (warning_needs_response, needs_response, under_review, won, lost, warning_closed, …). */
+  readonly status: string | null;
+  /** `evidence_details.due_by` — the evidence deadline. */
+  readonly evidenceDueAt: Date | null;
+  readonly livemode: boolean | null;
 }
 
 export interface PaymentProvider {
@@ -174,5 +197,38 @@ export function normalizeStripeEvent(event: {
       ? str(data['id'])
       : undefined,
     failureMessage: lastError ? str(lastError['message']) : undefined,
+    ...(event.type.startsWith('charge.dispute.') && str(data['id'])
+      ? { dispute: normalizeDispute(data) }
+      : {}),
+    ...(event.type === 'charge.refunded' &&
+    typeof data['amount_refunded'] === 'number'
+      ? { amountRefundedCents: data['amount_refunded'] }
+      : {}),
+  };
+}
+
+function normalizeDispute(data: Record<string, unknown>): NormalizedDispute {
+  const str = (v: unknown): string | null => (typeof v === 'string' ? v : null);
+  const evidence =
+    typeof data['evidence_details'] === 'object' &&
+    data['evidence_details'] !== null
+      ? (data['evidence_details'] as Record<string, unknown>)
+      : {};
+  const dueBy = evidence['due_by'];
+  return {
+    id: str(data['id']) ?? '',
+    amountCents:
+      typeof data['amount'] === 'number' && Number.isInteger(data['amount'])
+        ? data['amount']
+        : null,
+    currency: str(data['currency']),
+    reason: str(data['reason']),
+    status: str(data['status']),
+    // Stripe sends unix seconds.
+    evidenceDueAt:
+      typeof dueBy === 'number' && Number.isFinite(dueBy)
+        ? new Date(dueBy * 1000)
+        : null,
+    livemode: typeof data['livemode'] === 'boolean' ? data['livemode'] : null,
   };
 }

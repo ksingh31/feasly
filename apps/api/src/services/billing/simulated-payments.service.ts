@@ -107,9 +107,14 @@ export function createSimulatedPaymentsService(
       const { eventType } =
         kind === 'dispute'
           ? await provider.fireDispute(paymentIntentId)
-          : kind === 'refund'
-            ? await provider.fireDashboardRefund(paymentIntentId, amountCents)
-            : await provider.fireDelayedFailure(paymentIntentId);
+          : kind === 'dispute_won' || kind === 'dispute_lost'
+            ? await provider.fireDisputeClosed(
+                paymentIntentId,
+                kind === 'dispute_won' ? 'won' : 'lost',
+              )
+            : kind === 'refund'
+              ? await provider.fireDashboardRefund(paymentIntentId, amountCents)
+              : await provider.fireDelayedFailure(paymentIntentId);
       await audit.append({
         tenantKey: invoice.tenantKey,
         eventType: 'simulated_payment.fired',

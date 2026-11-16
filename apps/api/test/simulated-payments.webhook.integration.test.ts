@@ -33,7 +33,8 @@ import {
 import { createStripeService, type StripeService } from '../src/services/billing/stripe.service';
 import { createStripeWebhooksRoute } from '../src/routes/stripe-webhooks.route';
 import type { EmailService } from '../src/services/email/email.service';
-import { billingEvents, estimates, leads, stripeEvents, tenants } from '../src/db/schema';
+import { billingDisputes, billingEvents, estimates, leads, stripeEvents, tenants } from '../src/db/schema';
+import { createChargebackService } from '../src/services/billing/chargeback.service';
 import { createTestDb, type TestDb } from './pglite-db';
 
 const CARD = {
@@ -116,6 +117,15 @@ describe('simulated payments through the production webhook handler', () => {
       audit,
       commission,
       flatPlan,
+      chargebacks: createChargebackService({
+        db: testDb.db,
+        audit,
+        email,
+        opsInbox: 'ops@example.com',
+        now,
+        newId: nextId,
+        logWarning: () => undefined,
+      }),
       email,
       opsInbox: 'ops@example.com',
       logWarning: () => undefined,
@@ -207,6 +217,15 @@ describe('simulated payments through the production webhook handler', () => {
   async function auditTypes(tenantKey: string | null): Promise<string[]> {
     const rows = await testDb.db.select().from(billingEvents);
     return rows.filter((r) => r.tenantKey === tenantKey).map((r) => r.eventType);
+  }
+
+  /** #719: charge.* event types recorded as webhook.unhandled (must be none). */
+  async function unhandledChargeTypes(): Promise<string[]> {
+    const rows = await testDb.db.select().from(billingEvents);
+    return rows
+      .filter((r) => r.eventType === 'webhook.unhandled')
+      .map((r) => String((r.payload as Record<string, unknown> | null)?.['stripeType']))
+      .filter((t) => t.startsWith('charge.'));
   }
 
   // ── AC1: end-to-end money lifecycle ──────────────────────────────────
@@ -323,6 +342,13 @@ describe('simulated payments through the production webhook handler', () => {
     const res = await devService.fireInvoiceEvent(inv.id, 'refund', 1_000);
     expect(res.eventType).toBe('charge.refunded');
     expect((await processedEvents('charge.refunded')).length).toBe(1);
+    // #719: the dashboard refund is reflected on the invoice.
+    const after = await commission.getById(inv.id);
+    expect(after.refundedCents).toBe(1_000);
+    expect(after.status).toBe('paid');
+    const audits = await auditTypes('sim-refund');
+    expect(audits).toContain('invoice.refunded');
+    expect(await unhandledChargeTypes()).toEqual([]);
   });
 
   it('charge.dispute.created (admin fired dispute) reaches the handler', async () => {
@@ -331,6 +357,46 @@ describe('simulated payments through the production webhook handler', () => {
     const res = await devService.fireInvoiceEvent(inv.id, 'dispute');
     expect(res.eventType).toBe('charge.dispute.created');
     expect((await processedEvents('charge.dispute.created')).length).toBe(1);
+    expect((await processedEvents('charge.dispute.funds_withdrawn')).length).toBe(1);
+    // #719: one chargeback row, the invoice flagged, no unhandled events.
+    expect((await commission.getById(inv.id)).chargebackStatus).toBe('open');
+    const rows = (await testDb.db.select().from(billingDisputes)).filter(
+      (d) => d.invoiceId === inv.id,
+    );
+    expect(rows).toHaveLength(1);
+    expect(rows[0]).toMatchObject({ source: 'chargeback', status: 'open', stripeReason: 'fraudulent' });
+    expect(rows[0]!.evidenceDueAt).toBeInstanceOf(Date);
+    expect(rows[0]!.slaDueAt.getTime()).toBe(rows[0]!.evidenceDueAt!.getTime());
+    const audits = await auditTypes('sim-dispute');
+    expect(audits).toEqual(
+      expect.arrayContaining(['chargeback.opened', 'invoice.chargeback_opened', 'chargeback.funds_withdrawn']),
+    );
+    expect(await unhandledChargeTypes()).toEqual([]);
+  });
+
+  it.each([
+    ['sim-dispute-won', 'dispute_won', 'won'],
+    ['sim-dispute-lost', 'dispute_lost', 'lost'],
+  ] as const)('%s → charge.dispute.closed records the outcome', async (tenantKey, kind, outcome) => {
+    const inv = await chargedInvoice(tenantKey, CARD.ok);
+    await provider.deliverPendingEvents();
+    await devService.fireInvoiceEvent(inv.id, 'dispute');
+    const res = await devService.fireInvoiceEvent(inv.id, kind);
+    expect(res.eventType).toBe('charge.dispute.closed');
+    const after = await commission.getById(inv.id);
+    expect(after.chargebackStatus).toBe(outcome);
+    // The invoice status is not changed by the outcome (lost = manual ops).
+    expect(after.status).toBe('paid');
+    const [row] = (await testDb.db.select().from(billingDisputes)).filter(
+      (d) => d.invoiceId === inv.id,
+    );
+    expect(row).toMatchObject({ status: 'closed', outcome, resolvedBy: 'stripe' });
+    const audits = await auditTypes(tenantKey);
+    expect(audits).toEqual(expect.arrayContaining(['chargeback.closed', 'invoice.chargeback_closed']));
+    if (outcome === 'won') expect(audits).toContain('chargeback.funds_reinstated');
+    expect(await unhandledChargeTypes()).toEqual([]);
+    // Nothing left to close.
+    await expect(devService.fireInvoiceEvent(inv.id, kind)).rejects.toMatchObject({ status: 409 });
   });
 
   it('redelivering a processed simulated event is a duplicate no-op', async () => {
