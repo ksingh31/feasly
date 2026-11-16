@@ -1,4 +1,5 @@
 import { Component, inject, OnInit } from '@angular/core';
+import { RouterLink } from '@angular/router';
 import { SeoService } from '../../core/seo/seo.service';
 import { SiteFooterComponent } from '../../shared/components/site-footer/site-footer.component';
 import { SiteNavComponent } from '../../shared/components/site-nav/site-nav.component';
@@ -15,7 +16,7 @@ import { LegalReviewBannerComponent } from '../../shared/components/legal-review
 @Component({
   selector: 'app-privacy-page',
   standalone: true,
-  imports: [SiteFooterComponent, SiteNavComponent, LegalReviewBannerComponent],
+  imports: [RouterLink, SiteFooterComponent, SiteNavComponent, LegalReviewBannerComponent],
   template: `
     <app-site-nav />
     <main class="legal" id="main-content" tabindex="-1">
@@ -193,6 +194,12 @@ import { LegalReviewBannerComponent } from '../../shared/components/legal-review
           ask us and we will confirm what was removed
         </li>
       </ul>
+      <p>
+        You can download or delete your data yourself on the
+        <a routerLink="/privacy/my-data">Your data</a> page, using the link from your estimate
+        email.
+      </p>
+      <!-- Copy status: draft-pending-lawyer (#706 self-service paragraph). -->
       <p>
         To exercise any of these rights, contact <strong>____</strong>. We respond to every
         request.

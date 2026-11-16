@@ -74,6 +74,7 @@ const fakeStripe: StripeService = {
     status: 'requires_capture',
   }),
   retrievePaymentIntent: async (id: string) => ({ id, status: 'processing' }),
+  getPaymentIntentConfirmation: async (id: string) => ({ id, status: 'requires_action', clientSecret: `${id}_secret_test` }),
   refundPaymentIntent: async (paymentIntentId) => ({
     id: `re_test_${paymentIntentId}`,
     status: 'succeeded',

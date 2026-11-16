@@ -14,6 +14,7 @@ import {
   SiteNavComponent,
   BuilderMatchingExplainerComponent,
   OptionSelectorComponent,
+  PrivacyDataLinkComponent,
 } from '../../shared/components';
 import type { TierOption } from '../../shared/components';
 import { aggregateCostBuckets, type CostBucket } from '../../shared/cost-buckets';
@@ -111,6 +112,7 @@ const SHARE_LINK_SOURCE = 'share';
     BrandMarkComponent,
     BuilderMatchingExplainerComponent,
     OptionSelectorComponent,
+    PrivacyDataLinkComponent,
     SiteFooterComponent,
     SiteNavComponent,
   ],

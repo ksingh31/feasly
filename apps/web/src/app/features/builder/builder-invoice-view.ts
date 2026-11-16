@@ -46,10 +46,16 @@ export function reviewCountdown(
 
 /**
  * The method can be changed until the invoice is settled: paid, void and
- * disputed invoices are locked with an explainer.
+ * disputed invoices are locked with an explainer. An invoice waiting for
+ * bank confirmation (#712) is locked too — its charge is in flight.
  */
 export function paymentMethodEditable(invoice: Pick<CommissionInvoice, 'status'>): boolean {
-  return invoice.status !== 'paid' && invoice.status !== 'void' && invoice.status !== 'disputed';
+  return (
+    invoice.status !== 'paid' &&
+    invoice.status !== 'void' &&
+    invoice.status !== 'disputed' &&
+    invoice.status !== 'action_required'
+  );
 }
 
 /** Buyer-grade method label ("Card •••• 4242", "Cheque"). */

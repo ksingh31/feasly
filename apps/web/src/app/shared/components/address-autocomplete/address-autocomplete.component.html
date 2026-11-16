@@ -1,5 +1,5 @@
-<div class="ac">
-  <label class="ac-label" [for]="inputId">{{ copy.label }}</label>
+<div class="ac" [class.ac-compact]="compact()">
+  <label class="ac-label" [class.sr-only]="compact()" [for]="inputId">{{ label() }}</label>
   <div class="ac-field">
     <input
       [id]="inputId"
@@ -10,7 +10,7 @@
       [attr.aria-expanded]="listboxRendered()"
       [attr.aria-controls]="listboxRendered() ? listboxId : null"
       [attr.aria-activedescendant]="activeDescendantId()"
-      [placeholder]="copy.placeholder"
+      [placeholder]="placeholder()"
       autocomplete="off"
       spellcheck="false"
       [formControl]="query"
@@ -62,31 +62,62 @@
     }
   } @else if (
     searched() &&
-    suggestions().length === 0 &&
+    options().length === 0 &&
     status() === 'idle'
   ) {
     <p class="ac-empty" role="status">{{ noResultsCopy() }}</p>
   }
 
   @if (listboxRendered()) {
-    <ul class="ac-list" role="listbox" [id]="listboxId" [attr.aria-label]="copy.label">
-      @for (
-      s of suggestions(); track s.addressKey; let i = $index
-    ) {
-        <li
-          role="option"
-          [id]="listboxId + '-opt-' + i"
-          class="ac-option"
-          [class.ac-option-active]="i === activeIndex()"
-          [attr.aria-selected]="i === activeIndex()"
-          (mousedown)="$event.preventDefault()"
-          (click)="choose(i)"
-          (mouseenter)="activeIndex.set(i)"
-        >
-          <span class="ac-option-address">{{ s.address }}</span>
-          <span class="ac-option-community">{{ s.community }}</span>
-        </li>
+    <div class="ac-list" role="listbox" [id]="listboxId" [attr.aria-label]="label()">
+      @if (communities()) {
+        <!-- #783: grouped listbox — Communities, then Addresses. -->
+        @if (communityOptions().length > 0) {
+          <div class="ac-group" role="group" [attr.aria-labelledby]="listboxId + '-g-communities'">
+            <div class="ac-group-label" role="presentation" [id]="listboxId + '-g-communities'">
+              {{ copy.communitiesGroupLabel }}
+            </div>
+            @for (o of communityOptions(); track o.index) {
+              <ng-container *ngTemplateOutlet="optionRow; context: { $implicit: o }" />
+            }
+          </div>
+        }
+        @if (addressOptions().length > 0) {
+          <div class="ac-group" role="group" [attr.aria-labelledby]="listboxId + '-g-addresses'">
+            <div class="ac-group-label" role="presentation" [id]="listboxId + '-g-addresses'">
+              {{ copy.addressesGroupLabel }}
+            </div>
+            @for (o of addressOptions(); track o.index) {
+              <ng-container *ngTemplateOutlet="optionRow; context: { $implicit: o }" />
+            }
+          </div>
+        }
+      } @else {
+        @for (o of options(); track o.index) {
+          <ng-container *ngTemplateOutlet="optionRow; context: { $implicit: o }" />
+        }
       }
-    </ul>
+    </div>
   }
 </div>
+
+<ng-template #optionRow let-o>
+  <div
+    role="option"
+    [id]="listboxId + '-opt-' + o.index"
+    class="ac-option"
+    [class.ac-option-active]="o.index === activeIndex()"
+    [attr.aria-selected]="o.index === activeIndex()"
+    (mousedown)="$event.preventDefault()"
+    (click)="choose(o.index)"
+    (mouseenter)="activeIndex.set(o.index)"
+  >
+    @if (o.kind === 'community') {
+      <span class="ac-option-address">{{ o.community.name }}</span>
+      <span class="ac-option-community">{{ copy.communityOptionHint }}</span>
+    } @else {
+      <span class="ac-option-address">{{ o.suggestion.address }}</span>
+      <span class="ac-option-community">{{ o.suggestion.community }}</span>
+    }
+  </div>
+</ng-template>

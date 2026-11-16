@@ -59,6 +59,8 @@ export const DEFAULT_APP_CONFIG: AppConfig = {
     // scope step with an email capture; other cities get a notify-me.
     renovationWaitlist: true,
     cityWaitlist: true,
+    // #706: in-page erasure confirm until the API emails the link (#806).
+    privacyEraseConfirmInPage: true,
   },
   // legal/01 AC3: draft until the lawyer reviews and approves the
   // privacy/terms copy. Flip to false only together with removing every
@@ -92,6 +94,7 @@ export const DEFAULT_APP_CONFIG: AppConfig = {
   limits: {
     communityPageLimit: 24,
     autocompleteSuggestionLimit: 6,
+    communitySuggestionLimit: 4,
     /**
      * Mirror of the cost-data inputBounds
      * (packages/cost-engine/cost-data/v0.4.1-uncalibrated.json). The property
@@ -146,7 +149,8 @@ export const DEFAULT_APP_CONFIG: AppConfig = {
   deepLink: {
     addressMinLength: 3,
     addressMaxLength: 120,
-    sources: ['community-lots', 'community-profile', 'guide', 'email', 'paid-search', 'share'],
+    sources: ['community-lots', 'community-profile', 'guide', 'email', 'paid-search', 'share', 'site-search'],
+    siteSearchSource: 'site-search',
   },
   analytics: {
     enabled: false,
@@ -266,6 +270,11 @@ export const DEFAULT_APP_CONFIG: AppConfig = {
       error: 'Address search is temporarily unavailable. Please try again in a moment.',
       retryLabel: 'Retry',
       searchingLabel: 'Searching addresses…',
+      siteSearchLabel: 'Search an address or community',
+      siteSearchPlaceholder: 'Address or community',
+      communitiesGroupLabel: 'Communities',
+      addressesGroupLabel: 'Addresses',
+      communityOptionHint: 'Community guide',
     },
     embed: {
       widgetLabel: 'Home building cost estimator',
@@ -839,6 +848,10 @@ export const DEFAULT_APP_CONFIG: AppConfig = {
       error: 'Your estimate is safe — try again in a moment.',
       unsubscribeTitle: 'Feasly — Email preferences',
       unsubscribe: 'Manage your Feasly email preferences — unsubscribe from follow-ups and product updates.',
+      privacyDataTitle: 'Feasly — Your data',
+      privacyData: 'Download a copy of the data Feasly holds about you, or ask us to delete it.',
+      privacyConfirmTitle: 'Feasly — Confirm data deletion',
+      privacyConfirm: 'Confirm your request to delete the data Feasly holds about you.',
       magicLinkTitle: 'Feasly — Opening your estimate',
       magicLink: 'Opening your secure Feasly estimate link — verifying and opening your Calgary build estimate.',
       myReportTitle: 'Feasly — Find your report',
@@ -936,7 +949,7 @@ export const DEFAULT_APP_CONFIG: AppConfig = {
           },
           {
             q: 'Is Feasly a home builder? Will you recommend one?',
-            a: 'No — Feasly is an independent estimator, not a builder, and we do not rank or recommend specific builders. With your permission, Feasly and builders associated with us may contact you about your estimate, and you can opt out anytime.',
+            a: 'No — Feasly is an independent estimator, not a builder. If you ask to be contacted, leads from Feasly’s own site go to our builder partner(s), listed on How it works. A partner pays Feasly a referral commission only if you sign a contract with them. You’re never obliged to hire anyone, and you can opt out anytime.',
           },
           {
             q: 'How long does it take to build a home in Calgary?',
@@ -959,8 +972,8 @@ export const DEFAULT_APP_CONFIG: AppConfig = {
             a: 'Feasly and builders associated with us may see your information so we can contact you about your estimate. Your email is also how we send you a link to reopen your report; we never sell your information, and you can opt out anytime. See our Privacy Policy for the full details.',
           },
           {
-            q: 'How does builder matching work?',
-            a: 'Feasly is an independent estimator — we don’t build homes, rank builders, or hand-pick who contacts you. When you’re ready, we can introduce you to builders in Calgary whose work fits your project and area. Our system matches on project fit — no favourites, no paid placement. It’s free, and only ever with your permission. You can opt out anytime.',
+            q: 'How do builder introductions work?',
+            a: 'Feasly is an independent estimator. We don’t build homes. If you ask to be contacted, leads from Feasly’s own site go to our builder partner(s), listed on How it works. A partner pays Feasly a referral commission only if you sign a contract with them. It never changes your estimate, and you’re never obliged to hire anyone. You can opt out anytime.',
           },
           {
             q: 'Do you support addresses outside Calgary?',
@@ -1242,12 +1255,19 @@ export const DEFAULT_APP_CONFIG: AppConfig = {
         },
       },
     },
+    // #878 (owner decision 2026-11-15, option (a)): partner-model disclosure.
+    // Status: draft-pending-lawyer — mirrored in docs/legal/approved-copy.md
+    // ("Builder-partner disclosure"); the FAQ answer "How do builder
+    // introductions work?" carries the same wording. Neutral-matching claims
+    // ("no paid placement", "project fit", …) are banned by
+    // tools/check-banned-phrases.mjs. Embedded estimators don't render this
+    // explainer: on a builder's own site the lead goes to that builder.
     builderMatching: {
       summary: 'What does "builders associated with us" mean?',
       paragraphs: [
-        'Feasly is an independent estimator — we don’t build homes, rank builders, or hand-pick who contacts you.',
-        'When you’re ready, we can introduce you to builders in Calgary whose work fits your project and area. Our system matches on project fit — no favourites, no paid placement.',
-        'It’s free, and only ever with your permission. You can opt out anytime.',
+        'Feasly is an independent estimator. We don’t build homes.',
+        'If you ask to be contacted, leads from Feasly’s own site go to our builder partner(s), listed on How it works. A partner pays Feasly a referral commission only if you sign a contract with them.',
+        'It never changes your estimate, and you’re never obliged to hire anyone. You can opt out anytime.',
       ],
     },
     consent: {
@@ -1744,6 +1764,71 @@ export const DEFAULT_APP_CONFIG: AppConfig = {
       errorHeading: 'Something went wrong.',
       errorBody: 'We couldn’t check your link. Please check your connection and try again.',
       retryLabel: 'Try again',
+      homeCta: 'Back to home',
+    },
+    // #706 privacy self-service. Copy status: draft-pending-lawyer.
+    privacyData: {
+      entryLinkLabel: 'Download or delete my data',
+      heading: 'Your data',
+      intro:
+        'Download a copy of everything Feasly holds about you, or ask us to delete it. You need the link from your estimate email.',
+      draftNotice: 'This wording is a draft pending legal review.',
+      loadingLabel: 'Working…',
+      downloadHeading: 'Download my data',
+      downloadBody:
+        'A file with your leads, estimates, report links, callback requests and consent history.',
+      downloadCta: 'Download my data',
+      downloadWorking: 'Preparing your file…',
+      downloadDone: 'Your file has downloaded.',
+      downloadFileName: 'feasly-my-data.json',
+      deleteHeading: 'Delete my data',
+      deleteBody:
+        'We delete your lead records and revoke your report links. Your saved estimate links stop working.',
+      deleteCta: 'Delete my data',
+      deleteWorking: 'Starting your request…',
+      pendingHeading: 'Confirm your deletion request',
+      pendingBody:
+        'Nothing has been deleted yet. Read what happens below, then confirm to delete your data.',
+      consequencesHeading: 'What happens when you confirm',
+      confirmCta: 'Yes, delete my data',
+      cancelCta: 'Keep my data',
+      noTokenHeading: 'Open your estimate link first',
+      noTokenBody:
+        'For your security we need the link from your estimate email. Enter your email and we’ll send a fresh link if we have your details. Open it, then choose “Download or delete my data” at the bottom of your report.',
+      emailLabel: 'Email address',
+      emailInvalid: 'Enter a valid email address.',
+      sendLinkCta: 'Email me a link',
+      sendLinkWorking: 'Sending…',
+      linkSentHeading: 'Check your inbox',
+      linkSentBody:
+        'If we have details for that email, a fresh link is on its way. It can take a few minutes.',
+      pendingEmailBody:
+        'Nothing has been deleted yet. We’ve emailed you a link — open it to confirm the deletion.',
+      confirmPromptHeading: 'Delete your data?',
+      confirmPromptBody:
+        'This deletes your lead records and revokes your report links. It can’t be undone.',
+      confirmWorking: 'Deleting your data…',
+      confirmDoneHeading: 'Your data has been deleted.',
+      confirmDoneBody:
+        'Your lead records are deleted and your report links no longer work. We also cleared the saved estimate on this device.',
+      confirmAlreadyHeading: 'Already deleted',
+      confirmAlreadyBody: 'This deletion request was already completed. There is nothing more to do.',
+      confirmExpiredHeading: 'This confirmation link has expired.',
+      confirmExpiredBody:
+        'Request a fresh link from the “Your data” page and start the deletion again.',
+      confirmBlockedHeading: 'We couldn’t delete everything yet.',
+      confirmBlockedBody:
+        'Some records have to be kept for now. Your request is saved — reply to any Feasly email and we’ll explain what is kept and why.',
+      confirmInvalidHeading: 'This confirmation link isn’t valid.',
+      confirmInvalidBody: 'It may have been copied incompletely. Start again from the “Your data” page.',
+      expiredHeading: 'Your link has expired.',
+      expiredBody: 'Enter your email below and we’ll send a fresh link if we have your details.',
+      rateLimitedHeading: 'Too many requests.',
+      rateLimitedBody: 'Please wait a minute and try again.',
+      errorHeading: 'Something went wrong.',
+      errorBody: 'We couldn’t complete that. Please check your connection and try again.',
+      retryLabel: 'Try again',
+      myDataCta: 'Go to “Your data”',
       homeCta: 'Back to home',
     },
     magicLink: {

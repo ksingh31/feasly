@@ -6,15 +6,55 @@
  * route's wire shape.
  */
 
-/** Commission invoice lifecycle — see TECH_PLAN §2.4. */
+/**
+ * Commission invoice lifecycle — see TECH_PLAN §2.4.
+ *
+ * `action_required` (#712): the off-session charge needs the builder to
+ * confirm it with their bank (3-D Secure / SCA). The invoice waits for the
+ * builder (POST /api/v1/billing/invoices/{id}/confirm-payment); it is not a
+ * failure and does not count as a dunning retry.
+ */
 export type CommissionInvoiceStatus =
   | 'draft'
   | 'in_review'
   | 'finalized'
+  | 'action_required'
   | 'paid'
   | 'failed'
   | 'disputed'
   | 'void';
+
+/**
+ * Normalised result of one off-session charge attempt (#712), whichever
+ * payment provider ran it:
+ * - `succeeded`: money moved (the webhook settles the invoice `paid`).
+ * - `processing`: still in flight — webhook / reconciliation settles it.
+ * - `requires_action`: the bank wants the cardholder to confirm (3DS).
+ * - `failed`: declined — the invoice moves to `failed` (dunning).
+ */
+export type ChargeOutcome =
+  | 'succeeded'
+  | 'processing'
+  | 'requires_action'
+  | 'failed';
+
+/**
+ * Response of POST /api/v1/billing/invoices/{id}/confirm-payment (#712).
+ * The builder portal confirms the PaymentIntent on-session with it:
+ * `stripe.confirmCardPayment(clientSecret, { payment_method })` for
+ * `provider: 'stripe'`, or POST /billing/simulated/authenticate with
+ * `paymentIntentId` for `provider: 'simulated'`. The webhook then settles
+ * the invoice — the portal never marks it paid itself.
+ */
+export interface ConfirmInvoicePaymentResponse {
+  readonly invoiceId: string;
+  readonly paymentIntentId: string;
+  /** PaymentIntent client secret — usable only with the publishable key. */
+  readonly clientSecret: string;
+  /** Saved card the charge used (`pm_…`); absent when unknown. */
+  readonly paymentMethodId?: string;
+  readonly provider: 'stripe' | 'simulated';
+}
 
 export interface CommissionInvoice {
   readonly id: string;

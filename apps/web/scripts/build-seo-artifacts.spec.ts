@@ -90,7 +90,9 @@ describe('build-seo-artifacts (SEO-02)', () => {
     expect(robotsTxt).toContain('User-agent: *');
     expect(robotsTxt).toContain('Allow: /');
 
-    const expectedDisallow = ['/r/', '/estimate/', '/preview', '/check-email', '/analyzing', '/embed/', '/admin/', '/api/'];
+    const expectedDisallow = ['/r/', '/estimate/', '/preview', '/check-email', '/analyzing', '/embed/', '/admin/', '/api/', '/privacy/my-data', '/privacy/confirm/'];
+    // #706: the public policy lives at /privacy/ — only the private pages are disallowed.
+    expect(robotsTxt).not.toMatch(/^Disallow: \/privacy\/?$/m);
     for (const path of expectedDisallow) {
       expect(robotsTxt).toContain(`Disallow: ${path}`);
     }

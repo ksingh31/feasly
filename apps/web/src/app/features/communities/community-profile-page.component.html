@@ -1,5 +1,5 @@
 @if (view(); as v) {
-  <app-site-nav />
+  <app-site-nav [search]="true" />
   <main class="community-profile" id="main-content" tabindex="-1">
     <p class="eyebrow">{{ copy().kicker }}</p>
     <h1>{{ v.displayName }}, Calgary</h1>
