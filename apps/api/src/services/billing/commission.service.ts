@@ -1187,12 +1187,14 @@ export function createCommissionService(
    * 'succeeded' + the provider refund id. A definitive rejection → 'failed'
    * and the claimed amount is released on the invoice. Any other error
    * leaves the refund 'pending' (claim held) so a retry with the same key
-   * resumes it with the same provider idempotency key.
+   * resumes it with the same provider idempotency key. `completed` is true
+   * only for the call whose conditional UPDATE moved the row pending →
+   * succeeded, so exactly one caller writes the refund audit trail.
    */
   async function completeCardRefund(
     refund: typeof billingRefunds.$inferSelect,
     paymentIntentId: string,
-  ): Promise<typeof billingRefunds.$inferSelect> {
+  ): Promise<{ row: typeof billingRefunds.$inferSelect; completed: boolean }> {
     let providerRefund: { id: string; status: string };
     try {
       providerRefund = await stripe.refundPaymentIntent(
@@ -1250,20 +1252,68 @@ export function createCommissionService(
         ),
       )
       .returning();
+    if (succeeded !== undefined) return { row: succeeded, completed: true };
     // A concurrent replay may have completed it first — re-read.
-    return (
-      succeeded ??
-      (await db.query.billingRefunds.findFirst({
-        where: eq(billingRefunds.id, refund.id),
-      })) ??
-      refund
+    return {
+      row:
+        (await db.query.billingRefunds.findFirst({
+          where: eq(billingRefunds.id, refund.id),
+        })) ?? refund,
+      completed: false,
+    };
+  }
+
+  /**
+   * #715: the audit trail for a refund that just became final — the
+   * `invoice.refunded` billing event plus the admin_audit_log row. Written
+   * by whichever call finalised it: the original request, or the retry
+   * that resumed a refund left pending by a transient provider error.
+   */
+  async function recordRefunded(
+    refundRow: typeof billingRefunds.$inferSelect,
+    adminEmail: string | null,
+    resumed: boolean,
+  ): Promise<CommissionInvoiceRecord> {
+    const invoice = await detailRecord(await requireInvoice(refundRow.invoiceId));
+    await audit.append({
+      tenantKey: invoice.tenantKey,
+      eventType: 'invoice.refunded',
+      entityType: 'commission_invoice',
+      entityId: invoice.id,
+      payload: {
+        refundId: refundRow.id,
+        amountCents: refundRow.amountCents,
+        method: refundRow.method,
+        reason: refundRow.reason,
+        ...(refundRow.note ? { note: refundRow.note } : {}),
+        ...(refundRow.reference && refundRow.method === 'manual'
+          ? { reference: refundRow.reference }
+          : {}),
+        ...(refundRow.stripeRefundId
+          ? { stripeRefundId: refundRow.stripeRefundId }
+          : {}),
+        totalCents: invoice.totalCents,
+        refundedCents: invoice.refundedCents,
+        netCents: invoice.totalCents - invoice.refundedCents,
+        refundState: invoice.refundState,
+        adminEmail,
+        ...(resumed ? { resumed: true } : {}),
+      },
+    });
+    await adminAuditLog(
+      'billing.invoice_refunded',
+      adminEmail,
+      `invoice=${invoice.id} refund=${refundRow.id} amount_cents=${refundRow.amountCents} method=${refundRow.method}` +
+        (resumed ? ' resumed=true' : ''),
     );
+    return invoice;
   }
 
   /** #715: replay a refund request whose idempotency key already exists. */
   async function replayRefund(
     invoiceId: string,
     existing: typeof billingRefunds.$inferSelect,
+    adminEmail: string | null,
   ): Promise<RefundInvoiceResult> {
     if (existing.invoiceId !== invoiceId) {
       throw new HttpError(
@@ -1289,10 +1339,19 @@ export function createCommissionService(
           `Invoice "${invoiceId}" has no PaymentIntent — the pending refund cannot be completed`,
         );
       }
-      refundRow = await completeCardRefund(
+      const result = await completeCardRefund(
         existing,
         invoiceRow.stripePaymentIntentId,
       );
+      refundRow = result.row;
+      // This retry finished the provider refund — it owns the audit trail.
+      if (result.completed) {
+        return {
+          invoice: await recordRefunded(refundRow, adminEmail, true),
+          refund: toRefundRecord(refundRow),
+          replayed: true,
+        };
+      }
     }
     return {
       invoice: await detailRecord(await requireInvoice(invoiceId)),
@@ -2238,7 +2297,7 @@ export function createCommissionService(
       const prior = await db.query.billingRefunds.findFirst({
         where: eq(billingRefunds.idempotencyKey, idempotencyKey),
       });
-      if (prior !== undefined) return replayRefund(invoiceId, prior);
+      if (prior !== undefined) return replayRefund(invoiceId, prior, input.adminEmail);
 
       const row = await requireInvoice(invoiceId);
       if (row.status !== 'paid') {
@@ -2292,33 +2351,63 @@ export function createCommissionService(
         );
       }
 
-      // 1. Claim the idempotency key (UNIQUE). A concurrent duplicate
-      //    loses the insert and replays the winner — one refund, ever.
+      // 1+2. One transaction: claim the idempotency key (UNIQUE) and
+      //      reserve the amount on the invoice. A crash can never leave a
+      //      refund row without its reservation (or the reverse). A
+      //      concurrent duplicate loses the insert and replays the winner —
+      //      one refund, ever. The reservation guard means concurrent
+      //      refunds with different keys can never exceed the amount paid.
+      //      The provider call stays outside the transaction.
       const refundId = newId();
-      const inserted = await db
-        .insert(billingRefunds)
-        .values({
-          id: refundId,
-          invoiceId,
-          tenantKey: row.tenantKey,
-          amountCents,
-          currency: row.currency,
-          reason: input.reason,
-          note: optionalText(input.note),
-          method,
-          status: method === 'manual' ? 'succeeded' : 'pending',
-          reference: method === 'manual' ? reference : null,
-          idempotencyKey,
-          actorEmail: input.adminEmail,
-          createdAt: now(),
-          updatedAt: now(),
-        })
-        .returning()
-        .catch(async (error: unknown) => {
-          if (!isUniqueViolation(error)) throw error;
-          return null;
+      let refundRow: typeof billingRefunds.$inferSelect;
+      try {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        refundRow = await db.transaction(async (tx: any) => {
+          const [inserted] = await tx
+            .insert(billingRefunds)
+            .values({
+              id: refundId,
+              invoiceId,
+              tenantKey: row.tenantKey,
+              amountCents,
+              currency: row.currency,
+              reason: input.reason,
+              note: optionalText(input.note),
+              method,
+              status: method === 'manual' ? 'succeeded' : 'pending',
+              reference: method === 'manual' ? reference : null,
+              idempotencyKey,
+              actorEmail: input.adminEmail,
+              createdAt: now(),
+              updatedAt: now(),
+            })
+            .returning();
+          const [reserved] = await tx
+            .update(commissionInvoices)
+            .set({
+              refundedCents: sql`${commissionInvoices.refundedCents} + ${amountCents}`,
+              updatedAt: now(),
+            })
+            .where(
+              and(
+                eq(commissionInvoices.id, invoiceId),
+                eq(commissionInvoices.status, 'paid'),
+                sql`${commissionInvoices.refundedCents} + ${amountCents} <= coalesce(${commissionInvoices.totalCents}, ${commissionInvoices.commissionCents} + ${commissionInvoices.taxCents})`,
+              ),
+            )
+            .returning();
+          if (reserved === undefined) {
+            // Rolls back the claim too — nothing is recorded.
+            throw new HttpError(
+              422,
+              ErrorCodes.VALIDATION_FAILED,
+              `Invoice "${invoiceId}" changed while refunding — the amount now exceeds what is left to refund. Reload and retry.`,
+            );
+          }
+          return inserted as typeof billingRefunds.$inferSelect;
         });
-      if (inserted === null) {
+      } catch (error: unknown) {
+        if (!isUniqueViolation(error)) throw error;
         const winner = await db.query.billingRefunds.findFirst({
           where: eq(billingRefunds.idempotencyKey, idempotencyKey),
         });
@@ -2329,74 +2418,28 @@ export function createCommissionService(
             'Refund request collided with a concurrent one — retry',
           );
         }
-        return replayRefund(invoiceId, winner);
-      }
-      let refundRow = inserted[0];
-
-      // 2. Reserve the amount on the invoice atomically: concurrent refunds
-      //    with different keys can never exceed the amount paid.
-      const [reserved] = await db
-        .update(commissionInvoices)
-        .set({
-          refundedCents: sql`${commissionInvoices.refundedCents} + ${amountCents}`,
-          updatedAt: now(),
-        })
-        .where(
-          and(
-            eq(commissionInvoices.id, invoiceId),
-            eq(commissionInvoices.status, 'paid'),
-            sql`${commissionInvoices.refundedCents} + ${amountCents} <= coalesce(${commissionInvoices.totalCents}, ${commissionInvoices.commissionCents} + ${commissionInvoices.taxCents})`,
-          ),
-        )
-        .returning();
-      if (reserved === undefined) {
-        await db
-          .update(billingRefunds)
-          .set({ status: 'failed', updatedAt: now() })
-          .where(eq(billingRefunds.id, refundId));
-        throw new HttpError(
-          422,
-          ErrorCodes.VALIDATION_FAILED,
-          `Invoice "${invoiceId}" changed while refunding — the amount now exceeds what is left to refund. Reload and retry.`,
-        );
+        return replayRefund(invoiceId, winner, input.adminEmail);
       }
 
       // 3. Card refund on the provider (manual refunds are already final).
+      //    If a concurrent replay finalised it first, that call wrote the
+      //    audit trail.
       if (method === 'stripe') {
-        refundRow = await completeCardRefund(
+        const result = await completeCardRefund(
           refundRow,
           row.stripePaymentIntentId as string,
         );
+        refundRow = result.row;
+        if (!result.completed) {
+          return {
+            invoice: await detailRecord(await requireInvoice(invoiceId)),
+            refund: toRefundRecord(refundRow),
+            replayed: false,
+          };
+        }
       }
 
-      const invoice = await detailRecord(await requireInvoice(invoiceId));
-      await audit.append({
-        tenantKey: invoice.tenantKey,
-        eventType: 'invoice.refunded',
-        entityType: 'commission_invoice',
-        entityId: invoice.id,
-        payload: {
-          refundId,
-          amountCents,
-          method,
-          reason: input.reason,
-          ...(refundRow.note ? { note: refundRow.note } : {}),
-          ...(reference && method === 'manual' ? { reference } : {}),
-          ...(refundRow.stripeRefundId
-            ? { stripeRefundId: refundRow.stripeRefundId }
-            : {}),
-          totalCents: invoice.totalCents,
-          refundedCents: invoice.refundedCents,
-          netCents: invoice.totalCents - invoice.refundedCents,
-          refundState: invoice.refundState,
-          adminEmail: input.adminEmail,
-        },
-      });
-      await adminAuditLog(
-        'billing.invoice_refunded',
-        input.adminEmail,
-        `invoice=${invoice.id} refund=${refundId} amount_cents=${amountCents} method=${method}`,
-      );
+      const invoice = await recordRefunded(refundRow, input.adminEmail, false);
       return { invoice, refund: toRefundRecord(refundRow), replayed: false };
     },
 

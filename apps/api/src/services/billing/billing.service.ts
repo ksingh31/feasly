@@ -170,13 +170,15 @@ export function createBillingService(
       );
     }
     // #715: builders see their refunds, but not which staff member issued
-    // them — the admin identity stays in the admin-side audit trail.
+    // them nor the admin's internal free-text note — both stay in the
+    // admin-side audit trail.
     if (tenantKey !== null && invoice.refunds !== undefined) {
       return {
         ...invoice,
         refunds: invoice.refunds.map((refund) => ({
           ...refund,
           actorEmail: null,
+          note: null,
         })),
       };
     }

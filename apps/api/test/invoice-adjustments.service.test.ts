@@ -447,6 +447,25 @@ describe('admin invoice corrections (#715)', () => {
       expect(detail.refunds).toHaveLength(1);
     });
 
+    it('two concurrent full refunds with different keys: one wins, the loser leaves no refund row', async () => {
+      const h = harness();
+      const paid = await cardPaidInvoice(h);
+      const base = { reason: 'duplicate' as const, adminEmail: ADMIN };
+      const results = await Promise.allSettled([
+        h.commission.refundInvoice(paid.id, { ...base, idempotencyKey: key() }),
+        h.commission.refundInvoice(paid.id, { ...base, idempotencyKey: key() }),
+      ]);
+      expect(results.filter((r) => r.status === 'fulfilled')).toHaveLength(1);
+      const rejected = results.filter((r) => r.status === 'rejected');
+      expect(rejected).toHaveLength(1);
+      expect((rejected[0] as PromiseRejectedResult).reason).toBeInstanceOf(HttpError);
+      const detail = await h.commission.getById(paid.id);
+      // Claim + reservation are one transaction: the loser rolled back whole.
+      expect(detail.refunds).toHaveLength(1);
+      expect(detail.refundedCents).toBe(COMMISSION_CENTS);
+      expect(h.stripe.refunds.size).toBe(1);
+    });
+
     it('a transient provider error keeps the refund pending; the retry resumes it — still one refund', async () => {
       const h = harness();
       const paid = await cardPaidInvoice(h);
@@ -464,6 +483,9 @@ describe('admin invoice corrections (#715)', () => {
       expect(pending.refunds?.[0]?.status).toBe('pending');
       // The claim is held so nothing else can over-refund meanwhile.
       expect(pending.refundedCents).toBe(10_000);
+      // Not final yet → no audit trail yet.
+      expect((await events(paid.id)).filter((e) => e.event_type === 'invoice.refunded')).toHaveLength(0);
+      expect(h.adminAudit.entries.filter((e) => e.action === 'billing.invoice_refunded')).toHaveLength(0);
 
       const resumed = await h.commission.refundInvoice(paid.id, input);
       expect(resumed.replayed).toBe(true);
@@ -472,6 +494,27 @@ describe('admin invoice corrections (#715)', () => {
       expect(h.stripe.refunds.size).toBe(1);
       // Both provider calls used the same provider idempotency key.
       expect(new Set(h.stripe.refundCalls.map((c) => c.idempotencyKey)).size).toBe(1);
+      // The retry that finished the refund wrote the audit trail — once.
+      const refunded = (await events(paid.id)).filter((e) => e.event_type === 'invoice.refunded');
+      expect(refunded).toHaveLength(1);
+      expect(refunded[0]?.payload).toMatchObject({
+        refundId: resumed.refund.id,
+        amountCents: 10_000,
+        method: 'stripe',
+        reason: 'billing_error',
+        resumed: true,
+        adminEmail: ADMIN,
+      });
+      expect(refunded[0]?.payload.stripeRefundId).toEqual(expect.any(String));
+      const adminRows = h.adminAudit.entries.filter((e) => e.action === 'billing.invoice_refunded');
+      expect(adminRows).toHaveLength(1);
+      expect(adminRows[0]).toMatchObject({ actorEmail: ADMIN });
+      expect(adminRows[0]?.detail).toContain(`refund=${resumed.refund.id}`);
+
+      // A further replay of the now-final refund writes nothing more.
+      await h.commission.refundInvoice(paid.id, input);
+      expect((await events(paid.id)).filter((e) => e.event_type === 'invoice.refunded')).toHaveLength(1);
+      expect(h.adminAudit.entries.filter((e) => e.action === 'billing.invoice_refunded')).toHaveLength(1);
     });
 
     it('a definitive provider rejection fails the refund and releases the amount', async () => {
@@ -798,7 +841,7 @@ describe('builder-scoped invoice reads hide the refunding admin (#715 AC7)', () 
       tenantKey: 'elite-craft',
       refundedCents: 50_000,
       refundState: 'partially_refunded',
-      refunds: [{ id: 'rf-1', amountCents: 50_000, actorEmail: ADMIN }],
+      refunds: [{ id: 'rf-1', amountCents: 50_000, actorEmail: ADMIN, note: 'internal: escalated by ops' }],
     } as unknown as CommissionInvoiceRecord;
     const billing = createBillingService({
       leadStore: {} as never,
@@ -807,9 +850,10 @@ describe('builder-scoped invoice reads hide the refunding admin (#715 AC7)', () 
       commission: { getById: async () => record } as unknown as CommissionService,
     });
     const builderView = await billing.getInvoice('inv-1', 'elite-craft');
-    expect(builderView.refunds?.[0]).toMatchObject({ amountCents: 50_000, actorEmail: null });
+    expect(builderView.refunds?.[0]).toMatchObject({ amountCents: 50_000, actorEmail: null, note: null });
     expect(builderView.refundedCents).toBe(50_000);
     const adminView = await billing.getInvoice('inv-1', null);
     expect(adminView.refunds?.[0]?.actorEmail).toBe(ADMIN);
+    expect(adminView.refunds?.[0]?.note).toBe('internal: escalated by ops');
   });
 });
