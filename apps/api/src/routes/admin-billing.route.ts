@@ -32,8 +32,18 @@
  *   (attribution → draft invoice → auto-submitted into the 7-day review
  *   window). Admin-gated, `billing:manage`.
  *
- * Read-only by design except the retry and manual-invoice actions: no
- * refund/void endpoints exist on this route.
+ * - `POST /api/v1/admin/billing/invoices/{id}/refund` (#715) — refund a
+ *   paid invoice in full or in part; idempotent on the client key.
+ * - `POST /api/v1/admin/billing/invoices/{id}/void` (#715) — cancel a
+ *   draft / in_review / failed invoice.
+ * - `POST /api/v1/admin/billing/invoices/{id}/correct-contract` (#715) —
+ *   fix the reported contract before the invoice is charged.
+ * - `POST /api/v1/admin/billing/invoices/{id}/reverse-payment` (#715) —
+ *   undo a manual mark-paid (bounced cheque): paid → failed.
+ *
+ * Every money action is `billing:manage` (central route-permission
+ * enforcement: 403 + `authz.denied` audit for other roles) and is audited
+ * with the signed-in admin's own email.
  *
  * Hard rules (enforced by test/boundaries.test.ts):
  * - a route NEVER imports from src/db/
@@ -44,6 +54,15 @@ import { z } from 'zod';
 import type {
   AdminSetInvoicePaymentMethodResponse,
   BillingHealthResponse,
+  CorrectContractRequest,
+  CorrectContractResponse,
+  InvoiceRefund,
+  RefundInvoiceRequest,
+  RefundInvoiceResponse,
+  ReverseManualPaymentRequest,
+  ReverseManualPaymentResponse,
+  VoidInvoiceRequest,
+  VoidInvoiceResponse,
   ManualInvoiceRequest,
   ManualInvoiceResponse,
   ManualPaymentMethod,
@@ -55,7 +74,10 @@ import { pastOrPresentDatetime } from '../lib/zod-datetime';
 import type { AdminGuard } from '../middleware/admin-guard';
 import type { BillingHealthService } from '../services/billing/billing-health.service';
 import type { BillingService } from '../services/billing/billing.service';
-import type { CommissionService } from '../services/billing/commission.service';
+import type {
+  CommissionService,
+  InvoiceRefundRecord,
+} from '../services/billing/commission.service';
 
 const invoiceIdSchema = z.string().trim().uuid();
 
@@ -106,6 +128,55 @@ const manualInvoiceBodySchema = (nowMs: number): z.ZodType<ManualInvoiceRequest>
     contractSignedAt: pastOrPresentDatetime('contractSignedAt', nowMs),
   });
 
+const NOTE = z.string().trim().max(500);
+
+/** #715 refund body. `amountCents` omitted = refund the remainder. */
+const refundBodySchema: z.ZodType<RefundInvoiceRequest> = z.object({
+  amountCents: z.number().int().positive().optional(),
+  reason: z.enum([
+    'duplicate',
+    'billing_error',
+    'deal_fell_through',
+    'goodwill',
+    'other',
+  ]),
+  note: NOTE.optional(),
+  reference: z.string().trim().max(120).optional(),
+  idempotencyKey: z
+    .string()
+    .trim()
+    .regex(/^[A-Za-z0-9_:-]{8,100}$/),
+});
+
+/** #715 void body. */
+const voidBodySchema: z.ZodType<VoidInvoiceRequest> = z.object({
+  reason: z.enum(['duplicate', 'created_in_error', 'deal_fell_through', 'other']),
+  note: NOTE.optional(),
+});
+
+/** #715 contract-correction body — same shape rules as a reported contract. */
+const correctContractBodySchema = (
+  nowMs: number,
+): z.ZodType<CorrectContractRequest> =>
+  z.object({
+    contractValueCents: z.number().int().positive(),
+    contractSignedAt: pastOrPresentDatetime('contractSignedAt', nowMs),
+    note: NOTE.min(1),
+  });
+
+/** #715 payment-reversal body — the reason is mandatory. */
+const reversePaymentBodySchema: z.ZodType<ReverseManualPaymentRequest> =
+  z.object({ reason: NOTE.min(1) });
+
+/** Server refund record → wire DTO (ISO dates). */
+function toRefundDto(refund: InvoiceRefundRecord): InvoiceRefund {
+  return { ...refund, createdAt: refund.createdAt.toISOString() };
+}
+
+function invalidBody(message: string): HttpError {
+  return new HttpError(400, ErrorCodes.VALIDATION_FAILED, message, false);
+}
+
 export interface AdminBillingRouteDeps {
   readonly billingHealth: BillingHealthService;
   readonly commission: CommissionService;
@@ -146,6 +217,30 @@ export interface AdminBillingRoute {
     headers: Record<string, string | string[] | undefined>,
     body: unknown,
   ): Promise<ManualInvoiceResponse>;
+  /** POST /api/v1/admin/billing/invoices/{id}/refund (#715) */
+  refundInvoice(
+    headers: Record<string, string | string[] | undefined>,
+    invoiceId: unknown,
+    body: unknown,
+  ): Promise<RefundInvoiceResponse>;
+  /** POST /api/v1/admin/billing/invoices/{id}/void (#715) */
+  voidInvoice(
+    headers: Record<string, string | string[] | undefined>,
+    invoiceId: unknown,
+    body: unknown,
+  ): Promise<VoidInvoiceResponse>;
+  /** POST /api/v1/admin/billing/invoices/{id}/correct-contract (#715) */
+  correctContract(
+    headers: Record<string, string | string[] | undefined>,
+    invoiceId: unknown,
+    body: unknown,
+  ): Promise<CorrectContractResponse>;
+  /** POST /api/v1/admin/billing/invoices/{id}/reverse-payment (#715) */
+  reverseManualPayment(
+    headers: Record<string, string | string[] | undefined>,
+    invoiceId: unknown,
+    body: unknown,
+  ): Promise<ReverseManualPaymentResponse>;
 }
 
 export function createAdminBillingRoute(
@@ -278,7 +373,8 @@ export function createAdminBillingRoute(
       };
     },
 
-    async createInvoice(headers, body): Promise<ManualInvoiceResponse> {      await adminGuard.requireAdmin(headers);
+    async createInvoice(headers, body): Promise<ManualInvoiceResponse> {
+      await adminGuard.requireAdmin(headers);
       const parsed = manualInvoiceBodySchema(Date.now()).safeParse(body);
       if (!parsed.success) {
         throw new HttpError(
@@ -320,6 +416,132 @@ export function createAdminBillingRoute(
         totalCents: invoice.totalCents,
         currency: invoice.currency,
         reviewDueAt: invoice.reviewDueAt?.toISOString() ?? null,
+      };
+    },
+
+    async refundInvoice(
+      headers,
+      invoiceId,
+      body,
+    ): Promise<RefundInvoiceResponse> {
+      await adminGuard.requireAdmin(headers);
+      const parsed = refundBodySchema.safeParse(body);
+      if (!parsed.success) {
+        throw invalidBody(
+          'Invalid refund body: reason (duplicate | billing_error | ' +
+            'deal_fell_through | goodwill | other) and idempotencyKey ' +
+            '(8–100 of A–Z a–z 0–9 _ - :) are required; optional ' +
+            'amountCents (positive integer), note (max 500 chars) and ' +
+            'reference (max 120 chars).',
+        );
+      }
+      const result = await commission.refundInvoice(
+        invoiceIdSchema.parse(invoiceId),
+        {
+          ...parsed.data,
+          adminEmail: await adminGuard.getAdminEmail(headers),
+        },
+      );
+      const { invoice } = result;
+      return {
+        invoiceId: invoice.id,
+        status: invoice.status,
+        totalCents: invoice.totalCents,
+        refundedCents: invoice.refundedCents,
+        netCents: invoice.totalCents - invoice.refundedCents,
+        refundState: invoice.refundState,
+        currency: invoice.currency,
+        refund: toRefundDto(result.refund),
+        replayed: result.replayed,
+      };
+    },
+
+    async voidInvoice(headers, invoiceId, body): Promise<VoidInvoiceResponse> {
+      await adminGuard.requireAdmin(headers);
+      const parsed = voidBodySchema.safeParse(body);
+      if (!parsed.success) {
+        throw invalidBody(
+          'Invalid void body: reason (duplicate | created_in_error | ' +
+            'deal_fell_through | other) is required; optional note (max 500 chars).',
+        );
+      }
+      const result = await commission.voidInvoice(
+        invoiceIdSchema.parse(invoiceId),
+        {
+          ...parsed.data,
+          adminEmail: await adminGuard.getAdminEmail(headers),
+        },
+      );
+      return {
+        invoiceId: result.invoice.id,
+        status: result.invoice.status,
+        previousStatus: result.previousStatus,
+      };
+    },
+
+    async correctContract(
+      headers,
+      invoiceId,
+      body,
+    ): Promise<CorrectContractResponse> {
+      await adminGuard.requireAdmin(headers);
+      const parsed = correctContractBodySchema(Date.now()).safeParse(body);
+      if (!parsed.success) {
+        throw invalidBody(
+          'Invalid contract correction: a positive contractValueCents ' +
+            '(integer cents, excluding land), contractSignedAt (ISO datetime ' +
+            'with timezone offset, not in the future) and a note (max 500 ' +
+            'chars) are required.',
+        );
+      }
+      const result = await commission.correctContract(
+        invoiceIdSchema.parse(invoiceId),
+        {
+          contractValueCents: parsed.data.contractValueCents,
+          contractSignedAt: new Date(parsed.data.contractSignedAt),
+          note: parsed.data.note,
+          adminEmail: await adminGuard.getAdminEmail(headers),
+        },
+      );
+      const { invoice } = result;
+      return {
+        invoiceId: invoice.id,
+        status: invoice.status,
+        previousContractValueCents: result.previousContractValueCents,
+        contractValueCents: invoice.contractValueCents,
+        contractSignedAt: result.contractSignedAt.toISOString(),
+        commissionCents: invoice.commissionCents,
+        taxCents: invoice.taxCents,
+        totalCents: invoice.totalCents,
+        currency: invoice.currency,
+        reviewDueAt: invoice.reviewDueAt?.toISOString() ?? null,
+      };
+    },
+
+    async reverseManualPayment(
+      headers,
+      invoiceId,
+      body,
+    ): Promise<ReverseManualPaymentResponse> {
+      await adminGuard.requireAdmin(headers);
+      const parsed = reversePaymentBodySchema.safeParse(body);
+      if (!parsed.success) {
+        throw invalidBody(
+          'Invalid reversal body: a reason (max 500 chars) is required.',
+        );
+      }
+      const result = await commission.reverseManualPayment(
+        invoiceIdSchema.parse(invoiceId),
+        {
+          reason: parsed.data.reason,
+          adminEmail: await adminGuard.getAdminEmail(headers),
+        },
+      );
+      return {
+        invoiceId: result.invoice.id,
+        status: result.invoice.status,
+        reversedPaymentMethod: result.reversedPaymentMethod,
+        reversedReference: result.reversedReference,
       };
     },
   };

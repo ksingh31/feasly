@@ -100,8 +100,188 @@ export interface CommissionInvoice {
    * payment method at creation; changeable per invoice while unpaid.
    */
   readonly paymentMethod: 'card' | ManualPaymentMethod;
+  /*
+   * Refunds (#715). The API always sends `refundedCents` and `refundState`;
+   * `refunds` is sent on single-invoice reads (detail, PDF source) and
+   * omitted on lists. Optional so pre-#715 fixtures keep compiling.
+   */
+  /** Total refunded (or being refunded) against this invoice, integer cents. */
+  readonly refundedCents?: number;
+  /** Derived from `refundedCents` vs `totalCents` — not a status. */
+  readonly refundState?: InvoiceRefundState;
+  /** Refund records, oldest first. Present on single-invoice reads. */
+  readonly refunds?: readonly InvoiceRefund[];
   readonly createdAt: string;
   readonly updatedAt: string;
+}
+
+/**
+ * Refund state of a paid invoice (#715). Derived, never stored: an invoice
+ * stays `paid` when refunded — `partially_refunded` / `refunded` only
+ * describe how much of the payment went back.
+ */
+export type InvoiceRefundState = 'none' | 'partially_refunded' | 'refunded';
+
+/** Why an admin refunded an invoice (#715). */
+export type InvoiceRefundReason =
+  | 'duplicate'
+  | 'billing_error'
+  | 'deal_fell_through'
+  | 'goodwill'
+  | 'other';
+
+/**
+ * How the money went back (#715): `stripe` = a refund on the card charge;
+ * `manual` = an off-Stripe refund (cheque, e-transfer…) recorded with a
+ * reference, for invoices that were marked paid by hand.
+ */
+export type InvoiceRefundMethod = 'stripe' | 'manual';
+
+/**
+ * `pending` = claimed, the Stripe call has not confirmed yet; `succeeded`;
+ * `failed` = the Stripe call failed and the amount was released.
+ */
+export type InvoiceRefundStatus = 'pending' | 'succeeded' | 'failed';
+
+/** One refund against a commission invoice (#715). */
+export interface InvoiceRefund {
+  readonly id: string;
+  readonly invoiceId: string;
+  readonly amountCents: number;
+  readonly currency: string;
+  readonly reason: InvoiceRefundReason;
+  readonly note: string | null;
+  readonly method: InvoiceRefundMethod;
+  readonly status: InvoiceRefundStatus;
+  /** Stripe refund id (`re_…`) for card refunds; null otherwise. */
+  readonly stripeRefundId: string | null;
+  /** Cheque/trace number for a manual refund; null otherwise. */
+  readonly reference: string | null;
+  /**
+   * The admin who issued the refund. Admin reads only — builder-scoped
+   * reads get null.
+   */
+  readonly actorEmail: string | null;
+  readonly createdAt: string;
+}
+
+/**
+ * POST /api/v1/admin/billing/invoices/{id}/refund — refund a paid invoice
+ * in full or in part (#715). Card-paid invoices are refunded on Stripe;
+ * manually paid invoices record an off-Stripe refund (`reference`
+ * required). Retrying with the same `idempotencyKey` returns the first
+ * result and never creates a second refund.
+ */
+export interface RefundInvoiceRequest {
+  /** Integer cents. Omit to refund everything not yet refunded. */
+  readonly amountCents?: number;
+  readonly reason: InvoiceRefundReason;
+  /** Optional context for the audit trail (max 500 chars). */
+  readonly note?: string;
+  /** Cheque/trace number — required for manually paid invoices. */
+  readonly reference?: string;
+  /**
+   * Client-generated key, one per refund intent (8–100 chars of
+   * `A–Z a–z 0–9 _ - :`). A double-click or retry sends the same key.
+   */
+  readonly idempotencyKey: string;
+}
+
+/** POST /api/v1/admin/billing/invoices/{id}/refund — result. */
+export interface RefundInvoiceResponse {
+  readonly invoiceId: string;
+  readonly status: CommissionInvoiceStatus;
+  readonly totalCents: number;
+  readonly refundedCents: number;
+  /** totalCents − refundedCents: what the platform keeps. */
+  readonly netCents: number;
+  readonly refundState: InvoiceRefundState;
+  readonly currency: string;
+  readonly refund: InvoiceRefund;
+  /** True when this response replays an earlier request with the same key. */
+  readonly replayed: boolean;
+}
+
+/** Why an admin voided an invoice (#715). */
+export type VoidInvoiceReason =
+  | 'duplicate'
+  | 'created_in_error'
+  | 'deal_fell_through'
+  | 'other';
+
+/**
+ * POST /api/v1/admin/billing/invoices/{id}/void — cancel an invoice that
+ * should not be charged (#715). Allowed from `draft`, `in_review` and
+ * `failed`; 409 from `finalized` (charge in flight), `paid` (refund
+ * instead), `disputed` (use the dispute console) and `void`.
+ */
+export interface VoidInvoiceRequest {
+  readonly reason: VoidInvoiceReason;
+  /** Optional context for the audit trail (max 500 chars). */
+  readonly note?: string;
+}
+
+/** POST /api/v1/admin/billing/invoices/{id}/void — result. */
+export interface VoidInvoiceResponse {
+  readonly invoiceId: string;
+  /** Always `void`. */
+  readonly status: CommissionInvoiceStatus;
+  /** The status the invoice was voided from. */
+  readonly previousStatus: CommissionInvoiceStatus;
+}
+
+/**
+ * POST /api/v1/admin/billing/invoices/{id}/correct-contract — fix the
+ * reported contract on an invoice that has not been charged yet (#715).
+ * Allowed from `draft` and `in_review` (409 otherwise). Commission and tax
+ * are recalculated at the invoice's own rate and tax snapshot; an
+ * `in_review` invoice gets a fresh 7-day review window and the builder is
+ * emailed. The original values stay in the audit trail.
+ */
+export interface CorrectContractRequest {
+  /** Signed construction contract value in integer cents, EXCLUDING land. */
+  readonly contractValueCents: number;
+  /** ISO 8601 datetime WITH timezone offset, not in the future. */
+  readonly contractSignedAt: string;
+  /** Why the contract changed (required, max 500 chars). */
+  readonly note: string;
+}
+
+/** POST /api/v1/admin/billing/invoices/{id}/correct-contract — result. */
+export interface CorrectContractResponse {
+  readonly invoiceId: string;
+  readonly status: CommissionInvoiceStatus;
+  readonly previousContractValueCents: number;
+  readonly contractValueCents: number;
+  readonly contractSignedAt: string;
+  readonly commissionCents: number;
+  readonly taxCents: number;
+  readonly totalCents: number;
+  readonly currency: string;
+  /** New end of the review window (in_review), null for a draft. */
+  readonly reviewDueAt: string | null;
+}
+
+/**
+ * POST /api/v1/admin/billing/invoices/{id}/reverse-payment — undo a manual
+ * mark-paid when the money never arrived (bounced cheque) (#715). The
+ * invoice moves `paid → failed`; only manually paid invoices with no
+ * refunds qualify (409 otherwise). The payment method stays manual, so
+ * nothing is auto-charged.
+ */
+export interface ReverseManualPaymentRequest {
+  /** Why the payment is reversed (required, max 500 chars). */
+  readonly reason: string;
+}
+
+/** POST /api/v1/admin/billing/invoices/{id}/reverse-payment — result. */
+export interface ReverseManualPaymentResponse {
+  readonly invoiceId: string;
+  /** Always `failed`. */
+  readonly status: CommissionInvoiceStatus;
+  /** The manual method that was reversed. */
+  readonly reversedPaymentMethod: ManualPaymentMethod;
+  readonly reversedReference: string | null;
 }
 
 /**

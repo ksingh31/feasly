@@ -12,6 +12,20 @@ real backend. Changing them has a cost, so:
 - **Never** widen a type to `any` to "unblock" something — the no-`any` lint exists
   precisely to stop that.
 
+## Unreleased — 2026-11-16 (additive)
+
+Admin refunds, void, contract correction, manual-payment reversal (issue #715):
+
+- **Added** optional `CommissionInvoice.refundedCents`, `refundState`
+  (`InvoiceRefundState`: `none` | `partially_refunded` | `refunded` — derived,
+  not a status) and `refunds` (`InvoiceRefund[]`, single-invoice reads only).
+- **Added** `InvoiceRefund`, `InvoiceRefundReason`, `InvoiceRefundMethod`,
+  `InvoiceRefundStatus`; request/response pairs `RefundInvoiceRequest` /
+  `RefundInvoiceResponse`, `VoidInvoiceRequest` / `VoidInvoiceResponse`
+  (+ `VoidInvoiceReason`), `CorrectContractRequest` /
+  `CorrectContractResponse`, `ReverseManualPaymentRequest` /
+  `ReverseManualPaymentResponse` for the four new admin billing endpoints.
+
 ## Unreleased — 2026-11-15 (additive)
 
 Zoning rules catalogue (issue #687):

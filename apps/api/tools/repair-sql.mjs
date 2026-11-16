@@ -468,6 +468,8 @@ ALTER TABLE "commission_invoices" ADD COLUMN IF NOT EXISTS "tax_inclusive" boole
 ALTER TABLE "commission_invoices" ADD COLUMN IF NOT EXISTS "tax_cents" integer DEFAULT 0 NOT NULL;
 ALTER TABLE "commission_invoices" ADD COLUMN IF NOT EXISTS "total_cents" integer;
 UPDATE "commission_invoices" SET "total_cents" = "commission_cents" + "tax_cents" WHERE "total_cents" IS NULL;
+-- #715 refunds: running refunded total (rows in billing_refunds).
+ALTER TABLE "commission_invoices" ADD COLUMN IF NOT EXISTS "refunded_cents" integer DEFAULT 0 NOT NULL;
 -- billing/12 safety net: rows created while migration 0046 was missing get
 -- human-readable invoice numbers (INV-0001… in created_at order), then the
 -- sequence advances past every assigned number — never backwards, so a
@@ -618,6 +620,41 @@ ALTER TABLE "billing_disputes" ADD COLUMN IF NOT EXISTS "resolved_by" text;
 ALTER TABLE "billing_disputes" ADD COLUMN IF NOT EXISTS "resolution_note" text;
 ALTER TABLE "billing_disputes" ADD COLUMN IF NOT EXISTS "created_at" timestamp with time zone DEFAULT now() NOT NULL;
 ALTER TABLE "billing_disputes" ADD COLUMN IF NOT EXISTS "updated_at" timestamp with time zone DEFAULT now() NOT NULL;
+CREATE TABLE IF NOT EXISTS "billing_refunds" (
+
+	"id" uuid PRIMARY KEY NOT NULL,
+	"invoice_id" uuid NOT NULL,
+	"tenant_key" text NOT NULL,
+	"amount_cents" integer NOT NULL,
+	"currency" text DEFAULT 'CAD' NOT NULL,
+	"reason" text NOT NULL,
+	"note" text,
+	"method" text NOT NULL,
+	"status" text DEFAULT 'pending' NOT NULL,
+	"stripe_refund_id" text,
+	"reference" text,
+	"idempotency_key" text NOT NULL,
+	"actor_email" text,
+	"created_at" timestamp with time zone DEFAULT now() NOT NULL,
+	"updated_at" timestamp with time zone DEFAULT now() NOT NULL
+);
+ALTER TABLE "billing_refunds" ADD COLUMN IF NOT EXISTS "id" uuid PRIMARY KEY NOT NULL;
+ALTER TABLE "billing_refunds" ADD COLUMN IF NOT EXISTS "invoice_id" uuid NOT NULL;
+ALTER TABLE "billing_refunds" ADD COLUMN IF NOT EXISTS "tenant_key" text NOT NULL;
+ALTER TABLE "billing_refunds" ADD COLUMN IF NOT EXISTS "amount_cents" integer NOT NULL;
+ALTER TABLE "billing_refunds" ADD COLUMN IF NOT EXISTS "currency" text DEFAULT 'CAD' NOT NULL;
+ALTER TABLE "billing_refunds" ADD COLUMN IF NOT EXISTS "reason" text NOT NULL;
+ALTER TABLE "billing_refunds" ADD COLUMN IF NOT EXISTS "note" text;
+ALTER TABLE "billing_refunds" ADD COLUMN IF NOT EXISTS "method" text NOT NULL;
+ALTER TABLE "billing_refunds" ADD COLUMN IF NOT EXISTS "status" text DEFAULT 'pending' NOT NULL;
+ALTER TABLE "billing_refunds" ADD COLUMN IF NOT EXISTS "stripe_refund_id" text;
+ALTER TABLE "billing_refunds" ADD COLUMN IF NOT EXISTS "reference" text;
+ALTER TABLE "billing_refunds" ADD COLUMN IF NOT EXISTS "idempotency_key" text NOT NULL;
+ALTER TABLE "billing_refunds" ADD COLUMN IF NOT EXISTS "actor_email" text;
+ALTER TABLE "billing_refunds" ADD COLUMN IF NOT EXISTS "created_at" timestamp with time zone DEFAULT now() NOT NULL;
+ALTER TABLE "billing_refunds" ADD COLUMN IF NOT EXISTS "updated_at" timestamp with time zone DEFAULT now() NOT NULL;
+CREATE UNIQUE INDEX IF NOT EXISTS "billing_refunds_idempotency_key_unique" ON "billing_refunds" USING btree ("idempotency_key");
+CREATE INDEX IF NOT EXISTS "billing_refunds_invoice_idx" ON "billing_refunds" USING btree ("invoice_id","created_at");
 CREATE TABLE IF NOT EXISTS "admin_allowlist" (
 
 	"email" text PRIMARY KEY NOT NULL,

@@ -918,6 +918,14 @@ export const commissionInvoices = pgTable(
      * commission_cents. Readers fall back to commission + tax when null.
      */
     totalCents: integer('total_cents'),
+    /**
+     * Refunds (#715, migration 0053): integer cents refunded — or claimed
+     * by a refund still in flight — against this invoice. Incremented
+     * atomically with a `refunded_cents + amount <= total` guard so
+     * concurrent refunds can never exceed the amount paid; a failed Stripe
+     * refund releases its claim. The rows live in `billing_refunds`.
+     */
+    refundedCents: integer('refunded_cents').notNull().default(0),
     createdAt: timestamp('created_at', { withTimezone: true })
       .notNull()
       .defaultNow(),
@@ -986,6 +994,56 @@ export const billingEvents = pgTable(
     index('billing_events_tenant_created_idx').on(t.tenantKey, t.createdAt),
     index('billing_events_entity_idx').on(t.entityType, t.entityId),
   ],
+);
+
+/**
+ * Invoice refunds (#715).
+ *
+ * One row per admin refund against a paid commission invoice: a Stripe
+ * refund on the card charge (`method = 'stripe'`) or an off-Stripe refund
+ * recorded with a reference (`method = 'manual'`). `idempotency_key` is
+ * UNIQUE — the client sends one key per refund intent, so a double-click
+ * or retry finds the existing row and never creates a second Stripe
+ * refund. Status: pending (claimed, Stripe not yet confirmed) → succeeded
+ * | failed (claim released on the invoice).
+ *
+ * Money is integer cents — never float.
+ */
+export const billingRefunds = pgTable(
+  'billing_refunds',
+  {
+    /** App-generated UUID (node:crypto). */
+    id: uuid('id').primaryKey(),
+    invoiceId: uuid('invoice_id')
+      .notNull()
+      .references(() => commissionInvoices.id),
+    tenantKey: text('tenant_key')
+      .notNull()
+      .references(() => tenants.tenantKey),
+    amountCents: integer('amount_cents').notNull(),
+    currency: text('currency').notNull().default('CAD'),
+    /** duplicate | billing_error | deal_fell_through | goodwill | other. */
+    reason: text('reason').notNull(),
+    note: text('note'),
+    /** stripe | manual. */
+    method: text('method').notNull(),
+    /** pending | succeeded | failed. */
+    status: text('status').notNull().default('pending'),
+    stripeRefundId: text('stripe_refund_id'),
+    /** Cheque/trace number for a manual refund. */
+    reference: text('reference'),
+    /** Client-supplied, one per refund intent. UNIQUE. */
+    idempotencyKey: text('idempotency_key').notNull().unique(),
+    /** The admin who issued the refund (audit). */
+    actorEmail: text('actor_email'),
+    createdAt: timestamp('created_at', { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+    updatedAt: timestamp('updated_at', { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (t) => [index('billing_refunds_invoice_idx').on(t.invoiceId, t.createdAt)],
 );
 
 /**

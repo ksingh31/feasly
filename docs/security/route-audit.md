@@ -133,6 +133,10 @@ Related: [rate-limits.md](rate-limits.md) · [asvs-l1.md](asvs-l1.md) ·
 | POST | `/api/v1/admin/billing/invoices/{id}/mark-paid` | admin | billing:manage | 300/min per session | live |  |
 | POST | `/api/v1/admin/billing/invoices/{id}/commission-rate` | admin | billing:manage | 300/min per session | live |  |
 | PUT | `/api/v1/admin/billing/invoices/{id}/payment-method` | admin | billing:manage | 300/min per session | live |  |
+| POST | `/api/v1/admin/billing/invoices/{id}/refund` | admin | billing:manage | 300/min per session | live |  |
+| POST | `/api/v1/admin/billing/invoices/{id}/void` | admin | billing:manage | 300/min per session | live |  |
+| POST | `/api/v1/admin/billing/invoices/{id}/correct-contract` | admin | billing:manage | 300/min per session | live |  |
+| POST | `/api/v1/admin/billing/invoices/{id}/reverse-payment` | admin | billing:manage | 300/min per session | live |  |
 | POST | `/api/v1/admin/billing/invoices` | admin | billing:manage | 300/min per session | live |  |
 | POST | `/api/v1/admin/community-stats/refresh` | admin | ops:manage | 10/min per session | live |  |
 | GET | `/api/v1/admin/usage` | admin | usage:read | 300/min per session | planned |  |

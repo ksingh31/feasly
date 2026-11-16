@@ -1891,6 +1891,8 @@ export function createComposition(
     stripe: stripeService,
     email: emailService,
     opsInbox: config.email.opsInbox,
+    // #715: admin money actions also land in admin_audit_log.
+    adminAudit: adminAuditStore,
   });
   // billing/01 first charge path — the embed/04 no-op was replaced with the
   // real charge path here (per the placeholder's IRON RULE). commission +

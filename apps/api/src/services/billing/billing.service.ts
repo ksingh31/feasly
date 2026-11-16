@@ -168,6 +168,17 @@ export function createBillingService(
         'This invoice belongs to a different builder.',
       );
     }
+    // #715: builders see their refunds, but not which staff member issued
+    // them — the admin identity stays in the admin-side audit trail.
+    if (tenantKey !== null && invoice.refunds !== undefined) {
+      return {
+        ...invoice,
+        refunds: invoice.refunds.map((refund) => ({
+          ...refund,
+          actorEmail: null,
+        })),
+      };
+    }
     return invoice;
   }
 

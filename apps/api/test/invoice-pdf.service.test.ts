@@ -49,6 +49,8 @@ function invoice(over: Partial<CommissionInvoiceRecord> = {}): CommissionInvoice
     paymentReference: null,
     invoiceNumber: 'INV-0042',
     paymentMethod: 'card',
+    refundedCents: 0,
+    refundState: 'none',
     createdAt: new Date('2026-11-13T18:00:00Z'),
     updatedAt: new Date('2026-11-13T18:00:00Z'),
     ...over,
@@ -244,5 +246,77 @@ describe('invoice PDF — GST (#714)', () => {
     expect(withConfig.pdf.equals(without.pdf)).toBe(true);
     expect(text(withConfig.pdf)).not.toContain('(GST');
     expect(text(withConfig.pdf)).not.toContain('(123456789RT0001)');
+  });
+});
+
+describe('invoice PDF — refunds (#715)', () => {
+  const refund = (
+    id: string,
+    amountCents: number,
+    over: Partial<NonNullable<CommissionInvoiceRecord['refunds']>[number]> = {},
+  ) => ({
+    id,
+    invoiceId: INVOICE_ID,
+    amountCents,
+    currency: 'CAD',
+    reason: 'billing_error' as const,
+    note: null,
+    method: 'stripe' as const,
+    status: 'succeeded' as const,
+    stripeRefundId: `re_${id}`,
+    reference: null,
+    actorEmail: null,
+    createdAt: new Date('2026-11-15T18:00:00Z'),
+    ...over,
+  });
+  const paid = { status: 'paid' as const, paidAt: new Date('2026-11-14T18:00:00Z') };
+
+  it('lists each refund, the refunded total and the net paid — reconciling to the cent', async () => {
+    const { service } = makeService(
+      invoice({
+        ...paid,
+        refundedCents: 120_000,
+        refundState: 'partially_refunded',
+        refunds: [
+          refund('a', 50_000),
+          refund('b', 70_000, { method: 'manual', stripeRefundId: null, reference: 'ETR-9' }),
+          refund('c', 99_999, { status: 'failed' }),
+        ],
+      }),
+    );
+    const s = text((await service.renderInvoicePdf(INVOICE_ID, 'elite-craft')).pdf);
+    expect(s).toContain(`(${encodePdfText(INVOICE_PDF_COPY.refundsHeading)})`);
+    expect(s).toContain('(Refund Nov 15, 2026)');
+    expect(s).toContain('(-$500.00)');
+    expect(s).toContain(`(${encodePdfText('Refund Nov 15, 2026 — ETR-9')})`);
+    expect(s).toContain('(-$700.00)');
+    // The failed attempt gave nothing back and is not listed.
+    expect(s).not.toContain('(-$999.99)');
+    expect(s).toContain(`(${INVOICE_PDF_COPY.refundTotalLabel})`);
+    expect(s).toContain('(-$1,200.00)');
+    expect(s).toContain(`(${INVOICE_PDF_COPY.refundNetLabel})`);
+    expect(s).toContain('($3,800.00)'); // $5,000.00 − $1,200.00
+  });
+
+  it('folds refunds past the single-page limit into one summed line', async () => {
+    const { service } = makeService(
+      invoice({
+        ...paid,
+        refundedCents: 60_000,
+        refundState: 'partially_refunded',
+        refunds: [refund('a', 10_000), refund('b', 20_000), refund('c', 30_000)],
+      }),
+    );
+    const s = text((await service.renderInvoicePdf(INVOICE_ID, 'elite-craft')).pdf);
+    expect(s).toContain('(-$100.00)');
+    expect(s).toContain(`(${INVOICE_PDF_COPY.refundMoreLabel(2)})`);
+    expect(s).toContain('(-$500.00)'); // 200 + 300 folded
+    expect(s).toContain('(-$600.00)'); // total refunded
+  });
+
+  it('no credit-note block without refunds', async () => {
+    const { service } = makeService(invoice(paid));
+    const s = text((await service.renderInvoicePdf(INVOICE_ID, 'elite-craft')).pdf);
+    expect(s).not.toContain(`(${encodePdfText(INVOICE_PDF_COPY.refundsHeading)})`);
   });
 });

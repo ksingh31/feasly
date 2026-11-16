@@ -21,14 +21,29 @@
  *                                └→ disputed → in_review | void
  * Terminal: paid, failed, void.
  *
+ * Admin corrections (#715), outside the charge-path transition map:
+ * draft | in_review | failed → void (voidInvoice), paid → failed
+ * (reverseManualPayment, manual payments only), contract correction on
+ * draft | in_review, and refunds on paid invoices — the invoice stays
+ * 'paid'; refundState (partially_refunded / refunded) is derived from
+ * refunded_cents. Each writes billing_events + admin_audit_log.
+ *
  * Only services and composition.ts may import from src/db/ — enforced by
  * test/boundaries.test.ts.
  */
-import { and, desc, eq, ilike, inArray, isNotNull, lte, ne, sql } from 'drizzle-orm';
+import { and, asc, desc, eq, ilike, inArray, isNotNull, lte, ne, sql } from 'drizzle-orm';
 import { randomUUID } from 'node:crypto';
 import type { BillingConfig } from '../../config';
 import type { AppDb } from '../../db/client';
-import { builderAllowlist, builders, commissionInvoices, leads, tenants } from '../../db/schema';
+import {
+  attributionEvents,
+  billingRefunds,
+  builderAllowlist,
+  builders,
+  commissionInvoices,
+  leads,
+  tenants,
+} from '../../db/schema';
 import { HttpError, ErrorCodes } from '../../middleware/errors';
 import {
   computeCommissionCents,
@@ -50,7 +65,15 @@ import type { BillingAuditService } from './billing-audit.service';
 import type { StripeService } from './stripe.service';
 import type { CommissionEmailTax, EmailService } from '../email/email.service';
 import { ensureOpsAlertDelivered } from '../ops-alerts.service';
-import type { ManualPaymentMethod } from '@feasly/contracts';
+import type { AdminAuditStore } from '../admin-audit.store';
+import type {
+  InvoiceRefundMethod,
+  InvoiceRefundReason,
+  InvoiceRefundState,
+  InvoiceRefundStatus,
+  ManualPaymentMethod,
+  VoidInvoiceReason,
+} from '@feasly/contracts';
 import type { BuilderPaymentMethod } from '@feasly/contracts';
 
 export type CommissionInvoiceStatus =
@@ -138,8 +161,106 @@ export interface CommissionInvoiceRecord {
    * per invoice while the invoice is unpaid.
    */
   readonly paymentMethod: BuilderPaymentMethod;
+  /**
+   * #715: integer cents refunded (or claimed by an in-flight refund)
+   * against this invoice. 0 when never refunded.
+   */
+  readonly refundedCents: number;
+  /** #715: derived from refundedCents vs totalCents — not a status. */
+  readonly refundState: InvoiceRefundState;
+  /**
+   * #715: refund records, oldest first. Loaded on single-invoice reads
+   * (getById and the admin money actions); omitted on lists.
+   */
+  readonly refunds?: readonly InvoiceRefundRecord[];
   readonly createdAt: Date;
   readonly updatedAt: Date;
+}
+
+/** One refund against a commission invoice (#715). */
+export interface InvoiceRefundRecord {
+  readonly id: string;
+  readonly invoiceId: string;
+  readonly amountCents: number;
+  readonly currency: string;
+  readonly reason: InvoiceRefundReason;
+  readonly note: string | null;
+  readonly method: InvoiceRefundMethod;
+  readonly status: InvoiceRefundStatus;
+  readonly stripeRefundId: string | null;
+  readonly reference: string | null;
+  /** The admin who issued it. Builder-scoped reads null this out. */
+  readonly actorEmail: string | null;
+  readonly createdAt: Date;
+}
+
+/** Refund reasons accepted by `refundInvoice` (#715). */
+export const INVOICE_REFUND_REASONS: ReadonlyArray<InvoiceRefundReason> = [
+  'duplicate',
+  'billing_error',
+  'deal_fell_through',
+  'goodwill',
+  'other',
+];
+
+/** Void reasons accepted by `voidInvoice` (#715). */
+export const VOID_INVOICE_REASONS: ReadonlyArray<VoidInvoiceReason> = [
+  'duplicate',
+  'created_in_error',
+  'deal_fell_through',
+  'other',
+];
+
+export interface RefundInvoiceInput {
+  /** Integer cents; omit to refund everything not yet refunded. */
+  readonly amountCents?: number;
+  readonly reason: InvoiceRefundReason;
+  readonly note?: string;
+  /** Cheque/trace number — required for manually paid invoices. */
+  readonly reference?: string;
+  /** Client key, one per refund intent: retries replay, never re-refund. */
+  readonly idempotencyKey: string;
+  readonly adminEmail: string | null;
+}
+
+export interface RefundInvoiceResult {
+  readonly invoice: CommissionInvoiceRecord;
+  readonly refund: InvoiceRefundRecord;
+  /** True when an earlier request with the same key produced this refund. */
+  readonly replayed: boolean;
+}
+
+export interface VoidInvoiceInput {
+  readonly reason: VoidInvoiceReason;
+  readonly note?: string;
+  readonly adminEmail: string | null;
+}
+
+export interface CorrectContractInput {
+  /** Integer cents, EXCLUDING land. */
+  readonly contractValueCents: number;
+  readonly contractSignedAt: Date;
+  /** Why the contract changed — required for the audit trail. */
+  readonly note: string;
+  readonly adminEmail: string | null;
+}
+
+export interface CorrectContractResult {
+  readonly invoice: CommissionInvoiceRecord;
+  readonly previousContractValueCents: number;
+  readonly contractSignedAt: Date;
+}
+
+export interface ReverseManualPaymentInput {
+  /** Why the payment is reversed (e.g. "cheque returned NSF"). Required. */
+  readonly reason: string;
+  readonly adminEmail: string | null;
+}
+
+export interface ReverseManualPaymentResult {
+  readonly invoice: CommissionInvoiceRecord;
+  readonly reversedPaymentMethod: ManualPaymentMethod;
+  readonly reversedReference: string | null;
 }
 
 /** Off-Stripe payment methods accepted by `markPaidManually`. */
@@ -359,6 +480,61 @@ export interface CommissionService {
       status?: string[];
     },
   ): Promise<CommissionInvoiceRecord[]>;
+  /**
+   * #715: admin refunds a PAID invoice, in full (amount omitted = whatever
+   * is not yet refunded) or in part. Card-paid invoices are refunded on
+   * the payment provider (idempotency key
+   * `feasly:commission_invoices:{id}:refund:{idempotencyKey}`); manually
+   * paid invoices record an off-Stripe refund and require a reference.
+   *
+   * - 409 unless the invoice is 'paid'.
+   * - 422 when the amount exceeds what is left to refund (including a
+   *   third refund after the invoice was fully refunded).
+   * - Idempotent on `idempotencyKey`: a repeat returns the first result
+   *   (`replayed: true`) and never creates a second refund. A refund left
+   *   'pending' by a transient provider error is resumed with the same
+   *   provider idempotency key.
+   *
+   * The invoice stays 'paid'; `refundState` shows partially_refunded /
+   * refunded. Writes billing_events + admin_audit_log.
+   */
+  refundInvoice(
+    invoiceId: string,
+    input: RefundInvoiceInput,
+  ): Promise<RefundInvoiceResult>;
+  /**
+   * #715: admin cancels an invoice that must not be charged. Allowed from
+   * 'draft', 'in_review' and 'failed'; 409 from 'finalized' (a charge is in
+   * flight), 'paid' (refund instead), 'disputed' (dispute console) and
+   * 'void'. The review clock is cleared; the reviewer timer and retries
+   * only touch in_review / failed rows, so a void invoice is never charged.
+   */
+  voidInvoice(
+    invoiceId: string,
+    input: VoidInvoiceInput,
+  ): Promise<{ invoice: CommissionInvoiceRecord; previousStatus: CommissionInvoiceStatus }>;
+  /**
+   * #715: admin corrects the reported contract on an invoice that has not
+   * been charged ('draft' or 'in_review'; 409 otherwise). Commission and
+   * tax are recalculated at the invoice's effective rate and tax snapshot;
+   * the attribution's reported contract is updated to match. An
+   * 'in_review' invoice gets a fresh review window and the builder gets
+   * the invoice-ready email again. Old values stay in billing_events.
+   */
+  correctContract(
+    invoiceId: string,
+    input: CorrectContractInput,
+  ): Promise<CorrectContractResult>;
+  /**
+   * #715: reverse a manual mark-paid (bounced cheque): 'paid' → 'failed'
+   * with a mandatory reason. Only invoices marked paid by hand and with no
+   * refunds qualify (409 otherwise). The planned payment method is kept,
+   * so a manual-method invoice stays paused for card charges.
+   */
+  reverseManualPayment(
+    invoiceId: string,
+    input: ReverseManualPaymentInput,
+  ): Promise<ReverseManualPaymentResult>;
 }
 
 export interface CommissionServiceDeps {
@@ -378,6 +554,12 @@ export interface CommissionServiceDeps {
   readonly reviewWindowDays?: number;
   /** Warning sink for accepted-but-unconfirmed ops alerts. Defaults to console.warn. */
   readonly logWarning?: (message: string) => void;
+  /**
+   * #715: admin_audit_log sink for admin money actions (refund, void,
+   * contract correction, payment reversal). Optional so engine-only
+   * callers and tests need not wire it.
+   */
+  readonly adminAudit?: Pick<AdminAuditStore, 'log'>;
 }
 
 const TERMINAL_STATUSES: ReadonlySet<CommissionInvoiceStatus> = new Set([
@@ -496,11 +678,58 @@ function invoiceAmounts(
   };
 }
 
+/** #715: refund state derived from the refunded total — never stored. */
+export function refundStateOf(
+  refundedCents: number,
+  totalCents: number,
+): InvoiceRefundState {
+  if (refundedCents <= 0) return 'none';
+  return refundedCents >= totalCents ? 'refunded' : 'partially_refunded';
+}
+
+function toRefundRecord(
+  row: typeof billingRefunds.$inferSelect,
+): InvoiceRefundRecord {
+  return {
+    id: row.id,
+    invoiceId: row.invoiceId,
+    amountCents: row.amountCents,
+    currency: row.currency,
+    reason: row.reason as InvoiceRefundReason,
+    note: row.note,
+    method: row.method as InvoiceRefundMethod,
+    status: row.status as InvoiceRefundStatus,
+    stripeRefundId: row.stripeRefundId,
+    reference: row.reference,
+    actorEmail: row.actorEmail,
+    createdAt: row.createdAt,
+  };
+}
+
+/**
+ * #715: a provider error that definitely created no refund (a 4xx: bad
+ * amount, nothing left to refund, unknown PaymentIntent). Anything else —
+ * network errors, 5xx — may have reached the provider, so the refund stays
+ * 'pending' and a retry with the same key resumes it.
+ */
+function isDefinitiveRefundRejection(error: unknown): boolean {
+  if (error instanceof HttpError) return error.status < 500;
+  const statusCode = (error as { statusCode?: unknown } | null)?.statusCode;
+  return typeof statusCode === 'number' && statusCode >= 400 && statusCode < 500;
+}
+
+/** Trimmed optional free text, or null when blank. */
+function optionalText(value: string | undefined): string | null {
+  const trimmed = value?.trim();
+  return trimmed ? trimmed : null;
+}
+
 function toRecord(
   row: typeof commissionInvoices.$inferSelect,
   leadName: string,
   defaultRate: number,
   taxLabel: string | null,
+  refunds?: readonly InvoiceRefundRecord[],
 ): CommissionInvoiceRecord {
   return {
     id: row.id,
@@ -532,6 +761,9 @@ function toRecord(
     paymentReference: row.paymentReference,
     invoiceNumber: row.invoiceNumber,
     paymentMethod: row.paymentMethod as BuilderPaymentMethod,
+    refundedCents: row.refundedCents,
+    refundState: refundStateOf(row.refundedCents, invoiceTotalCents(row)),
+    ...(refunds !== undefined ? { refunds } : {}),
     createdAt: row.createdAt,
     updatedAt: row.updatedAt,
   };
@@ -880,6 +1112,193 @@ export function createCommissionService(
       },
     });
     return toRecord(row, await leadNameFor(db, row.leadId), billing.commissionRate, taxLabel);
+  }
+
+  /** #715: refund rows for one invoice, oldest first. */
+  async function refundsFor(invoiceId: string): Promise<InvoiceRefundRecord[]> {
+    const rows = await db.query.billingRefunds.findMany({
+      where: eq(billingRefunds.invoiceId, invoiceId),
+      orderBy: asc(billingRefunds.createdAt),
+    });
+    return rows.map(toRefundRecord);
+  }
+
+  /** #715: the single-invoice read — record plus its refunds. */
+  async function detailRecord(
+    row: typeof commissionInvoices.$inferSelect,
+  ): Promise<CommissionInvoiceRecord> {
+    return toRecord(
+      row,
+      await leadNameFor(db, row.leadId),
+      billing.commissionRate,
+      taxLabel,
+      await refundsFor(row.id),
+    );
+  }
+
+  /**
+   * #715: admin_audit_log row for an admin money action. `detail` carries
+   * ids and amounts only — never PII.
+   */
+  async function adminAuditLog(
+    action: string,
+    actorEmail: string | null,
+    detail: string,
+  ): Promise<void> {
+    await deps.adminAudit?.log({ action, actorEmail, detail });
+  }
+
+  /**
+   * #715: conditional status move for the admin correction actions, which
+   * sit outside the charge-path ALLOWED_TRANSITIONS map on purpose (that
+   * map guards webhooks and the timer). The UPDATE is conditional on the
+   * expected status (plus any extra guard), so a concurrent transition
+   * surfaces as 409 instead of being overwritten.
+   */
+  async function adminMove(
+    id: string,
+    from: CommissionInvoiceStatus,
+    patch: Partial<typeof commissionInvoices.$inferInsert>,
+    extraGuard?: ReturnType<typeof eq>,
+  ): Promise<typeof commissionInvoices.$inferSelect> {
+    const [updated] = await db
+      .update(commissionInvoices)
+      .set({ ...patch, updatedAt: now() })
+      .where(
+        and(
+          eq(commissionInvoices.id, id),
+          eq(commissionInvoices.status, from),
+          extraGuard,
+        ),
+      )
+      .returning();
+    if (updated === undefined) {
+      throw new HttpError(
+        409,
+        ErrorCodes.CONFLICT,
+        `Invoice "${id}" changed concurrently — expected '${from}'`,
+      );
+    }
+    return updated;
+  }
+
+  /**
+   * #715: finish a claimed card refund on the provider. Success →
+   * 'succeeded' + the provider refund id. A definitive rejection → 'failed'
+   * and the claimed amount is released on the invoice. Any other error
+   * leaves the refund 'pending' (claim held) so a retry with the same key
+   * resumes it with the same provider idempotency key.
+   */
+  async function completeCardRefund(
+    refund: typeof billingRefunds.$inferSelect,
+    paymentIntentId: string,
+  ): Promise<typeof billingRefunds.$inferSelect> {
+    let providerRefund: { id: string; status: string };
+    try {
+      providerRefund = await stripe.refundPaymentIntent(
+        paymentIntentId,
+        `feasly:commission_invoices:${refund.invoiceId}:refund:${refund.idempotencyKey}`,
+        refund.amountCents,
+      );
+    } catch (error) {
+      if (isDefinitiveRefundRejection(error)) {
+        const [failed] = await db
+          .update(billingRefunds)
+          .set({ status: 'failed', updatedAt: now() })
+          .where(
+            and(
+              eq(billingRefunds.id, refund.id),
+              eq(billingRefunds.status, 'pending'),
+            ),
+          )
+          .returning();
+        if (failed !== undefined) {
+          await db
+            .update(commissionInvoices)
+            .set({
+              refundedCents: sql`${commissionInvoices.refundedCents} - ${refund.amountCents}`,
+              updatedAt: now(),
+            })
+            .where(eq(commissionInvoices.id, refund.invoiceId));
+          await audit.append({
+            tenantKey: refund.tenantKey,
+            eventType: 'invoice.refund_failed',
+            entityType: 'commission_invoice',
+            entityId: refund.invoiceId,
+            payload: {
+              refundId: refund.id,
+              amountCents: refund.amountCents,
+              failureReason:
+                error instanceof Error ? error.message : String(error),
+            },
+          });
+        }
+      }
+      throw error;
+    }
+    const [succeeded] = await db
+      .update(billingRefunds)
+      .set({
+        status: 'succeeded',
+        stripeRefundId: providerRefund.id,
+        updatedAt: now(),
+      })
+      .where(
+        and(
+          eq(billingRefunds.id, refund.id),
+          eq(billingRefunds.status, 'pending'),
+        ),
+      )
+      .returning();
+    // A concurrent replay may have completed it first — re-read.
+    return (
+      succeeded ??
+      (await db.query.billingRefunds.findFirst({
+        where: eq(billingRefunds.id, refund.id),
+      })) ??
+      refund
+    );
+  }
+
+  /** #715: replay a refund request whose idempotency key already exists. */
+  async function replayRefund(
+    invoiceId: string,
+    existing: typeof billingRefunds.$inferSelect,
+  ): Promise<RefundInvoiceResult> {
+    if (existing.invoiceId !== invoiceId) {
+      throw new HttpError(
+        409,
+        ErrorCodes.CONFLICT,
+        'This idempotency key was already used for a different invoice — generate a new key.',
+      );
+    }
+    if (existing.status === 'failed') {
+      throw new HttpError(
+        409,
+        ErrorCodes.CONFLICT,
+        'The refund attempt with this idempotency key failed — check the invoice and retry with a new key.',
+      );
+    }
+    let refundRow = existing;
+    if (existing.status === 'pending' && existing.method === 'stripe') {
+      const invoiceRow = await requireInvoice(invoiceId);
+      if (!invoiceRow.stripePaymentIntentId) {
+        throw new HttpError(
+          409,
+          ErrorCodes.CONFLICT,
+          `Invoice "${invoiceId}" has no PaymentIntent — the pending refund cannot be completed`,
+        );
+      }
+      refundRow = await completeCardRefund(
+        existing,
+        invoiceRow.stripePaymentIntentId,
+      );
+    }
+    return {
+      invoice: await detailRecord(await requireInvoice(invoiceId)),
+      refund: toRefundRecord(refundRow),
+      replayed: true,
+    };
   }
 
   return {
@@ -1616,8 +2035,7 @@ export function createCommissionService(
     },
 
     async getById(invoiceId: string): Promise<CommissionInvoiceRecord> {
-      const invoiceRow = await requireInvoice(invoiceId);
-      return toRecord(invoiceRow, await leadNameFor(db, invoiceRow.leadId), billing.commissionRate, taxLabel);
+      return detailRecord(await requireInvoice(invoiceId));
     },
 
     async getCommissionRatePercent(tenantKey: string): Promise<number> {
@@ -1793,6 +2211,440 @@ export function createCommissionService(
         rows.map((row) => row.leadId),
       );
       return rows.map((row) => toRecord(row, names.get(row.leadId) ?? '', billing.commissionRate, taxLabel));
+    },
+
+    async refundInvoice(
+      invoiceId: string,
+      input: RefundInvoiceInput,
+    ): Promise<RefundInvoiceResult> {
+      requireCommissionModel();
+      if (!INVOICE_REFUND_REASONS.includes(input.reason)) {
+        throw new HttpError(
+          400,
+          ErrorCodes.VALIDATION_FAILED,
+          `Unknown refund reason "${String(input.reason)}" — expected one of: ${INVOICE_REFUND_REASONS.join(', ')}`,
+        );
+      }
+      const idempotencyKey = input.idempotencyKey.trim();
+      if (idempotencyKey.length === 0) {
+        throw new HttpError(
+          400,
+          ErrorCodes.VALIDATION_FAILED,
+          'An idempotency key is required for refunds',
+        );
+      }
+      // Replay first: a retried request must return the original result
+      // even after the invoice has moved on (e.g. fully refunded).
+      const prior = await db.query.billingRefunds.findFirst({
+        where: eq(billingRefunds.idempotencyKey, idempotencyKey),
+      });
+      if (prior !== undefined) return replayRefund(invoiceId, prior);
+
+      const row = await requireInvoice(invoiceId);
+      if (row.status !== 'paid') {
+        throw new HttpError(
+          409,
+          ErrorCodes.CONFLICT,
+          `Invoice "${invoiceId}" is '${row.status}' — only a paid invoice can be refunded` +
+            (row.status === 'draft' || row.status === 'in_review' || row.status === 'failed'
+              ? ' (void it instead)'
+              : ''),
+        );
+      }
+      const totalCents = invoiceTotalCents(row);
+      const remainingCents = totalCents - row.refundedCents;
+      if (remainingCents <= 0) {
+        throw new HttpError(
+          422,
+          ErrorCodes.VALIDATION_FAILED,
+          `Invoice "${invoiceId}" is already fully refunded — nothing left to refund`,
+        );
+      }
+      const amountCents = input.amountCents ?? remainingCents;
+      if (!Number.isSafeInteger(amountCents) || amountCents <= 0) {
+        throw new HttpError(
+          400,
+          ErrorCodes.VALIDATION_FAILED,
+          'Refund amount must be a positive whole number of cents',
+        );
+      }
+      if (amountCents > remainingCents) {
+        throw new HttpError(
+          422,
+          ErrorCodes.VALIDATION_FAILED,
+          `Refund of ${amountCents} cents exceeds the ${remainingCents} cents ` +
+            `left to refund on invoice "${invoiceId}" (total ${totalCents}, ` +
+            `already refunded ${row.refundedCents})`,
+        );
+      }
+      // Card-paid → provider refund on the PaymentIntent. Marked paid by
+      // hand → the money went back off-Stripe; a reference is required.
+      const method: InvoiceRefundMethod =
+        row.manualPaymentMethod === null && row.stripePaymentIntentId !== null
+          ? 'stripe'
+          : 'manual';
+      const reference = optionalText(input.reference);
+      if (method === 'manual' && reference === null) {
+        throw new HttpError(
+          422,
+          ErrorCodes.VALIDATION_FAILED,
+          `Invoice "${invoiceId}" was paid off-Stripe — record the refund's cheque/trace reference`,
+        );
+      }
+
+      // 1. Claim the idempotency key (UNIQUE). A concurrent duplicate
+      //    loses the insert and replays the winner — one refund, ever.
+      const refundId = newId();
+      const inserted = await db
+        .insert(billingRefunds)
+        .values({
+          id: refundId,
+          invoiceId,
+          tenantKey: row.tenantKey,
+          amountCents,
+          currency: row.currency,
+          reason: input.reason,
+          note: optionalText(input.note),
+          method,
+          status: method === 'manual' ? 'succeeded' : 'pending',
+          reference: method === 'manual' ? reference : null,
+          idempotencyKey,
+          actorEmail: input.adminEmail,
+          createdAt: now(),
+          updatedAt: now(),
+        })
+        .returning()
+        .catch(async (error: unknown) => {
+          if (!isUniqueViolation(error)) throw error;
+          return null;
+        });
+      if (inserted === null) {
+        const winner = await db.query.billingRefunds.findFirst({
+          where: eq(billingRefunds.idempotencyKey, idempotencyKey),
+        });
+        if (winner === undefined) {
+          throw new HttpError(
+            409,
+            ErrorCodes.CONFLICT,
+            'Refund request collided with a concurrent one — retry',
+          );
+        }
+        return replayRefund(invoiceId, winner);
+      }
+      let refundRow = inserted[0];
+
+      // 2. Reserve the amount on the invoice atomically: concurrent refunds
+      //    with different keys can never exceed the amount paid.
+      const [reserved] = await db
+        .update(commissionInvoices)
+        .set({
+          refundedCents: sql`${commissionInvoices.refundedCents} + ${amountCents}`,
+          updatedAt: now(),
+        })
+        .where(
+          and(
+            eq(commissionInvoices.id, invoiceId),
+            eq(commissionInvoices.status, 'paid'),
+            sql`${commissionInvoices.refundedCents} + ${amountCents} <= coalesce(${commissionInvoices.totalCents}, ${commissionInvoices.commissionCents} + ${commissionInvoices.taxCents})`,
+          ),
+        )
+        .returning();
+      if (reserved === undefined) {
+        await db
+          .update(billingRefunds)
+          .set({ status: 'failed', updatedAt: now() })
+          .where(eq(billingRefunds.id, refundId));
+        throw new HttpError(
+          422,
+          ErrorCodes.VALIDATION_FAILED,
+          `Invoice "${invoiceId}" changed while refunding — the amount now exceeds what is left to refund. Reload and retry.`,
+        );
+      }
+
+      // 3. Card refund on the provider (manual refunds are already final).
+      if (method === 'stripe') {
+        refundRow = await completeCardRefund(
+          refundRow,
+          row.stripePaymentIntentId as string,
+        );
+      }
+
+      const invoice = await detailRecord(await requireInvoice(invoiceId));
+      await audit.append({
+        tenantKey: invoice.tenantKey,
+        eventType: 'invoice.refunded',
+        entityType: 'commission_invoice',
+        entityId: invoice.id,
+        payload: {
+          refundId,
+          amountCents,
+          method,
+          reason: input.reason,
+          ...(refundRow.note ? { note: refundRow.note } : {}),
+          ...(reference && method === 'manual' ? { reference } : {}),
+          ...(refundRow.stripeRefundId
+            ? { stripeRefundId: refundRow.stripeRefundId }
+            : {}),
+          totalCents: invoice.totalCents,
+          refundedCents: invoice.refundedCents,
+          netCents: invoice.totalCents - invoice.refundedCents,
+          refundState: invoice.refundState,
+          adminEmail: input.adminEmail,
+        },
+      });
+      await adminAuditLog(
+        'billing.invoice_refunded',
+        input.adminEmail,
+        `invoice=${invoice.id} refund=${refundId} amount_cents=${amountCents} method=${method}`,
+      );
+      return { invoice, refund: toRefundRecord(refundRow), replayed: false };
+    },
+
+    async voidInvoice(
+      invoiceId: string,
+      input: VoidInvoiceInput,
+    ): Promise<{ invoice: CommissionInvoiceRecord; previousStatus: CommissionInvoiceStatus }> {
+      requireCommissionModel();
+      if (!VOID_INVOICE_REASONS.includes(input.reason)) {
+        throw new HttpError(
+          400,
+          ErrorCodes.VALIDATION_FAILED,
+          `Unknown void reason "${String(input.reason)}" — expected one of: ${VOID_INVOICE_REASONS.join(', ')}`,
+        );
+      }
+      const row = await requireInvoice(invoiceId);
+      const from = row.status as CommissionInvoiceStatus;
+      if (from !== 'draft' && from !== 'in_review' && from !== 'failed') {
+        const why: Record<string, string> = {
+          finalized: 'a charge is in flight — wait for it to settle, then refund or void',
+          paid: 'it is paid — refund it instead',
+          disputed: 'it is disputed — resolve it in the dispute console',
+          void: 'it is already void',
+        };
+        throw new HttpError(
+          409,
+          ErrorCodes.CONFLICT,
+          `Invoice "${invoiceId}" cannot be voided: ${why[from] ?? `status '${from}'`}`,
+        );
+      }
+      const note = optionalText(input.note);
+      const updated = await adminMove(invoiceId, from, {
+        status: 'void',
+        // No charge clock remains on a void invoice.
+        reviewDueAt: null,
+      });
+      const invoice = await detailRecord(updated);
+      await audit.append({
+        tenantKey: invoice.tenantKey,
+        eventType: 'invoice.voided',
+        entityType: 'commission_invoice',
+        entityId: invoice.id,
+        payload: {
+          status: 'void',
+          from,
+          reason: input.reason,
+          ...(note ? { note } : {}),
+          totalCents: invoice.totalCents,
+          adminEmail: input.adminEmail,
+        },
+      });
+      await adminAuditLog(
+        'billing.invoice_voided',
+        input.adminEmail,
+        `invoice=${invoice.id} from=${from} reason=${input.reason}`,
+      );
+      return { invoice, previousStatus: from };
+    },
+
+    async correctContract(
+      invoiceId: string,
+      input: CorrectContractInput,
+    ): Promise<CorrectContractResult> {
+      requireCommissionModel();
+      if (
+        !Number.isSafeInteger(input.contractValueCents) ||
+        input.contractValueCents <= 0
+      ) {
+        throw new HttpError(
+          400,
+          ErrorCodes.VALIDATION_FAILED,
+          'contractValueCents must be a positive whole number of cents',
+        );
+      }
+      if (Number.isNaN(input.contractSignedAt.getTime())) {
+        throw new HttpError(
+          400,
+          ErrorCodes.VALIDATION_FAILED,
+          'contractSignedAt must be a valid ISO 8601 datetime',
+        );
+      }
+      const note = input.note.trim();
+      if (note.length === 0) {
+        throw new HttpError(
+          422,
+          ErrorCodes.VALIDATION_FAILED,
+          'A note explaining the correction is required',
+        );
+      }
+      const row = await requireInvoice(invoiceId);
+      const status = row.status as CommissionInvoiceStatus;
+      if (status !== 'draft' && status !== 'in_review') {
+        throw new HttpError(
+          409,
+          ErrorCodes.CONFLICT,
+          `Invoice "${invoiceId}" is '${status}' — the contract can only be corrected before the invoice is charged (draft, in_review)`,
+        );
+      }
+      const attributionRow = await db.query.attributionEvents.findFirst({
+        where: eq(attributionEvents.id, row.attributionId),
+      });
+      const ratePercent = effectiveRatePercent(row, billing.commissionRate);
+      // #714: tax at the invoice's SNAPSHOTTED rate and mode.
+      const amounts = invoiceAmounts(
+        computeCommissionCents(input.contractValueCents, ratePercent / 100),
+        row.taxRatePercent,
+        row.taxInclusive,
+      );
+      const reviewDueAt =
+        status === 'in_review'
+          ? new Date(now().getTime() + reviewWindowDays * 86_400_000)
+          : row.reviewDueAt;
+      const updated = await adminMove(invoiceId, status, {
+        contractValueCents: input.contractValueCents,
+        commissionCents: amounts.commissionCents,
+        taxCents: amounts.taxCents,
+        totalCents: amounts.totalCents,
+        reviewDueAt,
+      });
+      // Keep the attribution's reported contract in step with the invoice
+      // (it is what reportContract compares a re-report against).
+      await db
+        .update(attributionEvents)
+        .set({
+          contractValueCents: input.contractValueCents,
+          contractSignedAt: input.contractSignedAt,
+          updatedAt: now(),
+        })
+        .where(eq(attributionEvents.id, row.attributionId));
+      const invoice = await detailRecord(updated);
+      await audit.append({
+        tenantKey: invoice.tenantKey,
+        eventType: 'invoice.contract_corrected',
+        entityType: 'commission_invoice',
+        entityId: invoice.id,
+        payload: {
+          status,
+          note,
+          ratePercent,
+          old: {
+            contractValueCents: row.contractValueCents,
+            contractSignedAt:
+              attributionRow?.contractSignedAt?.toISOString() ?? null,
+            commissionCents: row.commissionCents,
+            taxCents: row.taxCents,
+            totalCents: invoiceTotalCents(row),
+            reviewDueAt: row.reviewDueAt?.toISOString() ?? null,
+          },
+          new: {
+            contractValueCents: input.contractValueCents,
+            contractSignedAt: input.contractSignedAt.toISOString(),
+            commissionCents: amounts.commissionCents,
+            taxCents: amounts.taxCents,
+            totalCents: amounts.totalCents,
+            reviewDueAt: reviewDueAt?.toISOString() ?? null,
+          },
+          adminEmail: input.adminEmail,
+        },
+      });
+      await adminAuditLog(
+        'billing.invoice_contract_corrected',
+        input.adminEmail,
+        `invoice=${invoice.id} contract_cents=${row.contractValueCents}->${input.contractValueCents} total_cents=${invoiceTotalCents(row)}->${amounts.totalCents}`,
+      );
+      // The builder hears about the corrected amount and the restarted
+      // review window (a draft has not been issued yet — no email).
+      if (status === 'in_review') {
+        await notifyBuilder(invoice, 'invoice_ready');
+      }
+      return {
+        invoice,
+        previousContractValueCents: row.contractValueCents,
+        contractSignedAt: input.contractSignedAt,
+      };
+    },
+
+    async reverseManualPayment(
+      invoiceId: string,
+      input: ReverseManualPaymentInput,
+    ): Promise<ReverseManualPaymentResult> {
+      requireCommissionModel();
+      const reason = input.reason.trim();
+      if (reason.length === 0) {
+        throw new HttpError(
+          422,
+          ErrorCodes.VALIDATION_FAILED,
+          'A reason is required to reverse a payment',
+        );
+      }
+      const row = await requireInvoice(invoiceId);
+      if (row.status !== 'paid') {
+        throw new HttpError(
+          409,
+          ErrorCodes.CONFLICT,
+          `Invoice "${invoiceId}" is '${row.status}' — only a paid invoice can have its payment reversed`,
+        );
+      }
+      if (row.manualPaymentMethod === null) {
+        throw new HttpError(
+          409,
+          ErrorCodes.CONFLICT,
+          `Invoice "${invoiceId}" was paid by card — refund it instead of reversing the payment`,
+        );
+      }
+      if (row.refundedCents > 0) {
+        throw new HttpError(
+          409,
+          ErrorCodes.CONFLICT,
+          `Invoice "${invoiceId}" has refunds recorded — a refunded payment cannot be reversed`,
+        );
+      }
+      const reversedPaymentMethod = row.manualPaymentMethod as ManualPaymentMethod;
+      const reversedReference = row.paymentReference;
+      const updated = await adminMove(
+        invoiceId,
+        'paid',
+        {
+          status: 'failed',
+          paidAt: null,
+          manualPaymentMethod: null,
+          paymentReference: null,
+        },
+        // Guard against a refund landing between the read and the update.
+        eq(commissionInvoices.refundedCents, 0),
+      );
+      const invoice = await detailRecord(updated);
+      await audit.append({
+        tenantKey: invoice.tenantKey,
+        eventType: 'invoice.payment_reversed',
+        entityType: 'commission_invoice',
+        entityId: invoice.id,
+        payload: {
+          status: 'failed',
+          from: 'paid',
+          reason,
+          reversedPaymentMethod,
+          reversedReference,
+          reversedPaidAt: row.paidAt?.toISOString() ?? null,
+          totalCents: invoice.totalCents,
+          adminEmail: input.adminEmail,
+        },
+      });
+      await adminAuditLog(
+        'billing.invoice_payment_reversed',
+        input.adminEmail,
+        `invoice=${invoice.id} method=${reversedPaymentMethod}`,
+      );
+      return { invoice, reversedPaymentMethod, reversedReference };
     },
   };
 }
