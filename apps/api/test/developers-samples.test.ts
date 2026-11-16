@@ -126,7 +126,7 @@ function parseCurl(raw: string): ParsedCurl {
 /** Extract the curl samples from the developers page template. */
 function extractSamples(): ParsedCurl[] {
   const html = readFileSync(HTML_PATH, 'utf8');
-  const blocks = [...html.matchAll(/<pre><code>([\s\S]*?)<\/code><\/pre>/g)].map(
+  const blocks = [...html.matchAll(/<pre(?:\s[^>]*)?><code>([\s\S]*?)<\/code><\/pre>/g)].map(
     (m) => m[1],
   );
   expect(blocks.length).toBeGreaterThan(0);

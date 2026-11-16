@@ -31,6 +31,7 @@ import { BuilderReportContractState } from './features/builder/builder-report-co
 import { BuilderTeamState } from './features/builder/builder-team.state';
 import { CommunityProfileState } from './features/communities/community-profile.state';
 import { AnalyticsTrackerService } from './features/consent/analytics-tracker.service';
+import { RouteFocusService } from './core/a11y/route-focus.service';
 import { routes } from './app.routes';
 
 /**
@@ -77,6 +78,9 @@ export const appConfig: ApplicationConfig = {
     // maps completed funnel navigations to analytics events. Consent-gated
     // inside AnalyticsService — pre-consent navigations emit nothing.
     provideAppInitializer(() => inject(AnalyticsTrackerService).start()),
+    // #832: move focus to the new page's <main> after client-side navigation
+    // so screen-reader users hear the new step (WCAG 2.4.3 / 4.1.3).
+    provideAppInitializer(() => inject(RouteFocusService).start()),
     // Property data source from config (FE1-002): live City of Calgary API
     // by default, mock fixtures or our backend on request. Must come before
     // provideApi() — both ApiService implementations delegate to it.

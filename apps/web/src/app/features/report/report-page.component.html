@@ -187,7 +187,9 @@
                 >
                   −
                 </button>
-                <span class="stepper-value">{{ formatSqft(sqftDraft()) }}</span>
+                <!-- #832: announce the new size after − / + (screen readers
+                     otherwise hear nothing when the value changes). -->
+                <span class="stepper-value" role="status">{{ formatSqft(sqftDraft()) }}</span>
                 <button
                   type="button"
                   class="step-btn"

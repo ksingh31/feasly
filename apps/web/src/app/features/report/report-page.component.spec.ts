@@ -1483,6 +1483,8 @@ describe('ReportPageComponent', () => {
         // Addition caps at 400: the stepper must not move above it.
         const stepperValue = fixture.nativeElement.querySelector('.stepper-value')?.textContent ?? '';
         expect(stepperValue).toContain('400');
+        // #832: the value is a status region so − / + changes are announced.
+        expect(fixture.nativeElement.querySelector('.stepper-value')?.getAttribute('role')).toBe('status');
       });
 
       it('never shows new-build trust sections on a reno report', async () => {

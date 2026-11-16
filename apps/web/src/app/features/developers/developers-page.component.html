@@ -28,12 +28,12 @@
       </li>
       <li>
         <strong>Look up an address.</strong> Autocomplete is free and needs no key:
-        <pre><code>curl "{{ sandboxBase }}/api/v1/properties/autocomplete?q=1234+17+Ave+SW"</code></pre>
+        <pre tabindex="0"><code>curl "{{ sandboxBase }}/api/v1/properties/autocomplete?q=1234+17+Ave+SW"</code></pre>
       </li>
       <li>
         <strong>Run an estimate.</strong> Estimates are deterministic — the same inputs always
         return the same figures:
-        <pre><code>curl -X POST "{{ sandboxBase }}/api/v1/estimate" \
+        <pre tabindex="0"><code>curl -X POST "{{ sandboxBase }}/api/v1/estimate" \
   -H "Authorization: Bearer $FEASLY_API_KEY" \
   -H "Content-Type: application/json" \
   -d '{{'{'}}"property": {{'{'}}"addressKey": "1234 17 AVE SW",
@@ -58,7 +58,7 @@
       Every request except the property autocomplete endpoint and
       <code>GET&nbsp;/openapi.json</code> needs an API key. Send it as a Bearer token:
     </p>
-    <pre><code>Authorization: Bearer feasly_live_YOUR_KEY</code></pre>
+    <pre tabindex="0"><code>Authorization: Bearer feasly_live_YOUR_KEY</code></pre>
     <ul>
       <li><strong>Live keys</strong> start with <code>feasly_live_</code> and hit production.</li>
       <li><strong>Test keys</strong> start with <code>feasly_test_</code> and only work in the sandbox.</li>
@@ -70,6 +70,7 @@
   <section id="scopes" aria-labelledby="scopes-h">
     <h2 id="scopes-h">Scopes</h2>
     <p>Keys are least-privilege: each key only gets the scopes your integration needs.</p>
+    <div class="table-scroll" role="region" aria-labelledby="scopes-h" tabindex="0">
     <table>
       <thead>
         <tr><th>Scope</th><th>Grants access to</th></tr>
@@ -82,6 +83,7 @@
         <tr><td><code>lead:read</code></td><td>Reading submitted leads</td></tr>
       </tbody>
     </table>
+    </div>
     <p>
       Default scopes for a new key: <code>property:read</code>, <code>estimate</code>,
       <code>lead</code>.
@@ -105,7 +107,7 @@
       <code>code</code> field is stable and safe to switch on; <code>message</code> is human-readable
       and may change.
     </p>
-    <pre><code>{{'{'}}
+    <pre tabindex="0"><code>{{'{'}}
   "type": "https://feasly.dev/problems/validation-error",
   "title": "Validation failed",
   "status": 422,
@@ -113,6 +115,7 @@
   "message": "livingAreaSqft must be at least 400",
   "retryable": false
 {{'}'}}</code></pre>
+    <div class="table-scroll" role="region" aria-labelledby="errors-h" tabindex="0">
     <table>
       <thead>
         <tr><th>Status</th><th>Code</th><th>Meaning</th><th>Retry?</th></tr>
@@ -128,6 +131,7 @@
         <tr><td>5xx</td><td><code>INTERNAL_ERROR</code></td><td>Something went wrong on our side</td><td>Yes — with backoff</td></tr>
       </tbody>
     </table>
+    </div>
   </section>
 
   <section id="idempotency" aria-labelledby="idempotency-h">
@@ -179,6 +183,7 @@
       <li><strong>Deprecation policy:</strong> breaking changes ship as a new URL version (v2), never by changing v1 behavior. When v2 ships, v1 gets at least 6 months notice before removal.</li>
       <li><strong>Additive changes</strong> (new endpoints, new optional fields, new scopes) do not bump the version and are announced here.</li>
     </ul>
+    <div class="table-scroll" role="region" aria-labelledby="changelog-h" tabindex="0">
     <table>
       <thead>
         <tr><th>Date</th><th>Change</th></tr>
@@ -187,6 +192,7 @@
         <tr><td>2026-09</td><td>v1: estimate, lead, and property endpoints; API-key issuance with scopes; OpenAPI 3.1 spec at <code>/api/v1/openapi.json</code>.</td></tr>
       </tbody>
     </table>
+    </div>
   </section>
 
   <p class="cta-row">

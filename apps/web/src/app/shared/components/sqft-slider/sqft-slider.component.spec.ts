@@ -30,6 +30,13 @@ describe('SqftSliderComponent', () => {
     expect(el.textContent).toContain('2,500 sq ft');
   });
 
+  it('gives the range input a spoken value with its unit (#832)', async () => {
+    const { fixture } = await setup({ value: 2200 });
+    const input = fixture.nativeElement.querySelector('input[type="range"]') as HTMLInputElement;
+    // Screen readers read "2,200 sq ft", not the bare "2200".
+    expect(input.getAttribute('aria-valuetext')).toBe('2,200 sq ft');
+  });
+
   it('clamps out-of-range input to [min, max]', async () => {
     const { fixture, comp } = await setup({ value: 2000, min: 800, max: 6000 });
     let emitted = 0;

@@ -33,7 +33,16 @@ export default defineConfig({
     trace: 'on-first-retry',
     ...(channel ? { channel } : {}),
   },
-  projects: [{ name: 'chromium', use: { browserName: 'chromium' } }],
+  projects: [
+    { name: 'chromium', use: { browserName: 'chromium' } },
+    // #832: Safari engine for the public WCAG / iPhone pass. Touch + mobile
+    // UA so sticky elements and inputs behave as on iOS Safari.
+    {
+      name: 'webkit',
+      testMatch: '**/public-a11y.e2e.ts',
+      use: { browserName: 'webkit', hasTouch: true, isMobile: true },
+    },
+  ],
   ...(externalBaseUrl
     ? {}
     : {
