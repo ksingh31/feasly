@@ -28,6 +28,7 @@ import type {
   EmbedBillingHookService,
   LeadWonDetail,
 } from './embed-billing-hook.service';
+import { SANDBOX_LEAD_NOT_BILLABLE_MESSAGE } from './embed-billing-hook.service';
 import type {
   CommissionInvoiceRecord,
   CommissionService,
@@ -212,6 +213,15 @@ export function createBillingService(
           404,
           ErrorCodes.NOT_FOUND,
           `Lead not found: "${input.leadId}"`,
+        );
+      }
+      // #840: sandbox leads never enter billing (their attribution and
+      // invoice rows would block the sandbox purge).
+      if (lead.sandbox) {
+        throw new HttpError(
+          409,
+          ErrorCodes.CONFLICT,
+          SANDBOX_LEAD_NOT_BILLABLE_MESSAGE,
         );
       }
       const detail: LeadWonDetail = {

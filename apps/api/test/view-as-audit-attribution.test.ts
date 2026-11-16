@@ -112,7 +112,13 @@ function harness(opts: {
     clock: () => NOW,
   } as unknown as AuthContextServiceDeps;
   const authContext = createAuthContextService(deps);
-  const guard = createPermissionGuard({ authContext });
+  // #730: a fresh sign-in (session createdAt = NOW) passes the re-auth
+  // window on dangerous routes, so these tests isolate audit attribution.
+  const guard = createPermissionGuard({
+    authContext,
+    reauthWindowSeconds: 1_800,
+    clock: () => NOW,
+  });
   return { guard, rows };
 }
 

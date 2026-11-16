@@ -73,6 +73,7 @@ function makeDeps(expectedGatePerms: readonly Permission[]) {
     requirePermissions: vi.fn(),
     getAuthContext: vi.fn(),
     requireBuilderId: vi.fn(),
+    requireRecentAuth: vi.fn(),
   };
   const deps = { userService, permissionGuard, builders } as unknown as AdminUsersRouteDeps;
   return { deps, ctx, userService, builders, permissionGuard };
