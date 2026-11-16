@@ -113,3 +113,59 @@ export function invoiceTimelineEvents(invoice: CommissionInvoice, copy: BuilderC
   }
   return events;
 }
+
+/**
+ * #901: Pay now is offered on a `failed` invoice paid by card only — the
+ * one case the API accepts. Manual methods are paid outside Stripe.
+ */
+export function canPayNow(invoice: Pick<CommissionInvoice, 'status'> & { readonly paymentMethod: BuilderPaymentMethod }): boolean {
+  return invoice.status === 'failed' && invoice.paymentMethod === 'card';
+}
+
+/**
+ * #901: the next automatic retry of a failed card invoice as a date
+ * ("Nov 23, 2026"), or the "none scheduled" copy (paused, cancelled, or
+ * retries used up). Null when the invoice is not a failed card invoice.
+ * The schedule is server-owned; this only formats `nextRetryAt`.
+ */
+export function nextRetryText(invoice: BuilderCommissionInvoice, copy: BuilderCopy): string | null {
+  if (!canPayNow(invoice)) return null;
+  return invoice.nextRetryAt ? formatEdmontonMediumDate(invoice.nextRetryAt) : copy.invoiceDrawer.nextRetryNone;
+}
+
+/**
+ * #901: whole days a manual-method invoice is past its due date — the
+ * server's `overdueDays`. 0 for card invoices, settled invoices and
+ * anything not yet due.
+ */
+export function overdueDays(invoice: BuilderCommissionInvoice): number {
+  if (invoice.paymentMethod === 'card' || !invoice.dueAt) return 0;
+  const days = invoice.overdueDays ?? 0;
+  return Number.isFinite(days) && days > 0 ? Math.floor(days) : 0;
+}
+
+/** #901: "Overdue 3 days" for the invoices list; null when not overdue. */
+export function overdueLabel(invoice: BuilderCommissionInvoice, copy: BuilderCopy): string | null {
+  const days = overdueDays(invoice);
+  if (days === 0) return null;
+  return days === 1 ? copy.invoicesOverdueOne : copy.invoicesOverdueMany.replace('{days}', String(days));
+}
+
+/** #901: the drawer's overdue banner for a manual-method invoice; null when not overdue. */
+export function overdueBanner(invoice: BuilderCommissionInvoice, copy: BuilderCopy): string | null {
+  const days = overdueDays(invoice);
+  if (days === 0) return null;
+  const date = formatEdmontonMediumDate(invoice.dueAt ?? null);
+  return days === 1
+    ? fillCopy(copy.invoiceDrawer.overdueBannerOne, { date })
+    : fillCopy(copy.invoiceDrawer.overdueBanner, { date, days: String(days) });
+}
+
+/**
+ * #901: the invoices list's Due cell for a failed card invoice with a
+ * retry scheduled ("Retries Nov 23, 2026"); null otherwise.
+ */
+export function nextRetryLabel(invoice: BuilderCommissionInvoice, copy: BuilderCopy): string | null {
+  if (!canPayNow(invoice) || !invoice.nextRetryAt) return null;
+  return copy.invoicesNextRetry.replace('{date}', formatEdmontonMediumDate(invoice.nextRetryAt));
+}

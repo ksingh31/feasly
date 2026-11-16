@@ -18,6 +18,7 @@ import { TestBed } from '@angular/core/testing';
 import { provideStore, Store } from '@ngxs/store';
 import { describe, expect, it } from 'vitest';
 import { of, throwError } from 'rxjs';
+import type { Observable } from 'rxjs';
 import { ConfigService } from '../../core/config/config.service';
 import {
   BuilderInvoicesState,
@@ -245,5 +246,72 @@ describe('BuilderInvoicesState RefreshSelectedInvoice (#867)', () => {
     await run(new actions.RefreshSelectedInvoice('inv-1'));
     expect(store.selectSnapshot(BuilderInvoicesState.selected)?.status).toBe('action_required');
     expect(store.selectSnapshot(BuilderInvoicesState.detailStatus)).toBe('ready');
+  });
+});
+
+describe('BuilderInvoicesState Pay now (#901)', () => {
+  async function setupPay(pay: (id: string) => Observable<{ id: string; status: string }>) {
+    TestBed.resetTestingModule();
+    const calls: string[] = [];
+    const apiStub = {
+      listInvoices: () => of({ invoices: [{ id: 'inv-1', status: 'failed' }], total: null, page: 1, pageSize: 10 }),
+      listActionableInvoices: () => of([{ id: 'inv-1', status: 'failed' }]),
+      getInvoice: (id: string) => of({ id, status: 'failed' }),
+      payInvoiceNow: (id: string) => {
+        calls.push(id);
+        return pay(id);
+      },
+    };
+    TestBed.configureTestingModule({
+      providers: [
+        provideStore([]),
+        provideHttpClient(),
+        { provide: ConfigService, useValue: { getServedBuilderCopy: () => null } },
+        builderInvoicesStateProvider,
+        {
+          provide: (await import('./builder-invoices-api.service')).BuilderInvoicesApiService,
+          useValue: apiStub,
+        },
+      ],
+    });
+    const store = TestBed.inject(Store);
+    const actions = await import('./builder-invoices.actions');
+    const run = (action: object) =>
+      new Promise<void>((resolve) => store.dispatch(action).subscribe({ complete: resolve, error: () => resolve() }));
+    await run(new actions.LoadInvoices(1));
+    await run(new actions.LoadActionableInvoices());
+    await run(new actions.SelectInvoice('inv-1'));
+    return { store, actions, run, calls };
+  }
+
+  it('replaces every copy of the invoice with the paid result', async () => {
+    const { store, actions, run } = await setupPay((id) => of({ id, status: 'paid' }));
+    await run(new actions.PayInvoiceNow('inv-1'));
+    expect(store.selectSnapshot(BuilderInvoicesState.selected)?.status).toBe('paid');
+    expect(store.selectSnapshot(BuilderInvoicesState.invoices)[0]?.status).toBe('paid');
+    expect(store.selectSnapshot(BuilderInvoicesState.actionableInvoices)[0]?.status).toBe('paid');
+    expect(store.selectSnapshot(BuilderInvoicesState.payNowId)).toBeNull();
+    expect(store.selectSnapshot(BuilderInvoicesState.payNowErrorId)).toBeNull();
+  });
+
+  it('ignores a second Pay now while one is in flight (one charge)', async () => {
+    const { Subject } = await import('rxjs');
+    const reply = new Subject<{ id: string; status: string }>();
+    const { store, actions, calls } = await setupPay(() => reply.asObservable());
+    store.dispatch(new actions.PayInvoiceNow('inv-1'));
+    store.dispatch(new actions.PayInvoiceNow('inv-1'));
+    expect(calls).toEqual(['inv-1']);
+    expect(store.selectSnapshot(BuilderInvoicesState.payNowId)).toBe('inv-1');
+    reply.next({ id: 'inv-1', status: 'paid' });
+    reply.complete();
+    expect(store.selectSnapshot(BuilderInvoicesState.payNowId)).toBeNull();
+  });
+
+  it('keeps a failed request in state (never thrown) and keeps the invoice as it was', async () => {
+    const { store, actions, run } = await setupPay(() => throwError(() => new Error('boom')));
+    await run(new actions.PayInvoiceNow('inv-1'));
+    expect(store.selectSnapshot(BuilderInvoicesState.payNowErrorId)).toBe('inv-1');
+    expect(store.selectSnapshot(BuilderInvoicesState.payNowId)).toBeNull();
+    expect(store.selectSnapshot(BuilderInvoicesState.selected)?.status).toBe('failed');
   });
 });

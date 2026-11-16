@@ -5,6 +5,7 @@ import type {
   BuilderPaymentMethod,
   ManualInvoiceRequest,
   MarkInvoicePaidRequest,
+  UpdateInvoiceDunningRequest,
 } from '@feasly/contracts';
 
 /** Load the billing-health dashboard payload (refresh on each dispatch). */
@@ -108,4 +109,17 @@ export class SearchInvoiceLeads {
 /** Clear the lead-picker results (builder changed or modal closed). */
 export class ClearInvoiceLeads {
   static readonly type = '[BillingHealth] Clear invoice leads';
+}
+
+/**
+ * #901: edit one dunning invoice's automatic-retry schedule — pause,
+ * resume, cancel, or set its grace days. The state reloads the dashboard
+ * on success so the queue shows the new next-retry date and state.
+ */
+export class UpdateInvoiceDunning {
+  static readonly type = '[BillingHealth] Update invoice dunning';
+  constructor(
+    public readonly invoiceId: string,
+    public readonly body: UpdateInvoiceDunningRequest,
+  ) {}
 }

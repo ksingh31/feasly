@@ -18,6 +18,7 @@ import {
   DownloadInvoicePdf,
   LoadActionableInvoices,
   LoadInvoices,
+  PayInvoiceNow,
   RefreshSelectedInvoice,
   SelectInvoice,
   SetInvoiceNumberFilter,
@@ -61,6 +62,10 @@ export interface BuilderInvoicesStateModel {
   pdfDownloadingId: string | null;
   /** Invoice whose last PDF download failed; null after a success/retry. */
   pdfErrorId: string | null;
+  /** #901: invoice whose Pay now charge is in flight; null when none. */
+  payNowId: string | null;
+  /** #901: invoice whose last Pay now request failed; null after a success/retry. */
+  payNowErrorId: string | null;
 }
 
 const defaults: BuilderInvoicesStateModel = {
@@ -80,6 +85,8 @@ const defaults: BuilderInvoicesStateModel = {
   invoiceNumberFilter: '',
   pdfDownloadingId: null,
   pdfErrorId: null,
+  payNowId: null,
+  payNowErrorId: null,
 };
 
 /**
@@ -192,6 +199,18 @@ export class BuilderInvoicesState implements NgxsOnInit {
   @Selector()
   static pdfErrorId(state: BuilderInvoicesStateModel): string | null {
     return state?.pdfErrorId ?? null;
+  }
+
+  /** #901: invoice whose Pay now charge is in flight; null when none. */
+  @Selector()
+  static payNowId(state: BuilderInvoicesStateModel): string | null {
+    return state?.payNowId ?? null;
+  }
+
+  /** #901: invoice whose last Pay now request failed; null otherwise. */
+  @Selector()
+  static payNowErrorId(state: BuilderInvoicesStateModel): string | null {
+    return state?.payNowErrorId ?? null;
   }
 
   @Action(LoadInvoices)
@@ -336,6 +355,36 @@ export class BuilderInvoicesState implements NgxsOnInit {
       }),
       catchError(() => {
         ctx.patchState({ paymentMethodSaveStatus: 'error' });
+        return of(null);
+      }),
+    );
+  }
+
+  /**
+   * #901 Pay now. One request at a time — a second dispatch while one is
+   * in flight is ignored (the button is disabled too, and the API is
+   * idempotent, so a double click can never charge twice). The returned
+   * invoice replaces every copy in state; a failed request is kept per
+   * invoice for the drawer to show, never thrown into the dispatch stream.
+   */
+  @Action(PayInvoiceNow)
+  payNow(ctx: StateContext<BuilderInvoicesStateModel>, action: PayInvoiceNow) {
+    if (ctx.getState().payNowId !== null) {
+      return;
+    }
+    ctx.patchState({ payNowId: action.id, payNowErrorId: null });
+    return this.api.payInvoiceNow(action.id).pipe(
+      tap((invoice) => {
+        const state = ctx.getState();
+        ctx.patchState({
+          payNowId: null,
+          selected: state.selected?.id === invoice.id ? invoice : state.selected,
+          invoices: state.invoices.map((row) => (row.id === invoice.id ? invoice : row)),
+          actionableInvoices: state.actionableInvoices.map((row) => (row.id === invoice.id ? invoice : row)),
+        });
+      }),
+      catchError(() => {
+        ctx.patchState({ payNowId: null, payNowErrorId: action.id });
         return of(null);
       }),
     );

@@ -18,6 +18,38 @@
         {{ copy.invoicesPaymentFailed }}
       </p>
     }
+    @if (overdue(); as overdueText) {
+      <p class="invoice-drawer__banner invoice-drawer__banner--danger" role="alert" data-testid="invoice-overdue">
+        {{ overdueText }}
+      </p>
+    }
+    @if (payable()) {
+      <section class="invoice-drawer__section invoice-drawer__pay" aria-labelledby="invoice-drawer-pay" data-testid="invoice-pay-now">
+        <dl class="invoice-drawer__rows">
+          <div>
+            <dt id="invoice-drawer-pay">{{ t.nextRetryLabel }}</dt>
+            <dd data-testid="invoice-next-retry">{{ nextRetry() }}</dd>
+          </div>
+        </dl>
+        <p class="invoice-drawer__note">{{ t.payNowNote }}</p>
+        @if (payFailed()) {
+          <p class="invoice-drawer__note invoice-drawer__note--danger" role="alert" data-testid="invoice-pay-now-error">
+            {{ t.payNowError }}
+          </p>
+        }
+        <button
+          type="button"
+          ui-button
+          class="invoice-drawer__pay-cta"
+          data-testid="invoice-pay-now-cta"
+          [disabled]="paying()"
+          [attr.aria-busy]="paying()"
+          (click)="payNow()"
+        >
+          {{ paying() ? t.payNowBusy : t.payNowCta }}
+        </button>
+      </section>
+    }
     @if (needsConfirm()) {
       <section class="invoice-drawer__section invoice-drawer__confirm" aria-labelledby="invoice-drawer-confirm" data-testid="invoice-confirm-payment">
         <h3 id="invoice-drawer-confirm" class="invoice-drawer__heading">{{ simCopy.paymentHeading }}</h3>

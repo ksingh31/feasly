@@ -80,6 +80,8 @@ interface Setup {
   readonly stripe?: { confirmCardPayment: ReturnType<typeof vi.fn> } | null;
   /** #867: billing config overrides (publishable key, poll cadence). */
   readonly billing?: Partial<typeof DEFAULT_APP_CONFIG.billing>;
+  /** #901: what POST /invoices/{id}/pay returns. */
+  readonly payNow?: () => Observable<BuilderCommissionInvoice>;
 }
 
 async function setup(options: Setup = {}) {
@@ -89,6 +91,7 @@ async function setup(options: Setup = {}) {
   const api = {
     getInvoice: vi.fn(() => (fail ? throwError(() => new Error('boom')) : of(current))),
     listInvoices: vi.fn(() => NEVER),
+    payInvoiceNow: vi.fn(options.payNow ?? (() => NEVER)),
     downloadInvoicePdf: vi.fn(() => {
       const pdf = options.pdf ?? 'ok';
       if (pdf === 'ok') return of(new Blob(['%PDF-1.4'], { type: 'application/pdf' }));
@@ -765,6 +768,123 @@ describe('BuilderInvoiceDrawerComponent (#533)', () => {
       await settle(fixture);
       expect(billingApi.confirmInvoicePayment).toHaveBeenCalledTimes(2);
       expect(q(el, 'simulated-challenge')).not.toBeNull();
+    });
+  });
+
+  describe('Pay now + next retry + overdue (#901)', () => {
+    const failedCard = (patch: Partial<BuilderCommissionInvoice> = {}) =>
+      invoice({ status: 'failed', reviewDueAt: iso(-2), nextRetryAt: '2026-11-23T15:00:00.000Z', ...patch });
+
+    async function settle(fixture: ComponentFixture<BuilderInvoiceDrawerComponent>): Promise<void> {
+      fixture.detectChanges();
+      await fixture.whenStable();
+      fixture.detectChanges();
+    }
+
+    it('shows the next automatic retry date and a Pay now button on a failed card invoice', async () => {
+      const { el } = await setup({ invoice: failedCard() });
+      expect(q(el, 'invoice-pay-now')).not.toBeNull();
+      expect(q(el, 'invoice-next-retry')?.textContent?.trim()).toBe('Nov 23, 2026');
+      expect(q(el, 'invoice-pay-now-cta')?.textContent?.trim()).toBe(T.payNowCta);
+    });
+
+    it('says no retry is scheduled when the server sends none (paused / cancelled / used up)', async () => {
+      const { el } = await setup({ invoice: failedCard({ nextRetryAt: null, dunningState: 'paused' }) });
+      expect(q(el, 'invoice-next-retry')?.textContent?.trim()).toBe(T.nextRetryNone);
+      // The builder can always pay now, whatever the schedule.
+      expect(q(el, 'invoice-pay-now-cta')).not.toBeNull();
+    });
+
+    it('never offers Pay now or schedule controls outside a failed card invoice', async () => {
+      for (const inv of [invoice(), failedCard({ paymentMethod: 'cheque' }), invoice({ status: 'paid', paidAt: iso(-1) })]) {
+        const { el } = await setup({ invoice: inv });
+        expect(q(el, 'invoice-pay-now')).toBeNull();
+      }
+    });
+
+    it('disables the button while the charge is in flight and sends one request on a double click', async () => {
+      const reply = new Subject<BuilderCommissionInvoice>();
+      const { el, fixture, api } = await setup({ invoice: failedCard(), payNow: () => reply.asObservable() });
+      const button = q(el, 'invoice-pay-now-cta') as HTMLButtonElement;
+      button.click();
+      button.click();
+      await settle(fixture);
+      const busy = q(el, 'invoice-pay-now-cta') as HTMLButtonElement;
+      expect(busy.disabled).toBe(true);
+      expect(busy.getAttribute('aria-busy')).toBe('true');
+      expect(busy.textContent?.trim()).toBe(T.payNowBusy);
+      (busy as HTMLButtonElement).click();
+      expect(api.payInvoiceNow).toHaveBeenCalledTimes(1);
+      expect(api.payInvoiceNow).toHaveBeenCalledWith('inv-1');
+      reply.next(failedCard({ status: 'paid', paidAt: iso(0), nextRetryAt: null }));
+      reply.complete();
+      await settle(fixture);
+      expect(q(el, 'invoice-pay-now')).toBeNull();
+    });
+
+    it('a paid result toasts success, swaps the invoice in place and reloads the list + overview', async () => {
+      const paid = failedCard({ status: 'paid', paidAt: iso(0), nextRetryAt: null });
+      const { el, fixture, toasts, store } = await setup({ invoice: failedCard(), payNow: () => of(paid) });
+      const dispatched: unknown[] = [];
+      const original = store.dispatch.bind(store);
+      vi.spyOn(store, 'dispatch').mockImplementation((a) => {
+        dispatched.push(...(Array.isArray(a) ? a : [a]));
+        return original(a);
+      });
+      q(el, 'invoice-pay-now-cta')!.click();
+      await settle(fixture);
+      expect(toasts.show).toHaveBeenCalledWith({ message: T.payNowPaidToast, tone: 'success' });
+      expect(store.selectSnapshot(BuilderInvoicesState.selected)?.status).toBe('paid');
+      expect(dispatched.some((a) => a instanceof LoadInvoices)).toBe(true);
+      expect(dispatched.some((a) => a instanceof LoadBillingOverview)).toBe(true);
+    });
+
+    it('a declined result toasts the decline and keeps Pay now available', async () => {
+      const { el, fixture, toasts } = await setup({ invoice: failedCard(), payNow: () => of(failedCard()) });
+      q(el, 'invoice-pay-now-cta')!.click();
+      await settle(fixture);
+      expect(toasts.show).toHaveBeenCalledWith({ message: T.payNowDeclinedToast, tone: 'danger' });
+      expect((q(el, 'invoice-pay-now-cta') as HTMLButtonElement).disabled).toBe(false);
+    });
+
+    it('a 3D Secure result moves the drawer onto the bank-confirmation step', async () => {
+      const { el, fixture, toasts } = await setup({
+        invoice: failedCard(),
+        payNow: () => of(failedCard({ status: 'action_required', nextRetryAt: null })),
+      });
+      q(el, 'invoice-pay-now-cta')!.click();
+      await settle(fixture);
+      expect(toasts.show).toHaveBeenCalledWith({ message: T.payNowConfirmToast });
+      expect(q(el, 'invoice-confirm-payment')).not.toBeNull();
+      expect(q(el, 'invoice-pay-now')).toBeNull();
+    });
+
+    it('a failed request shows an inline error and re-enables the button', async () => {
+      const { el, fixture, toasts } = await setup({
+        invoice: failedCard(),
+        payNow: () => throwError(() => new Error('boom')),
+      });
+      q(el, 'invoice-pay-now-cta')!.click();
+      await settle(fixture);
+      expect(q(el, 'invoice-pay-now-error')?.textContent?.trim()).toBe(T.payNowError);
+      expect((q(el, 'invoice-pay-now-cta') as HTMLButtonElement).disabled).toBe(false);
+      expect(toasts.show).not.toHaveBeenCalled();
+    });
+
+    it('a manual-method invoice past its due date shows as overdue', async () => {
+      const { el } = await setup({
+        invoice: invoice({ paymentMethod: 'cheque', dueAt: '2026-11-10T07:00:00.000Z', overdueDays: 6 }),
+      });
+      expect(q(el, 'invoice-overdue')?.textContent?.trim()).toBe(
+        'This invoice was due Nov 10, 2026 and is 6 days overdue.',
+      );
+    });
+
+    it('shows no overdue banner before the due date or for a card invoice', async () => {
+      const notYet = await setup({ invoice: invoice({ paymentMethod: 'cheque', dueAt: iso(3), overdueDays: 0 }) });
+      expect(q(notYet.el, 'invoice-overdue')).toBeNull();
+      const card = await setup({ invoice: invoice({ dueAt: null, overdueDays: 4 }) });
+      expect(q(card.el, 'invoice-overdue')).toBeNull();
     });
   });
 });
