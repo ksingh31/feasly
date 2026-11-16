@@ -583,6 +583,10 @@ import {
   type SharedCounterStore,
 } from './middleware/shared-rate-limit';
 import { createDrizzleRateLimitStore } from './services/rate-limit.store';
+import {
+  createDrizzleCityDataCacheStore,
+  type CityDataCacheStore,
+} from './services/city-data-cache.store';
 import { MAGIC_LINK_SEND_BUDGET_WINDOW_MS } from './services/magic-link.service';
 import {
   createRequestPipeline,
@@ -836,6 +840,8 @@ export interface CompositionOptions {
   readonly estimateStore?: EstimateStore;
   /** #729: shared rate-limit counters (default: Postgres via Drizzle). */
   readonly rateLimitStore?: SharedCounterStore;
+  /** #756: shared City-data cache (tests inject an in-memory fake). */
+  readonly cityDataCacheStore?: CityDataCacheStore;
   readonly leadStore?: LeadStore;
   readonly leadStatusChangeStore?: LeadStatusChangeStore;
   /** #703: report-opened + follow-up stamps (default: Drizzle). */
@@ -1753,12 +1759,28 @@ export function createComposition(
   // #686: `zoning` is the CURRENT district from the city's land-use
   // provider (Calgary: Land Use Districts map), falling back to the roll.
   const landUseProvider = createLandUseProvider(config.landUse);
-  const propertyService: PropertyService = createPropertyService(
-    config.propertyData,
-    landUseProvider
-      ? { landUse: { provider: landUseProvider, cacheTtlMs: config.landUse.cacheTtlMs } }
-      : {},
-  );
+  // #756: every route reads City data through this one service — in-memory
+  // tier, then the shared `city_data_cache` table, single-flight to the City.
+  // Telemetry: one JSON trace per resolution / City call, queryable in App
+  // Insights as `traces | where message startswith '{"event":"property_data.'`
+  // (docs/ops/property-data-cache.md).
+  const cityDataCacheStore: CityDataCacheStore =
+    options.cityDataCacheStore ?? createDrizzleCityDataCacheStore({ db: db.db });
+  const propertyService: PropertyService = createPropertyService(config.propertyData, {
+    cache: cityDataCacheStore,
+    onEvent: (event) =>
+      console.info(JSON.stringify({ ...event, event: `property_data.${event.event}` })),
+    ...(landUseProvider
+      ? {
+          landUse: {
+            provider: landUseProvider,
+            cacheTtlMs: config.landUse.cacheTtlMs,
+            datasetId: config.landUse.datasetId,
+            dbCacheTtlMs: config.landUse.dbCacheTtlMs,
+          },
+        }
+      : {}),
+  });
   const propertyRoute: PropertyRoute = createPropertyRoute({
     property: propertyService,
   });

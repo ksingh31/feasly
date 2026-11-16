@@ -22,6 +22,14 @@
  *   timeout, error, or no polygon hit it falls back to the roll's
  *   designation (`landUse.source = 'assessment-roll'`) — a district failure
  *   never fails the lookup.
+ * - #756: one shared read path for City data. Two cache tiers — in-memory
+ *   per instance (`cacheTtlMs`), then the durable `city_data_cache` table
+ *   shared by every instance (per-dataset TTLs `dbCacheTtlMs`). Concurrent
+ *   requests for the same uncached address share one City call
+ *   (single-flight). A cache-store failure or slow read never fails or
+ *   slows the lookup beyond `dbCacheTimeoutMs` — it falls through to the
+ *   City. Every resolution and every City call emits a `PropertyDataEvent`
+ *   (cache hit rate + City call count in telemetry).
  */
 import type {
   AutocompleteResponse,
@@ -35,6 +43,8 @@ import { normalizeAddressQuery, type NormalizedAddressQuery } from '../lib/addre
 import { parcelInteriorPoint, type LonLat } from '../lib/geo';
 import type { PropertyDataConfig } from '../config';
 import type { LandUseDistrict, LandUseProvider } from './land-use.service';
+import type { CityDataCacheStore } from './city-data-cache.store';
+import { createSingleFlight, type SingleFlight } from '../lib/single-flight';
 
 /** Raw Socrata row from the "Current Year Property Assessments (Parcel)" dataset. */
 interface AssessmentRow {
@@ -191,6 +201,36 @@ function fallbackPredicate(houseNumber: string, streetName: string): string {
   );
 }
 
+/** Which property operation a telemetry event belongs to (#756). */
+export type PropertyDataOp = 'property' | 'district' | 'autocomplete';
+
+/**
+ * Where a lookup was answered from (#756): `memory` / `db` cache tiers,
+ * `inflight` (joined a concurrent request's City call), or `city`.
+ */
+export type PropertyDataSource = 'memory' | 'db' | 'inflight' | 'city';
+
+/**
+ * Telemetry for the shared City-data cache (#756). Never carries an address
+ * or query — only the dataset, operation, and outcome.
+ * - `lookup`: one per resolution; hit rate = non-`city` / all.
+ * - `city_call`: one per upstream City request (count + latency).
+ */
+export type PropertyDataEvent =
+  | {
+      readonly event: 'lookup';
+      readonly op: PropertyDataOp;
+      readonly dataset: string;
+      readonly source: PropertyDataSource;
+    }
+  | {
+      readonly event: 'city_call';
+      readonly op: PropertyDataOp;
+      readonly dataset: string;
+      readonly outcome: 'ok' | 'error';
+      readonly durationMs: number;
+    };
+
 export interface PropertyServiceDeps {
   /**
    * Called once per property/autocomplete miss with the miss reason.
@@ -205,7 +245,18 @@ export interface PropertyServiceDeps {
   readonly landUse?: {
     readonly provider: LandUseProvider;
     readonly cacheTtlMs: number;
+    /** #756: land-use dataset id (durable-cache key scope + telemetry). */
+    readonly datasetId?: string;
+    /** #756: durable-cache TTL for a resolved district. */
+    readonly dbCacheTtlMs?: number;
   };
+  /**
+   * #756: durable cache shared across instances. Absent → in-memory only
+   * (tests, local dev without a database).
+   */
+  readonly cache?: CityDataCacheStore;
+  /** #756: telemetry sink for cache hits and City calls. */
+  readonly onEvent?: (event: PropertyDataEvent) => void;
   /** Warning sink for the district fallback (default console.warn). */
   readonly logWarning?: (message: string) => void;
 }
@@ -287,6 +338,42 @@ interface DistrictCheck {
   readonly checkedOn: string;
 }
 
+/**
+ * Durable-cache payload schema version (#756). Prefixed onto every
+ * `city_data_cache` key, so changing the cached `RollEntry` / `DistrictCheck`
+ * shape (bump this) turns old rows into misses instead of serving
+ * stale-shaped payloads until their TTL runs out.
+ */
+export const CITY_CACHE_PAYLOAD_VERSION = 'v1';
+
+/** Shape check for a durable-cache roll payload (#756) — anything else is a miss. */
+function isRollEntry(value: unknown): value is RollEntry {
+  if (typeof value !== 'object' || value === null) return false;
+  const record = (value as { record?: unknown }).record;
+  return (
+    typeof record === 'object' &&
+    record !== null &&
+    typeof (record as PropertyRecord).addressKey === 'string' &&
+    typeof (record as PropertyRecord).assessedValue === 'number'
+  );
+}
+
+/** Shape check for a durable-cache district payload (#756). */
+function isDistrictCheck(value: unknown): value is DistrictCheck {
+  if (typeof value !== 'object' || value === null) return false;
+  const check = value as { district?: unknown; checkedOn?: unknown };
+  return typeof check.checkedOn === 'string' && 'district' in check;
+}
+
+/**
+ * `stale` depends on today's date, so a cached record re-derives it on read
+ * (a record cached in December is stale in January).
+ */
+function withFreshStale(entry: RollEntry): RollEntry {
+  const stale = entry.record.assessmentYear < new Date().getFullYear();
+  return stale === entry.record.stale ? entry : { ...entry, record: { ...entry.record, stale } };
+}
+
 /** Fallback: the roll's designation, flagged as such. */
 function rollLandUse(record: PropertyRecord): PropertyLandUse | undefined {
   if (!record.zoning) return undefined;
@@ -312,6 +399,9 @@ export function createPropertyService(
   const propertyCache = new Map<string, CacheEntry<RollEntry>>();
   const districtCache = new Map<string, CacheEntry<DistrictCheck>>();
   const logWarning = deps.logWarning ?? ((message: string) => console.warn(message));
+  const rollFlights = createSingleFlight<RollEntry>();
+  const districtFlights = createSingleFlight<DistrictCheck>();
+  const searchFlights = createSingleFlight<AutocompleteResponse>();
 
   /**
    * Applies the current district to a roll record. Resolved districts and
@@ -329,12 +419,28 @@ export function createPropertyService(
     };
     const landUseDeps = deps.landUse;
     if (!landUseDeps || !entry.point) return fallback();
+    const point = entry.point;
+    const dataset = landUseDeps.datasetId ?? 'land-use';
 
     let check = cached(districtCache, key);
-    if (!check) {
+    if (check) {
+      emit({ event: 'lookup', op: 'district', dataset, source: 'memory' });
+    } else {
       try {
-        const district = await landUseDeps.provider.resolve(entry.point);
-        check = { district, checkedOn: new Date().toISOString().split('T')[0] };
+        check = await resolveShared<DistrictCheck>({
+          op: 'district',
+          dataset,
+          key,
+          flights: districtFlights,
+          ttlMs: landUseDeps.dbCacheTtlMs,
+          isPayload: isDistrictCheck,
+          fetch: async () => {
+            const district = await timedCityCall('district', dataset, () =>
+              landUseDeps.provider.resolve(point),
+            );
+            return { district, checkedOn: new Date().toISOString().split('T')[0] };
+          },
+        });
         districtCache.set(key, {
           expires: Date.now() + landUseDeps.cacheTtlMs,
           value: check,
@@ -362,6 +468,98 @@ export function createPropertyService(
     };
   }
 
+  function emit(event: PropertyDataEvent): void {
+    try {
+      deps.onEvent?.(event);
+    } catch {
+      // Telemetry must never fail a lookup.
+    }
+  }
+
+  /** Runs one City request, emitting a `city_call` event either way. */
+  async function timedCityCall<T>(
+    op: PropertyDataOp,
+    dataset: string,
+    call: () => Promise<T>,
+  ): Promise<T> {
+    const started = Date.now();
+    try {
+      const value = await call();
+      emit({ event: 'city_call', op, dataset, outcome: 'ok', durationMs: Date.now() - started });
+      return value;
+    } catch (error) {
+      emit({ event: 'city_call', op, dataset, outcome: 'error', durationMs: Date.now() - started });
+      throw error;
+    }
+  }
+
+  /** Races a cache-store call against `dbCacheTimeoutMs`; the timer is always cleared. */
+  async function withStoreTimeout<T>(work: Promise<T>): Promise<T> {
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    const timeout = new Promise<never>((_, reject) => {
+      timer = setTimeout(
+        () => reject(new Error('city-data cache timeout')),
+        config.dbCacheTimeoutMs,
+      );
+    });
+    try {
+      return await Promise.race([work, timeout]);
+    } finally {
+      clearTimeout(timer);
+    }
+  }
+
+  /**
+   * Durable tier + single-flight around a City fetch: joins an in-flight
+   * request for the same key, else reads `city_data_cache`, else calls the
+   * City and writes the result back. Store failures are logged (error class
+   * only) and fall through — the City answer is still returned.
+   */
+  async function resolveShared<T>(args: {
+    readonly op: PropertyDataOp;
+    readonly dataset: string;
+    readonly key: string;
+    readonly flights: SingleFlight<T>;
+    readonly ttlMs: number | undefined;
+    readonly isPayload: (value: unknown) => value is T;
+    readonly fetch: () => Promise<T>;
+  }): Promise<T> {
+    const { op, dataset, key } = args;
+    const storeKey = `${CITY_CACHE_PAYLOAD_VERSION}:${key}`;
+    const { promise, joined } = args.flights.run(key, async () => {
+      const store = deps.cache;
+      if (store && args.ttlMs !== undefined) {
+        try {
+          const hit = await withStoreTimeout(store.get(dataset, storeKey, new Date()));
+          if (args.isPayload(hit)) {
+            emit({ event: 'lookup', op, dataset, source: 'db' });
+            return hit;
+          }
+        } catch (error) {
+          logWarning(`[property] city-data cache read failed (${errorClass(error)}); using the City.`);
+        }
+      }
+      const value = await args.fetch();
+      emit({ event: 'lookup', op, dataset, source: 'city' });
+      if (store && args.ttlMs !== undefined) {
+        try {
+          await withStoreTimeout(
+            store.put(dataset, storeKey, value, new Date(Date.now() + args.ttlMs)),
+          );
+        } catch (error) {
+          logWarning(`[property] city-data cache write failed (${errorClass(error)}).`);
+        }
+      }
+      return value;
+    });
+    if (joined) {
+      const value = await promise;
+      emit({ event: 'lookup', op, dataset, source: 'inflight' });
+      return value;
+    }
+    return promise;
+  }
+
   function cached<T>(cache: Map<string, CacheEntry<T>>, key: string): T | undefined {
     const entry = cache.get(key);
     if (!entry) return undefined;
@@ -376,7 +574,11 @@ export function createPropertyService(
     cache.set(key, { expires: Date.now() + config.cacheTtlMs, value });
   }
 
-  async function fetchRows(params: URLSearchParams): Promise<unknown> {
+  function fetchRows(params: URLSearchParams, op: PropertyDataOp): Promise<unknown> {
+    return timedCityCall(op, config.datasetId, () => fetchRowsOnce(params));
+  }
+
+  async function fetchRowsOnce(params: URLSearchParams): Promise<unknown> {
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), config.httpTimeoutMs);
     try {
@@ -436,6 +638,36 @@ export function createPropertyService(
     return { record: toPropertyRecord(best), point: parcelInteriorPoint(best.multipolygon) };
   }
 
+  /** City autocomplete for a normalized query (one request, plus the #701 fallback). */
+  async function searchCity(parsed: NormalizedAddressQuery): Promise<AutocompleteResponse> {
+    const q = parsed.search;
+    const search = (where: string): Promise<AutocompleteSuggestion[]> =>
+      fetchRows(
+        new URLSearchParams({
+          $select: SEARCH_FIELDS.join(','),
+          $where: where,
+          $order: 'address',
+          $limit: String(config.searchRowLimit),
+        }),
+        'autocomplete',
+      ).then(toSuggestions);
+
+    let suggestions = await search(`starts_with(upper(address),${soqlString(q)})`);
+    // #701 fallback: at most one more City request, only when the query has
+    // a house number and a street token (e.g. a unit's building, or a
+    // wrong street type) — house number + street name, anywhere in the key.
+    if (suggestions.length === 0 && parsed.houseNumber && parsed.streetName) {
+      suggestions = await search(fallbackPredicate(parsed.houseNumber, parsed.streetName));
+    }
+    const response: AutocompleteResponse = { suggestions };
+    store(searchCache, q, response);
+    if (suggestions.length === 0) {
+      const { reason, key } = autocompleteMiss(parsed);
+      deps.onLookupMiss?.(reason, key);
+    }
+    return response;
+  }
+
   return {
     async autocomplete(query: string): Promise<AutocompleteResponse> {
       const parsed = normalizeAddressQuery(query);
@@ -459,31 +691,18 @@ export function createPropertyService(
       }
       if (q.length < MIN_QUERY_CHARS) return { suggestions: [] };
       const hit = cached(searchCache, q);
-      if (hit) return hit;
-
-      const search = (where: string): Promise<AutocompleteSuggestion[]> =>
-        fetchRows(
-          new URLSearchParams({
-            $select: SEARCH_FIELDS.join(','),
-            $where: where,
-            $order: 'address',
-            $limit: String(config.searchRowLimit),
-          }),
-        ).then(toSuggestions);
-
-      let suggestions = await search(`starts_with(upper(address),${soqlString(q)})`);
-      // #701 fallback: at most one more City request, only when the query has
-      // a house number and a street token (e.g. a unit's building, or a
-      // wrong street type) — house number + street name, anywhere in the key.
-      if (suggestions.length === 0 && parsed.houseNumber && parsed.streetName) {
-        suggestions = await search(fallbackPredicate(parsed.houseNumber, parsed.streetName));
+      if (hit) {
+        emit({ event: 'lookup', op: 'autocomplete', dataset: config.datasetId, source: 'memory' });
+        return hit;
       }
-      const response: AutocompleteResponse = { suggestions };
-      store(searchCache, q, response);
-      if (suggestions.length === 0) {
-        const { reason, key } = autocompleteMiss(parsed);
-        deps.onLookupMiss?.(reason, key);
-      }
+      const { promise, joined } = searchFlights.run(q, () => searchCity(parsed));
+      const response = await promise;
+      emit({
+        event: 'lookup',
+        op: 'autocomplete',
+        dataset: config.datasetId,
+        source: joined ? 'inflight' : 'city',
+      });
       return response;
     },
 
@@ -498,16 +717,28 @@ export function createPropertyService(
         miss(key, key, deps.onLookupMiss);
       }
       const hit = cached(propertyCache, key);
-      if (hit) return withLandUse(key, hit, options);
-
-      const params = new URLSearchParams({
-        $select: DETAIL_FIELDS.join(','),
-        $where: `address=${soqlString(key)}`,
-        $limit: String(config.searchRowLimit),
+      if (hit) {
+        emit({ event: 'lookup', op: 'property', dataset: config.datasetId, source: 'memory' });
+        return withLandUse(key, withFreshStale(hit), options);
+      }
+      const entry = await resolveShared<RollEntry>({
+        op: 'property',
+        dataset: config.datasetId,
+        key,
+        flights: rollFlights,
+        ttlMs: config.dbCacheTtlMs,
+        isPayload: isRollEntry,
+        fetch: async () => {
+          const params = new URLSearchParams({
+            $select: DETAIL_FIELDS.join(','),
+            $where: `address=${soqlString(key)}`,
+            $limit: String(config.searchRowLimit),
+          });
+          return toProperty(key, await fetchRows(params, 'property'));
+        },
       });
-      const entry = toProperty(key, await fetchRows(params));
       store(propertyCache, key, entry);
-      return withLandUse(key, entry, options);
+      return withLandUse(key, withFreshStale(entry), options);
     },
   };
 }

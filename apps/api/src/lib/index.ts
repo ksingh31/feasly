@@ -7,3 +7,4 @@ export * from './async';
 export * from './contrast';
 export * from './geo';
 export * from './legal-copy';
+export * from './http-cache';
