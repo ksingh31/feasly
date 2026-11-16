@@ -196,7 +196,7 @@
       "termsTitle": "Feasly — Terms of Use",
       "terms": "The terms that apply when you use Feasly to generate a build estimate.",
       "howItWorksTitle": "Feasly — How it works",
-      "howItWorks": "How Feasly builds your Calgary new home build estimate in 4 steps: address, scope, preview, report. Same fixed formula, real City data.",
+      "howItWorks": "How Feasly estimates Calgary build costs: one fixed formula (hard costs + soft costs + contingency), City of Calgary data, and a worked example.",
       "faqTitle": "Feasly — Frequently asked questions",
       "faq": "How much does it cost to build a house in Calgary? Are renovation estimates available? Answers about Calgary build costs, finish tiers, data, and privacy.",
       "reportTitle": "Feasly — Your build estimate report",
@@ -267,21 +267,27 @@
       "callbackWindows": [
         {
           "id": "morning",
-          "label": "Morning"
+          "label": "Morning",
+          "range": "9 a.m.–12 p.m. MT",
+          "phrase": "in the morning"
         },
         {
           "id": "afternoon",
-          "label": "Afternoon"
+          "label": "Afternoon",
+          "range": "12–5 p.m. MT",
+          "phrase": "in the afternoon"
         },
         {
           "id": "evening",
-          "label": "Evening"
+          "label": "Evening",
+          "range": "5–8 p.m. MT",
+          "phrase": "in the evening"
         }
       ],
       "callbackCta": "Request callback",
-      "callbackSuccess": "Callback requested — we will call at your preferred time.",
+      "callbackSuccess": "We’ll aim to call you {day} {window}.",
       "callbackError": "We could not request the callback. Please try again in a moment.",
-      "callbackInvalid": "Enter your name and a phone number.",
+      "callbackInvalid": "Enter your name, a phone number and a preferred day.",
       "pdfCta": "Download PDF",
       "loadingLabel": "Loading your report…",
       "loadError": "We could not load your report. Please try again in a moment.",
@@ -343,7 +349,7 @@
           },
           {
             "q": "How long does it take to build a home in Calgary?",
-            "a": "Feasly estimates cost, not timelines — build schedules depend on your builder, permits, and site conditions. Your report lays out the next steps so you can take the conversation to builders with real numbers in hand."
+            "a": "A custom infill home in Calgary typically takes 12–16 months from design through permits to completion. Your report shows the typical range for each phase, from design and permits to construction. Your builder, permits, and site conditions set the actual schedule. Buying a pre-sale or move-in-ready home follows a different timeline."
           },
           {
             "q": "Is Feasly free?",
@@ -426,7 +432,8 @@
   "site": {
     "name": "Feasly",
     "url": "",
-    "socialImage": "/assets/og/og-default.png"
+    "socialImage": "/assets/og/og-default.png",
+    "statusPageUrl": ""
   },
   "timings": {
     "debounceMs": 250,

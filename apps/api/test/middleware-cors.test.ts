@@ -88,6 +88,15 @@ describe('preflightHeaders', () => {
     expect(headers['Access-Control-Allow-Headers']).toBeTruthy();
     expect(headers['Access-Control-Max-Age']).toBeTruthy();
   });
+
+  it('allows the headers the web app sends cross-origin (#954, incl. X-Feasly-CSRF)', () => {
+    const allowed = preflightHeaders()['Access-Control-Allow-Headers']
+      .split(',')
+      .map((h) => h.trim().toLowerCase());
+    for (const h of ['content-type', 'authorization', 'x-correlation-id', 'x-turnstile-token', 'x-feasly-csrf']) {
+      expect(allowed).toContain(h);
+    }
+  });
 });
 
 describe('corsOrigins config (HRD-01 env gating)', () => {

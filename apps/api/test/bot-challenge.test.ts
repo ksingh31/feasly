@@ -223,6 +223,7 @@ describe('pipeline + bot challenge (#788)', () => {
     const withKey = createApiKeyRateLimitMiddleware({
       apiKeys: { authenticate } as unknown as ApiKeyService,
       usage: {} as unknown as UsageService,
+      quota: { daily: 1_000_000, monthly: 1_000_000 },
       logger: () => undefined,
     });
     for (const authorization of ['Bearer\tx', 'Bearer\u00a0x', 'Basic x', 'Bearer ']) {

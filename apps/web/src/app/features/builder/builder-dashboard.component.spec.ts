@@ -460,6 +460,41 @@ describe('BuilderDashboardComponent — Leads home (#527)', () => {
     });
   });
 
+  describe('Reassigned by Feasly (#803)', () => {
+    const REASSIGNED = [
+      { id: 'r-2', name: 'Noor Khan', reassignedAt: '2026-11-12T10:00:00.000Z' },
+      { id: 'r-1', name: 'Liam Chen', reassignedAt: '2026-11-02T10:00:00.000Z' },
+    ];
+
+    it('lists reassigned leads as read-only rows marked "Reassigned by Feasly", in server order', async () => {
+      const { el } = await setup({ list: { ...LIST, reassigned: REASSIGNED } });
+      const section = el.querySelector('[data-testid="reassigned"]')!;
+      expect(section).not.toBeNull();
+      const rows = Array.from(section.querySelectorAll('[data-testid="reassigned-row"]'));
+      expect(rows.map((r) => r.querySelector('.reassigned-row__name')?.textContent?.trim())).toEqual([
+        'Noor Khan',
+        'Liam Chen',
+      ]);
+      for (const row of rows) {
+        expect(row.textContent).toContain('Reassigned by Feasly');
+        // No detail link, no contact actions, nothing clickable.
+        expect(row.querySelector('a, button')).toBeNull();
+      }
+      expect(rows[0].querySelector('time')?.getAttribute('datetime')).toBe('2026-11-12T10:00:00.000Z');
+    });
+
+    it('keeps reassigned leads out of the pipeline table', async () => {
+      const { el } = await setup({ list: { ...LIST, reassigned: REASSIGNED } });
+      expect(rowNames(el)).not.toContain('Noor Khan');
+      expect(rowNames(el)).not.toContain('Liam Chen');
+    });
+
+    it('renders no section when nothing was reassigned (or the field is absent)', async () => {
+      const { el } = await setup();
+      expect(el.querySelector('[data-testid="reassigned"]')).toBeNull();
+    });
+  });
+
   it('flags a non-won lead carrying an invoice in the console once (#474)', async () => {
     const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
     await setup({

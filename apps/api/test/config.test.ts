@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from 'vitest';
 import { version as packageVersion } from '../package.json';
 import { loadConfig, parseNarrativeModels, SEED_ADMIN_EMAIL } from '../src/config';
-import { WAITLIST_CONSENT_VERSION } from '../src/lib/legal-copy';
+import { API_LEAD_CONSENT_VERSION, WAITLIST_CONSENT_VERSION } from '../src/lib/legal-copy';
 
 const VALID_ENV = {
   NODE_ENV: 'test',
@@ -25,6 +25,7 @@ describe('loadConfig', () => {
         needsYouStaleDays: 7,
         needsYouScanLimit: 500,
         minSubmitMs: 2_000,
+        callbackDateWindowDays: 14,
       },
       botChallenge: {
         enabled: false,
@@ -41,6 +42,11 @@ describe('loadConfig', () => {
       },
       analytics: {
         rateLimit: { windowMs: 60_000, maxRequests: 300 },
+        funnelSourceGroupLimit: 25,
+      },
+      webTelemetry: {
+        rateLimit: { windowMs: 60_000, maxRequests: 10 },
+        maxTracesPerMinute: 60,
       },
       adminSearch: {
         ipRateLimit: { windowMs: 60_000, maxRequests: 300 },
@@ -206,6 +212,7 @@ describe('loadConfig', () => {
         isProduction: false,
         maxChargeRetries: 3,
         settlementThresholdHours: 24,
+        dunningGraceDays: 7,
         cardExpiryWarningDays: 30,
         tax: {
           enabled: false,
@@ -235,6 +242,21 @@ describe('loadConfig', () => {
         enabled: false,
         delayHours: 72,
       },
+      jobQueue: {
+        batchSize: 50,
+        maxAttempts: 5,
+        backoffBaseSeconds: 300,
+        backoffMaxSeconds: 21_600,
+        lockTimeoutSeconds: 900,
+      },
+      reminders: {
+        unfinishedDelayHours: 24,
+        maxPerRun: 500,
+      },
+      shareLink: {
+        ttlSeconds: 604_800,
+        maxActive: 5,
+      },
       builderNotifications: {
         enabled: true,
         maxAttempts: 5,
@@ -243,10 +265,37 @@ describe('loadConfig', () => {
         digestLocalHour: 7,
         digestTimeZone: 'America/Edmonton',
       },
+      builderSettings: {
+        supportEmail: SEED_ADMIN_EMAIL,
+        supportResponseTime: 'within 1 business day',
+        embedLiveWindowDays: 7,
+        embedLoaderUrl: 'https://feasly.example/embed/v1/loader.js',
+      },
       communityStatsRefresh: {
         minAssessmentCount: 10,
         alertAfterConsecutiveFailures: 2,
         pruneMinRows: 100,
+      },
+      // #691: community lot inventory (established infill communities).
+      communityLots: {
+        city: 'calgary',
+        socrataBaseUrl: 'https://data.calgary.ca',
+        assessmentDatasetId: '4bsw-nn7w',
+        boundariesDatasetId: 'surr-xmvs',
+        establishedClasses: ['Residential'],
+        establishedStructures: ['INNER CITY', '1950s', '1960s/1970s'],
+        minLotSqft: 1_000,
+        allowedDistrictPrefixes: ['R-', 'H-GO'],
+        pageSize: 1_000,
+        requestDelayMs: 100,
+        districtConcurrency: 4,
+        httpTimeoutMs: 15_000,
+        maxAttempts: 3,
+        staleAfterDays: 14,
+        alertAfterConsecutiveFailures: 1,
+        defaultLimit: 50,
+        maxLimit: 200,
+        cacheMaxAgeSeconds: 3_600,
       },
       neighbourhoodData: {
         providers: {
@@ -324,6 +373,17 @@ describe('loadConfig', () => {
           models: ['openai/gpt-oss-120b'],
         },
       },
+      communityNarratives: {
+        enabled: true,
+        schedule: '0 0 9 * * *',
+        runDay: 'last',
+        retryDays: 3,
+        models: ['gemini-3.8-flash'],
+        promptVersion: 'community-v1',
+        maxPerRun: 400,
+        adminBudgetMs: 60_000,
+        tickBudgetMs: 1_200_000,
+      },
       embed: {
         relayCodeTtlSeconds: 600,
         relayResendCooldownSeconds: 60,
@@ -332,6 +392,28 @@ describe('loadConfig', () => {
       waitlist: {
         consentVersion: WAITLIST_CONSENT_VERSION,
       },
+      apiAccess: {
+        dailyQuota: 100,
+        monthlyQuota: 2_000,
+        leadConsentVersion: API_LEAD_CONSENT_VERSION,
+        quarantineLeads: true,
+      },
+    });
+  });
+
+  it('reads the agent API quotas, consent version and quarantine flag (#738)', () => {
+    const config = loadConfig({
+      ...VALID_ENV,
+      API_KEY_DAILY_QUOTA: '5',
+      API_KEY_MONTHLY_QUOTA: '50',
+      API_LEAD_CONSENT_VERSION: ' api-lead-2027-01-01 ',
+      API_KEY_LEADS_QUARANTINE: 'false',
+    });
+    expect(config.apiAccess).toEqual({
+      dailyQuota: 5,
+      monthlyQuota: 50,
+      leadConsentVersion: 'api-lead-2027-01-01',
+      quarantineLeads: false,
     });
   });
 
@@ -438,6 +520,7 @@ describe('loadConfig', () => {
       isProduction: false,
       maxChargeRetries: 3,
       settlementThresholdHours: 24,
+      dunningGraceDays: 7,
       cardExpiryWarningDays: 30,
       tax: {
         enabled: false,
@@ -501,6 +584,33 @@ describe('loadConfig', () => {
     expect(() =>
       loadConfig({ ...VALID_ENV, BUILDER_DIGEST_TIMEZONE: 'America/Edmonon' }),
     ).toThrow(/BUILDER_DIGEST_TIMEZONE/);
+  });
+
+  it('reads the builder settings keys (#870)', () => {
+    const cfg = loadConfig({
+      ...VALID_ENV,
+      BUILDER_SUPPORT_EMAIL: 'help@builder-support.example',
+      BUILDER_SUPPORT_RESPONSE_TIME: 'within 2 business days',
+      BUILDER_EMBED_LIVE_WINDOW_DAYS: '14',
+      APP_BASE_URL: 'https://app.example.com/',
+    }).builderSettings;
+    expect(cfg).toEqual({
+      supportEmail: 'help@builder-support.example',
+      supportResponseTime: 'within 2 business days',
+      embedLiveWindowDays: 14,
+      embedLoaderUrl: 'https://app.example.com/embed/v1/loader.js',
+    });
+    // Unset support address falls back to the (deliverable) team inbox.
+    expect(
+      loadConfig({ ...VALID_ENV, OPS_INBOX_EMAIL: 'team@ops.example' })
+        .builderSettings.supportEmail,
+    ).toBe('team@ops.example');
+    expect(() =>
+      loadConfig({ ...VALID_ENV, BUILDER_SUPPORT_EMAIL: 'not-an-email' }),
+    ).toThrow(/BUILDER_SUPPORT_EMAIL/);
+    expect(() =>
+      loadConfig({ ...VALID_ENV, BUILDER_EMBED_LIVE_WINDOW_DAYS: '0' }),
+    ).toThrow(/BUILDER_EMBED_LIVE_WINDOW_DAYS/);
   });
 
   it('reads BILLING_STATEMENT_DESCRIPTOR (#716) and enforces Stripe descriptor rules', () => {
@@ -814,6 +924,26 @@ describe('parseNarrativeModels (BE-9)', () => {
   it('throws on an empty list so a misconfigured deployment fails fast', () => {
     expect(() => parseNarrativeModels('')).toThrow(/NARRATIVE_MODELS/);
     expect(() => parseNarrativeModels(' , ')).toThrow(/NARRATIVE_MODELS/);
+  });
+
+  it('reads the community-narrative overrides (#759)', () => {
+    const config = loadConfig({
+      ...VALID_ENV,
+      NARRATIVE_MODELS: 'm1',
+      COMMUNITY_NARRATIVE_MODELS: 'c1, c2',
+      COMMUNITY_NARRATIVE_RUN_DAY: '25',
+      COMMUNITY_NARRATIVE_PROMPT_VERSION: 'community-v2',
+      COMMUNITY_NARRATIVE_ENABLED: 'false',
+    });
+    expect(config.communityNarratives).toMatchObject({
+      enabled: false,
+      runDay: 25,
+      models: ['c1', 'c2'],
+      promptVersion: 'community-v2',
+    });
+    // Empty override falls back to NARRATIVE_MODELS.
+    expect(loadConfig({ ...VALID_ENV, NARRATIVE_MODELS: 'm1' }).communityNarratives.models).toEqual(['m1']);
+    expect(() => loadConfig({ ...VALID_ENV, COMMUNITY_NARRATIVE_RUN_DAY: '31' })).toThrow();
   });
 
   it('reads a custom NARRATIVE_MODELS and NARRATIVE_TIMEOUT_MS from env', () => {

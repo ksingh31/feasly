@@ -2,7 +2,7 @@ import { HttpErrorResponse, HttpStatusCode } from '@angular/common/http';
 import { from, of, switchMap, throwError, TimeoutError } from 'rxjs';
 import { catchError } from 'rxjs/operators';
 import type { Observable } from 'rxjs';
-import type { ApiError } from '@feasly/contracts';
+import type { ApiError, ChallengeRequiredError } from '@feasly/contracts';
 
 /**
  * Maps an HTTP failure onto the contract ApiError envelope.
@@ -75,4 +75,26 @@ export function toBlobApiError(error: unknown): Observable<never> {
     );
   }
   return toApiError(error);
+}
+
+/** API error codes that ask the client to run the bot challenge (#788). */
+const CHALLENGE_CODES: ReadonlySet<string> = new Set(['CHALLENGE_REQUIRED', 'CHALLENGE_FAILED']);
+
+/**
+ * #905: the Turnstile site key from a 403 CHALLENGE_REQUIRED /
+ * CHALLENGE_FAILED response, or null when `error` is anything else. Read
+ * before {@link toApiError}, which drops the `challenge` field.
+ */
+export function challengeSiteKey(error: unknown): string | null {
+  if (!(error instanceof HttpErrorResponse) || error.status !== HttpStatusCode.Forbidden) {
+    return null;
+  }
+  const body = error.error as Partial<ChallengeRequiredError> | null | undefined;
+  if (typeof body !== 'object' || body === null) return null;
+  if (typeof body.code !== 'string' || !CHALLENGE_CODES.has(body.code)) return null;
+  const challenge = body.challenge;
+  if (challenge?.provider !== 'turnstile') return null;
+  return typeof challenge.siteKey === 'string' && challenge.siteKey.length > 0
+    ? challenge.siteKey
+    : null;
 }

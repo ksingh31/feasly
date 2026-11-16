@@ -20,6 +20,13 @@
  *     trust footer noting deterministic math + uncalibrated cost data.
  */
 
+import {
+  PRESALE_TIMELINE_NOTE,
+  formatPhaseRange,
+  formatTimelineTotal,
+  type BuildTimeline,
+} from '../../lib/build-timeline';
+
 export interface TemplateContext {
   /** Where magic links / resume links point (config APP_BASE_URL). */
   readonly appBaseUrl: string;
@@ -31,6 +38,12 @@ export interface TemplateContext {
    */
   readonly unsubscribeBaseUrl: string;
   readonly brandName: string;
+  /**
+   * #823: typical build timeline for the served city. When present, the
+   * consumer report email for a NEW-BUILD estimate carries a compact
+   * timeline block (see `MagicLinkTemplateInput.projectType`).
+   */
+  readonly buildTimeline?: BuildTimeline;
 }
 
 export interface RenderedEmail {
@@ -128,10 +141,51 @@ export interface MagicLinkTemplateInput {
    * (America/Edmonton); falls back to `expiresInDays` when absent.
    */
   readonly expiresOn?: Date;
+  /**
+   * #823 (consumer only): the estimate's project type. The typical
+   * new-build timeline renders only for `'new_build'` — renovation reports
+   * hide the timeline section on the web, so their email must too. Absent
+   * (unknown) → no timeline block.
+   */
+  readonly projectType?: string;
 }
 
 const TRUST_LINE_TEXT =
   'Deterministic cost math · not a contractor quote · cost data currently uncalibrated.';
+
+const TIMELINE_TITLE = 'Typical new-build timeline';
+
+/**
+ * #823: compact "typical" timeline block for the consumer report email —
+ * total, phases, the pre-sale note. Typical ranges, never a promise; no
+ * dollar figures. Empty strings when no timeline is configured.
+ */
+function renderTimelineBlock(timeline: BuildTimeline | undefined): {
+  html: string;
+  text: string;
+} {
+  if (!timeline || timeline.phases.length === 0) {
+    return { html: '', text: '' };
+  }
+  const total = formatTimelineTotal(timeline);
+  const rows = timeline.phases
+    .map(
+      (p) =>
+        `<tr><td style="padding:4px 12px 4px 0;">${esc(p.label)}</td><td style="padding:4px 0;color:#5c574f;white-space:nowrap;">${esc(formatPhaseRange(p))}</td></tr>`,
+    )
+    .join('\n');
+  const html = `<h2 style="font-size:16px;margin:20px 0 4px;color:#232323;">${esc(TIMELINE_TITLE)}</h2>
+<p style="margin:0 0 8px;font-weight:600;">${esc(total)}</p>
+<table role="presentation" cellpadding="0" cellspacing="0" style="font-size:14px;margin:0 0 8px;">
+${rows}
+</table>
+<p style="font-size:14px;color:#5c574f;margin:0 0 12px;">${esc(PRESALE_TIMELINE_NOTE)}</p>`;
+  const text =
+    `${TIMELINE_TITLE}\n${total}\n` +
+    timeline.phases.map((p) => `- ${p.label}: ${formatPhaseRange(p)}`).join('\n') +
+    `\n${PRESALE_TIMELINE_NOTE}`;
+  return { html, text };
+}
 
 /**
  * Consumer report email (#703). Names the property, lists what the report
@@ -168,6 +222,9 @@ function renderConsumerReportEmail(
   const linkRules = `This link works ${until}. You can open it as often as you like, on any device.`;
   const freshLink =
     'After that, open the same link and enter your email address — we will send you a fresh one.';
+  const timeline = renderTimelineBlock(
+    input.projectType === 'new_build' ? ctx.buildTimeline : undefined,
+  );
   const body = `<p>${greetingHtml}</p>
 <p>${introHtml}</p>
 <p style="margin:0 0 4px;">Your report includes:</p>
@@ -177,12 +234,14 @@ ${contents.map((c) => `<li>${esc(c)}</li>`).join('\n')}
 ${ctaButton(input.magicLinkUrl, ctaLabel)}
 <p>${esc(linkRules)}</p>
 <p style="font-size:14px;color:#5c574f;">${esc(freshLink)}</p>
-${fallbackLink(input.magicLinkUrl)}`;
+${timeline.html}${fallbackLink(input.magicLinkUrl)}`;
   const footerUrl = input.unsubscribeUrl;
   const text =
     `${greetingText}\n\n${introText}\n\nYour report includes:\n` +
     contents.map((c) => `- ${c}`).join('\n') +
-    `\n\n${ctaLabel}: ${input.magicLinkUrl}\n\n${linkRules}\n${freshLink}\n\n— ${ctx.brandName}\n${TRUST_LINE_TEXT}` +
+    `\n\n${ctaLabel}: ${input.magicLinkUrl}\n\n${linkRules}\n${freshLink}` +
+    (timeline.text ? `\n\n${timeline.text}` : '') +
+    `\n\n— ${ctx.brandName}\n${TRUST_LINE_TEXT}` +
     (footerUrl ? `\n\n${leadEmailFooterText(footerUrl)}` : '');
   return {
     subject,
@@ -682,7 +741,51 @@ export interface CommissionPaymentFailedTemplateInput {
   readonly currency: string;
   /** Days the builder has to update the card before collection steps. */
   readonly updateWithinDays: number;
+  /**
+   * #718: when the next automatic retry runs (rendered in
+   * America/Edmonton). Omitted/null = no retry scheduled.
+   */
+  readonly nextRetryAt?: Date | null;
+  /**
+   * #718: the retry budget (BILLING_MAX_CHARGE_RETRIES) is used up — the
+   * final notice. Builder Pay now attempts count toward that budget, so
+   * the copy never claims the failed attempt itself was automatic.
+   */
+  readonly finalNotice?: boolean;
+  /** 'chargeback_lost' renders the #873 "payment reversed" variant. */
+  readonly reason?: 'declined' | 'chargeback_lost';
   readonly tax?: CommissionEmailTax;
+}
+
+/**
+ * #718 dunning copy: what happens next after a declined charge. Plain
+ * facts only — the date of the next automatic attempt, or that there is
+ * none — and the builder's one action (update the card, Pay now).
+ */
+function paymentFailedNextStep(
+  input: CommissionPaymentFailedTemplateInput,
+): { html: string; text: string } {
+  if (input.finalNotice === true) {
+    const line =
+      "We won't try this charge again automatically. Please update your card and choose Pay now on your billing page to settle the invoice.";
+    return { html: `<p>${esc(line)}</p>`, text: line };
+  }
+  if (input.nextRetryAt) {
+    const date = formatEdmontonDate(input.nextRetryAt);
+    return {
+      html: `<p>We&apos;ll try the charge again on <strong>${esc(date)}</strong>. To settle it sooner, update your card and choose Pay now on your billing page.</p>`,
+      text: `We'll try the charge again on ${date}. To settle it sooner, update your card and choose Pay now on your billing page.`,
+    };
+  }
+  if (input.nextRetryAt === null) {
+    const line =
+      'Please update your card and choose Pay now on your billing page to settle the invoice.';
+    return { html: `<p>${esc(line)}</p>`, text: line };
+  }
+  return {
+    html: `<p>Please update your card within <strong>${input.updateWithinDays} days</strong> — we&apos;ll retry the charge automatically once a valid card is on file.</p>`,
+    text: `Please update your card within ${input.updateWithinDays} days — we'll retry the charge automatically once a valid card is on file.`,
+  };
 }
 
 export function renderCommissionPaymentFailedEmail(
@@ -692,18 +795,91 @@ export function renderCommissionPaymentFailedEmail(
   const cardUrl = `${ctx.appBaseUrl}/builder/billing`;
   // #714: the declined amount is what we tried to charge (incl. tax).
   const commission = formatMoney(input.tax?.totalCents ?? input.commissionCents);
-  const subject = `Your card was declined — update it to settle invoice ${input.invoiceRef}`;
+  if (input.reason === 'chargeback_lost') {
+    return renderChargebackLostEmail(ctx, input.invoiceRef, commission, input.currency, cardUrl);
+  }
+  const subject =
+    input.finalNotice === true
+      ? `Final notice: invoice ${input.invoiceRef} is unpaid`
+      : `Your card was declined — update it to settle invoice ${input.invoiceRef}`;
+  const next = paymentFailedNextStep(input);
   const body = `<p>Hi there,</p>
 <p>We tried to charge your card on file for commission invoice <strong>${esc(input.invoiceRef)}</strong> ($${commission} ${esc(input.currency)}) but the charge was declined.</p>
-<p>Please update your card within <strong>${input.updateWithinDays} days</strong> — we&apos;ll retry the charge automatically once a valid card is on file.</p>
-${ctaButton(cardUrl, 'Update card')}
+${next.html}
+${ctaButton(cardUrl, input.finalNotice === true ? 'Pay now' : 'Update card')}
 ${fallbackLink(cardUrl)}`;
   const text =
     `Hi there,\n\nWe tried to charge your card on file for commission invoice ${input.invoiceRef} ` +
     `($${commission} ${input.currency}) but the charge was declined.\n\n` +
-    `Please update your card within ${input.updateWithinDays} days — we'll retry the charge automatically once a valid card is on file.\n\n` +
+    `${next.text}\n\n` +
     `Update card: ${cardUrl}\n\n— ${ctx.brandName}\nDeterministic cost math · not a contractor quote · cost data currently uncalibrated.`;
-  return { subject, html: layout(ctx, 'Card declined', body), text };
+  return {
+    subject,
+    html: layout(ctx, input.finalNotice === true ? 'Final notice' : 'Card declined', body),
+    text,
+  };
+}
+
+/* ── #718: a manual-method invoice (cheque, e-transfer, bank draft) is past
+ * its due date (review window end + the invoice's grace period). Sent once.
+ */
+
+export interface CommissionInvoiceOverdueTemplateInput {
+  readonly invoiceRef: string;
+  readonly commissionCents: number;
+  readonly currency: string;
+  /** Due date — rendered in America/Edmonton. */
+  readonly dueAt: Date;
+  readonly tax?: CommissionEmailTax;
+}
+
+export function renderCommissionInvoiceOverdueEmail(
+  ctx: TemplateContext,
+  input: CommissionInvoiceOverdueTemplateInput,
+): RenderedEmail {
+  const invoicesUrl = `${ctx.appBaseUrl}/builder/billing`;
+  const dueDate = formatEdmontonDate(input.dueAt);
+  const amount = formatMoney(input.tax?.totalCents ?? input.commissionCents);
+  const subject = `Invoice ${input.invoiceRef} is past due`;
+  const body = `<p>Hi there,</p>
+<p>Commission invoice <strong>${esc(input.invoiceRef)}</strong> ($${amount} ${esc(input.currency)}) was due on <strong>${esc(dueDate)}</strong> and we haven&apos;t recorded your payment yet.</p>
+<p>If you&apos;ve already sent it, thank you — you can ignore this email. Otherwise, please send your payment, or open your billing page to switch this invoice to your card on file.</p>
+${ctaButton(invoicesUrl, 'View invoice')}
+${fallbackLink(invoicesUrl)}`;
+  const text =
+    `Hi there,\n\nCommission invoice ${input.invoiceRef} ($${amount} ${input.currency}) was due on ${dueDate} ` +
+    `and we haven't recorded your payment yet.\n\n` +
+    `If you've already sent it, thank you — you can ignore this email. Otherwise, please send your payment, ` +
+    `or open your billing page to switch this invoice to your card on file.\n\n` +
+    `View invoice: ${invoicesUrl}\n\n— ${ctx.brandName}\nDeterministic cost math · not a contractor quote · cost data currently uncalibrated.`;
+  return { subject, html: layout(ctx, 'Payment past due', body), text };
+}
+
+/**
+ * #873: Stripe closed a bank chargeback as lost — the builder's bank took
+ * the commission payment back, but the commission is still owed (owner
+ * decision 2026-11-15), so the invoice is unpaid again and goes through
+ * normal collection.
+ */
+function renderChargebackLostEmail(
+  ctx: TemplateContext,
+  invoiceRef: string,
+  commission: string,
+  currency: string,
+  billingUrl: string,
+): RenderedEmail {
+  const subject = `Your bank reversed a payment — invoice ${invoiceRef} is unpaid again`;
+  const body = `<p>Hi there,</p>
+<p>Your bank reversed your card payment for commission invoice <strong>${esc(invoiceRef)}</strong> ($${commission} ${esc(currency)}) after a chargeback. The commission is still owed, so the invoice is now unpaid.</p>
+<p>Please check that your card on file is up to date. We&apos;ll collect the payment again from it.</p>
+${ctaButton(billingUrl, 'Review invoice')}
+${fallbackLink(billingUrl)}`;
+  const text =
+    `Hi there,\n\nYour bank reversed your card payment for commission invoice ${invoiceRef} ` +
+    `($${commission} ${currency}) after a chargeback. The commission is still owed, so the invoice is now unpaid.\n\n` +
+    `Please check that your card on file is up to date. We'll collect the payment again from it.\n\n` +
+    `Review invoice: ${billingUrl}\n\n— ${ctx.brandName}\nDeterministic cost math · not a contractor quote · cost data currently uncalibrated.`;
+  return { subject, html: layout(ctx, 'Payment reversed', body), text };
 }
 
 /* ── #712: the bank wants the builder to confirm the charge (3DS / SCA) ──
@@ -742,6 +918,77 @@ ${fallbackLink(invoiceUrl)}`;
     `Your card was not declined. Open the invoice and choose "Confirm payment with your bank" to finish.\n\n` +
     `Confirm payment: ${invoiceUrl}\n\n— ${ctx.brandName}\nDeterministic cost math · not a contractor quote · cost data currently uncalibrated.`;
   return { subject, html: layout(ctx, 'Confirm your payment', body), text };
+}
+
+/* ── #880: one-time "your card expires soon" reminder ───────────────────
+ *
+ * Sent once per saved card (dedupe by payment method id) to the builder
+ * org's admins when the card first enters the expiry warning window. The
+ * CTA opens portal Billing, where "Replace card" saves a new card. Account
+ * notice — no unsubscribe footer, no figures.
+ */
+
+export interface CardExpiryReminderTemplateInput {
+  readonly businessName: string;
+  /** Card brand as the provider reports it (`visa`, `mastercard`, …). */
+  readonly brand: string;
+  readonly last4: string;
+  /** 1-12. */
+  readonly expMonth: number;
+  readonly expYear: number;
+}
+
+const MONTH_NAMES = [
+  'January',
+  'February',
+  'March',
+  'April',
+  'May',
+  'June',
+  'July',
+  'August',
+  'September',
+  'October',
+  'November',
+  'December',
+] as const;
+
+function cardBrandLabel(brand: string): string {
+  const known: Record<string, string> = {
+    visa: 'Visa',
+    mastercard: 'Mastercard',
+    amex: 'American Express',
+    discover: 'Discover',
+    jcb: 'JCB',
+    diners: 'Diners Club',
+    unionpay: 'UnionPay',
+  };
+  const key = brand.trim().toLowerCase();
+  return known[key] ?? (key ? key.charAt(0).toUpperCase() + key.slice(1) : 'card');
+}
+
+export function renderCardExpiryReminderEmail(
+  ctx: TemplateContext,
+  input: CardExpiryReminderTemplateInput,
+): RenderedEmail {
+  const billingUrl = `${ctx.appBaseUrl}/builder/billing`;
+  const brand = cardBrandLabel(input.brand);
+  const month = MONTH_NAMES[input.expMonth - 1] ?? `month ${input.expMonth}`;
+  const expiry = `${month} ${input.expYear}`;
+  const subject = `Your ${brand} ending in ${input.last4} expires soon — replace your card`;
+  const body = `<p>Hi there,</p>
+<p>The ${esc(brand)} ending in <strong>${esc(input.last4)}</strong> that ${esc(input.businessName)} keeps on file with ${esc(ctx.brandName)} expires at the end of <strong>${esc(expiry)}</strong>.</p>
+<p>Commission invoices are charged to this card. To keep payments going through, sign in to your builder portal, open <strong>Billing</strong> and choose <strong>Replace card</strong>.</p>
+<p>This is a one-time reminder for this card.</p>
+${ctaButton(billingUrl, 'Replace card')}
+${fallbackLink(billingUrl)}`;
+  const text =
+    `Hi there,\n\nThe ${brand} ending in ${input.last4} that ${input.businessName} keeps on file with ${ctx.brandName} ` +
+    `expires at the end of ${expiry}.\n\n` +
+    `Commission invoices are charged to this card. To keep payments going through, sign in to your builder portal, ` +
+    `open Billing and choose "Replace card".\n\nThis is a one-time reminder for this card.\n\n` +
+    `Replace card: ${billingUrl}\n\n— ${ctx.brandName}`;
+  return { subject, html: layout(ctx, 'Your card expires soon', body), text };
 }
 
 /* ── Issue #530: "Mark won" → admin asked to record the contract ─────────

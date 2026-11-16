@@ -36,6 +36,12 @@ import {
 import { ErrorCodes, HttpError } from '../../middleware/errors';
 import { effectiveRatePercent } from '../../lib/commission-math';
 import { BUILDER_PAYMENT_METHODS } from '../../lib/payment-method';
+import {
+  daysOverdue,
+  effectiveGraceDays,
+  isDunningState,
+  manualDueAt,
+} from '../../lib/dunning-schedule';
 import type { StripeService } from './stripe.service';
 import type {
   BillingHealthAwaitingSettlementInvoice,
@@ -89,6 +95,11 @@ interface InvoiceRow {
   readonly contractValueCents: number;
   /** Raw `payment_method` text; mapped to a planned method with a safe fallback. */
   readonly paymentMethod: string | null;
+  /** #718 dunning schedule. */
+  readonly retryGraceDays: number | null;
+  readonly nextRetryAt: Date | null;
+  readonly dunningState: string;
+  readonly collectionsAt: Date | null;
   readonly createdAt: Date;
   readonly updatedAt: Date;
 }
@@ -271,6 +282,21 @@ export function createBillingHealthService(
    * Read-only dashboard rollup. Query logic is untouched by the error
    * mapping above — getHealth() stays a thin catch around this.
    */
+  /** #718: due date + days overdue of a manual-method in-review invoice. */
+  function manualDue(
+    row: InvoiceRow,
+    at: Date,
+  ): { dueAt: string | null; overdueDays: number } {
+    if (plannedPaymentMethod(row) === 'card' || row.reviewDueAt === null) {
+      return { dueAt: null, overdueDays: 0 };
+    }
+    const dueAt = manualDueAt(
+      row.reviewDueAt,
+      effectiveGraceDays(row.retryGraceDays, billing.dunningGraceDays),
+    );
+    return { dueAt: dueAt.toISOString(), overdueDays: daysOverdue(dueAt, at) };
+  }
+
   async function rollup(): Promise<BillingHealthResponse> {
     const generatedAt = now();
 
@@ -291,6 +317,10 @@ export function createBillingHealthService(
         commissionRatePercent: commissionInvoices.commissionRatePercent,
         contractValueCents: commissionInvoices.contractValueCents,
         paymentMethod: commissionInvoices.paymentMethod,
+        retryGraceDays: commissionInvoices.retryGraceDays,
+        nextRetryAt: commissionInvoices.nextRetryAt,
+        dunningState: commissionInvoices.dunningState,
+        collectionsAt: commissionInvoices.collectionsAt,
         createdAt: commissionInvoices.createdAt,
         updatedAt: commissionInvoices.updatedAt,
       })
@@ -371,10 +401,24 @@ export function createBillingHealthService(
         retryCount: row.retryCount,
         lastFailureReason: failure.reason,
         paymentMethod: plannedPaymentMethod(row),
+        nextRetryAt: row.nextRetryAt?.toISOString() ?? null,
+        dunningState: isDunningState(row.dunningState) ? row.dunningState : 'active',
+        retryGraceDays: effectiveGraceDays(row.retryGraceDays, billing.dunningGraceDays),
+        collectionsAt: row.collectionsAt?.toISOString() ?? null,
       });
     }
-    // Oldest past-due first — the dunning work queue order.
-    dunning.sort((a, b) => a.pastDueSince.localeCompare(b.pastDueSince));
+    // #718: invoices flagged for collections first (oldest flag first),
+    // then oldest past-due — the dunning work queue order.
+    dunning.sort((a, b) => {
+      const aFlag = a.collectionsAt ?? null;
+      const bFlag = b.collectionsAt ?? null;
+      if (aFlag !== null && bFlag === null) return -1;
+      if (aFlag === null && bFlag !== null) return 1;
+      if (aFlag !== null && bFlag !== null && aFlag !== bFlag) {
+        return aFlag.localeCompare(bFlag);
+      }
+      return a.pastDueSince.localeCompare(b.pastDueSince);
+    });
 
     // In-review work queue: the rows an admin can mark as paid off-Stripe
     // or override the commission rate on. Most urgent review window first
@@ -392,6 +436,8 @@ export function createBillingHealthService(
         ),
         contractValueCents: row.contractValueCents,
         paymentMethod: plannedPaymentMethod(row),
+        // #718: "awaiting manual payment — N days" for manual methods.
+        ...manualDue(row, generatedAt),
         sortKey: row.reviewDueAt?.getTime() ?? Number.MAX_SAFE_INTEGER,
       }))
       .sort((a, b) => a.sortKey - b.sortKey)

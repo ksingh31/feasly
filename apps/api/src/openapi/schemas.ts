@@ -208,6 +208,18 @@ export const LeadRequestSchema = z
       .describe(
         'Milliseconds the form was on screen before submit (browser clients). Optional for API callers.',
       ),
+    consent: z
+      .literal(true)
+      .optional()
+      .describe(
+        'Required with an API key: true attests the person asked to be contacted about their estimate',
+      ),
+    consentVersion: z
+      .string()
+      .optional()
+      .describe(
+        'Required with an API key: the current attestation wording version (docs/api/developers.md)',
+      ),
   })
   .openapi('LeadRequest');
 
@@ -371,6 +383,7 @@ export const AnalyticsEventNameSchema = z
   .enum([
     'step_view',
     'gate_view',
+    'gate_submit',
     'gate_convert',
     'report_open',
     'tier_toggle',
@@ -433,6 +446,41 @@ export const CommunityStatsResponseSchema = z
     avgLotSqft: z.number().describe('Average lot size in square feet'),
   })
   .openapi('CommunityStatsResponse');
+
+// ── Community lot inventory (#691) ──────────────────────────────────────
+
+export const CommunityLotSchema = z
+  .object({
+    rollNumber: z.string().min(1).describe('City assessment roll number'),
+    address: z.string().min(1).describe('Street address as published by the City'),
+    lotSqft: z.number().int().nullable().describe('Lot area in square feet; null when unknown'),
+    assessedValue: z
+      .number()
+      .int()
+      .describe('City-assessed value, whole CAD (not market value, not a Feasly estimate)'),
+    rollYear: z.string().describe('Assessment roll year of the value'),
+    district: z.string().nullable().describe('Current land-use district, e.g. R-CG'),
+    districtSource: z.enum(['land-use-districts', 'assessment-roll']),
+    kind: z.enum(['vacant', 'candidate']),
+    latitude: z.number().nullable(),
+    longitude: z.number().nullable(),
+    firstSeenAt: z.string().datetime().describe('When Feasly first listed the lot'),
+  })
+  .strict()
+  .openapi('CommunityLot');
+
+export const CommunityLotsResponseSchema = z
+  .object({
+    community: z.object({ slug: z.string(), name: z.string() }).strict(),
+    city: z.string(),
+    refreshedAt: z.string().datetime(),
+    stale: z.boolean().describe('True when the refresh is older than the configured threshold'),
+    total: z.number().int().nonnegative().describe('Lots matching the filters, across all pages'),
+    lots: z.array(CommunityLotSchema),
+    nextCursor: z.string().nullable().describe('Opaque cursor for the next page; null on the last'),
+  })
+  .strict()
+  .openapi('CommunityLotsResponse');
 
 // ── City-data freshness ────────────────────────────────────────────────
 
@@ -854,6 +902,14 @@ export const CallbackRequestSchema = z
     name: z.string().min(1).max(120),
     phone: z.string().min(7).max(32),
     window: CallbackWindowSchema,
+    preferredDate: z
+      .string()
+      .regex(/^\d{4}-\d{2}-\d{2}$/)
+      .optional()
+      .describe(
+        'Preferred call day (YYYY-MM-DD, America/Edmonton): a weekday from tomorrow through the next 14 days',
+      ),
+    notes: z.string().max(500).optional(),
   })
   .openapi('CallbackRequest');
 
@@ -861,6 +917,7 @@ export const CallbackResponseSchema = z
   .object({
     ok: z.literal(true),
     window: CallbackWindowSchema,
+    preferredDate: z.string().nullable().optional(),
   })
   .openapi('CallbackResponse');
 

@@ -26,6 +26,7 @@ import type {
   MagicLinkEmailInput,
 } from '../src/services/email/email.service';
 import type { EmailDelivery } from '../src/services/email/email.service';
+import type { EstimateStore } from '../src/services/estimate.store';
 import type { UnsubscribeService } from '../src/services/unsubscribe.service';
 import { HttpError } from '../src/middleware/errors';
 import { createRateLimiter } from '../src/middleware/rate-limit';
@@ -188,6 +189,8 @@ function fakeEmail(): EmailService & { sends: MagicLinkEmailInput[] } {
     sendCommissionPaymentReceived: async () => ok,
     sendCommissionPaymentFailed: async () => ok,
     sendCommissionPaymentActionRequired: async () => ok,
+    sendCommissionInvoiceOverdue: async () => ok,
+    sendCardExpiryReminder: async () => ok,
     sendContractNeedsRecording: async () => ok,
     sendBuilderNewLead: async () => ok,
     sendBuilderNeedsYouDigest: async () => ok,
@@ -211,6 +214,7 @@ function makeService(opts?: {
   ttlSeconds?: number;
   reissueCooldownMs?: number;
   maxSendsPerHour?: number;
+  estimates?: Pick<EstimateStore, 'findById'>;
   clock?: () => Date;
 }) {
   const magicLinks = opts?.magicLinks ?? fakeMagicLinks();
@@ -225,6 +229,7 @@ function makeService(opts?: {
     magicLinkTtlSeconds: opts?.ttlSeconds ?? 7 * 86_400,
     magicLinkReissueCooldownMs: opts?.reissueCooldownMs ?? 60_000,
     magicLinkMaxSendsPerHour: opts?.maxSendsPerHour ?? 5,
+    ...(opts?.estimates ? { estimates: opts.estimates } : {}),
     clock: opts?.clock ?? (() => NOW),
   });
   return { service, magicLinks, leads, email };
@@ -384,6 +389,49 @@ describe('magic-link reissue', () => {
     expect(email.sends[0]!.expiresOn).toEqual(
       new Date(NOW.getTime() + 7 * 86_400 * 1000),
     );
+  });
+
+  it('passes the estimate\'s project type to the reissued report email (#823)', async () => {
+    for (const projectType of ['new_build', 'renovation']) {
+      const magicLinks = fakeMagicLinks();
+      magicLinks.byLead.set(LEAD_ID, [
+        linkRecord({ expiresAt: new Date(NOW.getTime() - 1000) }),
+      ]);
+      const email = fakeEmail();
+      const looked: string[] = [];
+      const { service } = makeService({
+        magicLinks,
+        email,
+        estimates: {
+          findById: async (id) => {
+            looked.push(id);
+            return { projectType } as Awaited<ReturnType<EstimateStore['findById']>>;
+          },
+        },
+      });
+      expect(await service.reissue({ email: 'sam@example.com' })).toEqual({ sent: true });
+      expect(looked).toEqual([OLD_ESTIMATE_ID]);
+      expect(email.sends[0]!.projectType).toBe(projectType);
+    }
+  });
+
+  it('still sends (without a project type) when the estimate lookup fails (#823)', async () => {
+    const magicLinks = fakeMagicLinks();
+    magicLinks.byLead.set(LEAD_ID, [
+      linkRecord({ expiresAt: new Date(NOW.getTime() - 1000) }),
+    ]);
+    const email = fakeEmail();
+    const { service } = makeService({
+      magicLinks,
+      email,
+      estimates: {
+        findById: async () => {
+          throw new Error('db down');
+        },
+      },
+    });
+    expect(await service.reissue({ email: 'sam@example.com' })).toEqual({ sent: true });
+    expect(email.sends[0]!.projectType).toBeUndefined();
   });
 
   it('suppresses the email and flags the link for a sandbox lead (#914)', async () => {

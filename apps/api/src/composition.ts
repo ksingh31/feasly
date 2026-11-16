@@ -54,12 +54,30 @@ import {
 } from './services/unsubscribe.service';
 import {
   createNudgeService,
+  UNFINISHED_ESTIMATE_REMINDER_JOB,
   type NudgeService,
 } from './services/nudge.service';
 import {
   createFollowUpService,
+  NO_BUILDER_CONTACT_REMINDER_JOB,
   type FollowUpService,
 } from './services/follow-up.service';
+import {
+  createDrizzleJobQueueStore,
+  type JobQueueStore,
+} from './services/job-queue.store';
+import {
+  createJobQueueService,
+  type JobQueueService,
+} from './services/job-queue.service';
+import {
+  createDrizzleShareLinkStore,
+  type ShareLinkStore,
+} from './services/share-link.store';
+import {
+  createAdminJobsRoute,
+  type AdminJobsRoute,
+} from './routes/admin-jobs.route';
 import {
   createDrizzleLeadFollowUpStore,
   type LeadFollowUpStore,
@@ -69,6 +87,11 @@ import {
   type SandboxPurgeService,
 } from './services/sandbox-purge.service';
 import { createDrizzleSandboxPurgeStore } from './services/sandbox-purge.store';
+import {
+  createCardExpiryReminderService,
+  type CardExpiryReminderService,
+} from './services/billing/card-expiry-reminder.service';
+import { createDrizzleCardExpiryReminderStore } from './services/billing/card-expiry-reminder.store';
 import {
   createSheetsSyncService,
   type SheetsSyncService,
@@ -292,6 +315,10 @@ import {
   type AdminBuildersRoute,
 } from './routes/admin-builders.route';
 import {
+  createBuilderLifecycleService,
+  type BuilderLifecycleService,
+} from './services/builder-lifecycle.service';
+import {
   createAdminPartnersRoute,
   type AdminPartnersRoute,
 } from './routes/admin-partners.route';
@@ -367,6 +394,11 @@ import {
   type UnsubscribeRoute,
 } from './routes/unsubscribe.route';
 import { createAnalyticsRoute, type AnalyticsRoute } from './routes/analytics.route';
+import { createWebTelemetryRoute, type WebTelemetryRoute } from './routes/web-telemetry.route';
+import {
+  createWebTelemetryService,
+  type WebTelemetryService,
+} from './services/web-telemetry.service';
 import { createPrivacyRoute, type PrivacyRoute } from './routes/privacy.route';
 import {
   createNarrativeRoute,
@@ -379,6 +411,15 @@ import {
 import { createLogNarrativeProvider } from './services/narrative/providers/log.provider';
 import { createOpenAiCompatibleNarrativeProvider } from './services/narrative/providers/openai-compatible.provider';
 import type { NarrativeProvider } from './services/narrative/narrative.types';
+import {
+  createCommunityNarrativeService,
+  type CommunityNarrativeService,
+} from './services/community-narrative.service';
+import { createDrizzleCommunityNarrativeStore } from './services/community-narrative.store';
+import {
+  createAdminCommunityNarrativesRoute,
+  type AdminCommunityNarrativesRoute,
+} from './routes/admin-community-narratives.route';
 import {
   createCommunityStatsRoute,
   type CommunityStatsRoute,
@@ -460,6 +501,23 @@ import {
   type PropertyService,
 } from './services/property.service';
 import { createLandUseProvider } from './services/land-use.service';
+import {
+  createDrizzleCommunityLotsStore,
+  type CommunityLotsStore,
+} from './services/community-lots.store';
+import {
+  createCommunityLotsService,
+  type CommunityLotsService,
+} from './services/community-lots.service';
+import {
+  createCommunityLotsRefreshService,
+  createSocrataCommunityLotsSource,
+  type CommunityLotsRefreshService,
+} from './services/community-lots-refresh.service';
+import {
+  createCommunityLotsRoute,
+  type CommunityLotsRoute,
+} from './routes/community-lots.route';
 import {
   createPropertyRoute,
   type PropertyRoute,
@@ -635,6 +693,15 @@ import {
   createBuilderNotificationsRoute,
   type BuilderNotificationsRoute,
 } from './routes/builder/notifications.route';
+import { createDrizzleBuilderSettingsStore } from './services/builder-settings.store';
+import {
+  createBuilderSettingsService,
+  type BuilderSettingsService,
+} from './services/builder-settings.service';
+import {
+  createBuilderSettingsRoute,
+  type BuilderSettingsRoute,
+} from './routes/builder/settings.route';
 import {
   createStripeWebhooksRoute,
   type StripeWebhooksRoute,
@@ -663,6 +730,7 @@ import {
   type CityDataCacheStore,
 } from './services/city-data-cache.store';
 import { MAGIC_LINK_SEND_BUDGET_WINDOW_MS } from './services/magic-link.service';
+import { resolveBuildTimeline } from './lib/build-timeline';
 import {
   createRequestPipeline,
   type LogEntry,
@@ -688,6 +756,9 @@ export interface AppComposition {
   /** Generous limiter + pipeline for public analytics ingest. */
   readonly analyticsRateLimiter: RateLimiter;
   readonly analyticsPipeline: RequestPipeline;
+  /** Tight limiter + pipeline for real-user-monitoring beacons (#830). */
+  readonly webTelemetryRateLimiter: RateLimiter;
+  readonly webTelemetryPipeline: RequestPipeline;
   readonly healthService: HealthService;
   readonly healthRoute: HealthRoute;
   readonly estimateStore: EstimateStore;
@@ -718,6 +789,9 @@ export interface AppComposition {
   readonly analyticsStore: AnalyticsStore;
   readonly analyticsService: AnalyticsService;
   readonly analyticsRoute: AnalyticsRoute;
+  /** #830: real-user monitoring beacon ingest (App Insights traces only). */
+  readonly webTelemetryService: WebTelemetryService;
+  readonly webTelemetryRoute: WebTelemetryRoute;
   /** The one email service — all send paths funnel through here. */
   readonly emailService: EmailService;
   readonly magicLinkStore: MagicLinkStore;
@@ -730,6 +804,10 @@ export interface AppComposition {
   readonly nudgeService: NudgeService;
   /** #703: hourly post-report follow-up timer (flag default off). */
   readonly followUpService: FollowUpService;
+  /** #838: Postgres-backed job queue (job-queue timer + admin view). */
+  readonly jobQueueService: JobQueueService;
+  /** #838: GET /v1/admin/ops/jobs. */
+  readonly adminJobsRoute: AdminJobsRoute;
   /** api-mcp/09: daily sandbox test-data purge timer. */
   readonly sandboxPurgeService: SandboxPurgeService;
   /** admin/04: hourly Google Sheets sync worker (Postgres is source of truth). */
@@ -823,6 +901,8 @@ export interface AppComposition {
   readonly privacyService: PrivacyService;
   readonly privacyRoute: PrivacyRoute;
   readonly narrativeService: NarrativeService;
+  readonly communityNarrativeService: CommunityNarrativeService;
+  readonly adminCommunityNarrativesRoute: AdminCommunityNarrativesRoute;
   readonly narrativeRoute: NarrativeRoute;
   /** Cache-first community stats (neighbourhood/01). */
   readonly communityStatsService: CommunityStatsService;
@@ -833,6 +913,11 @@ export interface AppComposition {
   /** #687: zoning rules catalogue (pure data; no I/O). */
   readonly zoningService: ZoningService;
   readonly zoningRoute: ZoningRoute;
+  /** #691: community lot inventory — store, public list, weekly refresh timer. */
+  readonly communityLotsStore: CommunityLotsStore;
+  readonly communityLotsService: CommunityLotsService;
+  readonly communityLotsRoute: CommunityLotsRoute;
+  readonly communityLotsRefreshService: CommunityLotsRefreshService;
   /** #757: daily City-source watch + catalogue freshness. */
   readonly zoningWatchService: ZoningWatchService;
   /** Monthly refresh timer + manual admin trigger (neighbourhood/05). */
@@ -893,6 +978,10 @@ export interface AppComposition {
   readonly builderNotificationsService: BuilderNotificationsService;
   /** #725: thin route for /api/v1/builder/notifications/preferences. */
   readonly builderNotificationsRoute: BuilderNotificationsRoute;
+  /** #870: builder Settings — profile & branding, embed install check, origin requests. */
+  readonly builderSettingsService: BuilderSettingsService;
+  /** #870: thin route for /api/v1/builder/profile + /api/v1/builder/embed*. */
+  readonly builderSettingsRoute: BuilderSettingsRoute;
   /** billing/01 follow-on: dispute console backend (was OPS-009). */
   readonly disputeService: DisputeService;
   /** billing/01 follow-on: thin route for /api/v1/admin/disputes/*. */
@@ -911,6 +1000,8 @@ export interface AppComposition {
   readonly billingWebhookService: BillingWebhookService;
   /** billing/02: daily review-window finalizer. */
   readonly invoiceReviewerService: InvoiceReviewerService;
+  /** #880: one-time card-expiry reminder (runs in the invoice-reviewer timer). */
+  readonly cardExpiryReminderService: CardExpiryReminderService;
   readonly stripeWebhooksRoute: StripeWebhooksRoute;
   /** #753: simulated-provider dev actions (404 unless PAYMENTS_PROVIDER=simulated). */
   readonly simulatedPaymentsService: SimulatedPaymentsService;
@@ -950,6 +1041,10 @@ export interface CompositionOptions {
   readonly leadStatusChangeStore?: LeadStatusChangeStore;
   /** #703: report-opened + follow-up stamps (default: Drizzle). */
   readonly leadFollowUpStore?: LeadFollowUpStore;
+  /** #838: job queue persistence (default: Drizzle). */
+  readonly jobQueueStore?: JobQueueStore;
+  /** #838: link-only report shares (default: Drizzle). */
+  readonly shareLinkStore?: ShareLinkStore;
   readonly magicLinkStore?: MagicLinkStore;
   readonly privacyStore?: PrivacyStore;
   readonly apiKeyStore?: ApiKeyStore;
@@ -1230,6 +1325,27 @@ export function createComposition(
     options.leadFollowUpStore ?? createDrizzleLeadFollowUpStore({ db: db.db });
   const magicLinkStore: MagicLinkStore =
     options.magicLinkStore ?? createDrizzleMagicLinkStore({ db: db.db });
+  // #838 — Postgres-backed job queue. Built early so the unsubscribe
+  // service can cancel a lead's queued reminders; handlers bind late (the
+  // reminder services are built further down).
+  const jobQueueStore: JobQueueStore =
+    options.jobQueueStore ?? createDrizzleJobQueueStore({ db: db.db });
+  const jobQueueService: JobQueueService = createJobQueueService({
+    store: jobQueueStore,
+    handlers: () => ({
+      [UNFINISHED_ESTIMATE_REMINDER_JOB]: async (job) => {
+        if (job.leadId) await nudgeService.sendReminder(job.leadId);
+      },
+      [NO_BUILDER_CONTACT_REMINDER_JOB]: async (job) => {
+        if (job.leadId) await followUpService.sendReminder(job.leadId);
+      },
+    }),
+    batchSize: config.jobQueue.batchSize,
+    maxAttempts: config.jobQueue.maxAttempts,
+    backoffBaseSeconds: config.jobQueue.backoffBaseSeconds,
+    backoffMaxSeconds: config.jobQueue.backoffMaxSeconds,
+    lockTimeoutSeconds: config.jobQueue.lockTimeoutSeconds,
+  });
   const analyticsStore: AnalyticsStore =
     options.analyticsStore ?? createDrizzleAnalyticsStore({ db: db.db });
   const analyticsService: AnalyticsService = createAnalyticsService({
@@ -1237,6 +1353,28 @@ export function createComposition(
   });
   const analyticsRoute: AnalyticsRoute = createAnalyticsRoute({
     analytics: analyticsService,
+  });
+  // #830: browser vitals + JS errors → one JSON trace per item, queryable in
+  // App Insights as `traces | where message startswith '{"event":"web_'`
+  // (docs/ops/web-telemetry.md). Own tight limiter (10/min per IP) plus a
+  // per-instance trace budget, so one client can't exhaust the Log
+  // Analytics daily cap and silence every server trace for the day.
+  const webTelemetryRateLimiter: RateLimiter = createRateLimiter({
+    windowMs: config.webTelemetry.rateLimit.windowMs,
+    maxRequests: config.webTelemetry.rateLimit.maxRequests,
+    maxTrackedKeys: config.rateLimit.maxTrackedKeys,
+  });
+  const webTelemetryPipeline: RequestPipeline = createRequestPipeline({
+    rateLimiter: webTelemetryRateLimiter,
+    csrf,
+    logger: options.logger,
+  });
+  const webTelemetryService: WebTelemetryService = createWebTelemetryService({
+    onTrace: (trace) => console.info(JSON.stringify(trace)),
+    maxTracesPerMinute: config.webTelemetry.maxTracesPerMinute,
+  });
+  const webTelemetryRoute: WebTelemetryRoute = createWebTelemetryRoute({
+    webTelemetry: webTelemetryService,
   });
   // Transactional email (story email/01): provider chosen by config.
   // 'log' is dev/test-only and refuses production; 'postmark' fails closed
@@ -1246,6 +1384,7 @@ export function createComposition(
   // Built before the lead service: consumer/02 wires the magic-link email
   // into lead capture and the dedupe reissue path.
   const emailProvider: EmailProvider = createEmailProvider(config);
+  const reportEmailTimeline = resolveBuildTimeline(config.zoning.city);
   const emailService: EmailService = createEmailService({
     provider: emailProvider,
     fromAddress: config.email.fromAddress,
@@ -1255,6 +1394,8 @@ export function createComposition(
     opsInbox: config.email.opsInbox,
     // In-code retry budget (Karan 2026-09-27: at least 2 retries, no queue).
     maxAttempts: config.email.sendMaxAttempts,
+    // #823: the report email's typical build timeline, for the served city.
+    ...(reportEmailTimeline ? { buildTimeline: reportEmailTimeline } : {}),
   });
   // email/03 — one-click unsubscribe center. The HMAC secret arrives via
   // config (Key Vault in staging/production); the service fails closed
@@ -1266,6 +1407,7 @@ export function createComposition(
     unsubscribeUrlBase: config.email.unsubscribeUrlBase,
     tokenSecret: config.email.unsubscribeTokenSecret,
     tokenTtlSeconds: config.email.unsubscribeTokenTtlSeconds,
+    jobs: jobQueueService,
   });
   // Builders table (embed/02 admin-UI migration): runtime source of truth
   // for builder config. tenant_key stays the join key for billing,
@@ -1282,6 +1424,8 @@ export function createComposition(
   // card service is built later (it needs the payment provider), so the
   // hook binds late.
   let syncStripeCustomer: ((builder: Builder) => Promise<void>) | null = null;
+  // #860: late-bound to commissionCardService.removeCard (built further down).
+  let detachBuilderCard: ((tenantKey: string) => Promise<void>) | null = null;
   const builderService: BuilderService = createBuilderService({
     db: db.db,
     audit: adminAuditStore,
@@ -1292,7 +1436,18 @@ export function createComposition(
     onBillingProfileChanged: async (builder) => {
       await syncStripeCustomer?.(builder);
     },
+    // #870: late-bound — closes builder origin-change requests an admin
+    // update satisfied. Best-effort (builder.service logs failures).
+    onAllowedOriginsChanged: async (args) => {
+      await builderSettingsService.resolveSatisfiedOriginRequests(args);
+    },
   });
+  // #860: the policy lookup the API-key and invoice-reviewer enforcement
+  // points use (status by tenant key; null = no builder row).
+  const builderStatusByTenantKey = async (
+    tenantKey: string,
+  ): Promise<string | null> =>
+    (await builderService.getByTenantKey(tenantKey))?.status ?? null;
   const leadService: LeadService = createLeadService({
     store: leadStore,
     estimateStore,
@@ -1309,11 +1464,17 @@ export function createComposition(
     builderNotifier: {
       notifyNewLead: (args) => builderNotificationsService.notifyNewLead(args),
     },
+    // #738: API-key leads need a consent attestation; quarantined for review.
+    apiLeads: {
+      leadConsentVersion: config.apiAccess.leadConsentVersion,
+      quarantineLeads: config.apiAccess.quarantineLeads,
+    },
   });
   const leadRoute: LeadRoute = createLeadRoute({ leads: leadService });
   const magicLinkService: MagicLinkService = createMagicLinkService({
     magicLinks: magicLinkStore,
     leads: leadStore,
+    estimates: estimateStore,
     email: emailService,
     unsubscribe: unsubscribeService,
     appBaseUrl: config.email.appBaseUrl,
@@ -1342,6 +1503,10 @@ export function createComposition(
     unsubscribe: unsubscribeService,
     appBaseUrl: config.email.appBaseUrl,
     magicLinkTtlSeconds: config.auth.magicLinkTtlSeconds,
+    // #838: the cycle enqueues; the job-queue worker sends (with retries).
+    queue: jobQueueService,
+    nudgeDelayHours: config.reminders.unfinishedDelayHours,
+    maxCandidatesPerRun: config.reminders.maxPerRun,
     // P0-class visibility guard: per-lead failures are swallowed into the
     // `skipped` count by design (batch survives); this sink makes a dead
     // provider visible. Sanitized: no tokens, emails, or keys.
@@ -1362,6 +1527,9 @@ export function createComposition(
     appBaseUrl: config.email.appBaseUrl,
     magicLinkTtlSeconds: config.auth.magicLinkTtlSeconds,
     delayHours: config.followUpEmail.delayHours,
+    // #838: the cycle enqueues; the job-queue worker sends (with retries).
+    queue: jobQueueService,
+    maxCandidatesPerRun: config.reminders.maxPerRun,
     onLeadError: (error) =>
       console.error(
         `follow-up: lead send failed (error=${sanitizeErrorMessage(error)})`,
@@ -1545,6 +1713,11 @@ export function createComposition(
       status: sheetsSyncStatusService,
       adminGuard,
     });
+  // #838 — admin view of the job queue (failed jobs by default).
+  const adminJobsRoute: AdminJobsRoute = createAdminJobsRoute({
+    jobs: jobQueueService,
+    adminGuard,
+  });
   const adminSheetsSyncNowRoute: AdminSheetsSyncNowRoute =
     createAdminSheetsSyncNowRoute({
       status: sheetsSyncStatusService,
@@ -1724,6 +1897,11 @@ export function createComposition(
   // admin/02 — leads explorer. The store is injectable for tests.
   const adminLeadsStore: AdminLeadsStore =
     options.adminLeadsStore ?? createDrizzleAdminLeadsStore({ db: db.db });
+  // #639: built before the privacy service, which exports/erases it.
+  // #836: and before the admin/builder lead services, which show it.
+  const callbackRequestStore: CallbackRequestStore =
+    options.callbackRequestStore ??
+    createDrizzleCallbackRequestStore({ db: db.db });
   const adminLeadsService: AdminLeadsService = createAdminLeadsService({
     store: adminLeadsStore,
     leadStore,
@@ -1731,6 +1909,7 @@ export function createComposition(
     audit: adminAuditStore,
     maxExportRows: 10000,
     reassignments: leadAssignmentService,
+    callbacks: callbackRequestStore,
   });
   const adminLeadsRoute: AdminLeadsRoute = createAdminLeadsRoute({
     adminLeads: adminLeadsService,
@@ -1739,9 +1918,21 @@ export function createComposition(
   });
   // Builders table admin (embed/02 admin-UI migration): CRUD + the route is
   // admin-gated inside, like every other admin route.
+  // #860: builder lifecycle (suspend / reactivate / offboard) + export.
+  // The card detach is late-bound to the commission-card service (#716).
+  const builderLifecycleService: BuilderLifecycleService =
+    createBuilderLifecycleService({
+      db: db.db,
+      audit: adminAuditStore,
+      detachCard: async (tenantKey) => {
+        if (!detachBuilderCard) throw new Error('card service not wired');
+        await detachBuilderCard(tenantKey);
+      },
+    });
   const adminBuildersRoute: AdminBuildersRoute = createAdminBuildersRoute({
     builders: builderService,
     adminGuard,
+    lifecycle: builderLifecycleService,
   });
   // #888: builder partner disclosure. Public active list (cached) + admin
   // add/deactivate/reorder, audit-logged.
@@ -1783,6 +1974,8 @@ export function createComposition(
       options.apiKeyAuditStore ?? createDrizzleApiKeyAuditStore({ db: db.db }),
     authCacheTtlSeconds: config.apiKeyAuth.authCacheTtlSeconds,
     acceptedModes: config.apiKeyAuth.acceptedModes,
+    // #860: keys bound to a suspended/offboarded builder return 403.
+    builderStatus: builderStatusByTenantKey,
   });
   const apiKeyRoute: ApiKeyRoute = createApiKeyRoute({
     apiKeys: apiKeyService,
@@ -1798,10 +1991,6 @@ export function createComposition(
   // #520: built before the privacy service, which exports/erases it.
   const waitlistStore: WaitlistStore =
     options.waitlistStore ?? createDrizzleWaitlistStore({ db: db.db });
-  // #639: built before the privacy service, which exports/erases it.
-  const callbackRequestStore: CallbackRequestStore =
-    options.callbackRequestStore ??
-    createDrizzleCallbackRequestStore({ db: db.db });
   const privacyService: PrivacyService = createPrivacyService({
     magicLinks: magicLinkStore,
     leads: leadStore,
@@ -1838,6 +2027,9 @@ export function createComposition(
   // static-guide tier in the narrative service. Fails closed until the
   // API key is in Key Vault; the Groq step stays dormant (skipped
   // gracefully) until its key is provisioned.
+  // #759: the narrative LLM is only called by the monthly community-
+  // narrative job (and admin regenerate) — never per estimate. The model
+  // list is config-owned (COMMUNITY_NARRATIVE_MODELS, else NARRATIVE_MODELS).
   const narrativeProvider: NarrativeProvider =
     config.narrative.provider === 'openai-compatible'
       ? createOpenAiCompatibleNarrativeProvider({
@@ -1845,7 +2037,7 @@ export function createComposition(
             {
               label: 'gemini',
               apiKey: config.narrative.apiKey || undefined,
-              models: config.narrative.models,
+              models: config.communityNarratives.models,
               endpoint: config.narrative.endpoint,
             },
             {
@@ -1863,9 +2055,23 @@ export function createComposition(
       'NARRATIVE_PROVIDER=log refuses production — configure the OpenAI-compatible provider.',
     );
   }
+  // Monthly community narratives (#759): generation (timer + admin
+  // regenerate) and the stored-narrative read used by reports.
+  const communityNarrativeService: CommunityNarrativeService =
+    createCommunityNarrativeService({
+      store: createDrizzleCommunityNarrativeStore({ db: db.db }),
+      provider: narrativeProvider,
+      opsAlerts: opsAlertsService,
+      config: config.communityNarratives,
+    });
+  const adminCommunityNarrativesRoute: AdminCommunityNarrativesRoute =
+    createAdminCommunityNarrativesRoute({
+      narratives: communityNarrativeService,
+      audit: adminAuditStore,
+      adminGuard,
+    });
   // (Narrative service is created after propertyService below — it needs
-  // property + community-stats lookups for the prompt's neighbourhood
-  // section.)
+  // the property lookup to resolve the community.)
   // Community stats route (neighbourhood/01): uses the service created above
   // for the NBH-02 estimate comparison.
   const communityStatsRoute: CommunityStatsRoute = createCommunityStatsRoute({
@@ -2021,6 +2227,31 @@ export function createComposition(
   const propertyRoute: PropertyRoute = createPropertyRoute({
     property: propertyService,
   });
+  // #691: community lot inventory. The weekly timer derives vacant
+  // residential lots in established infill communities from City open data
+  // (current district via the same land-use provider); the public list is
+  // cache-first. A failed refresh fires the community_lots_failed ops alert.
+  const communityLotsStore: CommunityLotsStore = createDrizzleCommunityLotsStore({ db: db.db });
+  const communityLotsService: CommunityLotsService = createCommunityLotsService({
+    store: communityLotsStore,
+    config: config.communityLots,
+  });
+  const communityLotsRoute: CommunityLotsRoute = createCommunityLotsRoute({
+    communityLots: communityLotsService,
+  });
+  const communityLotsRefreshService: CommunityLotsRefreshService =
+    createCommunityLotsRefreshService({
+      store: communityLotsStore,
+      source: createSocrataCommunityLotsSource(config.communityLots),
+      ...(landUseProvider ? { landUse: landUseProvider } : {}),
+      config: config.communityLots,
+      onRefreshFailing: ({ consecutiveFailures, firstFailureAt }) =>
+        opsAlertsService.notifyFailure('community_lots_failed', {
+          consecutiveFailures,
+          firstFailureAt,
+        }),
+      onRefreshRecovered: () => opsAlertsService.notifyRecovered('community_lots_failed'),
+    });
 
   // #757: daily zoning source watch. Refreshes cached districts when the
   // City's Land Use Districts dataset changes, files one "catalogue may be
@@ -2080,17 +2311,15 @@ export function createComposition(
     followUps: leadFollowUpStore,
   });
   const reportRoute: ReportRoute = createReportRoute({ reports: reportService });
-  // Narrative worker (consumer/06): created here (after propertyService)
-  // because it resolves community context for the prompt's neighbourhood
-  // section via property + community-stats lookups.
+  // Report narrative read path (consumer/06, #759): created here (after
+  // propertyService) because it resolves the property's community, then
+  // reads the stored community narrative — no LLM call per estimate.
   const narrativeService: NarrativeService = createNarrativeService({
     magicLinks: magicLinkStore,
     leads: leadStore,
     estimates: estimateStore,
-    provider: narrativeProvider,
-    opsAlerts: opsAlertsService,
     properties: propertyService,
-    communityStats: communityStatsService,
+    communityNarratives: communityNarrativeService,
   });
   const narrativeRoute: NarrativeRoute = createNarrativeRoute({
     narrative: narrativeService,
@@ -2106,6 +2335,7 @@ export function createComposition(
     magicLinks: magicLinkStore,
     leads: leadStore,
     callbacks: callbackRequestStore,
+    dateWindowDays: config.lead.callbackDateWindowDays,
   });
   const callbackRoute: CallbackRoute = createCallbackRoute({
     callbacks: callbackService,
@@ -2124,6 +2354,9 @@ export function createComposition(
     email: emailService,
     appBaseUrl: config.email.appBaseUrl,
     magicLinkTtlSeconds: config.auth.magicLinkTtlSeconds,
+    shareLinks: options.shareLinkStore ?? createDrizzleShareLinkStore({ db: db.db }),
+    shareLinkTtlSeconds: config.shareLink.ttlSeconds,
+    shareLinkMaxActive: config.shareLink.maxActive,
   });
   const shareRoute: ShareRoute = createShareRoute({ shares: shareService });
   const openApiRoute: OpenApiRoute = createOpenApiRoute({
@@ -2145,6 +2378,7 @@ export function createComposition(
   // events table into per-step counts + conversion rates. Admin-only.
   const funnelService: FunnelService = createFunnelService({
     store: options.funnelStore ?? createDrizzleFunnelStore({ db: db.db }),
+    sourceGroupLimit: config.analytics.funnelSourceGroupLimit,
   });
   const funnelRoute: FunnelRoute = createFunnelRoute({
     funnel: funnelService,
@@ -2156,6 +2390,11 @@ export function createComposition(
   const withApiKeyRateLimit = createApiKeyRateLimitMiddleware({
     apiKeys: apiKeyService,
     usage: usageService,
+    // #738: per-key daily/monthly quotas (invite-only free beta).
+    quota: {
+      daily: config.apiAccess.dailyQuota,
+      monthly: config.apiAccess.monthlyQuota,
+    },
   });
   // billing/01 foundation — the lead→builder introduction lifecycle the
   // commission engine bills against. Wired here now so the commission
@@ -2249,6 +2488,9 @@ export function createComposition(
     });
   syncStripeCustomer = (builder) =>
     commissionCardService.syncCustomerDetails(builder);
+  detachBuilderCard = async (tenantKey) => {
+    await commissionCardService.removeCard(tenantKey);
+  };
   // #661 — builder invoice PDF/receipt download.
   const invoicePdfService: InvoicePdfService = createInvoicePdfService({
     billing: billingService,
@@ -2295,6 +2537,7 @@ export function createComposition(
     billingHook: embedBillingHookService,
     invoiceSummaries: invoiceSummaryStore,
     commentSummaries: commentStore,
+    callbackSummaries: callbackRequestStore,
     users: userStore,
     // Issue #530: "Mark won" → email the org's admins to record the contract.
     memberships: membershipStore,
@@ -2329,6 +2572,24 @@ export function createComposition(
       notifications: builderNotificationsService,
       builderGuard,
     });
+  // #870: builder Settings (profile & branding, embed install check,
+  // origin-change requests → admin task + team-inbox email).
+  const builderSettingsService: BuilderSettingsService =
+    createBuilderSettingsService({
+      builders: builderService,
+      store: createDrizzleBuilderSettingsStore({ db: db.db }),
+      audit: adminAuditStore,
+      email: emailService,
+      config: {
+        ...config.builderSettings,
+        opsInbox: config.email.opsInbox,
+        appBaseUrl: config.email.appBaseUrl,
+      },
+    });
+  const builderSettingsRoute: BuilderSettingsRoute = createBuilderSettingsRoute({
+    settings: builderSettingsService,
+    permissionGuard,
+  });
   // billing/05 lead comments: one service, two thin routes (builder/admin).
   const builderCommentsService: BuilderCommentsService =
     createBuilderCommentsService({
@@ -2365,6 +2626,7 @@ export function createComposition(
       chargebacks: createChargebackService({
         db: db.db,
         audit: billingAuditService,
+        commission: commissionService,
         email: emailService,
         opsInbox: config.email.opsInbox,
       }),
@@ -2378,6 +2640,19 @@ export function createComposition(
       commission: commissionService,
       audit: billingAuditService,
       stripe: stripeService,
+      // #860: hold auto-charges for builders whose status pauses them.
+      builderStatus: builderStatusByTenantKey,
+    });
+  // #880: one-time card-expiry reminder, run by the invoice-reviewer timer.
+  const cardExpiryReminderService: CardExpiryReminderService =
+    createCardExpiryReminderService({
+      billing: config.billing,
+      stripe: stripeService,
+      store: createDrizzleCardExpiryReminderStore({ db: db.db }),
+      email: emailService,
+      builders: builderService,
+      memberships: membershipStore,
+      audit: billingAuditService,
     });
   const stripeWebhooksRoute: StripeWebhooksRoute = createStripeWebhooksRoute({
     billingWebhooks: billingWebhookService,
@@ -2473,6 +2748,10 @@ export function createComposition(
     analyticsStore,
     analyticsService,
     analyticsRoute,
+    webTelemetryRateLimiter,
+    webTelemetryPipeline,
+    webTelemetryService,
+    webTelemetryRoute,
     emailService,
     magicLinkStore,
     magicLinkService,
@@ -2537,6 +2816,8 @@ export function createComposition(
     adminCalibrationRoute,
     adminSheetsStatusRoute,
     adminSheetsSyncNowRoute,
+    adminJobsRoute,
+    jobQueueService,
     adminEstimatesService,
     adminEstimatesRoute,
     privacyStore,
@@ -2544,12 +2825,18 @@ export function createComposition(
     privacyRoute,
     narrativeService,
     narrativeRoute,
+    communityNarrativeService,
+    adminCommunityNarrativesRoute,
     communityStatsService,
     communityStatsRoute,
     cityDataFreshnessService,
     cityDataFreshnessRoute,
     zoningService,
     zoningRoute,
+    communityLotsStore,
+    communityLotsService,
+    communityLotsRoute,
+    communityLotsRefreshService,
     zoningWatchService,
     communityStatsRefreshService,
     communityStatsRefreshRoute,
@@ -2583,6 +2870,8 @@ export function createComposition(
     builderBillingOverviewRoute,
     builderNotificationsService,
     builderNotificationsRoute,
+    builderSettingsService,
+    builderSettingsRoute,
     disputeService,
     adminDisputesRoute,
     adminBillingRoute,
@@ -2592,6 +2881,7 @@ export function createComposition(
     commissionCardService,
     billingWebhookService,
     invoiceReviewerService,
+    cardExpiryReminderService,
     stripeWebhooksRoute,
     simulatedPaymentsService,
     simulatedPaymentsRoute,

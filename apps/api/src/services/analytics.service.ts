@@ -22,7 +22,13 @@ import { randomUUID } from 'node:crypto';
 import { z } from 'zod';
 import type { AnalyticsEvent, AnalyticsEventName } from '@feasly/contracts';
 import { ErrorCodes, HttpError } from '../middleware/errors';
+import {
+  AnalyticsSourceSchema,
+  columnsToSource,
+  sourceToColumns,
+} from '../lib/campaign-source';
 import type { AnalyticsStore } from './analytics.store';
+import { EMBED_ORIGIN_MAX_LENGTH, parseEmbedOrigin } from '../lib/embed-origin';
 
 /**
  * The allowlist mirrors the `AnalyticsEventName` contract union. A second
@@ -32,6 +38,7 @@ import type { AnalyticsStore } from './analytics.store';
 export const ANALYTICS_EVENT_ALLOWLIST: readonly AnalyticsEventName[] = [
   'step_view',
   'gate_view',
+  'gate_submit',
   'gate_convert',
   'report_open',
   'tier_toggle',
@@ -47,6 +54,18 @@ export const ANALYTICS_EVENT_ALLOWLIST: readonly AnalyticsEventName[] = [
   'steer_renovation_offered',
   'steer_none_offered',
   'steer_override_new_build',
+  // #814: top of the funnel + assessed-value page.
+  'landing_view',
+  'address_search',
+  'address_selected',
+  'address_no_results',
+  'out_of_coverage',
+  'property_unsupported',
+  'preview_view',
+  'estimate_error',
+  'magic_link_open',
+  'assessment_view',
+  'assessment_to_estimate',
 ];
 
 /**
@@ -70,8 +89,23 @@ export const AnalyticsEventSchema = z
     // admin/07: optional tenant attribution for embed clients. Additive —
     // old clients omit it and are stored as Feasly-direct (NULL).
     tenant_key: z.string().trim().min(1).max(100).optional(),
+    // #814: campaign attribution. Closed, length-capped, PII-free charset
+    // (see lib/campaign-source.ts) — a bad value is a 400 like any other
+    // shape violation.
+    source: AnalyticsSourceSchema.optional(),
+    // #870: host page origin on embed_loaded (install check). A bare
+    // origin only — paths/queries are rejected, so no page URL is stored.
+    embed_origin: z
+      .string()
+      .max(EMBED_ORIGIN_MAX_LENGTH)
+      .refine((v) => parseEmbedOrigin(v) !== null, { message: 'must be an https origin' })
+      .optional(),
   })
-  .strict();
+  .strict()
+  .refine(
+    (v) => v.embed_origin === undefined || (v.event === 'embed_loaded' && v.tenant_key !== undefined),
+    { message: 'only allowed on embed_loaded with a tenant_key', path: ['embed_origin'] },
+  );
 
 export type AnalyticsEventRequest = z.infer<typeof AnalyticsEventSchema>;
 
@@ -118,7 +152,7 @@ export function createAnalyticsService(deps: AnalyticsServiceDeps): AnalyticsSer
           `Invalid analytics event at '${where}'.`,
         );
       }
-      const { event, route, ts, consent_ts, tenant_key } = parsed.data;
+      const { event, route, ts, consent_ts, tenant_key, source, embed_origin } = parsed.data;
       const consentDate = new Date(consent_ts);
       if (consentDate.getTime() > clock().getTime() + CONSENT_SKEW_ALLOWANCE_MS) {
         throw new HttpError(
@@ -134,12 +168,16 @@ export function createAnalyticsService(deps: AnalyticsServiceDeps): AnalyticsSer
         ts: new Date(ts),
         consentTs: consentDate,
         tenantKey: tenant_key ?? null,
+        source: sourceToColumns(source),
+        embedOrigin: embed_origin === undefined ? null : parseEmbedOrigin(embed_origin),
       });
+      const storedSource = columnsToSource(record.source);
       return {
         event: record.event as AnalyticsEventName,
         route: record.route,
         ts: record.ts.toISOString(),
         consent_ts: record.consentTs.toISOString(),
+        ...(storedSource ? { source: storedSource } : {}),
       };
     },
   };

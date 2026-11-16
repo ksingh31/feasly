@@ -24,9 +24,10 @@ type PanelResult =
  * Renders only when GET /api/v1/admin/billing reports
  * `stripe.provider === 'simulated'` (never with the Stripe provider) and the
  * admin holds `billing:manage` (the parent passes `canManage`). Fires
- * one of three Stripe-shaped events against the invoice's PaymentIntent —
- * Fire dispute, Dashboard refund (optional partial `amountCents`) and
- * Delayed failure — through
+ * a Stripe-shaped event against the invoice's PaymentIntent — Fire
+ * dispute, Close dispute: won / lost (#872, closes the open chargeback),
+ * Dashboard refund (optional partial `amountCents`) and Delayed failure —
+ * through
  * POST /api/v1/admin/billing/simulated/invoices/{id}/events, then shows the
  * delivered `eventType`. A 409 (the action doesn't apply, e.g. an
  * uncharged invoice) shows the API's reason. Emits `fired` so the drawer

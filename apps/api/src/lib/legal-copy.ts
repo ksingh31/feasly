@@ -80,6 +80,27 @@ export const RETENTION_RULES_DRAFT: readonly RetentionRule[] = [
  */
 export const WAITLIST_CONSENT_VERSION = 'waitlist-2026-11-15-draft' as const;
 
+/**
+ * Version tag of the agent-API lead consent attestation (#738, owner
+ * decision 2026-11-15). An API caller submitting a lead (REST
+ * `POST /api/v1/leads` with a Bearer key, or the MCP `submit_lead` tool)
+ * must send `consent: true` plus `consentVersion` equal to this tag; the
+ * lead row stores the tag, the attesting key and the time. Bump it when the
+ * wording in docs/legal/approved-copy.md "API lead consent attestation"
+ * changes — callers then have to re-attest to the new wording.
+ */
+export const API_LEAD_CONSENT_VERSION = 'api-lead-2026-11-15-draft' as const;
+
+/** The attestation wording an API caller agrees to (draft, pending lawyer). */
+export const API_LEAD_CONSENT_ATTESTATION_DRAFT = {
+  status: LEGAL_REVIEW_PENDING,
+  version: API_LEAD_CONSENT_VERSION,
+  text:
+    'I confirm that the person named in this lead asked to be contacted about their estimate, ' +
+    'agreed that Feasly and builders associated with Feasly may contact them about it, ' +
+    'and was told they can opt out anytime.',
+} as const;
+
 /** Short retention notice embedded in the export payload. */
 export const EXPORT_RETENTION_NOTICE_DRAFT: string =
   'Draft — pending lawyer review. Data-retention rules have not been legally approved yet; see docs/legal/approved-copy.md.';

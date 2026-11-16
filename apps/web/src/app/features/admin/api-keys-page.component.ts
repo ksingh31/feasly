@@ -28,7 +28,6 @@ import {
   UiRowActionsDirective,
   injectDrawerParam,
 } from '@app/shared/ui';
-import { ConfigService } from '../../core/config/config.service';
 import { LoadBuilders } from './admin-builders.actions';
 import { AdminBuildersState } from './admin-builders.state';
 import { ADMIN_PERMISSIONS, adminCan } from './admin-permissions';
@@ -38,6 +37,7 @@ import { ApiKeyDrawerComponent, type ApiKeyDrawerData } from './api-key-drawer.c
 import { ApiKeyIssueModalComponent } from './api-key-issue-modal.component';
 import { ApiKeySecretModalComponent } from './api-key-secret-modal.component';
 import { apiKeyStatus, builderName } from './api-keys-view';
+import { injectAdminCopy } from './admin-copy';
 
 /** A key row with its builder name resolved for display. */
 export interface ApiKeyRow extends ApiKeyRecordResponse {
@@ -83,7 +83,7 @@ export class ApiKeysPageComponent implements OnInit {
   private readonly drawers = inject(UiDrawerService);
   private readonly modals = inject(UiModalService);
 
-  protected readonly copy = inject(ConfigService).get('copy').admin.apiKeys;
+  protected readonly copy = injectAdminCopy().apiKeys;
 
   private readonly keys = this.store.selectSignal(ApiKeysState.keys);
   private readonly builders = this.store.selectSignal(AdminBuildersState.builders);

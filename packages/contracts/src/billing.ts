@@ -141,14 +141,42 @@ export interface CommissionInvoice {
    */
   readonly paymentMethod: 'card' | ManualPaymentMethod;
   /*
+   * Dunning (#718). The API always sends these; they are optional only so
+   * fixtures written before #718 keep compiling.
+   */
+  /**
+   * The invoice's grace period in days (admin override, else the
+   * configured default). Card: days between a failed charge and the next
+   * automatic retry. Manual method: days after the review window before
+   * the invoice is overdue.
+   */
+  readonly retryGraceDays?: number;
+  /** Automatic retries allowed after the first charge (BILLING_MAX_CHARGE_RETRIES). */
+  readonly maxChargeRetries?: number;
+  /** ISO 8601 — when the next automatic retry runs; null when none is scheduled. */
+  readonly nextRetryAt?: string | null;
+  /** Admin control over automatic retries and reminders. */
+  readonly dunningState?: DunningState;
+  /** ISO 8601 — when the final automatic retry failed (collections); null otherwise. */
+  readonly collectionsAt?: string | null;
+  /**
+   * ISO 8601 — when an unpaid manual-method invoice is due (review window
+   * end + grace period); null for card invoices and settled invoices.
+   */
+  readonly dueAt?: string | null;
+  /** Whole days past `dueAt`; 0 when not overdue. */
+  readonly overdueDays?: number;
+  /*
    * Bank chargebacks + dashboard refunds (#719). The API always sends
    * these; optional only so fixtures written before #719 keep compiling.
    */
   /**
    * Bank chargeback state: null/absent = never disputed with the bank;
    * 'open' while Stripe's dispute is live (no further charge attempts).
-   * A lost chargeback does not change `status` — ops decides manually
-   * whether the commission is re-collected or written off.
+   * A lost chargeback (#873): the commission is still owed, so a fully
+   * charged-back invoice moves `paid → failed` and is collected again
+   * through dunning; a partial chargeback or partly refunded invoice keeps
+   * its status for ops to settle by hand. Writing it off = an admin void.
    */
   readonly chargebackStatus?: ChargebackStatus | null;
   /**
@@ -158,6 +186,36 @@ export interface CommissionInvoice {
   readonly refundedCents?: number;
   readonly createdAt: string;
   readonly updatedAt: string;
+}
+
+/**
+ * Admin control over an invoice's automatic retries and reminders (#718):
+ * - `active`: retries run on the invoice's grace period.
+ * - `paused`: no automatic retry or reminder until resumed.
+ * - `cancelled`: automatic retries stopped for good; the invoice is handled
+ *   by hand (admin retry, mark paid) or by the builder's Pay now.
+ */
+export type DunningState = 'active' | 'paused' | 'cancelled';
+
+/**
+ * POST /api/v1/admin/billing/invoices/{id}/dunning (#718) — admin edits
+ * one invoice's retry schedule. `set_grace_days` needs `graceDays`
+ * (1–90); the next retry is rescheduled from the last failure.
+ */
+export type UpdateInvoiceDunningRequest =
+  | { readonly action: 'pause' }
+  | { readonly action: 'resume' }
+  | { readonly action: 'cancel' }
+  | { readonly action: 'set_grace_days'; readonly graceDays: number };
+
+/** POST /api/v1/admin/billing/invoices/{id}/dunning — result. */
+export interface UpdateInvoiceDunningResponse {
+  readonly invoiceId: string;
+  readonly status: CommissionInvoiceStatus;
+  readonly dunningState: DunningState;
+  readonly retryGraceDays: number;
+  /** ISO 8601; null when no automatic retry is scheduled. */
+  readonly nextRetryAt: string | null;
 }
 
 /**

@@ -1,0 +1,448 @@
+<ui-page-layout>
+  <ui-page-header [heading]="copy.heading" [description]="copy.description" />
+
+  <div
+    class="settings__tabs"
+    role="tablist"
+    [attr.aria-label]="copy.tabsLabel"
+    (keydown)="onTabKeydown($event)"
+  >
+    @for (t of tabs; track t) {
+      <button
+        type="button"
+        role="tab"
+        class="settings__tab"
+        [id]="'settings-tab-' + t"
+        [attr.aria-controls]="'settings-panel-' + t"
+        [attr.data-testid]="'tab-' + t"
+        [class.settings__tab--active]="tab() === t"
+        [attr.aria-selected]="tab() === t"
+        [attr.tabindex]="tab() === t ? 0 : -1"
+        (click)="selectTab(t)"
+      >
+        {{ tabLabel(t) }}
+      </button>
+    }
+  </div>
+
+  @if (tab() === 'profile') {
+    <section
+      class="settings__panel"
+      role="tabpanel"
+      id="settings-panel-profile"
+      aria-labelledby="settings-tab-profile"
+      data-testid="panel-profile"
+    >
+      @if (profileStatus() === 'error' && !profile()) {
+        <ui-error-state
+          [heading]="copy.profileLoadError"
+          [retryLabel]="retryLabel"
+          (retry)="retryProfile()"
+        />
+      } @else if (!profile()) {
+        <ui-skeleton variant="rows" [count]="4" [label]="copy.profileLoading" />
+      } @else {
+        @if (readOnlyNote(); as note) {
+          <p class="settings__note" role="note" data-testid="read-only-note">{{ note }}</p>
+        }
+        <div class="settings__profile">
+          <form class="settings__form" novalidate [formGroup]="form" (ngSubmit)="save()">
+            <ui-text-field
+              [label]="copy.businessNameLabel"
+              [hint]="copy.businessNameHint"
+              [value]="profile()?.businessName ?? ''"
+              disabled
+            />
+            <ui-text-field
+              formControlName="displayName"
+              data-testid="field-displayName"
+              autocomplete="organization"
+              required
+              [label]="copy.displayNameLabel"
+              [hint]="copy.displayNameHint"
+              [error]="fieldError('displayName')"
+            />
+            <ui-text-field
+              formControlName="contactEmail"
+              data-testid="field-contactEmail"
+              type="email"
+              autocomplete="email"
+              [label]="copy.contactEmailLabel"
+              [error]="fieldError('contactEmail')"
+            />
+            <ui-text-field
+              formControlName="contactPhone"
+              data-testid="field-contactPhone"
+              type="tel"
+              autocomplete="tel"
+              [label]="copy.contactPhoneLabel"
+              [error]="fieldError('contactPhone')"
+            />
+            <ui-text-field
+              formControlName="logoUrl"
+              data-testid="field-logoUrl"
+              type="url"
+              inputmode="url"
+              [label]="copy.logoUrlLabel"
+              [hint]="copy.logoUrlHint"
+              [error]="fieldError('logoUrl')"
+            />
+            <ui-text-field
+              formControlName="accentColor"
+              data-testid="field-accentColor"
+              [label]="copy.accentColorLabel"
+              [hint]="copy.accentColorHint"
+              [error]="fieldError('accentColor')"
+            />
+
+            @if (saveError() !== null) {
+              <p class="settings__alert" role="alert" data-testid="save-error">
+                {{ saveError() || copy.saveError }}
+              </p>
+            }
+
+            @if (canEdit()) {
+              <div class="settings__actions">
+                <button
+                  type="submit"
+                  ui-button
+                  data-testid="save"
+                  [loading]="saving()"
+                  [disabled]="form.pristine"
+                >
+                  {{ copy.saveLabel }}
+                </button>
+                <button
+                  type="button"
+                  ui-button
+                  variant="ghost"
+                  data-testid="discard"
+                  [disabled]="form.pristine || saving()"
+                  (click)="discard()"
+                >
+                  {{ copy.resetLabel }}
+                </button>
+              </div>
+            }
+          </form>
+
+          <aside class="settings__preview" [attr.aria-label]="copy.previewHeading" data-testid="preview">
+            <h2 class="settings__h2">{{ copy.previewHeading }}</h2>
+            <div class="settings__preview-card">
+              <div class="settings__preview-logo" data-testid="logo-preview">
+                @if (logoPreview(); as src) {
+                  @if (!logoBroken()) {
+                    <img [src]="src" [alt]="previewName()" (error)="logoBroken.set(true)" />
+                  } @else {
+                    <span class="settings__preview-muted">{{ copy.previewLogoBroken }}</span>
+                  }
+                } @else {
+                  <span class="settings__preview-muted">{{ copy.previewLogoNone }}</span>
+                }
+              </div>
+              <p class="settings__preview-name">{{ previewName() }}</p>
+              <span
+                class="settings__preview-cta"
+                data-testid="accent-preview"
+                [style.border-color]="accentPreview()"
+                [style.box-shadow]="accentPreview() ? 'inset 0 -4px 0 ' + accentPreview() : null"
+              >{{ copy.previewButton }}</span>
+              <p class="settings__preview-swatch-row">
+                <span
+                  class="settings__swatch"
+                  aria-hidden="true"
+                  data-testid="accent-swatch"
+                  [class.settings__swatch--empty]="!accentPreview()"
+                  [style.background]="accentPreview()"
+                ></span>
+                <span>{{ accentPreview() ?? copy.previewAccentNone }}</span>
+              </p>
+            </div>
+          </aside>
+        </div>
+      }
+    </section>
+  }
+
+  @if (tab() === 'notifications') {
+    <section
+      class="settings__panel"
+      role="tabpanel"
+      id="settings-panel-notifications"
+      aria-labelledby="settings-tab-notifications"
+      data-testid="panel-notifications"
+    >
+      @if (notificationsLoadFailed()) {
+        <ui-error-state
+          [heading]="copy.notificationsLoadError"
+          [retryLabel]="retryLabel"
+          (retry)="retryNotifications()"
+        />
+      } @else if (notifications(); as n) {
+        <div class="settings__block">
+          <h2 class="settings__h2" id="notifications-heading">{{ copy.notificationsHeading }}</h2>
+          <p class="settings__muted">{{ copy.notificationsIntro }}</p>
+          @if (notificationsReadOnly()) {
+            <p class="settings__note" role="note" data-testid="notifications-view-as-note">
+              {{ copy.notificationsViewAsNote }}
+            </p>
+          }
+          <ul class="settings__toggles" aria-labelledby="notifications-heading">
+            <li class="settings__toggle">
+              <input
+                type="checkbox"
+                role="switch"
+                class="settings__switch"
+                id="notify-newLeadEmail"
+                data-testid="toggle-newLeadEmail"
+                aria-describedby="notify-newLeadEmail-hint"
+                [checked]="n.preferences.newLeadEmail"
+                [disabled]="notificationsReadOnly() || notificationsSaving()"
+                (change)="toggleNotification('newLeadEmail', $event)"
+              />
+              <span class="settings__toggle-text">
+                <label class="settings__toggle-label" for="notify-newLeadEmail">{{ copy.notifyNewLeadLabel }}</label>
+                <span class="settings__muted" id="notify-newLeadEmail-hint">{{ copy.notifyNewLeadHint }}</span>
+              </span>
+            </li>
+            <li class="settings__toggle">
+              <input
+                type="checkbox"
+                role="switch"
+                class="settings__switch"
+                id="notify-needsYouDigest"
+                data-testid="toggle-needsYouDigest"
+                aria-describedby="notify-needsYouDigest-hint"
+                [checked]="n.preferences.needsYouDigest"
+                [disabled]="notificationsReadOnly() || notificationsSaving()"
+                (change)="toggleNotification('needsYouDigest', $event)"
+              />
+              <span class="settings__toggle-text">
+                <label class="settings__toggle-label" for="notify-needsYouDigest">{{ copy.notifyDigestLabel }}</label>
+                <span class="settings__muted" id="notify-needsYouDigest-hint">{{ copy.notifyDigestHint }}</span>
+              </span>
+            </li>
+            @if (n.role === 'builder_admin') {
+              <li class="settings__toggle">
+                <input
+                  type="checkbox"
+                  role="switch"
+                  class="settings__switch"
+                  id="notify-billingEmail"
+                  data-testid="toggle-billingEmail"
+                  [attr.aria-describedby]="billingLocked() ? 'notify-billingEmail-hint notify-billingEmail-locked' : 'notify-billingEmail-hint'"
+                  [checked]="n.preferences.billingEmail"
+                  [disabled]="notificationsReadOnly() || notificationsSaving() || billingLocked()"
+                  (change)="toggleNotification('billingEmail', $event)"
+                />
+                <span class="settings__toggle-text">
+                  <label class="settings__toggle-label" for="notify-billingEmail">{{ copy.notifyBillingLabel }}</label>
+                  <span class="settings__muted" id="notify-billingEmail-hint">{{ copy.notifyBillingHint }}</span>
+                  @if (billingLocked()) {
+                    <span class="settings__toggle-locked" id="notify-billingEmail-locked" data-testid="billing-locked-note">
+                      {{ copy.notifyBillingLockedNote }}
+                    </span>
+                  }
+                </span>
+              </li>
+            }
+          </ul>
+          @if (n.role === 'builder_member') {
+            <p class="settings__note" role="note" data-testid="billing-member-note">
+              {{ copy.notifyBillingMemberNote }}
+            </p>
+          }
+          @if (notificationsError() !== null) {
+            <p class="settings__alert" role="alert" data-testid="notifications-error">
+              {{ notificationsError() || copy.notificationsSaveError }}
+            </p>
+          }
+        </div>
+      } @else {
+        <ui-skeleton variant="rows" [count]="3" [label]="copy.notificationsLoading" />
+      }
+    </section>
+  }
+
+  @if (tab() === 'embed') {
+    <section
+      class="settings__panel"
+      role="tabpanel"
+      id="settings-panel-embed"
+      aria-labelledby="settings-tab-embed"
+      data-testid="panel-embed"
+    >
+      @if (embedStatus() === 'error' && !embed()) {
+        <ui-error-state
+          [heading]="copy.embedLoadError"
+          [retryLabel]="retryLabel"
+          (retry)="retryEmbed()"
+        />
+      } @else if (embed(); as e) {
+        <div class="settings__block">
+          <div class="settings__block-head">
+            <h2 class="settings__h2">{{ copy.snippetHeading }}</h2>
+            <button
+              type="button"
+              ui-button
+              variant="secondary"
+              size="sm"
+              data-testid="copy-snippet"
+              (click)="copySnippet()"
+            >
+              {{ copy.copyLabel }}
+            </button>
+          </div>
+          <p class="settings__muted">{{ copy.snippetIntro }}</p>
+          <pre class="settings__snippet" data-testid="snippet"><code>{{ e.snippet }}</code></pre>
+        </div>
+
+        <div class="settings__block">
+          <div class="settings__block-head">
+            <h2 class="settings__h2">{{ copy.originsHeading }}</h2>
+            @if (canEdit()) {
+              <button
+                type="button"
+                ui-button
+                variant="secondary"
+                size="sm"
+                data-testid="request-change"
+                (click)="openRequestChange()"
+              >
+                {{ copy.requestChangeLabel }}
+              </button>
+            }
+          </div>
+          <p class="settings__muted">{{ originsIntro() }}</p>
+          @if (!canEdit() && profile()) {
+            <p class="settings__note" role="note">{{ copy.requestChangeOwnerOnly }}</p>
+          }
+          @if (origins().length === 0) {
+            <p class="settings__empty" data-testid="origins-empty">{{ copy.originsEmpty }}</p>
+          } @else {
+            <ul class="settings__origins" [attr.aria-label]="copy.originsHeading">
+              @for (o of origins(); track o.origin) {
+                <li class="settings__origin" [attr.data-origin]="o.origin" [attr.data-state]="o.state">
+                  <span class="settings__origin-cell">
+                    <span class="settings__origin-label">{{ copy.originColOrigin }}</span>
+                    <code class="settings__origin-name">{{ o.origin }}</code>
+                  </span>
+                  <span class="settings__origin-cell">
+                    <span class="settings__origin-label">{{ copy.originColStatus }}</span>
+                    <span [class]="'settings__chip settings__chip--' + o.state">
+                      @switch (o.state) {
+                        @case ('live') { {{ copy.originLive }} }
+                        @case ('stale') { {{ copy.originStale }} }
+                        @default { {{ copy.originNever }} }
+                      }
+                    </span>
+                  </span>
+                  <span class="settings__origin-cell">
+                    <span class="settings__origin-label">{{ copy.originColLastSeen }}</span>
+                    @if (o.lastSeenAt) {
+                      <span [title]="o.lastSeenAt | kitDateTime">{{ o.lastSeenAt | kitRelative }}</span>
+                    } @else {
+                      <span>—</span>
+                    }
+                  </span>
+                </li>
+              }
+            </ul>
+          }
+        </div>
+
+        @if (e.openRequests.length > 0) {
+          <div class="settings__block" data-testid="open-requests">
+            <h2 class="settings__h2">{{ copy.openRequestsHeading }}</h2>
+            <ul class="settings__requests">
+              @for (r of e.openRequests; track r.id) {
+                <li class="settings__request">
+                  @if (r.add.length > 0) {
+                    <p>
+                      <strong>{{ copy.openRequestAdd }}:</strong>
+                      @for (a of r.add; track a) { <code>{{ a }}</code> }
+                    </p>
+                  }
+                  @if (r.remove.length > 0) {
+                    <p>
+                      <strong>{{ copy.openRequestRemove }}:</strong>
+                      @for (a of r.remove; track a) { <code>{{ a }}</code> }
+                    </p>
+                  }
+                  <p class="settings__muted">
+                    {{ filedLabel(r.createdAt) }}
+                  </p>
+                </li>
+              }
+            </ul>
+          </div>
+        }
+      } @else {
+        <ui-skeleton variant="rows" [count]="3" [label]="copy.embedLoading" />
+      }
+    </section>
+  }
+
+  @if (tab() === 'help') {
+    <section
+      class="settings__panel"
+      role="tabpanel"
+      id="settings-panel-help"
+      aria-labelledby="settings-tab-help"
+      data-testid="panel-help"
+    >
+      <div class="settings__block">
+        <h2 class="settings__h2">{{ copy.helpHeading }}</h2>
+        <p class="settings__muted">{{ copy.helpIntro }}</p>
+        @if (support(); as s) {
+          <p class="settings__help-email">
+            <span class="settings__origin-label">{{ copy.helpEmailLabel }}</span>
+            <a data-testid="support-email" [href]="'mailto:' + s.email">{{ s.email }}</a>
+          </p>
+          @if (responseTime(); as rt) {
+            <p data-testid="response-time">{{ rt }}</p>
+          }
+        } @else if (profileStatus() === 'error') {
+          <ui-error-state
+            [heading]="copy.profileLoadError"
+            [retryLabel]="retryLabel"
+            (retry)="retryProfile()"
+          />
+        } @else {
+          <ui-skeleton variant="text" [count]="2" [label]="copy.profileLoading" />
+        }
+      </div>
+      <div class="settings__block">
+        <h2 class="settings__h2">{{ copy.helpLinksHeading }}</h2>
+        <ul class="settings__links">
+          @for (link of copy.helpLinks; track link.href) {
+            <li>
+              @if (isInternal(link.href)) {
+                <a [routerLink]="link.href">{{ link.label }}</a>
+              } @else {
+                <a [href]="link.href" target="_blank" rel="noopener">{{ link.label }}</a>
+              }
+            </li>
+          }
+        </ul>
+      </div>
+      <div class="settings__block" data-testid="close-account">
+        <h2 class="settings__h2">{{ copy.closeHeading }}</h2>
+        <p class="settings__muted">{{ copy.closeIntro }}</p>
+        @if (canEdit()) {
+          <button
+            type="button"
+            ui-button
+            variant="secondary"
+            data-testid="close-account-request"
+            (click)="openCloseAccount()"
+          >
+            {{ copy.closeButton }}
+          </button>
+        } @else if (profile()) {
+          <p class="settings__note" role="note">{{ copy.closeOwnerOnly }}</p>
+        }
+      </div>
+    </section>
+  }
+</ui-page-layout>

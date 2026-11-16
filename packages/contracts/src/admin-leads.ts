@@ -9,6 +9,8 @@
  * All amounts are integer cents. The UI formats to CAD dollars — no float
  * math in display (AC2).
  */
+import type { AnalyticsSource } from './events';
+import type { LeadCallbackSummary } from './callback';
 
 /** Pipeline statuses. Matches the `leads.status` column values. */
 export type AdminLeadStatus = 'new' | 'contacted' | 'quoting' | 'won' | 'lost';
@@ -158,6 +160,14 @@ export interface AdminLeadDetail extends AdminLeadListItem {
    * via POST /api/v1/admin/leads/{id}/assign-builder.
    */
   readonly builderId: string | null;
+  /**
+   * #814: campaign attribution (UTM parameters + click-id type) captured
+   * with the lead submit, from the `leads.source_*` columns. Only the set
+   * fields are present; null when the lead arrived with no attribution.
+   * Distinct from `source`, which is the capture surface. Optional only
+   * for backends that predate #814 — this API always sends it.
+   */
+  readonly attribution?: AnalyticsSource | null;
   readonly notes: readonly AdminLeadNote[];
   readonly statusHistory: readonly AdminLeadStatusHistoryEntry[];
   /**
@@ -165,6 +175,11 @@ export interface AdminLeadDetail extends AdminLeadListItem {
    * always sends it; optional only so older admin builds keep compiling.
    */
   readonly reassignments?: readonly AdminLeadReassignmentEntry[];
+  /**
+   * #836: callback requests for this lead (preferred day, window, notes),
+   * newest first. The API always sends it; optional for older builds.
+   */
+  readonly callbacks?: readonly LeadCallbackSummary[];
 }
 
 /** One builder reassignment (#721). Null builder id = unassigned. */

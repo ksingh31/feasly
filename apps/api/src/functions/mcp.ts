@@ -23,6 +23,7 @@ import {
 } from '../index';
 import type { FunctionContext, FunctionRequest } from './estimate';
 import { clientIpFromHeaders } from '../middleware/client-ip';
+import { hasMultipleToolCalls, isMeteredMcpBody } from '../middleware/mcp-metering';
 
 const CORRELATION_RESPONSE_HEADER = 'x-correlation-id';
 
@@ -76,6 +77,28 @@ export async function mcpHandler(
     return;
   }
 
+  // #738: a batch of several tools/call would count as one metered request
+  // and so multiply the key's quota; reject it before any pipeline work.
+  if (hasMultipleToolCalls(req.body)) {
+    context.res = {
+      status: 400,
+      headers: {
+        ...middleware.securityHeaders(),
+        'Content-Type': 'application/json',
+        ...corsHeaders,
+      },
+      body: {
+        jsonrpc: '2.0',
+        id: null,
+        error: {
+          code: -32600,
+          message: 'Batches with more than one tools/call are not supported. Send one call per request.',
+        },
+      },
+    };
+    return;
+  }
+
   const app = getApp();
   const headers: Record<string, string | string[] | undefined> = {
     ...(req.headers ?? {}),
@@ -86,14 +109,31 @@ export async function mcpHandler(
   const correlationId = middleware.ensureCorrelationId(headers);
 
   // Run through the rate limiter (public endpoint, abuse resistance).
-  // The MCP route handles auth (Bearer API key) internally.
+  // #738: a Bearer key also passes the per-key limiter — per-minute
+  // window plus the daily/monthly quota — and every accepted call is
+  // metered in api_usage like the REST endpoints. The authenticated key is
+  // handed to the route so it isn't looked up twice; without a Bearer
+  // header the route answers its own JSON-RPC 401.
   const result = await app.requestPipeline.run(
     {
       headers,
       clientIp: clientIpFrom(req),
       method: req.method,
     },
-    () => app.mcpRoute.handle(headers, req.body),
+    () =>
+      app.withApiKeyRateLimit(
+        headers,
+        correlationId,
+        {
+          endpoint: '/api/mcp/v1',
+          // MCP gates scopes per tool inside the route (#802).
+          requiredScope: null,
+          // #738: only tool calls count against the quota — protocol
+          // housekeeping (initialize, tools/list, notifications) is free.
+          metered: isMeteredMcpBody(req.body),
+        },
+        (auth) => app.mcpRoute.handle(headers, req.body, auth ?? undefined),
+      ),
   );
 
   if (middleware.isProblemDetails(result)) {

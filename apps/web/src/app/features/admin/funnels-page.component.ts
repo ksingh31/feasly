@@ -1,7 +1,6 @@
 import { Component, computed, DestroyRef, inject, OnInit, signal } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { FormsModule } from '@angular/forms';
-import { ConfigService } from '../../core/config/config.service';
 import { API_SERVICE } from '../../core/api/api.service';
 import { localDateStringDaysAgo } from '../../shared/utils/datetime';
 import {
@@ -19,15 +18,18 @@ import {
 import type {
   FunnelQuery,
   FunnelReport,
+  FunnelSourceGroup,
   FunnelTenantFilter,
 } from '../../core/api/funnel.types';
+import { injectAdminCopy } from './admin-copy';
 
 /**
  * Admin funnel dashboard (admin/07 frontend).
  *
  * `/admin/funnels` — Karan's conversion visibility: per-step counts and
  * step-to-step conversion % from the append-only analytics events table,
- * with date-range and tenant filters. Numbers only — no PII, no per-user
+ * with date-range, tenant and (#815) utm_source / utm_campaign filters, plus
+ * a per-(source, campaign) breakdown table. Numbers only — no PII, no per-user
  * drill-down, by construction of the backend endpoint.
  *
  * Guarded by {@link adminGuard} (admin/01 session auth).
@@ -55,10 +57,9 @@ import type {
 })
 export class FunnelsPageComponent implements OnInit {
   private readonly api = inject(API_SERVICE);
-  private readonly config = inject(ConfigService);
   private readonly destroyRef = inject(DestroyRef);
 
-  protected readonly copy = this.config.get('copy').admin.funnels;
+  protected readonly copy = injectAdminCopy().funnels;
   private readonly count = new KitCountPipe();
 
   /** Inclusive start date (YYYY-MM-DD). Empty = unbounded. */
@@ -69,6 +70,10 @@ export class FunnelsPageComponent implements OnInit {
   protected readonly tenantMode = signal<'all' | 'direct' | 'key'>('all');
   /** Tenant key when tenantMode === 'key'. */
   protected readonly tenantKey = signal('');
+  /** #815: exact utm_source filter. Empty = any. */
+  protected readonly utmSource = signal('');
+  /** #815: exact utm_campaign filter. Empty = any. */
+  protected readonly utmCampaign = signal('');
   /**
    * The date preset the current range came from: a trailing day count,
    * 'all' (no dates), or null once the dates were edited by hand.
@@ -97,6 +102,13 @@ export class FunnelsPageComponent implements OnInit {
 
   /** Steps of the latest report (empty array before the first load). */
   protected readonly steps = computed(() => this.report()?.steps ?? []);
+
+  /** #815: per-(source, campaign) funnels of the latest report. */
+  protected readonly sourceGroups = computed<readonly FunnelSourceGroup[]>(
+    () => this.report()?.bySource ?? [],
+  );
+  /** True when the backend capped the breakdown. */
+  protected readonly sourceGroupsTruncated = computed(() => this.report()?.bySourceTruncated === true);
 
   /** Max step count — bars scale against this. */
   protected readonly maxCount = computed(() =>
@@ -199,7 +211,26 @@ export class FunnelsPageComponent implements OnInit {
     this.to.set('');
     this.tenantMode.set('all');
     this.tenantKey.set('');
+    this.utmSource.set('');
+    this.utmCampaign.set('');
     this.load();
+  }
+
+  /** Display value of a breakdown group's source/campaign (null = untagged). */
+  protected groupValue(value: string | null): string {
+    return value ?? this.copy.sourceNone;
+  }
+
+  /** Stable @for track key of a breakdown group. */
+  protected groupKey(group: FunnelSourceGroup): string {
+    return JSON.stringify([group.utmSource, group.utmCampaign]);
+  }
+
+  /** Entry → final conversion of one breakdown group (or "—"). */
+  protected groupConversion(group: FunnelSourceGroup): string {
+    const first = group.steps[0]?.count ?? 0;
+    const last = group.steps[group.steps.length - 1]?.count ?? 0;
+    return this.conversionLabel(group.steps.length < 2 || first <= 0 ? null : last / first);
   }
 
   /** Bar width for a step, as a % of the widest step. */
@@ -225,6 +256,8 @@ export class FunnelsPageComponent implements OnInit {
       from: this.from().trim() || undefined,
       to: this.to().trim() || undefined,
       tenant,
+      utmSource: this.utmSource().trim() || undefined,
+      utmCampaign: this.utmCampaign().trim() || undefined,
     };
   }
 

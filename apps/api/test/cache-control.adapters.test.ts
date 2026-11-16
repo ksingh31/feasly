@@ -17,7 +17,14 @@ import { join, relative, sep } from 'node:path';
 const FUNCTIONS = join(__dirname, '..', 'src', 'functions');
 
 /** Public, non-personal responses allowed to be cached (reviewed). */
-const PUBLIC_CACHE_ALLOWLIST = new Set(['openapi.ts', 'zoning-districts.ts', 'partners.ts']);
+// communities-lots.ts (#691): public City open data (vacant-lot list), no
+// visitor data; refreshed weekly.
+const PUBLIC_CACHE_ALLOWLIST = new Set([
+  'openapi.ts',
+  'zoning-districts.ts',
+  'partners.ts',
+  'communities-lots.ts',
+]);
 
 function allTsFiles(dir: string): string[] {
   const out: string[] = [];

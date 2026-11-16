@@ -14,7 +14,12 @@ import { ClearLead, DismissResume, GoToStep, ResetWizard, SelectProperty, SetEnt
 import { ClearReport } from '../report/report.actions';
 import { ReportState } from '../report/report.state';
 import { AnalyticsService } from '../consent/analytics.service';
-import { AddressAutocompleteComponent, SiteFooterComponent, SiteNavComponent } from '../../shared/components';
+// #980: direct subpaths, not the shared barrel — this page is eager, and the
+// barrel re-exports every shared component (none tree-shake), which pulled
+// them all into the initial bundle.
+import { AddressAutocompleteComponent, type AddressSearchOutcome } from '../../shared/components/address-autocomplete';
+import { SiteFooterComponent } from '../../shared/components/site-footer';
+import { SiteNavComponent } from '../../shared/components/site-nav';
 import {
   DEEP_LINK_ADDRESS_PARAM,
   DEEP_LINK_SOURCE_PARAM,
@@ -231,8 +236,21 @@ export class LandingPageComponent implements OnInit {
     this.location.replaceState(this.router.serializeUrl(tree));
   }
 
+  /**
+   * #815 funnel analytics for each completed address lookup (consent-gated
+   * inside AnalyticsService; no query text or address in any event).
+   */
+  onSearchOutcome(outcome: AddressSearchOutcome): void {
+    // A failed request is not a search the visitor completed.
+    if (outcome === 'error') return;
+    this.analytics.track('address_search');
+    if (outcome === 'no_results') this.analytics.track('address_no_results');
+    if (outcome === 'out_of_coverage') this.analytics.track('out_of_coverage');
+  }
+
   /** A suggestion resolved: populate wizard state at step 2 and go to scope. */
   onSelected(property: PropertyRecord): void {
+    this.analytics.track('address_selected');
     // Early coverage guard: stop the funnel HERE — before scope/details —
     // when the engine could never price this property (assessed value out
     // of range), instead of wasting the user's effort and failing at
@@ -250,6 +268,8 @@ export class LandingPageComponent implements OnInit {
       this.config.get('coverage').singleFamilyDistricts.calgary,
     );
     if (issue !== null) {
+      // #815: the funnel stops here — the engine can't price this property.
+      this.analytics.track('property_unsupported');
       const community = this.communityService.byName(property.community);
       if (community) {
         this.store.dispatch(

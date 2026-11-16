@@ -252,6 +252,26 @@ describe('BuilderCardModalComponent (#534)', () => {
     expect(text(container)).toContain(CHARGE_TIMING_COPY);
   });
 
+  it('#879 AC3 copy: replacing a saved card says the new card replaces it', async () => {
+    const { stripe, element } = fakeStripe();
+    loadStripe.mockResolvedValue(stripe as never);
+    const { open, container } = setup({ key: 'pk_test_stub' });
+    ref = open(CARD);
+    await until(() => element.mount.mock.calls.length > 0, 'element mounted');
+    expect(container.querySelector('[data-testid="replace-note"]')?.textContent).toContain(
+      copy.cardLifecycle.modalReplaceNote,
+    );
+  });
+
+  it('#879: adding a first card shows no replace note', async () => {
+    const { stripe, element } = fakeStripe();
+    loadStripe.mockResolvedValue(stripe as never);
+    const { open, container } = setup({ key: 'pk_test_stub' });
+    ref = open({ hasCard: false });
+    await until(() => element.mount.mock.calls.length > 0, 'element mounted');
+    expect(container.querySelector('[data-testid="replace-note"]')).toBeNull();
+  });
+
   it('enables Save only for a complete card; success refreshes billing, toasts and closes true', async () => {
     const { stripe, element } = fakeStripe();
     loadStripe.mockResolvedValue(stripe as never);

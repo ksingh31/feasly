@@ -54,6 +54,8 @@ export const PERMISSIONS = [
   'builder:leads:manage',
   'builder:billing',
   'builder:users:manage',
+  // #870: org owners edit their profile/branding + file embed-origin requests.
+  'builder:settings:manage',
 ] as const;
 
 export type Permission = (typeof PERMISSIONS)[number];
@@ -87,6 +89,7 @@ export const ROLE_PERMISSIONS: Record<AnyRole, readonly Permission[]> = {
     'builder:leads:manage',
     'builder:billing',
     'builder:users:manage',
+    'builder:settings:manage',
   ],
   admin: [
     'leads:read',
@@ -108,6 +111,7 @@ export const ROLE_PERMISSIONS: Record<AnyRole, readonly Permission[]> = {
     'builder:leads:manage',
     'builder:billing',
     'builder:users:manage',
+    'builder:settings:manage',
   ],
   viewer: [
     'leads:read',
@@ -124,6 +128,7 @@ export const ROLE_PERMISSIONS: Record<AnyRole, readonly Permission[]> = {
     'builder:leads:manage',
     'builder:billing',
     'builder:users:manage',
+    'builder:settings:manage',
     // 2026-09-30 (Karan): builder-side admins may initiate view-as (regular
     // users only as targets — enforced in view-as.service.ts). viewer and
     // builder_member never hold this.

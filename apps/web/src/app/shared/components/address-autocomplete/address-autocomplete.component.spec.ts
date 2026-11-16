@@ -4,10 +4,11 @@ import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { provideRouter } from '@angular/router';
 import { beforeEach, describe, expect, it } from 'vitest';
 import type { PropertyRecord } from '@feasly/contracts';
-import { provideApi } from '../../../core/api';
+import { API_SERVICE, provideApi } from '../../../core/api';
+import { throwError } from 'rxjs';
 import { providePropertyData } from '../../../core/api/property-data.service';
 import { ConfigService } from '../../../core/config';
-import { AddressAutocompleteComponent } from './address-autocomplete.component';
+import { AddressAutocompleteComponent, type AddressSearchOutcome } from './address-autocomplete.component';
 
 /**
  * FE1-001: autocomplete behavior — 3-char gate, config debounce, keyboard
@@ -295,6 +296,60 @@ describe('AddressAutocompleteComponent', () => {
         expect(inputEl(fixture).hasAttribute('aria-activedescendant')).toBe(false);
         assertControlsValid(fixture);
       });
+    });
+  });
+
+  describe('searchOutcome (#815 analytics hook)', () => {
+    function collect(fixture: ComponentFixture<AddressAutocompleteComponent>): AddressSearchOutcome[] {
+      const outcomes: AddressSearchOutcome[] = [];
+      fixture.componentInstance.searchOutcome.subscribe((o) => outcomes.push(o));
+      return outcomes;
+    }
+
+    it('emits results once for a search with suggestions', async () => {
+      const fixture = create();
+      const outcomes = collect(fixture);
+      await type(fixture, '14 st');
+      expect(outcomes).toEqual(['results']);
+    });
+
+    it('emits no_results once for a search that matches nothing', async () => {
+      const fixture = create();
+      const outcomes = collect(fixture);
+      await type(fixture, '99999 zzz nowhere');
+      expect(outcomes).toEqual(['no_results']);
+    });
+
+    it('emits out_of_coverage once for a non-Calgary query', async () => {
+      const fixture = create();
+      const outcomes = collect(fixture);
+      await type(fixture, '123 King St W, Toronto');
+      expect(outcomes).toEqual(['out_of_coverage']);
+    });
+
+    it('does not emit again when resolving a picked suggestion fails', async () => {
+      const fixture = create();
+      const component = fixture.componentInstance;
+      const outcomes = collect(fixture);
+      await type(fixture, '14 st');
+      const api = TestBed.inject(API_SERVICE);
+      api.getProperty = () => throwError(() => ({ code: 'OUT_OF_COVERAGE', message: 'x', retryable: false }));
+      key(fixture, 'ArrowDown');
+      key(fixture, 'Enter');
+      const deadline = Date.now() + 2000;
+      while (component.status() !== 'error' && Date.now() < deadline) {
+        await new Promise((resolve) => setTimeout(resolve, 5));
+      }
+      expect(component.status()).toBe('error');
+      expect(component.errorCode()).toBe('OUT_OF_COVERAGE');
+      expect(outcomes).toEqual(['results']);
+    });
+
+    it('emits nothing for queries under 3 characters', async () => {
+      const fixture = create();
+      const outcomes = collect(fixture);
+      await type(fixture, 'ab');
+      expect(outcomes).toEqual([]);
     });
   });
 

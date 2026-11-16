@@ -11,7 +11,7 @@ import { provideHttpClient } from '@angular/common/http';
 import { HttpTestingController, provideHttpClientTesting } from '@angular/common/http/testing';
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { Router, provideRouter } from '@angular/router';
-import { provideStore } from '@ngxs/store';
+import { provideStore, Store } from '@ngxs/store';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { BuilderBillingOverviewResponse } from '@feasly/contracts';
 import { STATUS_DICTIONARY, UiModalService } from '@app/shared/ui';
@@ -20,6 +20,7 @@ import { BuilderMoneyComponent, buildKpis, cardExpiry } from './builder-money.co
 import { BUILDER_COPY } from './builder-copy';
 import { CHARGE_TIMING_COPY, DEFAULT_BUILDER_COPY } from './builder-copy.defaults';
 import { BuilderBillingState } from './builder-billing.state';
+import { BuilderState } from './builder.state';
 import { BuilderInvoicesState } from './builder-invoices.state';
 import { ConfigService } from '../../core/config/config.service';
 import { DEFAULT_APP_CONFIG } from '../../core/config/app-config.defaults';
@@ -76,7 +77,33 @@ const INVOICES = [
   invoice('i4', 'disputed', 1),
 ];
 
-async function setup(questionInvoiceHref = '') {
+
+/** Seeds the builder session role (#879: Remove card is admin-only). */
+function seedRole(store: Store, role: 'builder_admin' | 'builder_member'): void {
+  const snapshot = store.snapshot();
+  store.reset({
+    ...snapshot,
+    builder: {
+      ...snapshot.builder,
+      session: {
+        authenticated: true,
+        email: 'owner@builder.ca',
+        name: null,
+        builderId: 'elite-craft',
+        builderName: 'Elite Craft',
+        role,
+        memberships: [],
+        viewAs: null,
+        viewAsDisplayName: null,
+      },
+    },
+  });
+}
+
+async function setup(
+  questionInvoiceHref = '',
+  role: 'builder_admin' | 'builder_member' = 'builder_admin',
+) {
   TestBed.resetTestingModule();
   const configStub = {
     get: (section: keyof typeof DEFAULT_APP_CONFIG) =>
@@ -93,11 +120,12 @@ async function setup(questionInvoiceHref = '') {
       provideRouter([]),
       provideHttpClient(),
       provideHttpClientTesting(),
-      provideStore([BuilderBillingState, BuilderInvoicesState]),
+      provideStore([BuilderState, BuilderBillingState, BuilderInvoicesState]),
     ],
   });
   const fixture: ComponentFixture<BuilderMoneyComponent> = TestBed.createComponent(BuilderMoneyComponent);
   const http = TestBed.inject(HttpTestingController);
+  seedRole(TestBed.inject(Store), role);
   fixture.detectChanges();
   return { fixture, http, el: fixture.nativeElement as HTMLElement };
 }
@@ -228,9 +256,54 @@ describe('BuilderMoneyComponent (#532)', () => {
     flushAll(http, { ...OVERVIEW, card: { hasCard: false }, nextCharge: null });
     await render(fixture);
     const text = el.textContent ?? '';
-    expect(text).toContain('No card on file yet.');
+    expect(text).toContain('No card on file.');
     expect(text).toContain('Add a card');
     expect(text).toContain('None scheduled');
+  });
+
+  it('#879 AC1: shows the expiry notice with Replace card instead of Update card', async () => {
+    const { fixture, http, el } = await setup();
+    flushAll(http, { ...OVERVIEW, card: { ...OVERVIEW.card!, expiresSoon: true } });
+    await render(fixture);
+    expect(el.querySelector('[data-notice="expiring"]')?.textContent).toContain('Your card expires soon');
+    expect(el.querySelector('.money__card-action')).toBeNull();
+    const open = vi.spyOn(TestBed.inject(UiModalService), 'open').mockReturnValue({} as never);
+    (el.querySelector('.card-lifecycle__replace') as HTMLButtonElement).click();
+    expect(open).toHaveBeenCalledWith(BuilderCardModalComponent, expect.anything());
+  });
+
+  it('#879: shows "Your card has expired" for an expired card', async () => {
+    const { fixture, http, el } = await setup();
+    flushAll(http, { ...OVERVIEW, card: { ...OVERVIEW.card!, expired: true } });
+    await render(fixture);
+    expect(el.querySelector('[data-notice="expired"]')?.textContent).toContain('Your card has expired');
+  });
+
+  it('#879 AC2: removing the card flips the panel to "No card on file"', async () => {
+    const { fixture, http, el } = await setup();
+    flushAll(http);
+    await render(fixture);
+    (el.querySelector('.card-lifecycle__remove') as HTMLButtonElement).click();
+    await render(fixture);
+    (el.querySelector('.card-lifecycle__confirm-remove') as HTMLButtonElement).click();
+    http.expectOne((r) => r.url.endsWith('/api/v1/billing/card') && r.method === 'DELETE').flush({ hasCard: false });
+    await render(fixture);
+    const text = el.textContent ?? '';
+    expect(text).toContain('No card on file.');
+    expect(text).toContain('Add a card');
+    expect(text).not.toContain('Visa •••• 4242');
+  });
+
+  it('#879: members and flat plans never see Remove card', async () => {
+    const member = await setup('', 'builder_member');
+    flushAll(member.http);
+    await render(member.fixture);
+    expect(member.el.querySelector('.card-lifecycle__remove')).toBeNull();
+
+    const flat = await setup();
+    flushAll(flat.http, { ...OVERVIEW, planType: 'flat', card: null });
+    await render(flat.fixture);
+    expect(flat.el.querySelector('.card-lifecycle__remove')).toBeNull();
   });
 
   it('hides "Question an invoice" until a destination is configured', async () => {

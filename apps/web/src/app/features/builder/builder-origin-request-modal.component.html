@@ -1,0 +1,83 @@
+<ui-modal
+  asForm
+  [heading]="copy.requestHeading"
+  [closeLabel]="copy.requestCancel"
+  [closeLocked]="requesting()"
+  (submitted)="submit()"
+>
+  <div class="origin-request" [formGroup]="form">
+    <p class="origin-request__intro">{{ copy.requestIntro }}</p>
+    <ui-field-shell
+      [label]="copy.requestAddLabel"
+      [controlId]="ids.add"
+      [hintId]="ids.add + '-hint'"
+      [errorId]="ids.add + '-error'"
+      [hint]="copy.requestAddHint"
+    >
+      <textarea
+        class="origin-request__control"
+        rows="3"
+        formControlName="add"
+        data-testid="request-add"
+        inputmode="url"
+        autocomplete="off"
+        [id]="ids.add"
+        [attr.aria-describedby]="ids.add + '-hint'"
+      ></textarea>
+    </ui-field-shell>
+
+    @if (data.origins.length > 0) {
+      <fieldset class="origin-request__remove">
+        <legend>{{ copy.requestRemoveLegend }}</legend>
+        @for (origin of data.origins; track origin) {
+          <label class="origin-request__check">
+            <input
+              type="checkbox"
+              [attr.data-origin]="origin"
+              [checked]="removing().has(origin)"
+              [disabled]="requesting()"
+              (change)="toggleRemove(origin, $any($event.target).checked)"
+            />
+            <code>{{ origin }}</code>
+          </label>
+        }
+      </fieldset>
+    }
+
+    <ui-field-shell
+      [label]="copy.requestNoteLabel"
+      [controlId]="ids.note"
+      [hintId]="ids.note + '-hint'"
+      [errorId]="ids.note + '-error'"
+      [hint]="copy.requestNoteHint"
+    >
+      <textarea
+        class="origin-request__control"
+        rows="3"
+        formControlName="note"
+        data-testid="request-note"
+        [attr.maxlength]="noteMax"
+        [id]="ids.note"
+        [attr.aria-describedby]="ids.note + '-hint'"
+      ></textarea>
+    </ui-field-shell>
+
+    @if (errorText(); as err) {
+      <p class="origin-request__alert" role="alert" data-testid="request-error">{{ err }}</p>
+    }
+  </div>
+  <ng-container uiModalFooter>
+    <button
+      type="button"
+      ui-button
+      variant="secondary"
+      [disabled]="requesting()"
+      (click)="cancel()"
+    >
+      {{ copy.requestCancel }}
+    </button>
+    <button type="submit" ui-button data-testid="request-submit" [loading]="requesting()">
+      {{ copy.requestSubmit }}
+    </button>
+  </ng-container>
+</ui-modal>

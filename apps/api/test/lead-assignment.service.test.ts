@@ -19,6 +19,7 @@ import {
   leadReassignments,
   leadStatusHistory,
   leads,
+  builders,
 } from '../src/db/schema';
 import { ErrorCodes } from '../src/middleware/errors';
 import type { AdminAuditStore } from '../src/services/admin-audit.store';
@@ -29,6 +30,7 @@ import {
 } from '../src/services/lead-assignment.service';
 import { createAttributionService } from '../src/services/billing/attribution.service';
 import { createTestDb, type TestDb } from './pglite-db';
+import { BUILDER_STATUSES, BUILDER_STATUS_POLICY } from '@feasly/contracts';
 
 const NOW = new Date('2026-11-15T12:00:00.000Z');
 const ADMIN = 'admin@example.com';
@@ -491,5 +493,22 @@ describe('lead assignment (#721)', () => {
       .from(leadReassignments)
       .where(and(eq(leadReassignments.leadId, leadId)));
     expect(rows).toHaveLength(2);
+  });
+});
+
+// #860: lead-assignment enforcement point — one test per target status. A
+// builder that takes no new leads can't be assigned one (409 BUILDER_PAUSED).
+describe('lead assignment by builder status (#860)', () => {
+  it.each(BUILDER_STATUSES)('assigning to a %s builder follows the newLeads policy', async (status) => {
+    const target = await createBuilder(`policy-${status}-860`);
+    await testDb.db.update(builders).set({ status }).where(eq(builders.id, target.id));
+    const leadId = await seedLead({ builder: null });
+    const p = service.assignLead(leadId, target.id, ADMIN);
+    if (BUILDER_STATUS_POLICY[status].newLeads) {
+      await expect(p).resolves.toMatchObject({ changed: true, toBuilderId: target.id });
+    } else {
+      await expect(p).rejects.toMatchObject({ status: 409, code: 'BUILDER_PAUSED' });
+      expect((await leadRow(leadId)).builderId).toBeNull();
+    }
   });
 });

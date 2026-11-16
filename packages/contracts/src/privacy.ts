@@ -75,6 +75,10 @@ export interface PrivacyCallbackRequestExport {
   readonly phone: string;
   /** 'morning' | 'afternoon' | 'evening'. */
   readonly window: string;
+  /** #836: preferred day (`YYYY-MM-DD`); optional for older backends. */
+  readonly preferredDate?: string | null;
+  /** #836: homeowner notes; optional for older backends. */
+  readonly notes?: string | null;
   readonly status: string;
   readonly createdAt: string;
 }

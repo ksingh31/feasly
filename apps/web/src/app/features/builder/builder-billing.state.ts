@@ -1,8 +1,8 @@
-import { inject, Injectable } from '@angular/core';
+import { EnvironmentProviders, inject, Injectable } from '@angular/core';
 import { of } from 'rxjs';
 import { catchError, tap } from 'rxjs/operators';
-import { Action, Selector, State, StateContext } from '@ngxs/store';
-import type { BuilderBillingOverviewResponse, CardOnFileStatus } from '@feasly/contracts';
+import { Action, provideStates, Selector, State, StateContext } from '@ngxs/store';
+import type { ApiError, BuilderBillingOverviewResponse, CardOnFileStatus } from '@feasly/contracts';
 import { BuilderBillingApiService } from './builder-billing-api.service';
 import type { BuilderPaymentMethod } from './builder-payment-methods';
 import {
@@ -10,8 +10,16 @@ import {
   LoadBillingCard,
   LoadBillingOverview,
   LoadDefaultPaymentMethod,
+  RemoveBillingCard,
+  ResetRemoveBillingCard,
   SetDefaultPaymentMethod,
 } from './builder-billing.actions';
+
+/** #879: DELETE /billing/card lifecycle. */
+export type RemoveCardStatus = 'idle' | 'removing' | 'error';
+
+/** The API's 409 code when an unpaid card invoice blocks removal. */
+const CONFLICT_CODE = 'CONFLICT';
 
 /** Loading lifecycle for the card-on-file status. */
 export type BillingCardStatus = 'idle' | 'loading' | 'ready' | 'error';
@@ -33,6 +41,13 @@ export interface BuilderBillingStateModel {
   /** Money page header (#531). Memory-only; null until loaded. */
   overview: BuilderBillingOverviewResponse | null;
   overviewStatus: BillingCardStatus;
+  /** #879: remove-card request lifecycle. */
+  removeCardStatus: RemoveCardStatus;
+  /**
+   * #879: the API's actionable 409 message (which invoice blocks removal);
+   * null for any other failure (the UI shows generic copy).
+   */
+  removeCardError: string | null;
 }
 
 const defaults: BuilderBillingStateModel = {
@@ -43,6 +58,8 @@ const defaults: BuilderBillingStateModel = {
   defaultMethodSaveStatus: 'idle',
   overview: null,
   overviewStatus: 'idle',
+  removeCardStatus: 'idle',
+  removeCardError: null,
 };
 
 /**
@@ -103,6 +120,53 @@ export class BuilderBillingState {
   @Selector()
   static overviewStatus(state: BuilderBillingStateModel): BillingCardStatus {
     return state.overviewStatus;
+  }
+
+  @Selector()
+  static removeCardStatus(state: BuilderBillingStateModel): RemoveCardStatus {
+    return state.removeCardStatus;
+  }
+
+  @Selector()
+  static removeCardError(state: BuilderBillingStateModel): string | null {
+    return state.removeCardError;
+  }
+
+  /**
+   * #879: DELETE the card on file. Success writes the API's
+   * `{ hasCard: false }` into both the card slice and the Money overview
+   * (when one is loaded, and not a flat plan) so both pages show "No card
+   * on file" without another round trip.
+   */
+  @Action(RemoveBillingCard)
+  removeCard(ctx: StateContext<BuilderBillingStateModel>) {
+    ctx.patchState({ removeCardStatus: 'removing', removeCardError: null });
+    return this.api.removeCard().pipe(
+      tap((card) => {
+        const overview = ctx.getState().overview;
+        ctx.patchState({
+          card,
+          cardStatus: 'ready',
+          removeCardStatus: 'idle',
+          overview:
+            overview && overview.card !== null ? { ...overview, card } : overview,
+        });
+      }),
+      catchError((error: unknown) => {
+        const apiError = error as Partial<ApiError> | null;
+        const conflict =
+          apiError?.code === CONFLICT_CODE && typeof apiError.message === 'string'
+            ? apiError.message
+            : null;
+        ctx.patchState({ removeCardStatus: 'error', removeCardError: conflict });
+        return of(null);
+      }),
+    );
+  }
+
+  @Action(ResetRemoveBillingCard)
+  resetRemoveCard(ctx: StateContext<BuilderBillingStateModel>) {
+    ctx.patchState({ removeCardStatus: 'idle', removeCardError: null });
   }
 
   @Action(LoadBillingOverview)
@@ -171,3 +235,11 @@ export class BuilderBillingState {
     ctx.setState(defaults);
   }
 }
+
+/**
+ * Lazy registration (#980): BuilderBillingState is provided at the `builder`
+ * shell route via lazyProvider (app.routes.ts), not in the root store, so the
+ * billing state stays out of the initial bundle every public page loads.
+ * Memory-only (never persisted), and every consumer lives under the shell.
+ */
+export const builderBillingStateProvider: EnvironmentProviders = provideStates([BuilderBillingState]);

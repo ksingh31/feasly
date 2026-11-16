@@ -3,7 +3,7 @@
  * CI triage (no AI): reacts to a failed CI / Lighthouse run.
  *   PR, env-only failures      → nothing (tracked on main as ops issues)
  *   PR behind main             → update branch (Dependabot: "@dependabot rebase")
- *   agent / Dependabot PR      → dispatch agent-fix.yml
+ *   agent / Dependabot PR      → dispatch agent-fix.yml (not when parked at the fix-round cap)
  *   human PR                   → comment listing the failing checks
  *   main                       → open/update the single "main is red" issue
  *                                (bug + priority:high + agent:ready, or ops +
@@ -12,7 +12,7 @@
  *   node tools/agents/triage.mjs <run-id> [--dry-run]
  */
 import { LABELS, triageFailure } from './lib.mjs';
-import { ghJson, ghWrite, listIssues } from './gh.mjs';
+import { ghJson, ghWrite, listIssues, dispatchFixRound } from './gh.mjs';
 
 const runId = process.argv.slice(2).find((a) => !a.startsWith('--'));
 if (!runId) {
@@ -61,7 +61,7 @@ switch (verdict.action) {
     ghWrite(['pr', 'update-branch', String(pr.number)]);
     break;
   case 'fix':
-    ghWrite(['workflow', 'run', 'agent-fix.yml', '-f', `pr=${pr.number}`, '-f', `reason=CI failed: ${verdict.codeJobs.join(', ')}`]);
+    dispatchFixRound(pr.number, `CI failed: ${verdict.codeJobs.join(', ')}`); // no-op when parked at the cap (#924)
     break;
   case 'comment':
     ghWrite(['pr', 'comment', String(pr.number), '--body', `CI failed (${run.workflowName}): ${list(verdict.codeJobs)} — ${run.url}`]);

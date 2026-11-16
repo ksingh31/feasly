@@ -142,6 +142,7 @@ describe('simulated payments through the production webhook handler', () => {
       chargebacks: createChargebackService({
         db: testDb.db,
         audit,
+        commission,
         email,
         opsInbox: 'ops@example.com',
         now,
@@ -505,8 +506,8 @@ describe('simulated payments through the production webhook handler', () => {
     expect(res.eventType).toBe('charge.dispute.closed');
     const after = await commission.getById(inv.id);
     expect(after.chargebackStatus).toBe(outcome);
-    // The invoice status is not changed by the outcome (lost = manual ops).
-    expect(after.status).toBe('paid');
+    // #873: won leaves the invoice paid; lost re-opens it for dunning.
+    expect(after.status).toBe(outcome === 'lost' ? 'failed' : 'paid');
     const [row] = (await testDb.db.select().from(billingDisputes)).filter(
       (d) => d.invoiceId === inv.id,
     );

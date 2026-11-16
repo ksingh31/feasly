@@ -5,6 +5,8 @@
  */
 import type {
   AnalyticsEvent,
+  AnalyticsSource,
+  AdminLeadDetail,
   AutocompleteSuggestion,
   BuilderLeadListResponse,
   BuilderLeadNeedsYouItem,
@@ -28,6 +30,8 @@ import type {
   PropertyRecord,
   ReportSnapshot,
   TierRevisionRequest,
+  CommunityLot,
+  CommunityLotsResponse,
   ZoningDistrict,
   ZoningDistrictsResponse,
   ZoningRulesVersion,
@@ -133,6 +137,7 @@ declare const event: AnalyticsEvent;
 assertType<
   | 'step_view'
   | 'gate_view'
+  | 'gate_submit'
   | 'gate_convert'
   | 'report_open'
   | 'tier_toggle'
@@ -148,10 +153,53 @@ assertType<
   | 'steer_renovation_offered'
   | 'steer_none_offered'
   | 'steer_override_new_build'
+  | 'landing_view'
+  | 'address_search'
+  | 'address_selected'
+  | 'address_no_results'
+  | 'out_of_coverage'
+  | 'property_unsupported'
+  | 'preview_view'
+  | 'estimate_error'
+  | 'magic_link_open'
+  | 'assessment_view'
+  | 'assessment_to_estimate'
 >(event.event);
 const eventKeys = ['event', 'route', 'ts', 'consent_ts'] as const;
 assertType<readonly ['event', 'route', 'ts', 'consent_ts']>(eventKeys);
 assertType<4>(eventKeys.length);
+
+// #814: the event payload's keys are exactly these — no email/address/
+// figure field exists (a new key fails this assertion both ways).
+// #870 adds `embed_origin` (a bare host origin, never a page URL).
+type EventKey = keyof AnalyticsEvent;
+assertType<EventKey>(
+  '' as 'event' | 'route' | 'ts' | 'consent_ts' | 'tenant_key' | 'source' | 'embed_origin',
+);
+assertType<'event' | 'route' | 'ts' | 'consent_ts' | 'tenant_key' | 'source' | 'embed_origin'>(
+  '' as EventKey,
+);
+
+// #814: the campaign source is a closed object of optional strings plus
+// the click-id *type* (never the click id value).
+type SourceKey = keyof AnalyticsSource;
+const sourceKeysExact: Record<SourceKey, true> = {
+  utm_source: true,
+  utm_medium: true,
+  utm_campaign: true,
+  utm_term: true,
+  utm_content: true,
+  click_id_type: true,
+};
+void sourceKeysExact;
+declare const src: AnalyticsSource;
+assertType<string | undefined>(src.utm_campaign);
+assertType<'gclid' | 'gbraid' | 'wbraid' | 'msclkid' | 'fbclid' | undefined>(
+  src.click_id_type,
+);
+assertType<AnalyticsSource | undefined>(leadReq.source);
+declare const leadDetail: AdminLeadDetail;
+assertType<AnalyticsSource | null | undefined>(leadDetail.attribution);
 
 // Embed directionality: parent→iframe carries theme + relay; iframe→parent
 // carries ready/resize/estimate-start/lead-created/auth-ok (embed/08).
@@ -202,6 +250,18 @@ const publicForm = zoningRes.districts[0]!.forms[0]!;
 // @ts-expect-error — the wire shape never carries a verified flag
 void publicForm.verified;
 assertType<number>(BUILDING_FORMS.length);
+
+// --- community lots (issue #691): no per-sqft figure, no owner name ---
+declare const lotsRes: CommunityLotsResponse;
+assertType<readonly CommunityLot[]>(lotsRes.lots);
+assertType<string | null>(lotsRes.nextCursor);
+declare const lot: CommunityLot;
+assertType<number>(lot.assessedValue);
+assertType<number | null>(lot.lotSqft);
+// @ts-expect-error — the wire shape never carries an owner name
+void lot.ownerName;
+// @ts-expect-error — the wire shape never carries a per-square-foot figure
+void lot.valuePerSqft;
 
 // --- registry covers every contract module ---
 const names = CONTRACT_NAMES;

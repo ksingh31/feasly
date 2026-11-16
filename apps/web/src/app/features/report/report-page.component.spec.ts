@@ -17,6 +17,9 @@ import {
   UpdateRenoInputs,
 } from '../wizard/wizard.actions';
 import { AnalyticsService } from '../consent';
+import { EmbedState } from '../embed/embed.state';
+import { LoadEmbedConfig } from '../embed/embed.actions';
+import { PartnersState } from '../../core/partners';
 import { LoadLeadEstimate, ReviseReport, SetPartnerView, SetReportToken, UnlockReport } from './report.actions';
 import { ReportState, serializeReportState } from './report.state';
 import { ReportPageComponent } from './report-page.component';
@@ -104,6 +107,8 @@ describe('ReportPageComponent', () => {
      * endpoint) instead of the token. Defaults to true.
      */
     withReportToken?: boolean;
+    /** #918: render inside a builder embed (tenant key set before mount). */
+    embedTenantKey?: string;
   }): Promise<void> {
     TestBed.resetTestingModule();
     TestBed.configureTestingModule({
@@ -116,7 +121,7 @@ describe('ReportPageComponent', () => {
           { path: 'estimate/report', component: ReportPageComponent },
           { path: 'estimate/gate', component: BlankComponent },
         ]),
-        provideStore([WizardState, ReportState, LeadState]),
+        provideStore([WizardState, ReportState, LeadState, EmbedState, PartnersState]),
         providePropertyData(),
         { provide: API_SERVICE, useClass: MockApiService },
         // The report fires consent-gated analytics events on share/callback/
@@ -178,6 +183,9 @@ describe('ReportPageComponent', () => {
       } else {
         store.dispatch(new SetReportToken(leadToken!));
       }
+    }
+    if (options?.embedTenantKey) {
+      store.dispatch(new LoadEmbedConfig(options.embedTenantKey));
     }
     fixture = TestBed.createComponent(ReportPageComponent);
     fixture.detectChanges();
@@ -358,7 +366,7 @@ describe('ReportPageComponent', () => {
         ) as HTMLButtonElement;
         request.click();
         fixture.detectChanges();
-        await pollFor(() => text().includes('Enter your name and a phone number'), 'callback validation');
+        await pollFor(() => text().includes('Enter your name, a phone number and a preferred day'), 'callback validation');
         const name = fixture.nativeElement.querySelector('input[formControlName="name"]') as HTMLInputElement;
         const phone = fixture.nativeElement.querySelector('input[formControlName="phone"]') as HTMLInputElement;
         name.value = 'Test Buyer';
@@ -366,7 +374,7 @@ describe('ReportPageComponent', () => {
         phone.value = '4035551234';
         phone.dispatchEvent(new Event('input'));
         request.click();
-        await pollFor(() => text().includes('Callback requested'), 'callback sent');
+        await pollFor(() => text().includes('We’ll aim to call you'), 'callback sent');
         expect(callbackSpy).toHaveBeenCalled();
         expect(text()).not.toContain('no longer available in this tab');
       });
@@ -608,37 +616,50 @@ describe('ReportPageComponent', () => {
         expect(descriptors.luxury).toContain('gym');
       });
 
-      it('frames coverage as builder-grade granularity with the 60+ line-item credibility line', () => {
+      it('frames coverage with the cost-movement note', () => {
         const body = text();
         expect(body).toContain("What your estimate covers");
-        expect(body).toContain('60+ line items');
-        expect(body).toContain('the way a real Calgary builder budgets');
         // Costs move: inflation, material choices, project-specific conditions.
         expect(body).toContain('can move with inflation');
         expect(body).toContain('your material choices');
         expect(body).toContain('project-specific conditions');
       });
 
-      it('lists the honest exclusions — landscaping only, budgeted separately', () => {
+      // #824 (owner decision 2026-11-15): exactly what the estimate includes
+      // (the engine's line items) and what it leaves out (config).
+      it('lists what the estimate includes and what it leaves out', () => {
         const body = text();
-        expect(body).toContain("What's not in this estimate");
-        // Karan's product lock (2026-09-28): the estimate covers the full
-        // build except landscaping — it is the only exclusion.
-        expect(body).toContain('Landscaping');
-        expect(body).toContain('budget it separately with your builder');
-        expect(body).not.toContain('Demolition of any existing home');
-        expect(body).not.toContain('Financing costs');
+        expect(body).toContain('What this estimate includes');
+        for (const item of DEFAULT_APP_CONFIG.estimateScope.includes) {
+          expect(body).toContain(item.label);
+        }
+        expect(body).toContain('Not included');
+        for (const item of DEFAULT_APP_CONFIG.estimateScope.notIncluded) {
+          expect(body).toContain(item.label);
+        }
+        expect(body).not.toContain('60+ line items');
       });
 
-      it('renders the planning-ahead card: financing honesty and a qualitative timeline', () => {
+      it('renders the planning-ahead card: financing honesty', () => {
         const body = text();
         expect(body).toContain('Planning ahead');
         expect(body).toContain('construction loan, not a regular mortgage');
         expect(body).toContain('Talk to a lender early');
-        // No unverified month counts (Karan 2026-09-28): the timeline stays
-        // qualitative and defers to the builder.
-        expect(body).not.toContain('10–14 months');
-        expect(body).toContain('your builder can confirm a timeline');
+      });
+
+      // #823 (owner decision 2026-11-15, supersedes the 2026-09-28
+      // qualitative-only line): typical phases + a 12–16 month total, from config.
+      it('renders the typical build timeline section from config', () => {
+        const section = fixture.nativeElement.querySelector(
+          'section.ref[aria-label="Typical build timeline"]',
+        ) as HTMLElement | null;
+        expect(section).not.toBeNull();
+        const body = section?.textContent ?? '';
+        expect(body).toContain('Typical total: 12–16 months');
+        expect(body).toContain('Development permit');
+        expect(body).toContain('Building permit');
+        expect(body).toContain('Buying a pre-sale or move-in-ready home follows a different timeline.');
+        expect(section?.querySelectorAll('.bt-phase').length).toBe(6);
       });
 
       it('keeps the how-we-calculate h2 inline with the disclosure marker (bug 2026-10-02)', () => {
@@ -663,7 +684,10 @@ describe('ReportPageComponent', () => {
         expect(li.querySelector('.bucket-amount')?.textContent).toMatch(/^\$\d{1,3}(,\d{3})*$/);
       }
       expect(fixture.nativeElement.querySelectorAll('.buckets-bar .bucket-seg').length).toBe(3);
-      expect(text()).not.toContain('Site preparation & excavation');
+      // No per-row dump in the breakdown. (#824: the line-item NAMES appear,
+      // without figures, in the coverage card's "includes" list.)
+      const breakdown = fixture.nativeElement.querySelector('.bucket-legend')?.closest('section') as HTMLElement;
+      expect(breakdown.textContent).not.toContain('Site preparation & excavation');
     });
 
     it('hides the visual buckets bar from AT (legend carries labels + amounts)', () => {
@@ -803,6 +827,7 @@ describe('ReportPageComponent', () => {
           'How we calculate your estimate',
           'What your estimate covers',
           'Planning ahead',
+          'Typical build timeline',
           'AI summary',
         ]);
         // Inside the header: range total first, then the Build | Land row.
@@ -839,6 +864,28 @@ describe('ReportPageComponent', () => {
         expect(text()).not.toContain('match scores');
       });
 
+      it('#918: own site — the callback block names the builder partner(s)', async () => {
+        await setup({ leadSubmitted: true });
+        await pollFor(() => store.selectSnapshot(PartnersState.status) === 'ready', 'partners load');
+        fixture.detectChanges();
+        const block = fixture.nativeElement.querySelector('section[aria-label="Talk to a builder"]') as HTMLElement;
+        const disclosure = block.querySelector('app-partner-disclosure');
+        expect(disclosure).not.toBeNull();
+        expect(disclosure?.textContent).toContain('Leads from Feasly’s site go to our builder partner(s):');
+        expect(disclosure?.textContent).toContain('Elite Craft Builders');
+      });
+
+      it('#918: embed — no partner disclosure and no partners request', async () => {
+        const getPartners = vi.spyOn(MockApiService.prototype, 'getPartners');
+        await setup({ leadSubmitted: true, embedTenantKey: 'acme-builders' });
+        const block = fixture.nativeElement.querySelector('section[aria-label="Talk to a builder"]') as HTMLElement;
+        expect(block.querySelector('form')).not.toBeNull();
+        expect(block.querySelector('app-partner-disclosure')).toBeNull();
+        expect(block.querySelector('app-builder-matching-explainer')).toBeNull();
+        expect(getPartners).not.toHaveBeenCalled();
+        getPartners.mockRestore();
+      });
+
       it('groups Share, PDF and New estimate in one action row', async () => {
         await setup({ leadSubmitted: true });
         const row = fixture.nativeElement.querySelector('section[aria-label="Save and share"] .actions-row');
@@ -854,6 +901,7 @@ describe('ReportPageComponent', () => {
           'How we calculate your estimate',
           'What your estimate covers',
           'Planning ahead',
+          'Typical build timeline',
           'AI summary',
         ]);
         for (const r of refs) {
@@ -1117,15 +1165,37 @@ describe('ReportPageComponent', () => {
       ) as HTMLButtonElement;
       request.click();
       fixture.detectChanges();
-      await pollFor(() => text().includes('Enter your name and a phone number'), 'callback validation');
+      await pollFor(() => text().includes('Enter your name, a phone number and a preferred day'), 'callback validation');
       const name = fixture.nativeElement.querySelector('input[formControlName="name"]') as HTMLInputElement;
       const phone = fixture.nativeElement.querySelector('input[formControlName="phone"]') as HTMLInputElement;
       name.value = 'Test Buyer';
       name.dispatchEvent(new Event('input'));
       phone.value = '4035551234';
       phone.dispatchEvent(new Event('input'));
+      const callbackSpy = vi.spyOn(TestBed.inject(API_SERVICE), 'requestCallback');
+      const day = fixture.nativeElement.querySelector(
+        'select[formControlName="preferredDate"]',
+      ) as HTMLSelectElement;
+      const windowSelect = fixture.nativeElement.querySelector(
+        'select[formControlName="window"]',
+      ) as HTMLSelectElement;
+      const notes = fixture.nativeElement.querySelector(
+        'textarea[formControlName="notes"]',
+      ) as HTMLTextAreaElement;
+      // #836: a weekday is preselected; pick the second one and the evening window.
+      const dayValue = day.options[2]!.value;
+      day.value = dayValue;
+      day.dispatchEvent(new Event('change'));
+      windowSelect.value = 'evening';
+      windowSelect.dispatchEvent(new Event('change'));
+      notes.value = '  Side door  ';
+      notes.dispatchEvent(new Event('input'));
       request.click();
-      await pollFor(() => text().includes('Callback requested'), 'callback sent');
+      await pollFor(() => text().includes('We’ll aim to call you'), 'callback sent');
+      expect(callbackSpy).toHaveBeenCalledWith(
+        expect.objectContaining({ preferredDate: dayValue, window: 'evening', notes: 'Side door' }),
+      );
+      expect(text()).toContain(`We’ll aim to call you ${day.options[2]!.textContent!.trim()} in the evening (5–8 p.m. MT).`);
       // The callback request is reported to analytics (consent-gated inside
       // the real service; mocked here).
       expect(TestBed.inject(AnalyticsService).track).toHaveBeenCalledWith('callback_request');
@@ -1435,6 +1505,8 @@ describe('ReportPageComponent', () => {
         // Addition caps at 400: the stepper must not move above it.
         const stepperValue = fixture.nativeElement.querySelector('.stepper-value')?.textContent ?? '';
         expect(stepperValue).toContain('400');
+        // #832: the value is a status region so − / + changes are announced.
+        expect(fixture.nativeElement.querySelector('.stepper-value')?.getAttribute('role')).toBe('status');
       });
 
       it('never shows new-build trust sections on a reno report', async () => {
@@ -1476,6 +1548,7 @@ describe('ReportPageComponent', () => {
         expect(t).not.toContain('What your estimate covers');
         expect(t).not.toContain('Built the way a real Calgary builder budgets');
         expect(t).not.toContain('Planning ahead');
+        expect(t).not.toContain('Typical build timeline');
         expect(t).not.toContain('construction loan');
         expect(t).not.toContain('finishes are never compromised');
         expect(t).not.toContain('explicit choices you make in your finish tier');

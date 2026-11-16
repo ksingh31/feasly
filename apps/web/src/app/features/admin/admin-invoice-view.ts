@@ -81,9 +81,15 @@ const EVENT_TITLES: Readonly<Record<string, string>> = {
   invoice_voided: 'Voided',
   commission_rate_overridden: 'Rate changed',
   invoice_payment_method_changed: 'Payment method changed',
+  // #719/#872: Stripe refunds + bank chargebacks.
+  'invoice.refunded': 'Refunded',
+  'invoice.chargeback_opened': 'Chargeback opened',
+  'invoice.chargeback_closed': 'Chargeback closed',
 };
 
 function eventTone(type: string): TimelineEvent['tone'] {
+  if (type === 'invoice.chargeback_opened') return 'danger';
+  if (type === 'invoice.chargeback_closed') return 'neutral';
   if (type.includes('fail')) return 'danger';
   if (type.includes('paid')) return 'success';
   if (type.includes('disput')) return 'paused';

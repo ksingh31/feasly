@@ -1,0 +1,74 @@
+<app-site-nav [search]="true" />
+<main class="marketing" id="main-content" tabindex="-1">
+  <p class="eyebrow eyebrow-left">
+    <span class="eyebrow-line" aria-hidden="true"></span>
+    {{ copy.eyebrow }}
+  </p>
+  <h1>{{ copy.title }}</h1>
+  <p class="lede answer">{{ copy.answer }}</p>
+
+  <form class="help-search" role="search" (submit)="$event.preventDefault()">
+    <label class="help-search-label" for="help-search-input">{{ copy.searchLabel }}</label>
+    <div class="help-search-row">
+      <input
+        #searchInput
+        id="help-search-input"
+        class="help-search-input"
+        type="search"
+        autocomplete="off"
+        [placeholder]="copy.searchPlaceholder"
+        aria-describedby="help-search-results"
+        (input)="onSearch($event)"
+      />
+      @if (query()) {
+        <button type="button" class="cta cta-secondary help-search-clear" (click)="clearSearch(searchInput)">
+          {{ copy.clearSearch }}
+        </button>
+      }
+    </div>
+    <p id="help-search-results" class="help-search-results" role="status" aria-live="polite">{{ resultsText() }}</p>
+  </form>
+
+  @for (topic of visibleTopics(); track topic.id) {
+    <section class="help-topic" [attr.aria-labelledby]="'help-topic-' + topic.id">
+      <h2 class="help-topic-title" [id]="'help-topic-' + topic.id">{{ topic.title }}</h2>
+      <div class="faq-list help-answers">
+        @for (answer of topic.answers; track answer.q) {
+          <div class="faq-item help-answer">
+            <h3 class="help-q">{{ answer.q }}</h3>
+            <div class="faq-a">
+              <p>{{ answer.a }}</p>
+            </div>
+          </div>
+        }
+      </div>
+    </section>
+  }
+
+  <section class="hwe-section" aria-labelledby="help-links-title">
+    <h2 id="help-links-title">{{ copy.linksTitle }}</h2>
+    <ul class="hwe-links">
+      <li><a routerLink="/how-it-works">{{ copy.howWeEstimateLabel }}</a></li>
+      <li><a routerLink="/faq">{{ copy.faqLabel }}</a></li>
+      @if (statusPageUrl) {
+        <li><a [href]="statusPageUrl" rel="noopener">{{ copy.statusLabel }}</a></li>
+      }
+    </ul>
+  </section>
+
+  <section class="hwe-section help-contact" aria-labelledby="help-contact-title">
+    <h2 id="help-contact-title">{{ copy.contactTitle }}</h2>
+    <p class="help-contact-intro">{{ copy.contactIntro }}</p>
+    <div class="faq-item help-callback">
+      <h3 class="help-q">{{ copy.callbackTitle }}</h3>
+      <div class="faq-a">
+        <p>{{ copy.callbackBody }}</p>
+        <div class="cta-row help-callback-actions">
+          <a class="cta" routerLink="/my-report">{{ copy.callbackFindReport }}</a>
+          <a class="cta cta-secondary" routerLink="/">{{ copy.callbackStartEstimate }}</a>
+        </div>
+      </div>
+    </div>
+  </section>
+</main>
+<app-site-footer />
