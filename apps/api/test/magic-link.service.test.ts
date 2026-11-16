@@ -93,6 +93,8 @@ function leadFixture(overrides?: Partial<LeadRecord>): LeadRecord {
 interface FakeMagicLinks extends MagicLinkStore {
   issued: number;
   issuedArgs: IssueMagicLinkArgs[];
+  /** Sandbox flag of every `issue()` call, in order. */
+  issuedSandbox: boolean[];
   byToken: Map<string, MagicLinkRecord>;
   byLead: Map<string, MagicLinkRecord[]>;
 }
@@ -102,16 +104,19 @@ function fakeMagicLinks(): FakeMagicLinks {
   const byLead = new Map<string, MagicLinkRecord[]>();
   let issued = 0;
   const issuedArgs: IssueMagicLinkArgs[] = [];
+  const issuedSandbox: boolean[] = [];
   return {
     get issued() {
       return issued;
     },
     issuedArgs,
+    issuedSandbox,
     byToken,
     byLead,
     issue: async (args): Promise<IssuedMagicLink> => {
       issued += 1;
       issuedArgs.push(args);
+      issuedSandbox.push(args.sandbox === true);
       return {
         id: 'eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee',
         token: `<redacted>`,
@@ -419,6 +424,35 @@ describe('magic-link reissue', () => {
     expect(email.sends[0]!.expiresOn).toEqual(
       new Date(NOW.getTime() + 7 * 86_400 * 1000),
     );
+  });
+
+  it('suppresses the email and flags the link for a sandbox lead (#914)', async () => {
+    const magicLinks = fakeMagicLinks();
+    const email = fakeEmail();
+    const { service } = makeService({
+      magicLinks,
+      email,
+      leads: fakeLeads({ lead: leadFixture({ sandbox: true }) }),
+    });
+    // Same response shape as a real send — the decorator reports success.
+    expect(await service.reissue({ email: 'sam@example.com' })).toEqual({
+      sent: true,
+    });
+    expect(magicLinks.issued).toBe(1);
+    expect(magicLinks.issuedSandbox).toEqual([true]);
+    // The real mailer is never called.
+    expect(email.sends).toHaveLength(0);
+  });
+
+  it('does not flag a live lead\'s reissued link as sandbox (#914)', async () => {
+    const magicLinks = fakeMagicLinks();
+    const email = fakeEmail();
+    const { service } = makeService({ magicLinks, email });
+    expect(await service.reissue({ email: 'sam@example.com' })).toEqual({
+      sent: true,
+    });
+    expect(magicLinks.issuedSandbox).toEqual([false]);
+    expect(email.sends).toHaveLength(1);
   });
 
   it('reissues when the lead never had a link', async () => {

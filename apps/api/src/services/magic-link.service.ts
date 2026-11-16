@@ -55,6 +55,7 @@ import {
 import { formatDisplayAddress } from '../lib/display-address';
 import { sanitizeErrorMessage } from '../lib/sanitize-error';
 import type { EmailDelivery, EmailService } from './email/email.service';
+import { createSandboxSuppressingEmailService } from './email/sandbox-email.service';
 import type { HouseholdEstimatesStore } from './household-estimates.store';
 import type { LeadRecord, LeadStore } from './lead.store';
 import type { UnsubscribeService } from './unsubscribe.service';
@@ -180,6 +181,8 @@ export interface IssueAndSendMagicLinkArgs {
   readonly household?: boolean;
   /** #800: properties the link lists; >1 switches to "recent estimates" copy. */
   readonly estimateCount?: number;
+  /** #793/#914: flag the link row for the sandbox purge. */
+  readonly sandbox?: boolean;
   readonly clock?: () => Date;
 }
 
@@ -423,9 +426,18 @@ export function createMagicLinkService(
             })
           ).length
         : undefined;
+      // #914: a sandbox lead (test API key / test-drive traffic) never
+      // triggers a real send — route through the no-send decorator, as
+      // lead.service and share.service do — and its new link is flagged so
+      // the sandbox-purge timer removes it with the lead.
       const delivery = await issueAndSendMagicLink({
         magicLinks,
-        email,
+        email: lead.sandbox
+          ? createSandboxSuppressingEmailService({
+              inner: email,
+              log: (message) => console.info(message),
+            })
+          : email,
         unsubscribe,
         leadId: lead.id,
         to: lead.email,
@@ -437,6 +449,7 @@ export function createMagicLinkService(
         // proves control of the inbox, so they may list the household.
         household: true,
         ...(estimateCount !== undefined ? { estimateCount } : {}),
+        sandbox: lead.sandbox,
         clock,
       });
       // Only a delivered resend starts the cooldown — a failed send leaves
