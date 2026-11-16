@@ -267,6 +267,22 @@ export const PropertyRecordSchema = z
       .optional()
       .describe('True when the City row had no roll year and assessmentYear is a fallback'),
     yearBuilt: z.number().int().nullable(),
+    steer: z
+      .object({
+        redevelopmentCandidate: z
+          .boolean()
+          .nullable()
+          .describe('True when the home is at/over the redevelopment age threshold; null when the year built is unknown'),
+        reason: z.enum(['age_at_or_over_threshold', 'age_under_threshold', 'year_built_unknown']),
+        recommendedProjectType: z
+          .enum(['new_build', 'renovation'])
+          .nullable()
+          .describe('Project type offered first; null = no steering'),
+        homeAgeYears: z.number().int().nullable(),
+        thresholdYears: z.number().int().describe('Market redevelopment age threshold, in years'),
+      })
+      .optional()
+      .describe('Project-type steer by home age (#755); absent = no steering'),
     assessmentClass: z.string().describe("City assessment class code, verbatim (e.g. 'R', 'NR')"),
     isNonResidential: z
       .boolean()
@@ -360,6 +376,10 @@ export const AnalyticsEventNameSchema = z
     'report_link_request',
     'report_link_copy',
     'report_link_share',
+    'steer_new_build_offered',
+    'steer_renovation_offered',
+    'steer_none_offered',
+    'steer_override_new_build',
   ])
   .openapi('AnalyticsEventName');
 

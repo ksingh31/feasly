@@ -5,8 +5,8 @@
  * A card attached via SetupIntent is NOT automatically the customer's
  * default payment method, so creating an off-session PaymentIntent with
  * only `customer` fails when no default is set. The SDK client must
- * resolve an explicit payment method (newest card first) and pass it as
- * `payment_method`.
+ * resolve an explicit payment method and pass it as `payment_method`:
+ * the customer's default card (#716), else the newest saved card.
  *
  * The Stripe SDK constructor is mocked — no network, no real keys.
  */
@@ -15,12 +15,14 @@ import { describe, expect, it, vi, beforeEach } from 'vitest';
 const mocks = vi.hoisted(() => ({
   paymentMethodsList: vi.fn(),
   paymentIntentsCreate: vi.fn(),
+  customersRetrieve: vi.fn(),
 }));
 
 vi.mock('stripe', () => {
   class FakeStripe {
     paymentMethods = { list: mocks.paymentMethodsList };
     paymentIntents = { create: mocks.paymentIntentsCreate };
+    customers = { retrieve: mocks.customersRetrieve };
     constructor() {}
   }
   return { default: FakeStripe };
@@ -39,10 +41,16 @@ const INPUT = {
 beforeEach(() => {
   mocks.paymentMethodsList.mockReset();
   mocks.paymentIntentsCreate.mockReset();
+  mocks.customersRetrieve.mockReset();
+  // No default payment method set → the newest-card fallback.
+  mocks.customersRetrieve.mockResolvedValue({
+    id: 'cus_test_123',
+    invoice_settings: { default_payment_method: null },
+  });
 });
 
 describe('createStripeSdkClient.createOffSessionPaymentIntent', () => {
-  it('passes the newest saved card as payment_method (no reliance on customer default)', async () => {
+  it('passes the newest saved card as payment_method when no default is set', async () => {
     mocks.paymentMethodsList.mockResolvedValue({
       data: [{ id: 'pm_newest_1' }, { id: 'pm_older_2' }],
     });

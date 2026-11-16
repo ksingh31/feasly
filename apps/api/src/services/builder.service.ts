@@ -70,6 +70,14 @@ export interface BuilderServiceDeps {
   readonly audit: AdminAuditStore;
   /** #721 reassignment rules. Defaults to one built from db + audit. */
   readonly leadAssignment?: LeadAssignmentService;
+  /**
+   * #716: called after an update that changed the business name or email,
+   * so the builder's Stripe customer stays in sync. Best-effort: a failure
+   * is logged and never fails the admin's update.
+   */
+  readonly onBillingProfileChanged?: (builder: Builder) => Promise<void>;
+  /** Warning sink for the best-effort hook. Defaults to console.warn. */
+  readonly logWarning?: (message: string) => void;
 }
 
 type BuilderRow = typeof builders.$inferSelect;
@@ -369,7 +377,22 @@ export function createBuilderService(deps: BuilderServiceDeps): BuilderService {
             `from=${fromDefaultMethod} to=${input.defaultPaymentMethod}`,
         });
       }
-      return toContract(row);
+      const builder = toContract(row);
+      if (
+        deps.onBillingProfileChanged &&
+        (row.businessName !== current.businessName ||
+          row.email !== current.email)
+      ) {
+        try {
+          await deps.onBillingProfileChanged(builder);
+        } catch (error) {
+          (deps.logWarning ?? ((m: string) => console.warn(m)))(
+            `builder-service: Stripe customer sync failed for builderId=${row.id} ` +
+              `(${error instanceof Error ? error.message : 'unknown error'})`,
+          );
+        }
+      }
+      return builder;
     },
 
     async assignLead(
