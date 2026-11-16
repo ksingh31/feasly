@@ -114,6 +114,7 @@ function world(opts?: {
   community?: (addressKey: string) => Promise<string | null>;
   maxAttempts?: number;
   storeFails?: boolean;
+  sendThrows?: boolean;
 }) {
   let now = NOW;
   const builders = [ELITE, OTHER];
@@ -229,6 +230,7 @@ function world(opts?: {
     email: {
       async sendBuilderNewLead(input) {
         newLeadSends.push(input);
+        if (opts?.sendThrows) throw new Error('socket hang up');
         return deliveries.shift() ?? OK;
       },
       async sendBuilderNeedsYouDigest(input) {
@@ -448,6 +450,29 @@ describe('new-lead email (AC1, AC2, AC4, AC5)', () => {
     await w.service.runCycle();
     expect(w.newLeadSends).toHaveLength(2);
     expect(w.rows[0]!.status).toBe('failed');
+  });
+
+  it('an infrastructure error on the last allowed attempt marks the row failed', async () => {
+    const w = world({
+      members: [{ userId: 'u1', email: 'admin@elite.example', builderId: ELITE.id, role: 'builder_admin', active: true }],
+      maxAttempts: 1,
+      sendThrows: true,
+    });
+    await w.service.notifyNewLead({ leadId: 'lead-1', builderId: ELITE.id });
+    expect(w.newLeadSends).toHaveLength(1);
+    expect(w.rows[0]!.status).toBe('failed');
+    expect(w.rows[0]!.lastErrorCode).toBe('delivery-error');
+  });
+
+  it('an infrastructure error before the last attempt leaves the row pending for retry', async () => {
+    const w = world({
+      members: [{ userId: 'u1', email: 'admin@elite.example', builderId: ELITE.id, role: 'builder_admin', active: true }],
+      maxAttempts: 3,
+      sendThrows: true,
+    });
+    await w.service.notifyNewLead({ leadId: 'lead-1', builderId: ELITE.id });
+    expect(w.rows[0]!.status).toBe('pending');
+    expect(w.rows[0]!.attempts).toBe(1);
   });
 
   it('an invalid recipient fails at once (no retries)', async () => {

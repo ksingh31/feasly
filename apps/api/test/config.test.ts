@@ -396,6 +396,16 @@ describe('loadConfig', () => {
     ).toThrow(/BILLING_SETTLEMENT_THRESHOLD_HOURS/);
   });
 
+  it('#725: BUILDER_DIGEST_TIMEZONE must be a real IANA zone', () => {
+    expect(
+      loadConfig({ ...VALID_ENV, BUILDER_DIGEST_TIMEZONE: 'America/Toronto' })
+        .builderNotifications.digestTimeZone,
+    ).toBe('America/Toronto');
+    expect(() =>
+      loadConfig({ ...VALID_ENV, BUILDER_DIGEST_TIMEZONE: 'America/Edmonon' }),
+    ).toThrow(/BUILDER_DIGEST_TIMEZONE/);
+  });
+
   it('reads BILLING_STATEMENT_DESCRIPTOR (#716) and enforces Stripe descriptor rules', () => {
     expect(loadConfig(VALID_ENV).billing.statementDescriptor).toBeUndefined();
     expect(

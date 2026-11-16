@@ -38,6 +38,16 @@ function csvToList(raw: string): string[] {
     .filter((part) => part.length > 0);
 }
 
+/** True when the runtime's Intl knows `zone` (rejects typos like "America/Edmonon"). */
+function isIanaTimeZone(zone: string): boolean {
+  try {
+    new Intl.DateTimeFormat('en-CA', { timeZone: zone });
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 const EnvSchema = z.object({
   NODE_ENV: z.enum(['development', 'test', 'staging', 'production']).default('development'),
 
@@ -160,7 +170,11 @@ const EnvSchema = z.object({
   BUILDER_NOTIFICATION_RETRY_WINDOW_HOURS: z.coerce.number().int().positive().default(24),
   BUILDER_NOTIFICATION_CLAIM_LEASE_MINUTES: z.coerce.number().int().positive().default(10),
   BUILDER_DIGEST_LOCAL_HOUR: z.coerce.number().int().min(0).max(23).default(7),
-  BUILDER_DIGEST_TIMEZONE: z.string().min(1).default('America/Edmonton'),
+  BUILDER_DIGEST_TIMEZONE: z
+    .string()
+    .min(1)
+    .refine(isIanaTimeZone, 'must be an IANA time zone, e.g. America/Edmonton')
+    .default('America/Edmonton'),
 
   // neighbourhood/05: monthly community-stats refresh timer. Communities
   // with fewer fresh assessment records than this are skipped (logged, never

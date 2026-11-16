@@ -300,6 +300,27 @@ export function createBuilderNotificationsService(
     const leaseCutoff = new Date(now.getTime() - config.claimLeaseMinutes * 60_000);
     if (!(await store.claim({ id: row.id, now, leaseCutoff }))) return 'busy';
     const attempt = row.attempts + 1;
+    try {
+      return await deliverClaimed(row, lookups, now, attempt);
+    } catch (error) {
+      // The claim already counted this attempt. On the last allowed attempt
+      // the row would never be listed again, so mark it failed rather than
+      // leave it pending forever (best-effort; the original error wins).
+      if (attempt >= config.maxAttempts) {
+        await store
+          .finish({ id: row.id, status: 'failed', at: clock(), errorCode: 'delivery-error' })
+          .catch(() => undefined);
+      }
+      throw error;
+    }
+  }
+
+  async function deliverClaimed(
+    row: BuilderNotificationRecord,
+    lookups: Lookups,
+    now: Date,
+    attempt: number,
+  ): Promise<Outcome> {
 
     const skip = async (reason: string): Promise<Outcome> => {
       await store.finish({ id: row.id, status: 'skipped', at: clock(), errorCode: reason });
