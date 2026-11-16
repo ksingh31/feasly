@@ -47,6 +47,16 @@ export const BANNED_PATTERNS = [
   { name: 'accurate within/to', re: /accurate\s+(within|to)/i, negations: [] },
   { name: 'market value', re: /market value/i, negations: ['not'] },
   { name: 'appraisal', re: /appraisal/i, negations: ['not', 'no'] },
+  // #878 (owner decision 2026-11-15): direct-site leads go to Feasly's
+  // builder partner(s), who pay a referral commission. Claims of neutral
+  // matching contradict that disclosure, so they are banned outright — the
+  // old copy said "no paid placement", so negations must not excuse it.
+  { name: 'paid placement', re: /paid placement/i, negations: [] },
+  { name: 'no favourites', re: /no favou?rites/i, negations: [] },
+  { name: 'project fit', re: /project fit/i, negations: [] },
+  { name: 'hand-pick', re: /hand[- ]?pick/i, negations: [] },
+  { name: 'rank builders', re: /\brank(s|ing)? builders/i, negations: [] },
+  { name: 'rank or recommend', re: /rank or recommend/i, negations: [] },
 ];
 
 /** Strip HTML comments from a template. */
@@ -222,6 +232,16 @@ export function checkBannedPhrases(root = ROOT) {
       kind === 'html' ? [stripHtmlComments(text)] : extractStringLiterals(text);
     for (const unit of units) {
       failures.push(...scanUnit(unit, rel));
+    }
+  }
+
+  // Runtime config override of the same copy (#878): the served JSON must
+  // not reintroduce a phrase the compiled defaults dropped.
+  const configJson = join(root, 'apps', 'web', 'public', 'assets', 'config', 'app-config.json');
+  if (existsSync(configJson)) {
+    const rel = relative(root, configJson);
+    for (const { path, text } of jsonStrings(JSON.parse(readFileSync(configJson, 'utf8')))) {
+      failures.push(...scanUnit(text, `${rel} (${path})`));
     }
   }
 

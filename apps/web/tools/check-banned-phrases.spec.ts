@@ -262,3 +262,48 @@ describe('single "Unlock" in user-facing copy (#506)', () => {
     ]);
   });
 });
+
+describe('neutral-matching claims contradicting the partner disclosure (#878)', () => {
+  const OLD_COPY = [
+    'Feasly is an independent estimator — we don’t build homes, rank builders, or hand-pick who contacts you.',
+    'Our system matches on project fit — no favourites, no paid placement.',
+    'we do not rank or recommend specific builders.',
+  ];
+
+  it.each([
+    ['paid placement', 'No paid placement.'],
+    ['no favourites', 'No favourites here.'],
+    ['no favourites', 'No favorites here.'],
+    ['project fit', 'We match on project fit.'],
+    ['hand-pick', 'We never hand-pick builders.'],
+    ['hand-pick', 'We never handpick builders.'],
+    ['rank builders', 'We don’t rank builders.'],
+    ['rank or recommend', 'We do not rank or recommend builders.'],
+  ])('flags "%s" even in negated form: %s', (name, text) => {
+    const hits = scanUnit(text, 'x.ts');
+    expect(hits.some((h) => h.includes(`"${name}"`))).toBe(true);
+  });
+
+  it('flags every sentence of the old explainer/FAQ copy', () => {
+    for (const s of OLD_COPY) expect(scanUnit(s, 'x.ts').length).toBeGreaterThan(0);
+  });
+
+  it('allows the approved partner-model wording', () => {
+    const approved =
+      'Feasly is an independent estimator. We don’t build homes. If you ask to be contacted, leads from Feasly’s own site go to our builder partner(s), listed on How it works. A partner pays Feasly a referral commission only if you sign a contract with them. It never changes your estimate, and you’re never obliged to hire anyone.';
+    expect(scanUnit(approved, 'x.ts')).toEqual([]);
+  });
+
+  it('scans the runtime config JSON, not just the compiled defaults', () => {
+    const p = join(root, 'apps', 'web', 'public', 'assets', 'config', 'app-config.json');
+    mkdirSync(join(p, '..'), { recursive: true });
+    writeFileSync(p, JSON.stringify({ copy: { faq: { items: [{ a: 'No paid placement.' }] } } }));
+    const { failures } = checkBannedPhrases(root);
+    expect(failures.some((f) => f.includes('copy.faq.items[0].a') && f.includes('"paid placement"'))).toBe(true);
+  });
+
+  it('passes the real repository', () => {
+    const { failures } = checkBannedPhrases();
+    expect(failures.filter((f) => /paid placement|favourites|project fit|hand-pick|rank/.test(f))).toEqual([]);
+  });
+});
