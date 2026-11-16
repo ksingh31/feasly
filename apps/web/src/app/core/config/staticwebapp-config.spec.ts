@@ -3,6 +3,7 @@ import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import { routes } from '../../app.routes';
+import { DEFAULT_APP_CONFIG } from './app-config.defaults';
 
 /**
  * Guards the Azure Static Web Apps routing config.
@@ -215,6 +216,18 @@ describe('staticwebapp.config.json routing', () => {
         );
       }
     });
+  });
+
+  it('allows the on-demand Turnstile origin in script-src and frame-src only (#905)', () => {
+    const origin = new URL(DEFAULT_APP_CONFIG.botChallenge.turnstileScriptUrl).origin;
+    const csp = readConfig().globalHeaders?.['Content-Security-Policy'] ?? '';
+    const withOrigin = csp
+      .split(';')
+      .map((d) => d.trim().split(/\s+/))
+      .filter((tokens) => tokens.includes(origin))
+      .map((tokens) => tokens[0])
+      .sort();
+    expect(withOrigin).toEqual(['frame-src', 'script-src']);
   });
 
   it('serves the builder embed loader as a static script, not the SPA shell (#490)', () => {

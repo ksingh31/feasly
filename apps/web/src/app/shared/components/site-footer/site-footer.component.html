@@ -11,7 +11,13 @@
       <span class="footer-sep" aria-hidden="true">·</span>
       <a routerLink="/faq">FAQ</a>
       <span class="footer-sep" aria-hidden="true">·</span>
+      <a routerLink="/help">Help</a>
+      <span class="footer-sep" aria-hidden="true">·</span>
       <a routerLink="/developers">Developers</a>
       <span class="footer-sep" aria-hidden="true">·</span>
       <a routerLink="/my-report">{{ findReportLabel }}</a>
+      @if (statusPageUrl) {
+        <span class="footer-sep" aria-hidden="true">·</span>
+        <a [href]="statusPageUrl" rel="noopener">Status</a>
+      }
     </footer>

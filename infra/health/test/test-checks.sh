@@ -69,6 +69,25 @@ echo "$out" | grep -q "CHECK site_privacy ok" && ok "healthy: site_privacy ok" \
 echo "$out" | grep -q "CHECK api_health ok" && ok "healthy: api_health ok" \
   || bad "healthy: api_health line"
 
+echo "$out" | grep -q "CHECK api_cors_preflight ok" && ok "healthy: api_cors_preflight ok" \
+  || bad "healthy: api_cors_preflight line: $out"
+
+# --- 1b. preflight without Access-Control-* (#954) -> fail ------------------
+mock_up cors-none
+out="$(run_checks)"; code=$?
+[[ $code -eq 1 ]] && ok "cors-none: exit 1" || bad "cors-none: exit $code"
+echo "$out" | grep -q "CHECK api_cors_preflight fail.*no Access-Control-Allow-Origin" \
+  && ok "cors-none: 204 without CORS headers fails" \
+  || bad "cors-none: api_cors_preflight line: $out"
+
+# --- 1c. duplicate Allow-Origin -> fail ---------------------------------------
+mock_up cors-dup
+out="$(run_checks)"; code=$?
+[[ $code -eq 1 ]] && ok "cors-dup: exit 1" || bad "cors-dup: exit $code"
+echo "$out" | grep -q "CHECK api_cors_preflight fail.*duplicate" \
+  && ok "cors-dup: duplicate Allow-Origin fails" \
+  || bad "cors-dup: api_cors_preflight line: $out"
+
 # --- 2. degraded database -> fail, mentions database ------------------------
 mock_up degraded-db
 out="$(run_checks)"; code=$?
@@ -236,6 +255,13 @@ echo "$out" | grep -q "OK: PITR-capable" \
   && ok "backup: young server prints OK" \
   || bad "backup within-window line: $out"
 
+# --- community-stats freshness: runner firewall fallback (#951) --------------
+# Own suite (stubbed az/psql); run here so CI's health-check step covers it.
+if bash "$(dirname "$0")/test-community-stats-freshness.sh" >/dev/null 2>&1; then
+  ok "community-stats freshness suite passes"
+else
+  bad "community-stats freshness suite failed (run infra/health/test/test-community-stats-freshness.sh)"
+fi
 
 # --- summary ------------------------------------------------------------------
 echo "---"

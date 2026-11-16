@@ -74,11 +74,11 @@ describe('MyDataPageComponent', () => {
     expect(text()).not.toContain('jane@example.com');
   });
 
-  it('pending erasure: shows the consequences and routes to the confirm page', async () => {
+  it('pending erasure (in-page flag on): shows the consequences and routes to the confirm page', async () => {
     api.requestErasure.mockReturnValue(
       of({ requestId: REQUEST_ID, status: 'requested', consequences: ['Leads are deleted.'], createdAt: 'now' }),
     );
-    await setup('tok');
+    await setup('tok', { features: { privacyEraseConfirmInPage: true } });
     const navigate = vi.spyOn(TestBed.inject(Router), 'navigate').mockResolvedValue(true);
     await click('[data-action="delete"]');
     expect(q('[data-state="pending"]')).not.toBeNull();
@@ -91,12 +91,55 @@ describe('MyDataPageComponent', () => {
 
   it('with the emailed-confirm flow (flag off) the pending state says "check your email" and offers no in-page delete', async () => {
     api.requestErasure.mockReturnValue(
-      of({ requestId: REQUEST_ID, status: 'requested', consequences: ['Leads are deleted.'], createdAt: 'now' }),
+      of({
+        requestId: REQUEST_ID,
+        status: 'requested',
+        consequences: ['Leads are deleted.'],
+        createdAt: 'now',
+        confirmationEmailSent: true,
+      }),
     );
     await setup('tok', { features: { privacyEraseConfirmInPage: false } });
     await click('[data-action="delete"]');
     expect(text()).toContain('We’ve emailed you a link');
     expect(q('.cta.danger')).toBeNull();
+    expect(q('[data-action="resend-email"]')).toBeNull();
+  });
+
+  it('flag off + email not sent (#806): never claims an email went out and offers a resend', async () => {
+    const pending = {
+      requestId: REQUEST_ID,
+      status: 'requested',
+      consequences: ['Leads are deleted.'],
+      createdAt: 'now',
+      confirmationEmailSent: false,
+    };
+    api.requestErasure.mockReturnValue(of(pending));
+    await setup('tok', { features: { privacyEraseConfirmInPage: false } });
+    await click('[data-action="delete"]');
+    expect(q('[data-state="email-not-sent"]')).not.toBeNull();
+    expect(text()).not.toContain('We’ve emailed you a link');
+    expect(q('.cta.danger')).toBeNull();
+
+    api.requestErasure.mockReturnValue(of({ ...pending, confirmationEmailSent: true }));
+    await click('[data-action="resend-email"]');
+    expect(api.requestErasure).toHaveBeenCalledTimes(2);
+    expect(q('[data-state="pending"]')).not.toBeNull();
+    expect(q('[data-state="email-sent"]')).not.toBeNull();
+    expect(q('[data-action="resend-email"]')).toBeNull();
+  });
+
+  it('flag off + resend in flight: the resend button disables', async () => {
+    api.requestErasure.mockReturnValue(
+      of({ requestId: REQUEST_ID, status: 'requested', consequences: [], createdAt: 'now', confirmationEmailSent: false }),
+    );
+    await setup('tok', { features: { privacyEraseConfirmInPage: false } });
+    await click('[data-action="delete"]');
+    api.requestErasure.mockReturnValue(NEVER);
+    await click('[data-action="resend-email"]');
+    const btn = q('[data-action="resend-email"]') as HTMLButtonElement;
+    expect(btn.disabled).toBe(true);
+    expect(btn.textContent).toContain('Sending');
   });
 
   it('cancel keeps the data and returns to idle', async () => {

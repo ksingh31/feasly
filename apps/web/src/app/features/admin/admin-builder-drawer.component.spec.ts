@@ -6,10 +6,19 @@
  */
 import { DIALOG_DATA } from '@angular/cdk/dialog';
 import { TestBed } from '@angular/core/testing';
+import { provideRouter } from '@angular/router';
 import { Store, provideStore } from '@ngxs/store';
 import { Subject, of, throwError } from 'rxjs';
 import { describe, expect, it, vi } from 'vitest';
-import type { Builder, BuilderCreateBody, BuilderUpdateBody } from '@feasly/contracts';
+import type {
+  ApiError,
+  Builder,
+  BuilderCreateBody,
+  BuilderLifecycleBody,
+  BuilderOffboardingBlocker,
+  BuilderUpdateBody,
+} from '@feasly/contracts';
+import { stubObjectUrls } from '../../shared/test-helpers/object-url.stub';
 import { UiDrawerRef, UiToastService } from '@app/shared/ui';
 import { AdminBuilderDrawerComponent } from './admin-builder-drawer.component';
 import { AdminBuildersApiService } from './admin-builders-api.service';
@@ -36,13 +45,35 @@ const BUILDER: Builder = {
 
 interface Options {
   readonly builderId?: string | null;
+  /** The row the list returns (default BUILDER). */
+  readonly builder?: Builder;
+  readonly blockers?: readonly BuilderOffboardingBlocker[];
+  /** Lifecycle POST fails with this error. */
+  readonly statusError?: ApiError;
   readonly saveFails?: boolean;
   readonly save?: Subject<Builder>;
 }
 
 async function setup(options: Options = {}) {
+  const row = options.builder ?? BUILDER;
   const api = {
-    listBuilders: vi.fn(() => of({ builders: [BUILDER] })),
+    listBuilders: vi.fn(() => of({ builders: [row] })),
+    changeStatus: vi.fn((_id: string, body: BuilderLifecycleBody) =>
+      options.statusError
+        ? throwError(() => options.statusError)
+        : of({
+            builder: {
+              ...row,
+              status: body.action === 'suspend' ? ('suspended' as const) : ('active' as const),
+              statusReason: body.reason,
+              statusChangedAt: '2026-11-16T15:00:00.000Z',
+              statusChangedBy: 'ops@feasly.example',
+            },
+            changed: true,
+          }),
+    ),
+    offboardingBlockers: vi.fn(() => of({ blockers: options.blockers ?? [] })),
+    exportCsv: vi.fn(() => of(new Blob(['lead_id\n']))),
     createBuilder: vi.fn((body: BuilderCreateBody) =>
       options.saveFails
         ? throwError(() => ({ message: 'That sign-in key is taken.' }))
@@ -67,6 +98,7 @@ async function setup(options: Options = {}) {
   TestBed.resetTestingModule();
   TestBed.configureTestingModule({
     providers: [
+      provideRouter([{ path: '**', children: [] }]),
       provideStore([AdminBuildersState]),
       { provide: AdminBuildersApiService, useValue: api },
       { provide: UiDrawerRef, useValue: ref },
@@ -123,7 +155,15 @@ describe('AdminBuilderDrawerComponent (#541)', () => {
     const headings = Array.from(el.querySelectorAll('.builder-drawer__heading')).map((h) =>
       h.textContent?.replace(/\s+/g, ' ').trim(),
     );
-    expect(headings).toEqual(['Identity', 'Contact', 'Branding', 'Commercial', 'Embed origins (2)']);
+    expect(headings).toEqual([
+      'Identity',
+      'Account status',
+      'Contact',
+      'Branding',
+      'Commercial',
+      'Embed origins (2)',
+      'Export builder data',
+    ]);
   });
 
   it('prefills the form and locks the sign-in key on edit', async () => {
@@ -264,7 +304,6 @@ describe('AdminBuilderDrawerComponent (#541)', () => {
         accentColor: null,
         allowedOrigins: ['north.example'],
         plan: 'commission',
-        status: 'active',
         commissionRatePercent: 1.5,
         settings: { defaultPaymentMethod: 'bank_draft' },
       });
@@ -277,5 +316,137 @@ describe('AdminBuilderDrawerComponent (#541)', () => {
       expect(text(el)).toContain('This field is required.');
       expect(api.createBuilder).not.toHaveBeenCalled();
     });
+  });
+});
+
+/** #861: account status, lifecycle confirm flows, offboarding checklist, export. */
+describe('AdminBuilderDrawerComponent lifecycle (#861)', () => {
+  const dialog = (): HTMLElement | null => document.querySelector('app-admin-builder-lifecycle-modal');
+  const button = (root: ParentNode, testId: string) =>
+    root.querySelector(`[data-testid="${testId}"]`) as HTMLButtonElement | null;
+
+  async function openAndType(el: HTMLElement, action: string, reason: string): Promise<HTMLElement> {
+    button(el, `lifecycle-${action}`)!.click();
+    await until(() => dialog()?.querySelector('textarea') != null, 'lifecycle modal open');
+    const modal = dialog()!;
+    const textarea = modal.querySelector('textarea') as HTMLTextAreaElement;
+    textarea.value = reason;
+    textarea.dispatchEvent(new Event('input'));
+    TestBed.tick();
+    return modal;
+  }
+
+  function submitModal(modal: HTMLElement): void {
+    modal.querySelector('form')!.dispatchEvent(new Event('submit'));
+    TestBed.tick();
+  }
+
+  it('offers Suspend and Start offboarding for an active builder (no status select)', async () => {
+    const { el } = await setup();
+    expect(el.querySelector('[formControlName="status"]')).toBeNull();
+    const labels = Array.from(el.querySelectorAll('[data-testid^="lifecycle-"]')).map((b) => b.textContent?.trim());
+    expect(labels).toEqual(['Suspend', 'Start offboarding']);
+  });
+
+  it('suspend needs a reason, then posts it and updates the status in place', async () => {
+    const { el, api, toasts } = await setup();
+    const modal = await openAndType(el, 'suspend', ' ');
+    expect(text(modal)).toContain('Suspend Elite Craft Builders?');
+    expect(text(modal)).toContain('gets no new leads');
+    submitModal(modal);
+    expect(text(modal)).toContain('Enter a reason of at least 3 characters.');
+    expect(api.changeStatus).not.toHaveBeenCalled();
+
+    const textarea = modal.querySelector('textarea') as HTMLTextAreaElement;
+    textarea.value = '  Three unpaid invoices  ';
+    textarea.dispatchEvent(new Event('input'));
+    TestBed.tick();
+    submitModal(modal);
+    await until(() => dialog() === null, 'modal closes');
+    expect(api.changeStatus).toHaveBeenCalledWith('b1', { action: 'suspend', reason: 'Three unpaid invoices' });
+    expect(toasts.show).toHaveBeenCalledWith({ message: 'Builder suspended.' });
+    await until(() => text(el).includes('Reactivate'), 'buttons follow the new status');
+    expect(el.querySelector('.ui-drawer__sub ui-status-chip')?.textContent?.trim()).toBe('Suspended');
+    expect(el.querySelector('[data-testid="status-reason"]')?.textContent).toContain('Three unpaid invoices');
+    expect(text(el)).toContain('by ops@feasly.example');
+  });
+
+  it('cancel closes the confirm without a request', async () => {
+    const { el, api } = await setup();
+    const modal = await openAndType(el, 'start_offboarding', 'Moving on');
+    (Array.from(modal.querySelectorAll('button')).find((b) => b.textContent?.trim() === 'Cancel') as HTMLButtonElement).click();
+    await until(() => dialog() === null, 'modal closes');
+    expect(api.changeStatus).not.toHaveBeenCalled();
+  });
+
+  it('offboarding: checklist lists blockers with links to the invoice', async () => {
+    const { el, api } = await setup({
+      builder: { ...BUILDER, status: 'offboarding' },
+      blockers: [
+        { kind: 'unpaid_invoice', invoiceId: 'inv-1', invoiceNumber: 'FEA-0001', status: 'awaiting_payment' },
+        { kind: 'open_dispute', invoiceId: 'inv-2', invoiceNumber: null, status: 'open' },
+      ],
+    });
+    await until(() => el.querySelectorAll('[data-testid="checklist-blocker"]').length === 2, 'blockers render');
+    expect(api.offboardingBlockers).toHaveBeenCalledWith('b1');
+    const links = Array.from(el.querySelectorAll<HTMLAnchorElement>('[data-testid="checklist-blocker"]'));
+    expect(links[0].textContent).toContain('FEA-0001 — unpaid (awaiting payment)');
+    expect(links[0].getAttribute('href')).toBe('/admin/billing/invoices?open=inv-1');
+    expect(links[1].textContent).toContain('Invoice — open dispute (open)');
+    const labels = Array.from(el.querySelectorAll('[data-testid^="lifecycle-"]')).map((b) => b.textContent?.trim());
+    expect(labels).toEqual(['Complete offboarding', 'Reactivate']);
+  });
+
+  it('offboarding with nothing open shows a clear checklist', async () => {
+    const { el } = await setup({ builder: { ...BUILDER, status: 'offboarding' } });
+    await until(() => el.querySelector('[data-testid="checklist-clear"]') !== null, 'clear checklist');
+    expect(text(el)).toContain('No unpaid invoices or open disputes.');
+  });
+
+  it('complete offboarding refused for blockers stays open with the reason and refreshes the checklist', async () => {
+    const { el, api } = await setup({
+      builder: { ...BUILDER, status: 'offboarding' },
+      statusError: {
+        code: 'OFFBOARDING_BLOCKED',
+        message: "Offboarding can't be completed yet: FEA-0001 is unpaid.",
+        retryable: false,
+      },
+    });
+    await until(() => api.offboardingBlockers.mock.calls.length === 1, 'initial checklist load');
+    const modal = await openAndType(el, 'complete_offboarding', 'Contract ended');
+    submitModal(modal);
+    await until(() => modal.querySelector('[data-testid="lifecycle-error"]') !== null, 'inline error');
+    expect(text(modal)).toContain("Offboarding can't be completed yet");
+    expect(dialog()).not.toBeNull();
+    await until(() => api.offboardingBlockers.mock.calls.length === 2, 'checklist reloads');
+    (Array.from(modal.querySelectorAll('button')).find((b) => b.textContent?.trim() === 'Cancel') as HTMLButtonElement).click();
+    await until(() => dialog() === null, 'modal closes');
+  });
+
+  it('an offboarded builder has no lifecycle buttons', async () => {
+    const { el } = await setup({ builder: { ...BUILDER, status: 'offboarded' } });
+    expect(el.querySelectorAll('[data-testid^="lifecycle-"]').length).toBe(0);
+    expect(text(el)).toContain('Offboarding is complete.');
+  });
+
+  it('Export leads downloads the CSV for this builder', async () => {
+    const urls = stubObjectUrls();
+    try {
+      const { el, api } = await setup();
+      button(el, 'export-leads')!.click();
+      TestBed.tick();
+      await until(() => urls.createObjectURL.mock.calls.length === 1, 'download starts');
+      expect(api.exportCsv).toHaveBeenCalledWith('b1', 'leads');
+    } finally {
+      urls.restore();
+    }
+  });
+
+  it('a failed export shows the server message', async () => {
+    const { el, api } = await setup();
+    api.exportCsv.mockReturnValueOnce(throwError(() => ({ message: 'Export failed (HTTP 500).' })));
+    button(el, 'export-invoices')!.click();
+    await until(() => text(el).includes('Export failed (HTTP 500).'), 'export error');
+    expect(api.exportCsv).toHaveBeenCalledWith('b1', 'invoices');
   });
 });

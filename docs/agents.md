@@ -58,7 +58,23 @@ measures against), `priority:high`, `bug`, `qa:passed`, `qa:failed`, `ux`,
 - **WIP cap**: `AGENT_MAX_WIP` (default 2) claimed issues + open agent PRs.
 - **Verify before push**: every agent runs `bash tools/verify-local.sh` and pushes only on `VERIFY: PASS`.
 - **Fix until merged**: any failed CI run on an agent/Dependabot PR triggers a fix round (CI triage); each round
-  reproduces locally, verifies, pushes. `AGENT_MAX_FIX_ROUNDS` (default 5), then `needs:karan`.
+  reproduces locally, verifies, pushes. `AGENT_MAX_FIX_ROUNDS` (default 5), then the PR is **parked as
+  `agent:stuck`** for the orchestrator (not `needs:karan` — repeated failures are not an owner decision; a
+  `needs:karan` already on the PR for a real owner question is kept). Fix-round cap rules (#924), all in
+  `tools/agents/lib.mjs` (`fixRoundState` / `planFixRound`) and `tools/agents/fix-round.mjs`:
+  - The parked comment (`<!-- agent:fix-cap -->`) is posted **once**; later dispatches exit silently.
+  - Every dispatch site (merger conflict branch, merge gate, review follow-up, watchdog, CI triage) skips a
+    parked PR, so no agent-fix run starts for it. The watchdog lists parked PRs in `summary.parked`
+    (reason `parked at fix-round cap`, judged regardless of `updatedAt`) and adds `agent:stuck` if missing.
+  - Merge-conflict rounds (reason starts with `merge conflict with main`) have their own counter and never
+    count toward the cap.
+  - Pre-#924 "Fix-round cap (N) reached — parked for Karan." comments still count as parked.
+  - **Release** a parked PR (after fixing the cause or deciding it deserves more rounds): comment
+    `<!-- agent:fix-cap-reset -->` on it and remove `agent:stuck`; only rounds after that comment count.
+  - Fix-round, cap and reset markers only count when the comment's author is trusted (OWNER / MEMBER /
+    COLLABORATOR, or the `claude` / `github-actions` bots), so an outside commenter can't re-arm the budget
+    or park a PR. Comments are read via the paginated REST API (`gh.mjs prComments`), not the 100-capped
+    `gh pr list --json comments`.
   A round that merges `main` must regenerate the registry-derived route tables (`npm run gen:route-docs`:
   TECH_PLAN §16 + `docs/security/rate-limits.md` + `docs/security/route-audit.md`) and commit the result. `verify-local.sh` runs it before
   the tests, so a parallel route-adding merge no longer leaves the PR red (#816).

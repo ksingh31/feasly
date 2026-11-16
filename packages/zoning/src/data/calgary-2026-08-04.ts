@@ -385,7 +385,15 @@ const DISTRICTS: readonly ZoningDistrictSource[] = [
     name: 'Residential – Grade-Oriented Infill (excluding suites)',
     category: 'grade-oriented',
     coverage: 'covered',
-    forms: RCG_BASE_FORMS,
+    // #911 (owner decision 2026-11-15): the single-detached entry here is
+    // borrowed from R-CG (s. 527(2)(r)), not cited from R-CGex's own text, so
+    // it stays a draft: hidden from the panel and not quotable until a cited
+    // R-CGex section is added (tracked on the #757 stale-catalogue review).
+    forms: RCG_BASE_FORMS.map((f) =>
+      f.form === 'single-detached'
+        ? { ...f, verified: false, note: 'Needs a cited R-CGex section (#911, #757).' }
+        : f,
+    ),
     rules: RCG_RULES,
     note: 'Secondary and backyard suites are excluded (s. 527.1).',
   },
@@ -425,6 +433,16 @@ const DISTRICTS: readonly ZoningDistrictSource[] = [
     category: 'grade-oriented',
     coverage: 'covered',
     forms: [
+      // Owner decision (#898, 2026-11-15): s. 1387 lists the generic use
+      // "Dwelling Unit", which covers a single dwelling; keeps the catalogue
+      // in step with the estimator's eligibility list (Karan, 2026-10-02).
+      form(
+        'single-detached',
+        'permitted',
+        's. 1387(b)',
+        true,
+        'Listed as the generic use "Dwelling Unit" rather than by name; typically allowed, confirm with the City.',
+      ),
       form(
         'rowhouse',
         'permitted',

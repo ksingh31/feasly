@@ -37,6 +37,16 @@ export class SelectInvoice {
   constructor(public readonly id: string) {}
 }
 
+/**
+ * #867: re-fetches the open invoice in place — unlike SelectInvoice it keeps
+ * the current one on screen (no loading flash) and ignores a failed fetch.
+ * Used while the drawer waits for the webhook to settle a bank confirmation.
+ */
+export class RefreshSelectedInvoice {
+  static readonly type = '[BuilderInvoices] Refresh selected invoice';
+  constructor(public readonly id: string) {}
+}
+
 /** Changes an invoice's payment method (billing/12). */
 export class UpdateInvoicePaymentMethod {
   static readonly type = '[BuilderInvoices] Update payment method';

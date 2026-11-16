@@ -27,7 +27,7 @@
 import { and, asc, eq, isNull, lte, or } from 'drizzle-orm';
 import { randomUUID } from 'node:crypto';
 import type { AppDb } from '../../db/client';
-import { billingDisputes, billingEvents, commissionInvoices } from '../../db/schema';
+import { billingDisputes, billingEvents, billingRefunds, commissionInvoices } from '../../db/schema';
 import { ErrorCodes, HttpError } from '../../middleware/errors';
 import {
   DISPUTE_SLA_BUSINESS_DAYS,
@@ -292,12 +292,41 @@ export function createDisputeService(
   async function voidPaidInvoice(
     invoice: CommissionInvoiceRecord,
     disputeId: string,
-    refundId: string,
+    refundId: string | null,
+    refundedNowCents: number,
+    adminEmail: string,
   ): Promise<void> {
     await db
       .update(commissionInvoices)
-      .set({ status: 'void', updatedAt: now() })
+      .set({
+        status: 'void',
+        // Ledger: the dispute refund brings the invoice to fully refunded.
+        refundedCents: invoice.totalCents,
+        updatedAt: now(),
+      })
       .where(eq(commissionInvoices.id, invoice.id));
+    if (refundedNowCents > 0 && refundId !== null) {
+      // Idempotent on a retried accept: one ledger row per dispute.
+      await db
+        .insert(billingRefunds)
+        .values({
+          id: newId(),
+          invoiceId: invoice.id,
+          tenantKey: invoice.tenantKey,
+          amountCents: refundedNowCents,
+          currency: invoice.currency,
+          reason: 'other',
+          note: `Dispute ${disputeId} accepted`,
+          method: 'stripe',
+          status: 'succeeded',
+          stripeRefundId: refundId,
+          idempotencyKey: `feasly:billing_disputes:${disputeId}:refund`,
+          actorEmail: adminEmail,
+          createdAt: now(),
+          updatedAt: now(),
+        })
+        .onConflictDoNothing({ target: billingRefunds.idempotencyKey });
+    }
     await audit.append({
       tenantKey: invoice.tenantKey,
       eventType: 'invoice.status_changed',
@@ -308,7 +337,7 @@ export function createDisputeService(
         commissionCents: invoice.commissionCents,
         from: 'paid',
         resolution: 'accept',
-        creditNote: 'stripe_refund',
+        creditNote: refundId === null ? 'already_refunded' : 'stripe_refund',
         refundId,
         disputeId,
       },
@@ -483,11 +512,20 @@ export function createDisputeService(
             `Invoice "${invoice.id}" is 'paid' with no PaymentIntent — cannot issue a credit note`,
           );
         }
-        const refund = await stripe.refundPaymentIntent(
-          invoice.stripePaymentIntentId,
-          `feasly:billing_disputes:${row.id}:refund`,
-        );
-        await voidPaidInvoice(invoice, row.id, refund.id);
+        // #715 ledger: admin refunds already issued on this invoice are in
+        // refundedCents. Refund only what is left (nothing when it is
+        // already fully refunded), so the customer is never refunded twice.
+        const remainingCents = invoice.totalCents - invoice.refundedCents;
+        let refundId: string | null = null;
+        if (remainingCents > 0) {
+          const refund = await stripe.refundPaymentIntent(
+            invoice.stripePaymentIntentId,
+            `feasly:billing_disputes:${row.id}:refund`,
+            invoice.refundedCents > 0 ? remainingCents : undefined,
+          );
+          refundId = refund.id;
+        }
+        await voidPaidInvoice(invoice, row.id, refundId, remainingCents, input.adminEmail);
       } else if (invoice.status === 'disputed') {
         await commission.resolveDispute(invoice.id, 'void');
       } else {

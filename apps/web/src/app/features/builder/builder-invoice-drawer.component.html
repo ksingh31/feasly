@@ -18,21 +18,54 @@
         {{ copy.invoicesPaymentFailed }}
       </p>
     }
-    @if (simulatedPaymentIntentId(); as intentId) {
-      <section class="invoice-drawer__section" aria-labelledby="invoice-drawer-confirm" data-testid="invoice-confirm-payment">
+    @if (needsConfirm()) {
+      <section class="invoice-drawer__section invoice-drawer__confirm" aria-labelledby="invoice-drawer-confirm" data-testid="invoice-confirm-payment">
         <h3 id="invoice-drawer-confirm" class="invoice-drawer__heading">{{ simCopy.paymentHeading }}</h3>
         <p class="invoice-drawer__note">{{ simCopy.paymentBody }}</p>
-        <app-builder-simulated-challenge
-          headingId="invoice-drawer-sim-challenge"
-          [intentId]="intentId"
-          (resolved)="onChallengeResolved($event)"
-        />
+        @switch (confirmPhase()) {
+          @case ('challenge') {
+            @if (simulatedPaymentIntentId(); as intentId) {
+              <app-builder-simulated-challenge
+                headingId="invoice-drawer-sim-challenge"
+                [intentId]="intentId"
+                (resolved)="onChallengeResolved($event)"
+              />
+            }
+          }
+          @case ('pending') {
+            <p class="invoice-drawer__note" role="status" data-testid="invoice-confirm-pending">{{ t.confirmPaymentPending }}</p>
+          }
+          @case ('stalled') {
+            <p class="invoice-drawer__note" role="status" data-testid="invoice-confirm-stalled">{{ t.confirmPaymentStalled }}</p>
+            <div class="invoice-drawer__actions">
+              <button type="button" ui-button data-testid="invoice-confirm-cta" (click)="startConfirm()">
+                {{ t.confirmPaymentCta }}
+              </button>
+              <button type="button" ui-button variant="secondary" data-testid="invoice-confirm-check-again" (click)="pollUntilSettled()">
+                {{ t.confirmPaymentCheckAgain }}
+              </button>
+            </div>
+          }
+          @default {
+            @if (confirmPhase() === 'error') {
+              <p class="invoice-drawer__note invoice-drawer__note--danger" role="alert" data-testid="invoice-confirm-error">
+                {{ simCopy.paymentLoadError }}
+              </p>
+            }
+            <button
+              type="button"
+              ui-button
+              class="invoice-drawer__confirm-cta"
+              data-testid="invoice-confirm-cta"
+              [disabled]="confirmPhase() === 'starting'"
+              [attr.aria-busy]="confirmPhase() === 'starting'"
+              (click)="startConfirm()"
+            >
+              {{ confirmPhase() === 'starting' ? t.confirmPaymentBusy : t.confirmPaymentCta }}
+            </button>
+          }
+        }
       </section>
-    } @else if (confirmLoadFailed()) {
-      <div class="invoice-drawer__error" role="alert" data-testid="invoice-confirm-error">
-        <p>{{ simCopy.paymentLoadError }}</p>
-        <button type="button" ui-button variant="secondary" (click)="loadConfirmation()">{{ copy.retryLabel }}</button>
-      </div>
     }
     @if (inv.status === 'paid') {
       <p class="invoice-drawer__banner invoice-drawer__banner--success" role="status">
@@ -119,6 +152,26 @@
         [emptyLabel]="t.timelineEmpty"
       />
     </section>
+
+    @if (recovery(); as r) {
+      <section class="invoice-drawer__section" aria-labelledby="invoice-drawer-recovery" data-testid="invoice-recovery">
+        <h3 id="invoice-drawer-recovery" class="invoice-drawer__heading">{{ t.recoveryHeading }}</h3>
+        <dl class="invoice-drawer__rows">
+          @if (r.chargebackStatus; as cb) {
+            <div data-testid="invoice-chargeback">
+              <dt>{{ t.chargebackLabel }}</dt>
+              <dd><ui-status-chip domain="chargeback" [status]="cb" /></dd>
+            </div>
+          }
+          @if (r.refunded; as refunded) {
+            <div data-testid="invoice-refunded">
+              <dt>{{ t.refundedLabel }}</dt>
+              <dd>{{ refunded }}</dd>
+            </div>
+          }
+        </dl>
+      </section>
+    }
 
     @if (inv.status === 'paid') {
       <section class="invoice-drawer__section" aria-labelledby="invoice-drawer-receipt">

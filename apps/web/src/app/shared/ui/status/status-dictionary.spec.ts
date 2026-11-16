@@ -47,6 +47,12 @@ const SPEC_TABLE: ReadonlyArray<readonly [StatusDomain, string, StatusTone, stri
   ['opsFlag', 'ok', 'success', 'All clear'],
   ['opsFlag', 'attention', 'warning', 'Needs attention'],
   ['opsFlag', 'problem', 'danger', 'Problem'],
+  ['disputeSource', 'builder', 'neutral', 'Builder dispute'],
+  ['disputeSource', 'chargeback', 'danger', 'Chargeback'],
+  ['chargeback', 'open', 'danger', 'Chargeback open'],
+  ['chargeback', 'won', 'success', 'Chargeback won'],
+  ['chargeback', 'lost', 'danger', 'Chargeback lost'],
+  ['chargeback', 'warning_closed', 'neutral', 'Chargeback warning closed'],
 ];
 
 const SENTENCE_CASE = /^[A-Z][a-z0-9 -]*$/;

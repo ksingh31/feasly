@@ -2,6 +2,9 @@
   @if (currentCard(); as current) {
     <p class="card-modal__current">{{ current }}</p>
   }
+  @if (updating && phase() !== 'unavailable') {
+    <p class="card-modal__replace-note" data-testid="replace-note">{{ copy.cardLifecycle.modalReplaceNote }}</p>
+  }
 
   @switch (phase()) {
     @case ('unavailable') {

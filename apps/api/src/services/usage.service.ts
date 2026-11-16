@@ -37,6 +37,38 @@ export interface PerKeyRateLimitVerdict {
   readonly resetEpoch: number;
 }
 
+/** Per-key quota ceilings (#738) — from `config.apiAccess`. */
+export interface QuotaLimits {
+  readonly daily: number;
+  readonly monthly: number;
+}
+
+/**
+ * Quota verdict (#738). Calendar periods in UTC: the day resets at
+ * 00:00 UTC, the month on the 1st at 00:00 UTC. When both are exhausted
+ * the month wins (it is the later reset, so the honest Retry-After).
+ */
+export interface QuotaVerdict {
+  readonly allowed: boolean;
+  /** The period that denied the call; on allow, the tighter remaining. */
+  readonly period: 'day' | 'month';
+  readonly limit: number;
+  /** Calls left in `period` after this one (0 when denied). */
+  readonly remaining: number;
+  /** Epoch seconds when `period` resets. */
+  readonly resetEpoch: number;
+}
+
+/** 00:00 UTC of `now`'s calendar day. */
+export function startOfUtcDay(now: Date): Date {
+  return new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate()));
+}
+
+/** 00:00 UTC on the 1st of `now`'s calendar month. */
+export function startOfUtcMonth(now: Date): Date {
+  return new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1));
+}
+
 export interface UsageAggregate {
   /** Calendar date (UTC) as YYYY-MM-DD. */
   readonly date: string;
@@ -95,6 +127,12 @@ export interface UsageService {
     limitPerMin: number,
   ): Promise<PerKeyRateLimitVerdict>;
   /**
+   * Daily + monthly quota check for the key (#738). Pure read — counts the
+   * key's accepted calls (api_usage rows) since the start of the UTC day
+   * and month. Shared table, so the ceiling holds across instances.
+   */
+  checkQuota(apiKeyId: string, limits: QuotaLimits): Promise<QuotaVerdict>;
+  /**
    * Per-day usage aggregates for billing/metering.
    * `scope` enforces tenant isolation: 'admin' sees all keys,
    * 'owner' is restricted to its own keyId.
@@ -147,6 +185,32 @@ export function createUsageService(deps: UsageServiceDeps): UsageService {
         remaining: Math.max(0, limitPerMin - count - (allowed ? 1 : 0)),
         resetEpoch,
       };
+    },
+
+    async checkQuota(apiKeyId: string, limits: QuotaLimits): Promise<QuotaVerdict> {
+      const now = clock();
+      const dayStart = startOfUtcDay(now);
+      const monthStart = startOfUtcMonth(now);
+      const [usedToday, usedThisMonth] = await Promise.all([
+        store.countSince(apiKeyId, dayStart),
+        store.countSince(apiKeyId, monthStart),
+      ]);
+      const dayReset = Math.floor(dayStart.getTime() / 1000) + 86_400;
+      const monthReset = Math.floor(
+        Date.UTC(monthStart.getUTCFullYear(), monthStart.getUTCMonth() + 1, 1) / 1000,
+      );
+
+      if (usedThisMonth >= limits.monthly) {
+        return { allowed: false, period: 'month', limit: limits.monthly, remaining: 0, resetEpoch: monthReset };
+      }
+      if (usedToday >= limits.daily) {
+        return { allowed: false, period: 'day', limit: limits.daily, remaining: 0, resetEpoch: dayReset };
+      }
+      const dayLeft = limits.daily - usedToday - 1;
+      const monthLeft = limits.monthly - usedThisMonth - 1;
+      return monthLeft < dayLeft
+        ? { allowed: true, period: 'month', limit: limits.monthly, remaining: monthLeft, resetEpoch: monthReset }
+        : { allowed: true, period: 'day', limit: limits.daily, remaining: dayLeft, resetEpoch: dayReset };
     },
 
     async getUsage(

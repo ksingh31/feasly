@@ -1,4 +1,7 @@
 <ui-drawer [heading]="heading()" closeLabel="Close dispute" [dirty]="dirty()">
+  @if (chargeback()) {
+    <ui-status-chip uiDrawerChip domain="disputeSource" status="chargeback" data-testid="drawer-chargeback-chip" />
+  }
   @if (sla(); as chip) {
     <ui-status-chip uiDrawerChip domain="disputeSla" [status]="chip.key" [label]="chip.label" data-testid="drawer-sla" />
   }
@@ -42,7 +45,11 @@
       <ui-key-value-list [items]="summary()" />
       @if (d.breached) {
         <p class="dispute-drawer__breach" role="note">
-          SLA breached — escalated via ops alerts. It stays open until you decide.
+          @if (chargeback()) {
+            Stripe’s evidence deadline has passed. Stripe decides the outcome from what was submitted.
+          } @else {
+            SLA breached — escalated via ops alerts. It stays open until you decide.
+          }
         </p>
       }
     </section>
@@ -74,7 +81,28 @@
     </section>
   }
 
-  @if (canManage() && detail(); as d) {
+  @if (chargeback() && detail()) {
+    <div uiDrawerFooterStart class="dispute-drawer__note" data-testid="drawer-chargeback-footer">
+      <p class="dispute-drawer__hint dispute-drawer__hint--flush">
+        Bank chargebacks are answered in the Stripe dashboard. The outcome syncs here when Stripe closes it.
+      </p>
+      @if (stripeUrl(); as url) {
+        <div class="dispute-drawer__actions">
+          <a
+            ui-button
+            variant="secondary"
+            data-testid="drawer-view-in-stripe"
+            target="_blank"
+            rel="noopener noreferrer"
+            [href]="url"
+          >
+            View in Stripe
+            <span class="sr-only">(opens in a new tab)</span>
+          </a>
+        </div>
+      }
+    </div>
+  } @else if (canManage() && detail(); as d) {
     <div uiDrawerFooterStart class="dispute-drawer__note" data-testid="drawer-footer">
       <label class="dispute-drawer__note-label" for="dispute-drawer-note">
         Note (optional, saved on the audit trail)

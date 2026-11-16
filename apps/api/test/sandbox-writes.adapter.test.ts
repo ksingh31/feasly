@@ -13,7 +13,7 @@ const pipelineRun = vi.fn();
 const estimateHandle = vi.fn();
 const leadHandle = vi.fn();
 /** The auth context the fake middleware hands to the inner handler. */
-let currentAuth: { sandbox: boolean } | null = null;
+let currentAuth: { keyId?: string; sandbox: boolean } | null = null;
 
 const fakeApp = {
   estimatePipeline: { run: pipelineRun },
@@ -76,17 +76,21 @@ describe('#793 REST adapters — sandbox keys', () => {
     expect(estimateHandle.mock.calls).toEqual([[BODY], [BODY]]);
   });
 
+  // #738: a keyed lead also carries the attesting keyId (consent check).
   it('leads: a sandbox key writes with sandbox=true', async () => {
-    currentAuth = { sandbox: true };
+    currentAuth = { keyId: 'k-test', sandbox: true };
     await leadsHandler(context(), { headers: {}, body: BODY });
-    expect(leadHandle).toHaveBeenCalledWith(BODY, { sandbox: true });
+    expect(leadHandle).toHaveBeenCalledWith(BODY, { keyId: 'k-test', sandbox: true });
   });
 
-  it('leads: a live key and keyless traffic write normal rows', async () => {
-    currentAuth = { sandbox: false };
+  it('leads: a live key writes a normal row; keyless traffic passes no key', async () => {
+    currentAuth = { keyId: 'k-live', sandbox: false };
     await leadsHandler(context(), { headers: {}, body: BODY });
     currentAuth = null;
     await leadsHandler(context(), { headers: {}, body: BODY });
-    expect(leadHandle.mock.calls).toEqual([[BODY], [BODY]]);
+    expect(leadHandle.mock.calls).toEqual([
+      [BODY, { keyId: 'k-live', sandbox: false }],
+      [BODY, undefined],
+    ]);
   });
 });

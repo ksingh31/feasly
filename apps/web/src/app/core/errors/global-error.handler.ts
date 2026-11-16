@@ -1,5 +1,6 @@
 import { ErrorHandler, inject, Injectable } from '@angular/core';
 import { Router } from '@angular/router';
+import { WebTelemetryService } from '../telemetry/web-telemetry.service';
 import { ErrorRecoveryService } from './error-recovery.service';
 
 /** Admin error state rendered inside the admin shell (#472). */
@@ -35,6 +36,7 @@ function isInAdminShell(url: string): boolean {
 export class GlobalErrorHandler implements ErrorHandler {
   private readonly router = inject(Router);
   private readonly recovery = inject(ErrorRecoveryService);
+  private readonly telemetry = inject(WebTelemetryService);
 
   /**
    * True while a navigation to the admin error state is in flight. Further
@@ -48,6 +50,8 @@ export class GlobalErrorHandler implements ErrorHandler {
   handleError(error: unknown): void {
     // Console only — the error page renders static, story-pinned copy.
     console.error('[Feasly] uncaught error:', error);
+    // #830: sampled real-user error monitoring (no-op when not sampled in).
+    this.telemetry.recordError(error);
     // Never loop: if an error page itself throws, stay put.
     const url = this.router.url;
     if (url.startsWith('/error') || url.startsWith(ADMIN_ERROR_PATH)) {

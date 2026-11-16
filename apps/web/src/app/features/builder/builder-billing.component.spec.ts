@@ -25,6 +25,7 @@ import { BuilderCardModalComponent } from './builder-card-modal.component';
 import { BUILDER_COPY } from './builder-copy';
 import { DEFAULT_BUILDER_COPY } from './builder-copy.defaults';
 import { BuilderBillingState } from './builder-billing.state';
+import { BuilderState } from './builder.state';
 import { ConfigService } from '../../core/config/config.service';
 import { DEFAULT_APP_CONFIG } from '../../core/config/app-config.defaults';
 
@@ -37,7 +38,30 @@ const CARD_ON_FILE: CardOnFileStatus = {
   expYear: 2028,
 };
 
-async function setup() {
+
+/** Seeds the builder session role (#879: Remove card is admin-only). */
+function seedRole(store: Store, role: 'builder_admin' | 'builder_member'): void {
+  const snapshot = store.snapshot();
+  store.reset({
+    ...snapshot,
+    builder: {
+      ...snapshot.builder,
+      session: {
+        authenticated: true,
+        email: 'owner@builder.ca',
+        name: null,
+        builderId: 'elite-craft',
+        builderName: 'Elite Craft',
+        role,
+        memberships: [],
+        viewAs: null,
+        viewAsDisplayName: null,
+      },
+    },
+  });
+}
+
+async function setup(role: 'builder_admin' | 'builder_member' = 'builder_admin') {
   TestBed.resetTestingModule();
   // The component fail-closes without a publishable key, so the stub
   // provides one (test-mode placeholder, never a real key).
@@ -56,7 +80,7 @@ async function setup() {
       provideRouter([]),
       provideHttpClient(),
       provideHttpClientTesting(),
-      provideStore([BuilderBillingState]),
+      provideStore([BuilderState, BuilderBillingState]),
       { provide: ConfigService, useValue: configStub },
     ],
   });
@@ -64,6 +88,7 @@ async function setup() {
     TestBed.createComponent(BuilderBillingComponent);
   const httpMock = TestBed.inject(HttpTestingController);
   const store = TestBed.inject(Store);
+  seedRole(store, role);
   fixture.detectChanges();
   return { fixture, httpMock, store };
 }
@@ -197,7 +222,7 @@ describe('BuilderBillingComponent (billing/02)', () => {
         provideRouter([]),
         provideHttpClient(),
         provideHttpClientTesting(),
-        provideStore([BuilderBillingState]),
+        provideStore([BuilderState, BuilderBillingState]),
       ],
     });
     const fixture: ComponentFixture<BuilderBillingComponent> =
@@ -448,5 +473,119 @@ describe('BuilderBillingComponent (billing/02)', () => {
       '#builder-default-method',
     ) as HTMLSelectElement;
     expect(select.value).toBe('bank_draft');
+  });
+
+  describe('card lifecycle (#879)', () => {
+    async function loaded(card: CardOnFileStatus, role: 'builder_admin' | 'builder_member' = 'builder_admin') {
+      const ctx = await setup(role);
+      ctx.httpMock.expectOne((r) => r.url.endsWith('/api/v1/billing/card')).flush(card);
+      ctx.httpMock
+        .expectOne((r) => r.url.endsWith('/api/v1/billing/payment-method'))
+        .flush({ defaultMethod: 'card' });
+      ctx.fixture.detectChanges();
+      await ctx.fixture.whenStable();
+      ctx.fixture.detectChanges();
+      return { ...ctx, el: ctx.fixture.nativeElement as HTMLElement };
+    }
+
+    async function settle(fixture: ComponentFixture<BuilderBillingComponent>) {
+      fixture.detectChanges();
+      await fixture.whenStable();
+      fixture.detectChanges();
+    }
+
+    it('AC1: shows "expires soon" with Replace card (no second Update button)', async () => {
+      const { el } = await loaded({ ...CARD_ON_FILE, expiresSoon: true });
+      const notice = el.querySelector('[data-notice="expiring"]');
+      expect(notice?.textContent).toContain('Your card expires soon');
+      expect(notice?.textContent).toContain('ending in 4242 expires 12/28');
+      expect(el.textContent).not.toContain('Update card');
+      const open = vi.spyOn(TestBed.inject(UiModalService), 'open').mockReturnValue({} as never);
+      (el.querySelector('.card-lifecycle__replace') as HTMLButtonElement).click();
+      expect(open).toHaveBeenCalledWith(
+        BuilderCardModalComponent,
+        expect.objectContaining({ data: { card: { ...CARD_ON_FILE, expiresSoon: true } } }),
+      );
+    });
+
+    it('shows "Expired" when the card can no longer be charged', async () => {
+      const { el } = await loaded({ ...CARD_ON_FILE, expired: true, expiresSoon: false });
+      expect(el.querySelector('[data-notice="expired"]')?.textContent).toContain('Your card has expired');
+      expect(el.querySelector('[data-notice="expiring"]')).toBeNull();
+    });
+
+    it('shows no notice for a healthy card', async () => {
+      const { el } = await loaded(CARD_ON_FILE);
+      expect(el.querySelector('.card-lifecycle__notice')).toBeNull();
+      expect(el.textContent).toContain('Update card');
+    });
+
+    it('AC2: an admin removes the card after confirming; the page shows "No card on file"', async () => {
+      const { el, fixture, httpMock } = await loaded(CARD_ON_FILE);
+      (el.querySelector('.card-lifecycle__remove') as HTMLButtonElement).click();
+      await settle(fixture);
+      expect(el.textContent).toContain('Remove this card?');
+      // Safe default: focus lands on "Keep card".
+      expect(document.activeElement).toBe(el.querySelector('.card-lifecycle__keep'));
+      // Nothing is sent until the confirm step is accepted.
+      httpMock.expectNone((r) => r.method === 'DELETE');
+      (el.querySelector('.card-lifecycle__confirm-remove') as HTMLButtonElement).click();
+      const del = httpMock.expectOne(
+        (r) => r.url.endsWith('/api/v1/billing/card') && r.method === 'DELETE',
+      );
+      expect(del.request.withCredentials).toBe(true);
+      del.flush({ hasCard: false });
+      await settle(fixture);
+      expect(el.textContent).toContain('No card on file.');
+      expect(el.querySelector('.card-lifecycle__remove')).toBeNull();
+    });
+
+    it('AC2: a 409 shows the API message inline and keeps the card', async () => {
+      const { el, fixture, httpMock } = await loaded(CARD_ON_FILE);
+      (el.querySelector('.card-lifecycle__remove') as HTMLButtonElement).click();
+      await settle(fixture);
+      (el.querySelector('.card-lifecycle__confirm-remove') as HTMLButtonElement).click();
+      const detail =
+        "This card can't be removed yet: invoice FEAS-2026-0104 is set to be charged to it.";
+      httpMock
+        .expectOne((r) => r.url.endsWith('/api/v1/billing/card') && r.method === 'DELETE')
+        .flush(
+          { code: 'CONFLICT', message: detail, detail, retryable: false },
+          { status: 409, statusText: 'Conflict' },
+        );
+      await settle(fixture);
+      expect(el.querySelector('[data-testid="remove-card-error"]')?.textContent).toContain(detail);
+      expect(el.textContent).toContain('•••• 4242');
+    });
+
+    it('a non-409 failure shows generic copy; Keep card closes the confirm step', async () => {
+      const { el, fixture, httpMock } = await loaded(CARD_ON_FILE);
+      (el.querySelector('.card-lifecycle__remove') as HTMLButtonElement).click();
+      await settle(fixture);
+      (el.querySelector('.card-lifecycle__confirm-remove') as HTMLButtonElement).click();
+      httpMock
+        .expectOne((r) => r.method === 'DELETE')
+        .flush({}, { status: 500, statusText: 'Server Error' });
+      await settle(fixture);
+      expect(el.querySelector('[data-testid="remove-card-error"]')?.textContent).toContain(
+        'We couldn’t remove the card. Please try again.',
+      );
+      (el.querySelector('.card-lifecycle__keep') as HTMLButtonElement).click();
+      await settle(fixture);
+      expect(el.querySelector('.card-lifecycle__confirm')).toBeNull();
+      expect(el.querySelector('.card-lifecycle__remove')).not.toBeNull();
+      expect(document.activeElement).toBe(el.querySelector('.card-lifecycle__remove'));
+    });
+
+    it('builder members never see Remove card', async () => {
+      const { el } = await loaded(CARD_ON_FILE, 'builder_member');
+      expect(el.querySelector('.card-lifecycle__remove')).toBeNull();
+    });
+
+    it('AC3: a card detached elsewhere shows "No card on file" on the next load', async () => {
+      const { el } = await loaded({ hasCard: false });
+      expect(el.textContent).toContain('No card on file.');
+      expect(el.querySelector('app-builder-card-lifecycle')).toBeNull();
+    });
   });
 });

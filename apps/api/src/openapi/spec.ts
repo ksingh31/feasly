@@ -35,8 +35,12 @@ import {
   CallbackWindowSchema,
   CityDataFreshnessResponseSchema,
   ZoningDistrictsResponseSchema,
+  SchoolsListResponseSchema,
+  SchoolResponseSchema,
+  SchoolTypeSchema,
   BuilderPartnerListResponseSchema,
   CommunityStatsResponseSchema,
+  CommunityLotsResponseSchema,
   CostRangeSchema,
   EmbedPublicConfigSchema,
   EstimateRequestSchema,
@@ -79,9 +83,10 @@ function errorResponses() {
     },
     '429': {
       description:
-        'Rate limit exceeded — per-key sliding window (60s) or per-IP fixed window. ' +
-        'Body is RFC 7807 problem+json with code RATE_LIMITED. ' +
-        'The X-RateLimit-* headers report the key\'s quota state.',
+        'Rate limit exceeded — per-key sliding window (60s) or per-IP fixed window ' +
+        '(code RATE_LIMITED, X-RateLimit-* headers), or the key\'s daily/monthly quota ' +
+        '(code QUOTA_EXCEEDED, X-Quota-Period / -Limit / -Remaining / -Reset headers). ' +
+        'Body is RFC 7807 problem+json; Retry-After says when to try again.',
       headers: z.object({
         'X-RateLimit-Limit': z
           .number()
@@ -97,6 +102,25 @@ function errorResponses() {
           .describe(
             'Unix epoch seconds when the current window slides past the oldest request.',
           ),
+        'X-Quota-Period': z
+          .enum(['day', 'month'])
+          .optional()
+          .describe('QUOTA_EXCEEDED only: which quota ran out (UTC calendar day or month).'),
+        'X-Quota-Limit': z
+          .number()
+          .int()
+          .optional()
+          .describe('QUOTA_EXCEEDED only: requests allowed per period for this API key.'),
+        'X-Quota-Remaining': z
+          .number()
+          .int()
+          .optional()
+          .describe('QUOTA_EXCEEDED only: requests remaining in the period (0).'),
+        'X-Quota-Reset': z
+          .number()
+          .int()
+          .optional()
+          .describe('QUOTA_EXCEEDED only: Unix epoch seconds when the period resets.'),
       }),
       content: {
         'application/problem+json': {
@@ -139,8 +163,11 @@ export function buildOpenApiSpec(options: OpenApiSpecOptions) {
   registry.register('AnalyticsIngestResponse', AnalyticsIngestResponseSchema);
   registry.register('EmbedPublicConfig', EmbedPublicConfigSchema);
   registry.register('CommunityStatsResponse', CommunityStatsResponseSchema);
+  registry.register('CommunityLotsResponse', CommunityLotsResponseSchema);
   registry.register('CityDataFreshnessResponse', CityDataFreshnessResponseSchema);
   registry.register('ZoningDistrictsResponse', ZoningDistrictsResponseSchema);
+  registry.register('SchoolsListResponse', SchoolsListResponseSchema);
+  registry.register('SchoolResponse', SchoolResponseSchema);
   registry.register('BuilderPartnerListResponse', BuilderPartnerListResponseSchema);
   registry.register('MagicLinkVerifyResponse', MagicLinkVerifyResponseSchema);
   registry.register('ReportSnapshot', ReportSnapshotSchema);
@@ -217,7 +244,10 @@ export function buildOpenApiSpec(options: OpenApiSpecOptions) {
     summary: 'Submit a lead',
     description:
       'Captures a lead and sends the magic-link email. ' +
-      'The lead is persisted even if the link is never clicked.',
+      'The lead is persisted even if the link is never clicked. ' +
+      'With an API key the request must attest consent (`consent: true` plus the current ' +
+      '`consentVersion`, else 400 CONSENT_REQUIRED); the attestation is stored with the key, ' +
+      'and the lead is held for review by the Feasly team before anyone is emailed.',
     security: [{ ApiKeyAuth: [] }],
     request: {
       body: {
@@ -634,6 +664,45 @@ export function buildOpenApiSpec(options: OpenApiSpecOptions) {
     },
   });
 
+  // GET /v1/communities/{slug}/lots (#691)
+  registry.registerPath({
+    method: 'get',
+    path: '/v1/communities/{slug}/lots',
+    summary: 'List lots in a community',
+    description:
+      'Vacant residential lots in an established infill community, derived ' +
+      'weekly from City of Calgary open data (assessment roll + current ' +
+      'Land Use Districts map). Each lot carries its address, lot area, ' +
+      'City-assessed value (not market value) and roll year, and current ' +
+      'district. Cursor-paginated; `stale` is true when the last refresh is ' +
+      'older than the configured threshold. Unknown or non-infill ' +
+      'communities return 404. Public by design; cached (Cache-Control public).',
+    security: [],
+    request: {
+      params: z.object({
+        slug: z.string().describe('Community slug (kebab-case)'),
+      }),
+      query: z.object({
+        kind: z.enum(['vacant', 'candidate']).optional(),
+        district: z.string().optional().describe('Exact current district code, e.g. R-CG'),
+        minLotSqft: z.string().regex(/^\d+$/).optional().describe('Minimum lot area (sq ft)'),
+        maxLotSqft: z.string().regex(/^\d+$/).optional().describe('Maximum lot area (sq ft)'),
+        sort: z.enum(['address', 'lot-size-asc', 'lot-size-desc']).optional(),
+        limit: z.string().regex(/^\d+$/).optional().describe('Page size (capped by config)'),
+        cursor: z.string().optional().describe('nextCursor from the previous page'),
+      }),
+    },
+    responses: {
+      '200': {
+        description: 'One page of the community\'s lots',
+        content: {
+          'application/json': { schema: CommunityLotsResponseSchema },
+        },
+      },
+      ...errorResponses(),
+    },
+  });
+
   // GET /v1/city-data/freshness
   registry.registerPath({
     method: 'get',
@@ -679,6 +748,52 @@ export function buildOpenApiSpec(options: OpenApiSpecOptions) {
         content: {
           'application/json': { schema: ZoningDistrictsResponseSchema },
         },
+      },
+      ...errorResponses(),
+    },
+  });
+
+  // GET /v1/schools (#774)
+  registry.registerPath({
+    method: 'get',
+    path: '/v1/schools',
+    summary: 'List Calgary K–12 schools',
+    description:
+      'Every Calgary K–12 school with type, board, grades, programs, address, ' +
+      'coordinates, website and tuition flag, built monthly from free public ' +
+      'sources (City of Calgary, Alberta school authority list, OpenStreetMap). ' +
+      'Each field names its source. Optional community and type filters. ' +
+      'School details change — confirm with the school or board. Public by design.',
+    security: [],
+    request: {
+      query: z.object({
+        community: z.string().regex(/^[A-Za-z0-9]{2,5}$/).optional().describe('City community code, e.g. ALT.'),
+        type: SchoolTypeSchema.optional(),
+      }),
+    },
+    responses: {
+      '200': {
+        description: 'Schools, name order',
+        content: { 'application/json': { schema: SchoolsListResponseSchema } },
+      },
+      ...errorResponses(),
+    },
+  });
+
+  // GET /v1/schools/{id} (#774)
+  registry.registerPath({
+    method: 'get',
+    path: '/v1/schools/{id}',
+    summary: 'Get one school',
+    description: 'One school from the schools directory, with per-field source attribution. Public by design.',
+    security: [],
+    request: {
+      params: z.object({ id: z.string().describe('Directory id, e.g. city-<guid> or osm-way-<id>.') }),
+    },
+    responses: {
+      '200': {
+        description: 'The school',
+        content: { 'application/json': { schema: SchoolResponseSchema } },
       },
       ...errorResponses(),
     },
@@ -973,17 +1088,35 @@ export function buildOpenApiSpec(options: OpenApiSpecOptions) {
     },
   });
 
-  // GET /v1/admin/funnels (admin/07)
+  // GET /v1/admin/funnels (admin/07, #814)
+  const FUNNEL_STEPS_SCHEMA = {
+    type: 'array' as const,
+    items: {
+      type: 'object' as const,
+      properties: {
+        step: { type: 'string' as const },
+        label: { type: 'string' as const },
+        count: { type: 'integer' as const },
+        conversionFromPrevious: {
+          type: ['number', 'null'] as ['number', 'null'],
+        },
+      },
+      required: ['step', 'label', 'count', 'conversionFromPrevious'],
+    },
+  };
   registry.registerPath({
     method: 'get',
     path: '/v1/admin/funnels',
     summary: 'Consumer funnel: per-step counts + conversion rates',
     description:
       'Aggregates the append-only analytics events table into the consumer ' +
-      'funnel (scope → details → preview → gate → report) with per-step ' +
-      'counts and step-to-step conversion rates. Optional ISO-8601 from/to ' +
+      'funnel (landing view → address selected → preview → gate view → ' +
+      'gate convert → report open) with per-step counts and step-to-step ' +
+      'conversion rates, plus the same funnel per (utm_source, utm_campaign) ' +
+      'in bySource (largest first, capped). Optional ISO-8601 from/to ' +
       'bounds (inclusive). tenant_key filters to one embed tenant, "direct" ' +
       'selects Feasly-direct traffic only, omitted = all traffic. ' +
+      'utm_source / utm_campaign filter to one campaign source (exact match). ' +
       'Admin-only (X-Admin-Key interim until admin/01). Numbers only — no PII.',
     security: [{ AdminKey: [] }],
     request: {
@@ -994,6 +1127,12 @@ export function buildOpenApiSpec(options: OpenApiSpecOptions) {
           .string()
           .optional()
           .describe('Embed tenant key, "direct" for Feasly-direct only'),
+        utm_source: z.string().max(100).optional().describe('Exact utm_source filter'),
+        utm_campaign: z
+          .string()
+          .max(100)
+          .optional()
+          .describe('Exact utm_campaign filter'),
       }),
     },
     responses: {
@@ -1007,28 +1146,33 @@ export function buildOpenApiSpec(options: OpenApiSpecOptions) {
                 from: { type: ['string', 'null'], format: 'date-time' },
                 to: { type: ['string', 'null'], format: 'date-time' },
                 tenant: { type: 'string' },
-                steps: {
+                utmSource: { type: ['string', 'null'] },
+                utmCampaign: { type: ['string', 'null'] },
+                steps: FUNNEL_STEPS_SCHEMA,
+                bySource: {
                   type: 'array',
                   items: {
                     type: 'object',
                     properties: {
-                      step: { type: 'string' },
-                      label: { type: 'string' },
-                      count: { type: 'integer' },
-                      conversionFromPrevious: {
-                        type: ['number', 'null'],
-                      },
+                      utmSource: { type: ['string', 'null'] },
+                      utmCampaign: { type: ['string', 'null'] },
+                      steps: FUNNEL_STEPS_SCHEMA,
                     },
-                    required: [
-                      'step',
-                      'label',
-                      'count',
-                      'conversionFromPrevious',
-                    ],
+                    required: ['utmSource', 'utmCampaign', 'steps'],
                   },
                 },
+                bySourceTruncated: { type: 'boolean' },
               },
-              required: ['from', 'to', 'tenant', 'steps'],
+              required: [
+                'from',
+                'to',
+                'tenant',
+                'utmSource',
+                'utmCampaign',
+                'steps',
+                'bySource',
+                'bySourceTruncated',
+              ],
             },
           },
         },
@@ -1123,7 +1267,7 @@ export function buildOpenApiSpec(options: OpenApiSpecOptions) {
         'Public endpoints use API-key Bearer auth. Admin key endpoints use the interim `X-Admin-Key` header.\n' +
         '\n' +
         '## Rate limits\n' +
-        'Per-key limits (default 100 req/min) plus per-endpoint IP limits. 429 responses use RFC 7807 problem+json.\n' +
+        'Per-key limits (default 100 req/min), per-key daily and monthly quotas (UTC calendar periods; invite-only beta defaults in the developer guide), plus per-endpoint IP limits. 429 responses use RFC 7807 problem+json with Retry-After.\n' +
         '\n' +
         '## Errors\n' +
         'All errors are RFC 7807 `application/problem+json` with a Feasly `code` and `correlationId`.\n' +

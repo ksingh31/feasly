@@ -18,7 +18,12 @@
 
 import { z } from 'zod';
 import { version as packageVersion } from '../package.json';
-import { WAITLIST_CONSENT_VERSION } from './lib/legal-copy';
+import { API_LEAD_CONSENT_VERSION, WAITLIST_CONSENT_VERSION } from './lib/legal-copy';
+import {
+  DEFAULT_DUNNING_GRACE_DAYS,
+  MAX_DUNNING_GRACE_DAYS,
+  MIN_DUNNING_GRACE_DAYS,
+} from './lib/dunning-schedule';
 
 export type NodeEnv = 'development' | 'test' | 'staging' | 'production';
 
@@ -31,6 +36,86 @@ export type NodeEnv = 'development' | 'test' | 'staging' | 'production';
 export const SEED_ADMIN_EMAIL = 'karanbirsingh667@gmail.com';
 
 /** Split a comma-separated env value into a trimmed, non-empty list. */
+/** #777: validated shape of NEIGHBOURHOOD_AMENITY_CATEGORIES. */
+const amenityCategoriesSchema = z
+  .array(
+    z.object({
+      key: z.string().regex(/^[a-z0-9]+(?:-[a-z0-9]+)*$/, 'category key must be kebab-case'),
+      label: z.string().min(1),
+      datasetId: z.string().regex(/^[a-z0-9]{4}-[a-z0-9]{4}$/, 'datasetId must look like abcd-1234'),
+      where: z.string().min(1).optional(),
+      idField: z.string().min(1).optional(),
+      nameField: z.string().min(1).optional(),
+    }),
+  )
+  .min(1)
+  .refine((list) => new Set(list.map((c) => c.key)).size === list.length, 'category keys must be unique')
+  .refine((list) => list.every((c) => c.key !== 'tree-cover'), "'tree-cover' is reserved");
+
+/**
+ * #777: free City of Calgary open-data amenity categories (data.calgary.ca).
+ * Overridable as JSON via NEIGHBOURHOOD_AMENITY_CATEGORIES.
+ */
+const DEFAULT_AMENITY_CATEGORIES = [
+  {
+    key: 'parks',
+    label: 'Parks',
+    datasetId: 'kami-qbfh', // Parks Sites
+    where:
+      "life_cycle_status='ACTIVE' AND planning_category in('REGIONAL PARK','DISTRICT PARK'," +
+      "'COMMUNITY PARK','NEIGHBOURHOOD PARK','ATHLETIC PARK','LINEAR PARK')",
+    idField: 'asset_cd',
+    nameField: 'site_name',
+  },
+  {
+    key: 'playgrounds',
+    label: 'Playgrounds',
+    // asset_cd is the park site: one playground per site.
+    datasetId: 'bdu9-amk8', // Playground Equipment (multi-play complexes)
+    where: "life_cycle_status='ACTIVE' AND type_description='MULTI PLAY COMPLEX'",
+    idField: 'asset_cd',
+  },
+  {
+    key: 'pathways',
+    label: 'Pathways',
+    // One point per segment; asset_cd is shared by many segments, so the id
+    // is derived from location instead.
+    datasetId: 'qndb-27qm', // Parks Pathways
+    where: "life_cycle_status='ACTIVE'",
+  },
+  {
+    key: 'rec-centres',
+    label: 'Recreation centres',
+    datasetId: 'hxfu-6d96', // Recreation Facilities
+    where:
+      "facility_type in('Leisure Centre','Leisure Centre - Municipal','Aquatic & Fitness Centre'," +
+      "'Fieldhouse','Arena')",
+    nameField: 'complex_name',
+  },
+  {
+    key: 'pools',
+    label: 'Pools',
+    datasetId: 'hxfu-6d96', // Recreation Facilities
+    where: "indr_pool='Y' OR outdr_pool='Y'",
+    nameField: 'complex_name',
+  },
+  {
+    key: 'libraries',
+    label: 'Libraries',
+    datasetId: 'x34e-bcjz', // Community Services
+    where: "type='Library'",
+    nameField: 'name',
+  },
+  {
+    key: 'off-leash',
+    label: 'Off-leash areas',
+    datasetId: 'enr4-crti', // Parks Off Leash Areas
+    where: "status='OPEN'",
+    idField: 'off_leash_area_id',
+    nameField: 'description',
+  },
+] as const;
+
 function csvToList(raw: string): string[] {
   return raw
     .split(',')
@@ -123,6 +208,16 @@ const EnvSchema = z.object({
   // general API traffic.
   ANALYTICS_RATE_LIMIT_WINDOW_MS: z.coerce.number().int().positive().default(60_000),
   ANALYTICS_RATE_LIMIT_MAX_REQUESTS: z.coerce.number().int().positive().default(300),
+  // #830 real-user-monitoring beacons: a real page load sends 1–2, and each
+  // item becomes one App Insights trace, so the limiter is tight (10/min per
+  // IP) and a per-instance trace budget caps the total — one client must not
+  // be able to burn the 0.1 GB/day Log Analytics cap and blind server traces.
+  WEB_TELEMETRY_RATE_LIMIT_WINDOW_MS: z.coerce.number().int().positive().default(60_000),
+  WEB_TELEMETRY_RATE_LIMIT_MAX_REQUESTS: z.coerce.number().int().positive().default(10),
+  WEB_TELEMETRY_MAX_TRACES_PER_MINUTE: z.coerce.number().int().positive().default(60),
+
+  /** #814: max utm_source × utm_campaign groups in the admin funnel breakdown. */
+  FUNNEL_SOURCE_GROUP_LIMIT: z.coerce.number().int().positive().max(500).default(25),
 
   // Admin global search (⌘K palette): dedicated limiters — palettes fire
   // per keystroke, so they are separate from the general API budget.
@@ -149,6 +244,8 @@ const EnvSchema = z.object({
   // lead with no status change for this many days counts as stale; the
   // feed scans at most this many of the builder's newest leads.
   LEAD_NEEDS_YOU_STALE_DAYS: z.coerce.number().int().positive().default(7),
+  // #836: how far ahead (calendar days) a callback's preferred day may be.
+  LEAD_CALLBACK_DATE_WINDOW_DAYS: z.coerce.number().int().positive().default(14),
   LEAD_NEEDS_YOU_SCAN_LIMIT: z.coerce.number().int().positive().default(500),
 
   // api-mcp/09: sandbox purge timer. Rows with sandbox=true older than
@@ -178,6 +275,28 @@ const EnvSchema = z.object({
     .transform((value) => value === 'true'),
   FOLLOW_UP_EMAIL_DELAY_HOURS: z.coerce.number().int().positive().default(72),
 
+  // #838: Postgres-backed job queue (`jobs` table, claimed with FOR UPDATE
+  // SKIP LOCKED by the job-queue timer). No new Azure resource. Failed jobs
+  // retry with exponential backoff (BASE · 2^(attempt-1), capped at MAX)
+  // and dead-letter after MAX_ATTEMPTS; a job claimed but not finished
+  // within LOCK_TIMEOUT (worker crash) is reclaimed.
+  JOB_QUEUE_BATCH_SIZE: z.coerce.number().int().positive().max(500).default(50),
+  JOB_QUEUE_MAX_ATTEMPTS: z.coerce.number().int().positive().max(20).default(5),
+  JOB_QUEUE_BACKOFF_BASE_SECONDS: z.coerce.number().int().positive().default(300),
+  JOB_QUEUE_BACKOFF_MAX_SECONDS: z.coerce.number().int().positive().default(21_600),
+  JOB_QUEUE_LOCK_TIMEOUT_SECONDS: z.coerce.number().int().positive().default(900),
+  // #838: homeowner reminders (CASL consent only, through the queue).
+  // UNFINISHED_DELAY_HOURS: gave an email but never opened the report.
+  // MAX_PER_RUN caps how many reminders one scheduler run enqueues, per
+  // reminder type (backpressure on the email provider).
+  REMINDER_UNFINISHED_DELAY_HOURS: z.coerce.number().int().positive().default(24),
+  REMINDER_MAX_PER_RUN: z.coerce.number().int().positive().max(5_000).default(500),
+  // #838: link-only (copy-link) report shares — read-only, expiring,
+  // revocable from the report page. TTL in seconds (default 7 days);
+  // MAX_ACTIVE caps live links per report.
+  SHARE_LINK_TTL_SECONDS: z.coerce.number().int().positive().default(604_800),
+  SHARE_LINK_MAX_ACTIVE: z.coerce.number().int().positive().max(50).default(5),
+
   // #725: builder notifications — one new-lead email per opted-in member
   // (send-once outbox, retried by the builder-notifications timer) and the
   // opt-in daily "Needs you" digest. ENABLED is the kill switch (default on:
@@ -198,6 +317,26 @@ const EnvSchema = z.object({
     .refine(isIanaTimeZone, 'must be an IANA time zone, e.g. America/Edmonton')
     .default('America/Edmonton'),
 
+  // #870: builder portal Settings. Support is email only (owner decision
+  // 2026-11-15, #724): BUILDER_SUPPORT_EMAIL is unset until Karan names a
+  // support address — until then builders are pointed at the team inbox
+  // (OPS_INBOX_EMAIL), which is deliverable. RESPONSE_TIME is the promised
+  // reply copy. The embed install check calls an origin "live" when the
+  // widget loaded there within EMBED_LIVE_WINDOW_DAYS. The snippet's loader
+  // URL is APP_BASE_URL + EMBED_LOADER_PATH (docs/embed-install.md).
+  BUILDER_SUPPORT_EMAIL: z.string().trim().email().optional(),
+  BUILDER_SUPPORT_RESPONSE_TIME: z
+    .string()
+    .trim()
+    .min(1)
+    .max(100)
+    .default('within 1 business day'),
+  BUILDER_EMBED_LIVE_WINDOW_DAYS: z.coerce.number().int().min(1).max(90).default(7),
+  BUILDER_EMBED_LOADER_PATH: z
+    .string()
+    .regex(/^\/[A-Za-z0-9._~/-]*$/, 'must be an absolute path, e.g. /embed/v1/loader.js')
+    .default('/embed/v1/loader.js'),
+
   // neighbourhood/05: monthly community-stats refresh timer. Communities
   // with fewer fresh assessment records than this are skipped (logged, never
   // zero-filled). ALERT_AFTER_FAILURES consecutive timer failures fire the
@@ -209,7 +348,12 @@ const EnvSchema = z.object({
   // #773: neighbourhood data (Community Match epic). Each outside source is
   // a provider interface; these pick the implementation (free now, paid
   // later — config-only switch). 'none' writes nothing and calls nothing.
-  NEIGHBOURHOOD_SCHOOL_DIRECTORY_PROVIDER: z.enum(['calgary-open-data', 'none']).default('calgary-open-data'),
+  // #774: 'free-public' = City Schools + Alberta school authority list +
+  // OpenStreetMap (private schools, websites); 'calgary-open-data' = City
+  // Schools + authority list only (no OSM call).
+  NEIGHBOURHOOD_SCHOOL_DIRECTORY_PROVIDER: z
+    .enum(['free-public', 'calgary-open-data', 'none'])
+    .default('free-public'),
   NEIGHBOURHOOD_SCHOOL_DESIGNATION_PROVIDER: z.enum(['none']).default('none'),
   NEIGHBOURHOOD_SCHOOL_RATINGS_PROVIDER: z.enum(['none']).default('none'),
   NEIGHBOURHOOD_REVIEWS_PROVIDER: z.enum(['none']).default('none'),
@@ -218,8 +362,64 @@ const EnvSchema = z.object({
   // City of Calgary open-data datasets behind the free implementations:
   // Schools, Community Services, Community Points.
   NEIGHBOURHOOD_SCHOOLS_DATASET_ID: z.string().min(1).default('fd9t-tdn2'),
-  NEIGHBOURHOOD_AMENITIES_DATASET_ID: z.string().min(1).default('x34e-bcjz'),
+  // #777: amenity categories (key, label, City dataset, SoQL filter) as a
+  // JSON array — adding/removing a category is config-only. See
+  // DEFAULT_AMENITY_CATEGORIES for the shape and the free defaults.
+  NEIGHBOURHOOD_AMENITY_CATEGORIES: z
+    .string()
+    .min(2)
+    .default(JSON.stringify(DEFAULT_AMENITY_CATEGORIES))
+    .transform((raw, ctx) => {
+      let parsed: unknown;
+      try {
+        parsed = JSON.parse(raw);
+      } catch {
+        ctx.addIssue({ code: 'custom', message: 'must be a JSON array' });
+        return z.NEVER;
+      }
+      const result = amenityCategoriesSchema.safeParse(parsed);
+      if (!result.success) {
+        ctx.addIssue({ code: 'custom', message: result.error.issues[0]?.message ?? 'invalid' });
+        return z.NEVER;
+      }
+      return result.data;
+    }),
+  // #777: per-community public-tree cover: City "Public Trees" (counted per
+  // community) over the community's area from "Community District
+  // Boundaries". Level thresholds are public trees per hectare
+  // ("low,high": below low = low, at/above high = high, else moderate).
+  NEIGHBOURHOOD_PUBLIC_TREES_DATASET_ID: z.string().min(1).default('tfs4-3wwa'),
+  // Also #774: each school's community code is a point-in-polygon test against these.
+  NEIGHBOURHOOD_COMMUNITY_BOUNDARIES_DATASET_ID: z.string().min(1).default('surr-xmvs'),
+  NEIGHBOURHOOD_TREE_COVER_THRESHOLDS: z
+    .string()
+    .default('11,16')
+    .transform((raw) => csvToList(raw).map(Number))
+    .pipe(z.array(z.number().positive()).length(2))
+    .refine(([low, high]) => low! < high!, 'low threshold must be below high'),
+  // #777: community amenity metrics — nearest within the search radius and
+  // counts within each radius (metres, from the community centre).
+  NEIGHBOURHOOD_AMENITY_SEARCH_RADIUS_M: z.coerce.number().int().positive().default(3_000),
+  NEIGHBOURHOOD_AMENITY_COUNT_RADII_M: z
+    .string()
+    .default('500,1000')
+    .transform((raw) => csvToList(raw).map(Number))
+    .pipe(z.array(z.number().int().positive()).min(1)),
+  // How long computed community metrics are reused from the shared cache.
+  NEIGHBOURHOOD_COMMUNITY_METRICS_TTL_MS: z.coerce.number().int().positive().default(86_400_000),
   NEIGHBOURHOOD_COMMUNITY_POINTS_DATASET_ID: z.string().min(1).default('j9ps-fyst'),
+  // #774: OpenStreetMap Overpass endpoint and the Calgary bounding box
+  // (south,west,north,east) queried for amenity=school.
+  NEIGHBOURHOOD_OSM_OVERPASS_URL: z.string().url().default('https://overpass-api.de/api/interpreter'),
+  NEIGHBOURHOOD_OSM_BBOX: z
+    .string()
+    .regex(/^-?\d+(\.\d+)?(,-?\d+(\.\d+)?){3}$/)
+    .default('50.84,-114.32,51.22,-113.85'),
+  // #774: an OSM school within this distance of a City school with a
+  // matching name is the same school (de-duplicated, fields merged).
+  // Overpass answers city-wide queries slowly; its own (longer) timeout.
+  NEIGHBOURHOOD_OSM_HTTP_TIMEOUT_MS: z.coerce.number().int().positive().default(90_000),
+  NEIGHBOURHOOD_SCHOOL_DEDUPE_RADIUS_M: z.coerce.number().int().positive().default(300),
   // Established infill communities only (#690 rule): residential
   // communities whose City "community structure" is one of these.
   NEIGHBOURHOOD_COMMUNITY_CLASS: z.string().min(1).default('Residential'),
@@ -257,6 +457,10 @@ const EnvSchema = z.object({
   // an email-bombing vector against any known address. This caps actual
   // magic-link *sends* per normalized email per rolling hour on both paths.
   MAGIC_LINK_MAX_SENDS_PER_HOUR: z.coerce.number().int().positive().default(5),
+  // #806: lifetime of the owner link minted for the erase-confirmation email
+  // (POST /privacy/erase-requests). Short on purpose — it only has to survive
+  // the trip to the inbox and one click. Default 24 h.
+  PRIVACY_ERASE_CONFIRM_LINK_TTL_SECONDS: z.coerce.number().int().positive().default(86_400),
   // EMB-06: relay-code lifetime (10 minutes per story) and the session-token
   // lifetime it exchanges into (12 hours per story). Both from env so tests
   // and staging can shorten them without code changes.
@@ -269,6 +473,20 @@ const EnvSchema = z.object({
   // consent wording stored in waitlist_signups.consent_version. Defaults to the
   // tag in lib/legal-copy.ts; override per environment without a code change.
   WAITLIST_CONSENT_VERSION: z.string().trim().min(1).default(WAITLIST_CONSENT_VERSION),
+  // #738 (owner decision 2026-11-15, invite-only free beta): per-API-key
+  // usage quotas on top of the per-minute limit. Counted from the api_usage
+  // table per UTC calendar day / month, so they hold across instances.
+  API_KEY_DAILY_QUOTA: z.coerce.number().int().positive().default(100),
+  API_KEY_MONTHLY_QUOTA: z.coerce.number().int().positive().default(2_000),
+  // #738: consent-attestation version an API caller must send with a lead
+  // (`consentVersion`). Defaults to the tag in lib/legal-copy.ts.
+  API_LEAD_CONSENT_VERSION: z.string().trim().min(1).default(API_LEAD_CONSENT_VERSION),
+  // #738: leads submitted with an API key land in the admin quarantine
+  // queue for review (no magic-link email until approved). Beta default on.
+  API_KEY_LEADS_QUARANTINE: z
+    .enum(['true', 'false'])
+    .default('true')
+    .transform((value) => value === 'true'),
   // INTERIM (api-mcp/01): pre-shared key for admin endpoints until
   // admin/01's session auth lands. Unset = admin endpoints fail closed.
   ADMIN_API_KEY: z.string().trim().min(1).optional(),
@@ -401,6 +619,41 @@ const EnvSchema = z.object({
   // console.groq.com/docs/models as of 2026-09-28). Overridable without
   // a code change.
   NARRATIVE_FALLBACK_MODELS: z.string().default('openai/gpt-oss-120b'),
+  // --- Monthly community narratives (#759) ---
+  // One stored LLM narrative per community per month, reused by every
+  // report (no LLM call per estimate). Off switch for the timer + admin
+  // regenerate; reports still read whatever is stored.
+  COMMUNITY_NARRATIVE_ENABLED: z
+    .enum(['true', 'false'])
+    .default('true')
+    .transform((value) => value === 'true'),
+  // NCRONTAB tick for the community-narrative timer. Must equal the
+  // schedule in community-narrative-timer/function.json (pinned by test).
+  // Daily: the service decides whether today is the run day or a retry day.
+  COMMUNITY_NARRATIVE_SCHEDULE: z.string().min(1).default('0 0 9 * * *'),
+  // Day of the month the job generates next month's narratives:
+  // 'last' (owner decision) or a fixed day 1-28.
+  COMMUNITY_NARRATIVE_RUN_DAY: z
+    .string()
+    .regex(/^(last|[1-9]|1\d|2[0-8])$/, "use 'last' or a day 1-28")
+    .default('last'),
+  // Daily ticks after the run day that retry failed communities before
+  // one ops alert fires.
+  COMMUNITY_NARRATIVE_RETRY_DAYS: z.coerce.number().int().min(0).max(10).default(3),
+  // Comma-separated model list for community narratives; empty = reuse
+  // NARRATIVE_MODELS.
+  COMMUNITY_NARRATIVE_MODELS: z.string().default(''),
+  // Prompt version stamped on every stored narrative (bump on prompt edits).
+  COMMUNITY_NARRATIVE_PROMPT_VERSION: z.string().min(1).default('community-v1'),
+  // Cost guard: max LLM generations per timer tick / admin request.
+  COMMUNITY_NARRATIVE_MAX_PER_RUN: z.coerce.number().int().positive().default(400),
+  // Wall-clock budget (ms) for an admin "regenerate all" request; the rest
+  // is left 'stale' and finished by the next daily tick.
+  COMMUNITY_NARRATIVE_ADMIN_BUDGET_MS: z.coerce.number().int().positive().default(60_000),
+  // Wall-clock budget (ms) for one timer tick, kept well under the 30 min
+  // Functions host timeout so the run event and the retry-day alert check
+  // always run; whatever is left is picked up by the next daily tick.
+  COMMUNITY_NARRATIVE_TICK_BUDGET_MS: z.coerce.number().int().positive().default(1_200_000),
   // Service-account email — placeholder until provisioned in Key Vault.
   // Empty = sync disabled (worker fails closed, alert fires).
   SHEETS_SERVICE_ACCOUNT_EMAIL: z.string().default(''),
@@ -469,12 +722,77 @@ const EnvSchema = z.object({
   ZONING_CITY: z.string().trim().toLowerCase().min(1).default('calgary'),
   // Cache-Control max-age for the catalogue (static per deploy; 1h default).
   ZONING_CACHE_MAX_AGE_S: z.coerce.number().int().nonnegative().default(3_600),
+  // --- Zoning source watch (#757) ---
+  // Daily timer: compares the City's Land Use Districts dataset metadata and
+  // the Land Use Bylaw page with what it last saw; on a change it refreshes
+  // cached districts and files one "Zoning catalogue may be out of date"
+  // issue. Free sources only (City open data + GitHub REST).
+  ZONING_WATCH_ENABLED: z
+    .enum(['true', 'false'])
+    .default('true')
+    .transform((value) => value === 'true'),
+  ZONING_BYLAW_WATCH_URL: z
+    .string()
+    .url()
+    .default(
+      'https://www.calgary.ca/pda/pd/calgary-land-use-bylaw-1p2007/calgary-land-use-bylaw-1p2007.html',
+    ),
+  ZONING_WATCH_HTTP_TIMEOUT_MS: z.coerce.number().int().positive().default(15_000),
+  // How long GET /zoning/districts reuses the watch state before re-reading it.
+  ZONING_FRESHNESS_CACHE_TTL_MS: z.coerce.number().int().nonnegative().default(300_000),
+  // Where the "catalogue may be out of date" issue is filed. The token is a
+  // Key Vault reference app setting (issues:write on this repo only); empty
+  // = detect and record, but file no issue (logged).
+  ZONING_WATCH_GITHUB_REPO: z
+    .string()
+    .regex(/^[\w.-]+\/[\w.-]+$/)
+    .default('ksingh31/feasly'),
+  ZONING_WATCH_GITHUB_TOKEN: z.string().default(''),
+  ZONING_WATCH_GITHUB_API_URL: z.string().url().default('https://api.github.com'),
   // --- Builder partner disclosure (#888) ---
   // In-memory TTL for the public active-partner list (admin writes on the
   // same instance invalidate it at once; other instances within this TTL).
   PARTNERS_CACHE_TTL_MS: z.coerce.number().int().nonnegative().default(300_000),
   // Cache-Control max-age on GET /api/v1/partners (5 min default).
   PARTNERS_CACHE_MAX_AGE_S: z.coerce.number().int().nonnegative().default(300),
+  // --- Community lot inventory (#691) ---
+  // Vacant residential land-only parcels in established infill communities
+  // (owner decision 2026-11-15: infill only, same rule as #690 — community
+  // boundary class + structure from the City's Community District
+  // Boundaries dataset). Shares SOCRATA_BASE_URL + SOCRATA_DATASET_ID
+  // (assessments) and LAND_USE_* (current district) with property lookup.
+  COMMUNITY_LOTS_CITY: z.string().trim().toLowerCase().min(1).default('calgary'),
+  COMMUNITY_LOTS_BOUNDARIES_DATASET_ID: z.string().min(1).default('surr-xmvs'),
+  COMMUNITY_LOTS_ESTABLISHED_CLASSES: z.string().default('Residential').transform(csvToList),
+  COMMUNITY_LOTS_ESTABLISHED_STRUCTURES: z
+    .string()
+    .default('INNER CITY,1950s,1960s/1970s')
+    .transform(csvToList),
+  // Sliver guard: remnant strips below this lot area are not lots (0 = off).
+  COMMUNITY_LOTS_MIN_LOT_SQFT: z.coerce.number().int().nonnegative().default(1_000),
+  // Current districts that qualify (case-insensitive prefixes): low-density
+  // residential (R-*) and grade-oriented infill (H-GO). Multi-residential,
+  // mixed-use, commercial, Direct Control and special-purpose are excluded.
+  COMMUNITY_LOTS_ALLOWED_DISTRICT_PREFIXES: z.string().default('R-,H-GO').transform(csvToList),
+  // Socrata paging + politeness: rows per page, pause between requests,
+  // concurrent district lookups, per-request timeout.
+  COMMUNITY_LOTS_PAGE_SIZE: z.coerce.number().int().positive().max(50_000).default(1_000),
+  COMMUNITY_LOTS_REQUEST_DELAY_MS: z.coerce.number().int().nonnegative().default(100),
+  COMMUNITY_LOTS_DISTRICT_CONCURRENCY: z.coerce.number().int().positive().max(16).default(4),
+  COMMUNITY_LOTS_HTTP_TIMEOUT_MS: z.coerce.number().int().positive().default(15_000),
+  // Retries per Socrata request (district lookup or page) before the
+  // community is reported failed and its stored lots are kept.
+  COMMUNITY_LOTS_MAX_ATTEMPTS: z.coerce.number().int().positive().max(10).default(3),
+  // Lots older than this are flagged `stale` and fail the freshness check.
+  // Weekly refresh (matches the Land Use Districts dataset) + slack.
+  COMMUNITY_LOTS_STALE_AFTER_DAYS: z.coerce.number().int().positive().default(14),
+  // Consecutive failed refreshes before the community_lots_failed ops alert.
+  COMMUNITY_LOTS_ALERT_AFTER_FAILURES: z.coerce.number().int().positive().default(1),
+  // List page size: default and hard cap.
+  COMMUNITY_LOTS_DEFAULT_LIMIT: z.coerce.number().int().positive().default(50),
+  COMMUNITY_LOTS_MAX_LIMIT: z.coerce.number().int().positive().default(200),
+  // Cache-Control max-age on the public list (data changes weekly).
+  COMMUNITY_LOTS_CACHE_MAX_AGE_S: z.coerce.number().int().nonnegative().default(3_600),
   // --- City-data freshness (landing trust strip) ---
   // Shares the SOCRATA_* source with propertyData; its own TTL because the
   // metadata changes at most monthly (24h default, successful fetches only).
@@ -498,6 +816,17 @@ const EnvSchema = z.object({
   // reconciled against Stripe by the daily reviewer and flagged on
   // /admin/webhooks. 24h default (open owner question on #711 — tunable).
   BILLING_SETTLEMENT_THRESHOLD_HOURS: z.coerce.number().int().positive().default(24),
+  // #718 dunning: default per-invoice grace period in days (admin can edit
+  // it per invoice). Card invoices: days between a failed charge and the
+  // next automatic retry. Manual-method invoices: days after the review
+  // window closes before the invoice is overdue. 7 matches the "update your
+  // card within 7 days" copy the declined email already carried.
+  BILLING_DUNNING_GRACE_DAYS: z.coerce
+    .number()
+    .int()
+    .min(MIN_DUNNING_GRACE_DAYS)
+    .max(MAX_DUNNING_GRACE_DAYS)
+    .default(DEFAULT_DUNNING_GRACE_DAYS),
   // --- Card lifecycle (#716) ---
   // Text on the builder's bank statement for a commission charge. Sent as
   // Stripe's statement_descriptor_suffix (card PaymentIntents reject a full
@@ -697,6 +1026,11 @@ export interface LeadConfig {
    * ms are quarantined like the honeypot. 0 disables the check.
    */
   readonly minSubmitMs: number;
+  /**
+   * #836: a callback's preferred day must fall within this many calendar
+   * days after today (America/Edmonton), business days only.
+   */
+  readonly callbackDateWindowDays: number;
 }
 
 /**
@@ -728,6 +1062,19 @@ export interface EstimateConfig {
 export interface AnalyticsConfig {
   /** Generous rate limiter for the public analytics-ingest endpoint. */
   readonly rateLimit: Omit<RateLimitConfig, 'maxTrackedKeys'>;
+  /**
+   * #814: the admin funnel's per-source breakdown returns at most this many
+   * (utm_source, utm_campaign) groups, largest first. Attribution values
+   * are client-supplied, so the group count must be bounded.
+   */
+  readonly funnelSourceGroupLimit: number;
+}
+
+export interface WebTelemetryConfig {
+  /** Tight per-IP limiter for POST /api/v1/telemetry (#830). */
+  readonly rateLimit: Omit<RateLimitConfig, 'maxTrackedKeys'>;
+  /** Per-instance cap on traces emitted per minute; excess items are dropped. */
+  readonly maxTracesPerMinute: number;
 }
 
 export interface AdminSearchConfig {
@@ -769,6 +1116,11 @@ export interface AuthConfig {
    * never a 429 — so the budget can't become a send oracle.
    */
   readonly magicLinkMaxSendsPerHour: number;
+  /**
+   * #806: lifetime of the fresh owner link emailed for erase confirmation
+   * (from PRIVACY_ERASE_CONFIRM_LINK_TTL_SECONDS, default 24 h).
+   */
+  readonly eraseConfirmLinkTtlSeconds: number;
   /**
    * INTERIM (api-mcp/01): pre-shared key for the admin endpoints, from
    * ADMIN_API_KEY. admin/01 replaces this with session auth. Undefined =
@@ -991,6 +1343,28 @@ export interface ZoningConfig {
   readonly city: string;
   /** Cache-Control max-age (seconds) on the public catalogue response. */
   readonly cacheMaxAgeSeconds: number;
+  /** In-memory TTL (ms) for the watch state read by the catalogue route. */
+  readonly freshnessCacheTtlMs: number;
+  /** #757: daily City-source watcher. */
+  readonly watch: ZoningWatchConfig;
+}
+
+/** Zoning source watch config (#757). */
+export interface ZoningWatchConfig {
+  readonly enabled: boolean;
+  /** Socrata host of the Land Use Districts dataset. */
+  readonly socrataBaseUrl: string;
+  /** Land Use Districts dataset id (same as landUse.datasetId). */
+  readonly landUseDatasetId: string;
+  /** The City's Land Use Bylaw page, watched for amendments. */
+  readonly bylawPageUrl: string;
+  readonly httpTimeoutMs: number;
+  /** `owner/repo` the out-of-date issue is filed in. */
+  readonly githubRepo: string;
+  /** GitHub token (Key Vault reference); '' = file no issue. */
+  readonly githubToken: string;
+  /** GitHub REST base URL. */
+  readonly githubApiUrl: string;
 }
 
 /**
@@ -1023,6 +1397,18 @@ export interface CityDataFreshnessConfig {
   readonly httpTimeoutMs: number;
   /** In-memory cache TTL for SUCCESSFUL metadata fetches (24h default). */
   readonly cacheTtlMs: number;
+}
+
+/** Agent API access policy (#738, owner decision 2026-11-15). */
+export interface ApiAccessConfig {
+  /** Accepted calls per key per UTC calendar day. */
+  readonly dailyQuota: number;
+  /** Accepted calls per key per UTC calendar month. */
+  readonly monthlyQuota: number;
+  /** The consent-attestation version an API lead must carry. */
+  readonly leadConsentVersion: string;
+  /** API-key leads go to the admin quarantine queue for review. */
+  readonly quarantineLeads: boolean;
 }
 
 /** Waitlist signups (#520, #740). */
@@ -1076,6 +1462,13 @@ export interface BillingConfig {
    * webhooks page flags it (#711). Default 24.
    */
   readonly settlementThresholdHours?: number;
+  /**
+   * #718: default per-invoice dunning grace period in days (7). Card
+   * invoices retry this long after a failed charge; manual-method invoices
+   * are overdue this long after the review window closes. Admin can
+   * override it per invoice.
+   */
+  readonly dunningGraceDays?: number;
   /**
    * Sales tax on commission invoices (#714). Absent or `enabled: false` =
    * no tax: every invoice figure and document matches the pre-tax output.
@@ -1139,6 +1532,18 @@ export interface BillingTaxConfig {
 
 /** #703: post-report follow-up email (hourly timer, flag default off). */
 /** #725: builder new-lead email + daily "Needs you" digest. */
+/** #870: builder portal Settings (support contact + embed install check). */
+export interface BuilderSettingsConfig {
+  /** Support address shown to builders (BUILDER_SUPPORT_EMAIL, else the team inbox). */
+  readonly supportEmail: string;
+  /** Promised response time copy, e.g. "within 1 business day". */
+  readonly supportResponseTime: string;
+  /** An origin is "live" when the widget loaded there within this many days. */
+  readonly embedLiveWindowDays: number;
+  /** Absolute URL of the embed loader script for the install snippet. */
+  readonly embedLoaderUrl: string;
+}
+
 export interface BuilderNotificationsConfig {
   /** Kill switch — false = no enqueue, no sends (default true). */
   readonly enabled: boolean;
@@ -1158,6 +1563,36 @@ export interface FollowUpEmailConfig {
   readonly enabled: boolean;
   /** Hours after the report is first opened before the follow-up is due. */
   readonly delayHours: number;
+}
+
+/** #838: Postgres-backed job queue tunables. */
+export interface JobQueueConfig {
+  /** Max jobs claimed per worker run. */
+  readonly batchSize: number;
+  /** Attempts before a job is dead-lettered. */
+  readonly maxAttempts: number;
+  /** First retry delay, seconds (doubles per attempt). */
+  readonly backoffBaseSeconds: number;
+  /** Retry delay ceiling, seconds. */
+  readonly backoffMaxSeconds: number;
+  /** A running job older than this is reclaimed (worker crash). */
+  readonly lockTimeoutSeconds: number;
+}
+
+/** #838: homeowner reminder caps. */
+export interface RemindersConfig {
+  /** Hours after lead capture before the "unfinished estimate" reminder. */
+  readonly unfinishedDelayHours: number;
+  /** Max reminders enqueued per scheduler run, per reminder type. */
+  readonly maxPerRun: number;
+}
+
+/** #838: link-only report shares. */
+export interface ShareLinkConfig {
+  /** Link lifetime, seconds. */
+  readonly ttlSeconds: number;
+  /** Max live links per report. */
+  readonly maxActive: number;
 }
 
 /** #765: API-key auth posture (revocation lag + live/sandbox isolation). */
@@ -1196,12 +1631,31 @@ export interface CommunityStatsRefreshConfig {
 }
 
 /** #773: neighbourhood provider implementation names (config-selected). */
-export type SchoolDirectoryImpl = 'calgary-open-data' | 'none';
+export type SchoolDirectoryImpl = 'free-public' | 'calgary-open-data' | 'none';
 export type SchoolDesignationImpl = 'none';
 export type SchoolRatingsImpl = 'none';
 export type ReviewsImpl = 'none';
 export type AmenitiesImpl = 'calgary-open-data' | 'none';
 export type CommuteImpl = 'straight-line' | 'none';
+
+/**
+ * #777: one amenity category the free `calgary-open-data` AmenitiesProvider
+ * loads from a City open-data dataset (point, polygon or line geometry —
+ * polygons/lines become one representative point).
+ */
+export interface AmenityCategoryConfig {
+  /** Stable kebab key, e.g. 'parks' — the stored `category`. */
+  readonly key: string;
+  /** Display label, e.g. 'Parks'. */
+  readonly label: string;
+  readonly datasetId: string;
+  /** Optional SoQL `$where` filter. */
+  readonly where?: string;
+  /** Source field holding a stable id (else derived from name + location). */
+  readonly idField?: string;
+  /** Source field holding the name (else the label). */
+  readonly nameField?: string;
+}
 
 /**
  * Neighbourhood data (#773). Outside sources sit behind provider interfaces
@@ -1220,8 +1674,24 @@ export interface NeighbourhoodDataConfig {
   /** City open-data endpoint (shared with property data). */
   readonly socrataBaseUrl: string;
   readonly schoolsDatasetId: string;
-  readonly amenitiesDatasetId: string;
+  /** #777: amenity categories the free AmenitiesProvider loads. */
+  readonly amenityCategories: readonly AmenityCategoryConfig[];
+  /** #777: public-tree cover per community. */
+  readonly publicTreesDatasetId: string;
+  /** City community boundaries: tree-cover area (#777), school → community code (#774). */
+  readonly communityBoundariesDatasetId: string;
+  /** Public trees per hectare: [low, high]. */
+  readonly treeCoverThresholds: readonly [number, number];
+  readonly amenitySearchRadiusM: number;
+  readonly amenityCountRadiiM: readonly number[];
+  readonly communityMetricsTtlMs: number;
   readonly communityPointsDatasetId: string;
+  /** #774: OpenStreetMap Overpass endpoint + Calgary bbox (S,W,N,E). */
+  readonly osmOverpassUrl: string;
+  readonly osmBbox: string;
+  readonly osmHttpTimeoutMs: number;
+  /** #774: same-school match radius across sources (metres). */
+  readonly schoolDedupeRadiusM: number;
   /** #690: residential class + established community structures. */
   readonly communityClass: string;
   readonly communityStructures: readonly string[];
@@ -1238,6 +1708,41 @@ export interface NeighbourhoodDataConfig {
   readonly alertAfterFailureDays: number;
   readonly lotRadiusM: number;
   readonly lotMetricsTtlMs: number;
+}
+
+/**
+ * Community lot inventory (#691): which communities and parcels the weekly
+ * refresh lists, how politely it pages Socrata, and how the public list is
+ * served. Dataset ids for assessments / land use come from propertyData /
+ * landUse.
+ */
+export interface CommunityLotsConfig {
+  /** City key stored on every row and served in the response. */
+  readonly city: string;
+  /** Socrata API base (shared SOCRATA_BASE_URL). */
+  readonly socrataBaseUrl: string;
+  /** Assessment dataset (shared SOCRATA_DATASET_ID). */
+  readonly assessmentDatasetId: string;
+  /** Community District Boundaries dataset (established-area flag). */
+  readonly boundariesDatasetId: string;
+  /** Boundary `class` values that count as established infill. */
+  readonly establishedClasses: readonly string[];
+  /** Boundary `comm_structure` values that count as established infill. */
+  readonly establishedStructures: readonly string[];
+  /** Sliver guard: lots below this area are excluded (0 = off). */
+  readonly minLotSqft: number;
+  /** Qualifying current-district prefixes (case-insensitive). */
+  readonly allowedDistrictPrefixes: readonly string[];
+  readonly pageSize: number;
+  readonly requestDelayMs: number;
+  readonly districtConcurrency: number;
+  readonly httpTimeoutMs: number;
+  readonly maxAttempts: number;
+  readonly staleAfterDays: number;
+  readonly alertAfterConsecutiveFailures: number;
+  readonly defaultLimit: number;
+  readonly maxLimit: number;
+  readonly cacheMaxAgeSeconds: number;
 }
 
 /**
@@ -1344,6 +1849,28 @@ export function parseNarrativeModels(raw: string): readonly string[] {
   return models;
 }
 
+/** Monthly community narratives (#759). */
+export interface CommunityNarrativesConfig {
+  /** Timer + admin regenerate on/off (reads always work). */
+  readonly enabled: boolean;
+  /** NCRONTAB tick — mirrors community-narrative-timer/function.json. */
+  readonly schedule: string;
+  /** 'last' or a day of the month 1-28. */
+  readonly runDay: 'last' | number;
+  /** Daily retry ticks after the run day before one ops alert. */
+  readonly retryDays: number;
+  /** Ordered model list (COMMUNITY_NARRATIVE_MODELS, else NARRATIVE_MODELS). */
+  readonly models: readonly string[];
+  /** Stamped on every stored narrative. */
+  readonly promptVersion: string;
+  /** Cost guard: max generations per tick / admin request. */
+  readonly maxPerRun: number;
+  /** Wall-clock budget for an admin "regenerate all" request. */
+  readonly adminBudgetMs: number;
+  /** Wall-clock budget for one timer tick (below the host timeout). */
+  readonly tickBudgetMs: number;
+}
+
 export interface ApiConfig {
   readonly serviceName: string;
   /** Mirrors apps/api/package.json — the single source of truth. */
@@ -1357,6 +1884,7 @@ export interface ApiConfig {
   readonly botChallenge: BotChallengeConfig;
   readonly estimate: EstimateConfig;
   readonly analytics: AnalyticsConfig;
+  readonly webTelemetry: WebTelemetryConfig;
   readonly adminSearch: AdminSearchConfig;
   readonly webhook: WebhookConfig;
   readonly auth: AuthConfig;
@@ -1387,14 +1915,21 @@ export interface ApiConfig {
   readonly sandboxPurge: SandboxPurgeConfig;
   readonly apiKeyAuth: ApiKeyAuthConfig;
   readonly followUpEmail: FollowUpEmailConfig;
+  readonly jobQueue: JobQueueConfig;
+  readonly reminders: RemindersConfig;
+  readonly shareLink: ShareLinkConfig;
   readonly builderNotifications: BuilderNotificationsConfig;
+  readonly builderSettings: BuilderSettingsConfig;
   readonly sheets: SheetsConfig;
   readonly narrative: NarrativeConfig;
+  readonly communityNarratives: CommunityNarrativesConfig;
   readonly communityStatsRefresh: CommunityStatsRefreshConfig;
+  readonly communityLots: CommunityLotsConfig;
   readonly neighbourhoodData: NeighbourhoodDataConfig;
   readonly backupCheck: BackupCheckConfig;
   readonly embed: EmbedConfig;
   readonly waitlist: WaitlistConfig;
+  readonly apiAccess: ApiAccessConfig;
 }
 
 /** Turn a ZodError into a readable startup failure naming each variable. */
@@ -1694,6 +2229,7 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): ApiConfig {
       needsYouStaleDays: e.LEAD_NEEDS_YOU_STALE_DAYS,
       needsYouScanLimit: e.LEAD_NEEDS_YOU_SCAN_LIMIT,
       minSubmitMs: e.LEAD_MIN_SUBMIT_MS,
+      callbackDateWindowDays: e.LEAD_CALLBACK_DATE_WINDOW_DAYS,
     },
     botChallenge: {
       enabled: e.TURNSTILE_SITE_KEY !== '' && e.TURNSTILE_SECRET_KEY !== '',
@@ -1728,6 +2264,21 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): ApiConfig {
       enabled: e.FOLLOW_UP_EMAIL_ENABLED,
       delayHours: e.FOLLOW_UP_EMAIL_DELAY_HOURS,
     },
+    jobQueue: {
+      batchSize: e.JOB_QUEUE_BATCH_SIZE,
+      maxAttempts: e.JOB_QUEUE_MAX_ATTEMPTS,
+      backoffBaseSeconds: e.JOB_QUEUE_BACKOFF_BASE_SECONDS,
+      backoffMaxSeconds: e.JOB_QUEUE_BACKOFF_MAX_SECONDS,
+      lockTimeoutSeconds: e.JOB_QUEUE_LOCK_TIMEOUT_SECONDS,
+    },
+    reminders: {
+      unfinishedDelayHours: e.REMINDER_UNFINISHED_DELAY_HOURS,
+      maxPerRun: e.REMINDER_MAX_PER_RUN,
+    },
+    shareLink: {
+      ttlSeconds: e.SHARE_LINK_TTL_SECONDS,
+      maxActive: e.SHARE_LINK_MAX_ACTIVE,
+    },
     builderNotifications: {
       enabled: e.BUILDER_NOTIFICATIONS_ENABLED,
       maxAttempts: e.BUILDER_NOTIFICATION_MAX_ATTEMPTS,
@@ -1736,10 +2287,36 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): ApiConfig {
       digestLocalHour: e.BUILDER_DIGEST_LOCAL_HOUR,
       digestTimeZone: e.BUILDER_DIGEST_TIMEZONE,
     },
+    builderSettings: {
+      supportEmail: e.BUILDER_SUPPORT_EMAIL ?? e.OPS_INBOX_EMAIL,
+      supportResponseTime: e.BUILDER_SUPPORT_RESPONSE_TIME,
+      embedLiveWindowDays: e.BUILDER_EMBED_LIVE_WINDOW_DAYS,
+      embedLoaderUrl: `${e.APP_BASE_URL.replace(/\/+$/, '')}${e.BUILDER_EMBED_LOADER_PATH}`,
+    },
     communityStatsRefresh: {
       minAssessmentCount: e.COMMUNITY_STATS_MIN_ASSESSMENTS,
       alertAfterConsecutiveFailures: e.COMMUNITY_STATS_ALERT_AFTER_FAILURES,
       pruneMinRows: e.COMMUNITY_STATS_PRUNE_MIN_ROWS,
+    },
+    communityLots: {
+      city: e.COMMUNITY_LOTS_CITY,
+      socrataBaseUrl: e.SOCRATA_BASE_URL,
+      assessmentDatasetId: e.SOCRATA_DATASET_ID,
+      boundariesDatasetId: e.COMMUNITY_LOTS_BOUNDARIES_DATASET_ID,
+      establishedClasses: e.COMMUNITY_LOTS_ESTABLISHED_CLASSES,
+      establishedStructures: e.COMMUNITY_LOTS_ESTABLISHED_STRUCTURES,
+      minLotSqft: e.COMMUNITY_LOTS_MIN_LOT_SQFT,
+      allowedDistrictPrefixes: e.COMMUNITY_LOTS_ALLOWED_DISTRICT_PREFIXES,
+      pageSize: e.COMMUNITY_LOTS_PAGE_SIZE,
+      requestDelayMs: e.COMMUNITY_LOTS_REQUEST_DELAY_MS,
+      districtConcurrency: e.COMMUNITY_LOTS_DISTRICT_CONCURRENCY,
+      httpTimeoutMs: e.COMMUNITY_LOTS_HTTP_TIMEOUT_MS,
+      maxAttempts: e.COMMUNITY_LOTS_MAX_ATTEMPTS,
+      staleAfterDays: e.COMMUNITY_LOTS_STALE_AFTER_DAYS,
+      alertAfterConsecutiveFailures: e.COMMUNITY_LOTS_ALERT_AFTER_FAILURES,
+      defaultLimit: e.COMMUNITY_LOTS_DEFAULT_LIMIT,
+      maxLimit: e.COMMUNITY_LOTS_MAX_LIMIT,
+      cacheMaxAgeSeconds: e.COMMUNITY_LOTS_CACHE_MAX_AGE_S,
     },
     neighbourhoodData: {
       providers: {
@@ -1752,8 +2329,18 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): ApiConfig {
       },
       socrataBaseUrl: e.SOCRATA_BASE_URL,
       schoolsDatasetId: e.NEIGHBOURHOOD_SCHOOLS_DATASET_ID,
-      amenitiesDatasetId: e.NEIGHBOURHOOD_AMENITIES_DATASET_ID,
+      amenityCategories: e.NEIGHBOURHOOD_AMENITY_CATEGORIES,
+      publicTreesDatasetId: e.NEIGHBOURHOOD_PUBLIC_TREES_DATASET_ID,
+      communityBoundariesDatasetId: e.NEIGHBOURHOOD_COMMUNITY_BOUNDARIES_DATASET_ID,
+      treeCoverThresholds: [e.NEIGHBOURHOOD_TREE_COVER_THRESHOLDS[0]!, e.NEIGHBOURHOOD_TREE_COVER_THRESHOLDS[1]!],
+      amenitySearchRadiusM: e.NEIGHBOURHOOD_AMENITY_SEARCH_RADIUS_M,
+      amenityCountRadiiM: [...e.NEIGHBOURHOOD_AMENITY_COUNT_RADII_M].sort((a, b) => a - b),
+      communityMetricsTtlMs: e.NEIGHBOURHOOD_COMMUNITY_METRICS_TTL_MS,
       communityPointsDatasetId: e.NEIGHBOURHOOD_COMMUNITY_POINTS_DATASET_ID,
+      osmOverpassUrl: e.NEIGHBOURHOOD_OSM_OVERPASS_URL,
+      osmBbox: e.NEIGHBOURHOOD_OSM_BBOX,
+      osmHttpTimeoutMs: e.NEIGHBOURHOOD_OSM_HTTP_TIMEOUT_MS,
+      schoolDedupeRadiusM: e.NEIGHBOURHOOD_SCHOOL_DEDUPE_RADIUS_M,
       communityClass: e.NEIGHBOURHOOD_COMMUNITY_CLASS,
       communityStructures: csvToList(e.NEIGHBOURHOOD_COMMUNITY_STRUCTURES),
       commuteDestination: {
@@ -1795,6 +2382,14 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): ApiConfig {
         windowMs: e.ANALYTICS_RATE_LIMIT_WINDOW_MS,
         maxRequests: e.ANALYTICS_RATE_LIMIT_MAX_REQUESTS,
       },
+      funnelSourceGroupLimit: e.FUNNEL_SOURCE_GROUP_LIMIT,
+    },
+    webTelemetry: {
+      rateLimit: {
+        windowMs: e.WEB_TELEMETRY_RATE_LIMIT_WINDOW_MS,
+        maxRequests: e.WEB_TELEMETRY_RATE_LIMIT_MAX_REQUESTS,
+      },
+      maxTracesPerMinute: e.WEB_TELEMETRY_MAX_TRACES_PER_MINUTE,
     },
     adminSearch: {
       ipRateLimit: {
@@ -1818,6 +2413,7 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): ApiConfig {
       magicLinkTtlSeconds: e.MAGIC_LINK_TTL_SECONDS,
       magicLinkReissueCooldownMs: e.MAGIC_LINK_REISSUE_COOLDOWN_MS,
       magicLinkMaxSendsPerHour: e.MAGIC_LINK_MAX_SENDS_PER_HOUR,
+      eraseConfirmLinkTtlSeconds: e.PRIVACY_ERASE_CONFIRM_LINK_TTL_SECONDS,
       adminApiKey: e.ADMIN_API_KEY,
       adminSessionTtlSeconds: e.ADMIN_SESSION_TTL_SECONDS,
       adminSessionIdleTimeoutSeconds: e.ADMIN_SESSION_IDLE_TIMEOUT_SECONDS,
@@ -1896,6 +2492,17 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): ApiConfig {
     zoning: {
       city: e.ZONING_CITY,
       cacheMaxAgeSeconds: e.ZONING_CACHE_MAX_AGE_S,
+      freshnessCacheTtlMs: e.ZONING_FRESHNESS_CACHE_TTL_MS,
+      watch: {
+        enabled: e.ZONING_WATCH_ENABLED,
+        socrataBaseUrl: e.SOCRATA_BASE_URL,
+        landUseDatasetId: e.LAND_USE_DATASET_ID,
+        bylawPageUrl: e.ZONING_BYLAW_WATCH_URL,
+        httpTimeoutMs: e.ZONING_WATCH_HTTP_TIMEOUT_MS,
+        githubRepo: e.ZONING_WATCH_GITHUB_REPO,
+        githubToken: e.ZONING_WATCH_GITHUB_TOKEN,
+        githubApiUrl: e.ZONING_WATCH_GITHUB_API_URL,
+      },
     },
     partners: {
       cacheTtlMs: e.PARTNERS_CACHE_TTL_MS,
@@ -1914,6 +2521,7 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): ApiConfig {
       reportingSlaDays: e.BILLING_REPORTING_SLA_DAYS,
       maxChargeRetries: e.BILLING_MAX_CHARGE_RETRIES,
       settlementThresholdHours: e.BILLING_SETTLEMENT_THRESHOLD_HOURS,
+      dunningGraceDays: e.BILLING_DUNNING_GRACE_DAYS,
       tax: buildTaxConfig(e),
       ...(e.BILLING_STATEMENT_DESCRIPTOR
         ? { statementDescriptor: e.BILLING_STATEMENT_DESCRIPTOR }
@@ -1954,6 +2562,22 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): ApiConfig {
         models: parseNarrativeModels(e.NARRATIVE_FALLBACK_MODELS),
       },
     },
+    communityNarratives: {
+      enabled: e.COMMUNITY_NARRATIVE_ENABLED,
+      schedule: e.COMMUNITY_NARRATIVE_SCHEDULE,
+      runDay:
+        e.COMMUNITY_NARRATIVE_RUN_DAY === 'last'
+          ? 'last'
+          : Number(e.COMMUNITY_NARRATIVE_RUN_DAY),
+      retryDays: e.COMMUNITY_NARRATIVE_RETRY_DAYS,
+      models: parseNarrativeModels(
+        e.COMMUNITY_NARRATIVE_MODELS.trim() || e.NARRATIVE_MODELS,
+      ),
+      promptVersion: e.COMMUNITY_NARRATIVE_PROMPT_VERSION,
+      maxPerRun: e.COMMUNITY_NARRATIVE_MAX_PER_RUN,
+      adminBudgetMs: e.COMMUNITY_NARRATIVE_ADMIN_BUDGET_MS,
+      tickBudgetMs: e.COMMUNITY_NARRATIVE_TICK_BUDGET_MS,
+    },
     embed: {
       relayCodeTtlSeconds: e.EMBED_RELAY_CODE_TTL_SECONDS,
       sessionTtlSeconds: e.EMBED_SESSION_TTL_SECONDS,
@@ -1961,6 +2585,12 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): ApiConfig {
     },
     waitlist: {
       consentVersion: e.WAITLIST_CONSENT_VERSION,
+    },
+    apiAccess: {
+      dailyQuota: e.API_KEY_DAILY_QUOTA,
+      monthlyQuota: e.API_KEY_MONTHLY_QUOTA,
+      leadConsentVersion: e.API_LEAD_CONSENT_VERSION,
+      quarantineLeads: e.API_KEY_LEADS_QUARANTINE,
     },
   };
 }

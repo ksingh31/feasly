@@ -12,3 +12,9 @@
   font: var(--type-meta);
   color: var(--muted);
 }
+.disputes-page__builder {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-1) var(--space-2);
+}

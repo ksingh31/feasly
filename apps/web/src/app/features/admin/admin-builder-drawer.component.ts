@@ -10,32 +10,53 @@ import {
 } from '@angular/forms';
 import { Store } from '@ngxs/store';
 import { startWith } from 'rxjs';
+import { RouterLink } from '@angular/router';
 import type {
   Builder,
   BuilderCreateBody,
+  BuilderExportKind,
+  BuilderLifecycleAction,
+  BuilderOffboardingBlocker,
   BuilderPaymentMethod,
-  BuilderStatus,
   BuilderUpdateBody,
 } from '@feasly/contracts';
 import {
+  KitDateTimePipe,
   StatusChipComponent,
   UiButtonComponent,
   UiDrawerComponent,
   UiDrawerRef,
   UiFieldShellComponent,
+  UiModalService,
   UiSelectComponent,
   type UiSelectOption,
   UiTextFieldComponent,
   UiToastService,
 } from '@app/shared/ui';
-import { CreateBuilder, DismissBuildersSaved, DismissBuildersSaveError, UpdateBuilder } from './admin-builders.actions';
+import {
+  CreateBuilder,
+  DismissBuilderExportError,
+  DismissBuildersSaved,
+  DismissBuildersSaveError,
+  ExportBuilderData,
+  LoadOffboardingBlockers,
+  UpdateBuilder,
+} from './admin-builders.actions';
+import {
+  AdminBuilderLifecycleModalComponent,
+  type AdminBuilderLifecycleData,
+} from './admin-builder-lifecycle-modal.component';
+import { adminEntityTarget, type AdminEntityTarget } from './admin-entity-routes';
 import { AdminBuildersState } from './admin-builders.state';
 import { PLANNED_PAYMENT_METHOD_LABELS } from './admin-billing-api.service';
 import {
+  EXPORT_KINDS,
   HEX_COLOR_RE,
+  LIFECYCLE_ACTIONS_BY_STATUS,
+  LIFECYCLE_ACTION_VIEWS,
   PLAN_OPTIONS,
-  STATUS_OPTIONS,
   TENANT_KEY_RE,
+  blockerLabel,
   jsonObjectValidator,
   nullIfBlank,
   parseOrigins,
@@ -79,6 +100,13 @@ function rateValidator(control: AbstractControl): ValidationErrors | null {
  * A commission-rate edit shows the before → after rate and that it only
  * applies to invoices created from now on (AC1). Every write goes through
  * the existing CreateBuilder / UpdateBuilder actions; no rules live here.
+ *
+ * #861: an "Account status" section shows the status, why and when it last
+ * changed, and the lifecycle actions (Suspend · Reactivate · Start /
+ * Complete offboarding), each a confirm modal with a mandatory reason.
+ * While offboarding, a checklist lists what blocks completion (unpaid
+ * invoices, open disputes — from the API) with links. "Export builder
+ * data" downloads the leads or invoices CSV.
  */
 @Component({
   selector: 'app-admin-builder-drawer',
@@ -91,6 +119,8 @@ function rateValidator(control: AbstractControl): ValidationErrors | null {
     UiSelectComponent,
     UiFieldShellComponent,
     StatusChipComponent,
+    RouterLink,
+    KitDateTimePipe,
   ],
   templateUrl: './admin-builder-drawer.component.html',
   styleUrl: './admin-builder-drawer.component.scss',
@@ -102,6 +132,7 @@ export class AdminBuilderDrawerComponent {
   private readonly toasts = inject(UiToastService);
   private readonly data = inject<AdminBuilderDrawerData>(DIALOG_DATA);
   protected readonly ref = inject(UiDrawerRef);
+  private readonly modals = inject(UiModalService);
 
   protected readonly saving = this.store.selectSignal(AdminBuildersState.saving);
   protected readonly saveError = this.store.selectSignal(AdminBuildersState.saveError);
@@ -118,7 +149,6 @@ export class AdminBuilderDrawerComponent {
     ? 'Locked — the sign-in key can’t change after creation.'
     : 'Lowercase letters, numbers, and dashes (e.g. elite-craft).';
 
-  protected readonly statusOptions: readonly UiSelectOption[] = STATUS_OPTIONS;
   /** '' (undecided) maps to the select's placeholder (null). */
   protected readonly planOptions: readonly UiSelectOption[] = PLAN_OPTIONS.filter((o) => o.value !== '');
   protected readonly undecidedLabel = PLAN_OPTIONS[0].label;
@@ -133,7 +163,6 @@ export class AdminBuilderDrawerComponent {
     businessName: ['', [Validators.required, Validators.maxLength(200)]],
     displayName: ['', [Validators.required, Validators.maxLength(200)]],
     tenantKey: ['', [Validators.required, Validators.maxLength(100), Validators.pattern(TENANT_KEY_RE)]],
-    status: ['active' as string, [Validators.required]],
     email: ['', [Validators.email, Validators.maxLength(320)]],
     phone: ['', [Validators.maxLength(50)]],
     logoUrl: ['', [Validators.maxLength(2000)]],
@@ -175,6 +204,81 @@ export class AdminBuilderDrawerComponent {
 
   protected readonly originCount = computed(() => parseOrigins(this.value().allowedOrigins).length);
 
+  // ------------------------------------------------------------ lifecycle (#861)
+
+  private readonly builders = this.store.selectSignal(AdminBuildersState.builders);
+
+  /** The live row (status changes replace it in state), else the snapshot. */
+  protected readonly current = computed<Builder | null>(() => {
+    const id = this.data.builderId;
+    if (id === null) return null;
+    return this.builders().find((b) => b.id === id) ?? this.builder;
+  });
+
+  /** Lifecycle buttons for the current status (display only — the API decides). */
+  protected readonly lifecycleActions = computed(() => {
+    const b = this.current();
+    if (!b) return [];
+    return (LIFECYCLE_ACTIONS_BY_STATUS[b.status] ?? []).map((action) => ({
+      action,
+      label: LIFECYCLE_ACTION_VIEWS[action].label,
+      danger: LIFECYCLE_ACTION_VIEWS[action].tone === 'danger',
+    }));
+  });
+
+  protected readonly offboarding = computed(() => this.current()?.status === 'offboarding');
+
+  private readonly blockerState = this.store.selectSignal(AdminBuildersState.blockers);
+
+  /** Checklist blockers for THIS builder (null until loaded for it). */
+  protected readonly checklist = computed(() => {
+    const state = this.blockerState();
+    return state.builderId === this.data.builderId ? state : null;
+  });
+
+  protected readonly exportKinds = EXPORT_KINDS;
+  protected readonly exporting = this.store.selectSignal(AdminBuildersState.exporting);
+  protected readonly exportError = this.store.selectSignal(AdminBuildersState.exportError);
+
+  protected blockerText(blocker: BuilderOffboardingBlocker): string {
+    return blockerLabel(blocker);
+  }
+
+  /** Every blocker names an invoice; its drawer shows the dispute too. */
+  protected blockerLink(blocker: BuilderOffboardingBlocker): AdminEntityTarget {
+    return adminEntityTarget('invoice', blocker.invoiceId);
+  }
+
+  protected openLifecycle(action: BuilderLifecycleAction): void {
+    const builder = this.current();
+    if (!builder) return;
+    this.modals
+      .open<AdminBuilderLifecycleModalComponent, boolean, AdminBuilderLifecycleData>(
+        AdminBuilderLifecycleModalComponent,
+        { data: { builder, action }, size: 'sm', role: 'alertdialog' },
+      )
+      .closed.pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe((changed) => {
+        if (changed === true && this.offboarding()) this.loadBlockers();
+      });
+  }
+
+  protected loadBlockers(): void {
+    const id = this.data.builderId;
+    if (id === null) return;
+    this.store.dispatch(new LoadOffboardingBlockers(id)).pipe(takeUntilDestroyed(this.destroyRef)).subscribe();
+  }
+
+  protected exportData(kind: BuilderExportKind): void {
+    const id = this.data.builderId;
+    if (id === null) return;
+    this.store.dispatch(new ExportBuilderData(id, kind)).pipe(takeUntilDestroyed(this.destroyRef)).subscribe();
+  }
+
+  protected dismissExportError(): void {
+    this.store.dispatch(new DismissBuilderExportError());
+  }
+
   constructor() {
     this.store.dispatch(new DismissBuildersSaveError());
     const b = this.builder;
@@ -183,7 +287,6 @@ export class AdminBuilderDrawerComponent {
         businessName: b.businessName,
         displayName: b.displayName,
         tenantKey: b.tenantKey,
-        status: b.status,
         email: b.email ?? '',
         phone: b.phone ?? '',
         logoUrl: b.logoUrl ?? '',
@@ -197,6 +300,7 @@ export class AdminBuilderDrawerComponent {
       // The sign-in key is the builder's identity everywhere (embeds,
       // sessions, billing) — it cannot change after creation.
       this.form.controls.tenantKey.disable();
+      if (b.status === 'offboarding') this.loadBlockers();
     }
     this.form.controls.logoUrl.valueChanges
       .pipe(takeUntilDestroyed(this.destroyRef))
@@ -254,7 +358,6 @@ export class AdminBuilderDrawerComponent {
       accentColor: nullIfBlank(v.accentColor),
       allowedOrigins: parseOrigins(v.allowedOrigins),
       plan: v.plan ?? null,
-      status: v.status as BuilderStatus,
       // Blank = server default on create, unchanged on edit. 0 is a real rate.
       ...(rate !== null ? { commissionRatePercent: rate } : {}),
     };

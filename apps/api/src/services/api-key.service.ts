@@ -12,6 +12,7 @@
 import { createHash, randomBytes, randomUUID } from 'node:crypto';
 import { z } from 'zod';
 import { ErrorCodes, HttpError } from '../middleware/errors';
+import { builderPausedError, builderStatusAllows } from '../lib/builder-status-policy';
 
 /** Scope allowlist (api-mcp/01 AC3). */
 export const API_KEY_SCOPES = [
@@ -122,6 +123,13 @@ export interface ApiKeyServiceDeps {
    * keys, `sandbox` rejects live keys, `all` (default) accepts both.
    */
   readonly acceptedModes?: 'all' | 'live' | 'sandbox';
+  /**
+   * #860: lifecycle status of the builder a key is bound to (`tenant_id`),
+   * null when the tenant has no builder row. Read on every authenticate
+   * (never cached) so suspending a builder refuses its keys at once. A
+   * status that refuses `apiKeys` → 403 BUILDER_PAUSED. Absent = no check.
+   */
+  readonly builderStatus?: (tenantKey: string) => Promise<string | null>;
 }
 
 /** Hard ceiling on the auth cache TTL — revocation must propagate in ≤ 60s. */
@@ -372,6 +380,17 @@ export function createApiKeyService(deps: ApiKeyServiceDeps): ApiKeyService {
           'Invalid API key.',
           false,
         );
+      }
+      if (record.tenantId !== null && deps.builderStatus) {
+        const status = await deps.builderStatus(record.tenantId);
+        if (status !== null && !builderStatusAllows(status, 'apiKeys')) {
+          await audit.log({
+            apiKeyId: record.id,
+            action: 'auth_failed',
+            detail: `builder-status:${status}`,
+          });
+          throw builderPausedError(status);
+        }
       }
       await keys.touchLastUsed(record.id, clock());
       return record;

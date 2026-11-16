@@ -23,6 +23,7 @@ import type {
 import { effectivePermissions } from '../src/auth/permissions';
 import { HttpError } from '../src/middleware/errors';
 import { createPermissionGuard } from '../src/middleware/permission-guard';
+import { BUILDER_STATUSES, BUILDER_STATUS_POLICY } from '@feasly/contracts';
 
 const NOW = new Date('2026-09-28T12:00:00Z');
 
@@ -387,6 +388,24 @@ describe('builder session resolution (auth/04)', () => {
     expect(new Set(ctx!.permissions)).toEqual(
       new Set(effectivePermissions(null, ['builder_member'])),
     );
+  });
+
+  // #860: sign-in enforcement point — one test per status.
+  it.each(BUILDER_STATUSES)('a %s builder\'s session follows the signIn policy', async (status) => {
+    const fx = makeService();
+    fx.buildersById.set('builder-7', { id: 'builder-7', displayName: 'North Homes', status });
+    fx.builderSessions.set('builder-token', {
+      email: 'portal@example.com',
+      tenantKey: 'north-homes',
+      viewAs: null,
+      builderId: 'builder-7',
+    });
+    const ctx = await fx.service.resolve(BUILDER_HEADERS('builder-token'));
+    if (BUILDER_STATUS_POLICY[status].signIn) {
+      expect(ctx?.builderId).toBe('builder-7');
+    } else {
+      expect(ctx).toBeNull();
+    }
   });
 
   it('unknown builder on the session denies the session', async () => {

@@ -3,6 +3,7 @@
 
 Usage: mock-server.py <port> <mode> [port-file]
   mode: healthy | degraded-db | no-checks | http500
+        | cors-none | cors-dup (#954 preflight variants; API otherwise healthy)
   port 0 lets the OS pick a free port (#897: parallel test runs must not
   share a fixed port). When port-file is given, the bound port is written
   there (atomically) once the server is listening.
@@ -11,6 +12,9 @@ Serves:
   /           -> 200 "ok"
   /privacy    -> 200 "ok"
   /api/health -> JSON per mode (or 500 for http500)
+  OPTIONS *   -> 204 echoing Origin with credentials (cors-none: 204 with no
+                 Access-Control-* headers, like the Functions host with an
+                 empty platform CORS list; cors-dup: two Allow-Origin lines)
 Everything else -> 404.
 """
 import json
@@ -26,6 +30,8 @@ MODES = {
                     "checks": {"database": "unreachable"}},
     "no-checks": {"status": "ok", "service": "feasly-api", "version": "0.1.0"},
 }
+MODES["cors-none"] = MODES["healthy"]
+MODES["cors-dup"] = MODES["healthy"]
 
 
 class Handler(BaseHTTPRequestHandler):
@@ -50,6 +56,18 @@ class Handler(BaseHTTPRequestHandler):
                            "application/json")
         else:
             self._send(404, "not found")
+
+    def do_OPTIONS(self):
+        origin = self.headers.get("Origin")
+        self.send_response(204)
+        if origin and self.mode != "cors-none":
+            self.send_header("Access-Control-Allow-Origin", origin)
+            if self.mode == "cors-dup":
+                self.send_header("Access-Control-Allow-Origin", origin)
+            self.send_header("Access-Control-Allow-Credentials", "true")
+            self.send_header("Access-Control-Allow-Methods", "GET, POST, OPTIONS")
+        self.send_header("Content-Length", "0")
+        self.end_headers()
 
     def log_message(self, *args):
         pass

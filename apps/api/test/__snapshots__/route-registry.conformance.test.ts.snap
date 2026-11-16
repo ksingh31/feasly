@@ -71,10 +71,22 @@ exports[`route registry > exhaustive role x route permission matrix (auth/04 acc
     "admin",
     "viewer",
   ],
+  "GET /api/v1/admin/builders/{id}/export.csv": [
+    "super_admin",
+    "admin",
+  ],
+  "GET /api/v1/admin/builders/{id}/offboarding-blockers": [
+    "super_admin",
+    "admin",
+  ],
   "GET /api/v1/admin/calibration": [
     "super_admin",
     "admin",
     "viewer",
+  ],
+  "GET /api/v1/admin/community-narratives": [
+    "super_admin",
+    "admin",
   ],
   "GET /api/v1/admin/disputes": [
     "super_admin",
@@ -115,6 +127,10 @@ exports[`route registry > exhaustive role x route permission matrix (auth/04 acc
     "super_admin",
     "admin",
     "viewer",
+  ],
+  "GET /api/v1/admin/ops/jobs": [
+    "super_admin",
+    "admin",
   ],
   "GET /api/v1/admin/ops/sheets-status": [
     "super_admin",
@@ -204,6 +220,12 @@ exports[`route registry > exhaustive role x route permission matrix (auth/04 acc
     "admin",
     "builder_admin",
   ],
+  "GET /api/v1/builder/embed": [
+    "super_admin",
+    "admin",
+    "builder_admin",
+    "builder_member",
+  ],
   "GET /api/v1/builder/leads": [
     "super_admin",
     "admin",
@@ -234,12 +256,34 @@ exports[`route registry > exhaustive role x route permission matrix (auth/04 acc
     "builder_admin",
     "builder_member",
   ],
+  "GET /api/v1/builder/profile": [
+    "super_admin",
+    "admin",
+    "builder_admin",
+    "builder_member",
+  ],
   "GET /api/v1/builder/users": [
     "super_admin",
     "admin",
     "builder_admin",
   ],
   "GET /api/v1/city-data/freshness": [
+    "super_admin",
+    "admin",
+    "viewer",
+    "builder_admin",
+    "builder_member",
+    "none",
+  ],
+  "GET /api/v1/communities/{slug}/living": [
+    "super_admin",
+    "admin",
+    "viewer",
+    "builder_admin",
+    "builder_member",
+    "none",
+  ],
+  "GET /api/v1/communities/{slug}/lots": [
     "super_admin",
     "admin",
     "viewer",
@@ -312,6 +356,22 @@ exports[`route registry > exhaustive role x route permission matrix (auth/04 acc
     "none",
   ],
   "GET /api/v1/reports/{reportToken}": [
+    "super_admin",
+    "admin",
+    "viewer",
+    "builder_admin",
+    "builder_member",
+    "none",
+  ],
+  "GET /api/v1/schools": [
+    "super_admin",
+    "admin",
+    "viewer",
+    "builder_admin",
+    "builder_member",
+    "none",
+  ],
+  "GET /api/v1/schools/{id}": [
     "super_admin",
     "admin",
     "viewer",
@@ -441,6 +501,10 @@ exports[`route registry > exhaustive role x route permission matrix (auth/04 acc
     "super_admin",
     "admin",
   ],
+  "POST /api/v1/admin/billing/invoices/{id}/dunning": [
+    "super_admin",
+    "admin",
+  ],
   "POST /api/v1/admin/billing/invoices/{id}/mark-paid": [
     "super_admin",
     "admin",
@@ -466,6 +530,14 @@ exports[`route registry > exhaustive role x route permission matrix (auth/04 acc
     "admin",
   ],
   "POST /api/v1/admin/builders": [
+    "super_admin",
+    "admin",
+  ],
+  "POST /api/v1/admin/builders/{id}/status": [
+    "super_admin",
+    "admin",
+  ],
+  "POST /api/v1/admin/community-narratives/regenerate": [
     "super_admin",
     "admin",
   ],
@@ -543,6 +615,11 @@ exports[`route registry > exhaustive role x route permission matrix (auth/04 acc
     "admin",
     "builder_admin",
   ],
+  "POST /api/v1/billing/invoices/{id}/pay": [
+    "super_admin",
+    "admin",
+    "builder_admin",
+  ],
   "POST /api/v1/billing/invoices/{id}/resolve": [
     "super_admin",
     "admin",
@@ -563,6 +640,11 @@ exports[`route registry > exhaustive role x route permission matrix (auth/04 acc
     "builder_admin",
   ],
   "POST /api/v1/billing/simulated/confirm-setup": [
+    "super_admin",
+    "admin",
+    "builder_admin",
+  ],
+  "POST /api/v1/builder/account/close-request": [
     "super_admin",
     "admin",
     "builder_admin",
@@ -606,6 +688,11 @@ exports[`route registry > exhaustive role x route permission matrix (auth/04 acc
     "builder_admin",
     "builder_member",
     "none",
+  ],
+  "POST /api/v1/builder/embed/origin-requests": [
+    "super_admin",
+    "admin",
+    "builder_admin",
   ],
   "POST /api/v1/builder/leads/{id}/mark-won": [
     "super_admin",
@@ -746,7 +833,39 @@ exports[`route registry > exhaustive role x route permission matrix (auth/04 acc
     "builder_member",
     "none",
   ],
+  "POST /api/v1/shares/link": [
+    "super_admin",
+    "admin",
+    "viewer",
+    "builder_admin",
+    "builder_member",
+    "none",
+  ],
+  "POST /api/v1/shares/link/list": [
+    "super_admin",
+    "admin",
+    "viewer",
+    "builder_admin",
+    "builder_member",
+    "none",
+  ],
+  "POST /api/v1/shares/link/revoke": [
+    "super_admin",
+    "admin",
+    "viewer",
+    "builder_admin",
+    "builder_member",
+    "none",
+  ],
   "POST /api/v1/stripe/webhooks": [
+    "super_admin",
+    "admin",
+    "viewer",
+    "builder_admin",
+    "builder_member",
+    "none",
+  ],
+  "POST /api/v1/telemetry": [
     "super_admin",
     "admin",
     "viewer",
@@ -789,6 +908,11 @@ exports[`route registry > exhaustive role x route permission matrix (auth/04 acc
     "admin",
     "builder_admin",
     "builder_member",
+  ],
+  "PUT /api/v1/builder/profile": [
+    "super_admin",
+    "admin",
+    "builder_admin",
   ],
 }
 `;

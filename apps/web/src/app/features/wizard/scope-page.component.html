@@ -3,7 +3,7 @@
       <app-wizard-back [label]="copy.scopeBackLabel" [link]="'/'" [step]="1" />
       <app-wizard-steps [current]="2" />
       @if (property(); as p) {
-        <app-property-card [property]="p" />
+        <app-property-card [property]="p" [addressAsHeading]="false" />
 
         <h1 class="scope-heading">{{ copy.scopeHeading }}</h1>
 
@@ -22,6 +22,7 @@
                 role="radio"
                 [attr.data-ptype]="pt.id"
                 [attr.aria-checked]="projectType() === pt.id"
+                [attr.tabindex]="projectTypeTabIndex(pt.id)"
                 [class.selected]="projectType() === pt.id"
                 (click)="chooseProjectType(pt.id)"
               >

@@ -1,7 +1,7 @@
 import { HttpErrorResponse } from '@angular/common/http';
 import { TimeoutError } from 'rxjs';
 import { describe, expect, it } from 'vitest';
-import { toApiError, toBlobApiError } from './api-error';
+import { challengeSiteKey, toApiError, toBlobApiError } from './api-error';
 
 function capture(
   mapper: (error: unknown) => { subscribe(o: { error: (e: unknown) => void }): void },
@@ -86,5 +86,36 @@ describe('toBlobApiError', () => {
       new HttpErrorResponse({ status: 401, error: { code: 'UNAUTHENTICATED' } }),
     );
     expect(err).toMatchObject({ code: 'UNAUTHENTICATED', retryable: false });
+  });
+});
+
+describe('challengeSiteKey (#905)', () => {
+  const challenge403 = (body: unknown, status = 403): HttpErrorResponse =>
+    new HttpErrorResponse({ status, error: body });
+  const body = (code: string, siteKey: unknown = 'site-key-from-api') => ({
+    code,
+    message: 'Please confirm you are not a bot, then try again.',
+    retryable: false,
+    challenge: { provider: 'turnstile', siteKey },
+  });
+
+  it('reads the site key from CHALLENGE_REQUIRED and CHALLENGE_FAILED 403s', () => {
+    expect(challengeSiteKey(challenge403(body('CHALLENGE_REQUIRED')))).toBe('site-key-from-api');
+    expect(challengeSiteKey(challenge403(body('CHALLENGE_FAILED')))).toBe('site-key-from-api');
+  });
+
+  it('ignores other statuses, codes, providers, and missing keys', () => {
+    expect(challengeSiteKey(challenge403(body('CHALLENGE_REQUIRED'), 429))).toBeNull();
+    expect(challengeSiteKey(challenge403(body('FORBIDDEN')))).toBeNull();
+    expect(challengeSiteKey(challenge403(body('CHALLENGE_REQUIRED', '')))).toBeNull();
+    expect(challengeSiteKey(challenge403(body('CHALLENGE_REQUIRED', 42)))).toBeNull();
+    expect(
+      challengeSiteKey(
+        challenge403({ ...body('CHALLENGE_REQUIRED'), challenge: { provider: 'other', siteKey: 'k' } }),
+      ),
+    ).toBeNull();
+    expect(challengeSiteKey(challenge403({ code: 'CHALLENGE_REQUIRED' }))).toBeNull();
+    expect(challengeSiteKey(challenge403(null))).toBeNull();
+    expect(challengeSiteKey(new Error('nope'))).toBeNull();
   });
 });

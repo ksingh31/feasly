@@ -26,7 +26,7 @@ import { createTestDb, type TestDb } from './pglite-db';
 const DAY = 86_400_000;
 
 function school(id: string, name = `School ${id}`): SchoolRecord {
-  return { externalId: id, name, board: 'CBE', grades: 'K-6', lat: 51.01, lng: -114.1, data: { address: `${id} ST SW` } };
+  return { externalId: id, name, board: 'CBE', grades: 'K-6', schoolType: 'public_cbe', lat: 51.01, lng: -114.1, data: { address: `${id} ST SW` } };
 }
 
 /** Controllable fake provider: returns `rows`, or throws when `fail` is set. */

@@ -364,6 +364,114 @@ describe('admin-leads service (admin/02)', () => {
       );
     });
 
+    it('returns campaign attribution with only the set fields (#814)', async () => {
+      const deps = makeDeps();
+      const service = createAdminLeadsService(deps);
+      vi.mocked(deps.store.findByIdWithEstimate).mockResolvedValue(
+        makeLeadRow({
+          attribution: {
+            utmSource: 'google',
+            utmMedium: 'cpc',
+            utmCampaign: 'spring-infill',
+            utmTerm: null,
+            utmContent: null,
+            clickIdType: 'gclid',
+          },
+        }),
+      );
+      const result = await service.getLead('lead-1', ADMIN_EMAIL);
+      expect(result.attribution).toEqual({
+        utm_source: 'google',
+        utm_medium: 'cpc',
+        utm_campaign: 'spring-infill',
+        click_id_type: 'gclid',
+      });
+    });
+
+    it('returns null attribution when the lead has none (#814)', async () => {
+      const deps = makeDeps();
+      const service = createAdminLeadsService(deps);
+      vi.mocked(deps.store.findByIdWithEstimate).mockResolvedValue(
+        makeLeadRow({
+          attribution: {
+            utmSource: null,
+            utmMedium: null,
+            utmCampaign: null,
+            utmTerm: null,
+            utmContent: null,
+            clickIdType: null,
+          },
+        }),
+      );
+      expect((await service.getLead('lead-1', ADMIN_EMAIL)).attribution).toBeNull();
+      vi.mocked(deps.store.findByIdWithEstimate).mockResolvedValue(makeLeadRow());
+      expect((await service.getLead('lead-1', ADMIN_EMAIL)).attribution).toBeNull();
+    });
+
+    it('includes the builder reassignment history (#721)', async () => {
+      const deps = makeDeps();
+      const listForLead = vi.fn(async () => [
+        {
+          fromBuilderId: 'builder-a',
+          toBuilderId: null,
+          actorEmail: ADMIN_EMAIL,
+          reassignedAt: new Date('2026-11-15T12:00:00Z'),
+        },
+      ]);
+      const service = createAdminLeadsService({ ...deps, reassignments: { listForLead } });
+      vi.mocked(deps.store.findByIdWithEstimate).mockResolvedValue(makeLeadRow());
+      vi.mocked(deps.estimateStore.findById).mockResolvedValue(null);
+      vi.mocked(deps.store.getMagicLinkStatus).mockResolvedValue('sent');
+
+      const result = await service.getLead('lead-1', ADMIN_EMAIL);
+
+      expect(listForLead).toHaveBeenCalledWith('lead-1');
+      expect(result.reassignments).toEqual([
+        {
+          fromBuilderId: 'builder-a',
+          toBuilderId: null,
+          changedBy: ADMIN_EMAIL,
+          changedAt: '2026-11-15T12:00:00.000Z',
+        },
+      ]);
+    });
+
+    it('includes the callback requests with preferred day, window and notes (#836)', async () => {
+      const deps = makeDeps();
+      const listByLeadId = vi.fn(async () => [
+        {
+          id: 'cb-2',
+          leadId: 'lead-1',
+          name: 'Home Owner',
+          phone: '403-555-0100',
+          window: 'afternoon',
+          preferredDate: '2026-11-18',
+          notes: 'Side door',
+          status: 'pending',
+          createdAt: new Date('2026-11-16T12:00:00Z'),
+        },
+      ]);
+      const service = createAdminLeadsService({ ...deps, callbacks: { listByLeadId } });
+      vi.mocked(deps.store.findByIdWithEstimate).mockResolvedValue(makeLeadRow());
+      vi.mocked(deps.estimateStore.findById).mockResolvedValue(null);
+      vi.mocked(deps.store.getMagicLinkStatus).mockResolvedValue('sent');
+
+      const result = await service.getLead('lead-1', ADMIN_EMAIL);
+
+      expect(listByLeadId).toHaveBeenCalledWith('lead-1');
+      expect(result.callbacks).toEqual([
+        {
+          id: 'cb-2',
+          window: 'afternoon',
+          preferredDate: '2026-11-18',
+          notes: 'Side door',
+          phone: '403-555-0100',
+          status: 'pending',
+          createdAt: '2026-11-16T12:00:00.000Z',
+        },
+      ]);
+    });
+
     it('reads zero ranges (not $0 display bug) for comparison estimates', async () => {
       const deps = makeDeps();
       const service = createAdminLeadsService(deps);

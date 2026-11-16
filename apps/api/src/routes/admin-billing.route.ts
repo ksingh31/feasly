@@ -31,6 +31,9 @@
  *   Runs the SAME charge path via `BillingService.reportContract`
  *   (attribution → draft invoice → auto-submitted into the 7-day review
  *   window). Admin-gated, `billing:manage`.
+ * - `POST /api/v1/admin/billing/invoices/{id}/dunning` — edit one
+ *   invoice's retry schedule (#718): pause, resume, cancel, or set the
+ *   grace period in days. Admin-gated, `billing:manage`. Audited.
  *
  * - `POST /api/v1/admin/billing/invoices/{id}/refund` (#715) — refund a
  *   paid invoice in full or in part; idempotent on the client key.
@@ -68,9 +71,12 @@ import type {
   ManualPaymentMethod,
   MarkInvoicePaidResponse,
   SetCommissionRateResponse,
+  UpdateInvoiceDunningRequest,
+  UpdateInvoiceDunningResponse,
 } from '@feasly/contracts';
 import { ErrorCodes, HttpError } from '../middleware/errors';
 import { pastOrPresentDatetime } from '../lib/zod-datetime';
+import { MAX_DUNNING_GRACE_DAYS, MIN_DUNNING_GRACE_DAYS } from '../lib/dunning-schedule';
 import type { AdminGuard } from '../middleware/admin-guard';
 import type { BillingHealthService } from '../services/billing/billing-health.service';
 import type { BillingService } from '../services/billing/billing.service';
@@ -118,6 +124,17 @@ const setCommissionRateBodySchema = z.object({
 const plannedPaymentMethodBodySchema = z.object({
   method: z.enum(['card', 'cheque', 'e_transfer', 'bank_draft']),
 });
+
+/** #718: admin edit of one invoice's retry schedule. */
+const dunningBodySchema: z.ZodType<UpdateInvoiceDunningRequest> = z.union([
+  z.object({ action: z.literal('pause') }),
+  z.object({ action: z.literal('resume') }),
+  z.object({ action: z.literal('cancel') }),
+  z.object({
+    action: z.literal('set_grace_days'),
+    graceDays: z.number().int().min(MIN_DUNNING_GRACE_DAYS).max(MAX_DUNNING_GRACE_DAYS),
+  }),
+]);
 
 const manualInvoiceBodySchema = (nowMs: number): z.ZodType<ManualInvoiceRequest> =>
   z.object({
@@ -241,6 +258,12 @@ export interface AdminBillingRoute {
     invoiceId: unknown,
     body: unknown,
   ): Promise<ReverseManualPaymentResponse>;
+  /** POST /api/v1/admin/billing/invoices/{id}/dunning (#718) */
+  updateDunning(
+    headers: Record<string, string | string[] | undefined>,
+    invoiceId: unknown,
+    body: unknown,
+  ): Promise<UpdateInvoiceDunningResponse>;
 }
 
 export function createAdminBillingRoute(
@@ -370,6 +393,45 @@ export function createAdminBillingRoute(
         invoiceId: updated.id,
         status: updated.status,
         paymentMethod: updated.paymentMethod,
+      };
+    },
+
+    async updateDunning(
+      headers,
+      invoiceId,
+      body,
+    ): Promise<UpdateInvoiceDunningResponse> {
+      await adminGuard.requireAdmin(headers);
+      const parsed = dunningBodySchema.safeParse(body);
+      if (!parsed.success) {
+        throw new HttpError(
+          400,
+          ErrorCodes.VALIDATION_FAILED,
+          'Invalid dunning body: action must be pause, resume, cancel, or ' +
+            `set_grace_days with graceDays (whole number, ${MIN_DUNNING_GRACE_DAYS}–${MAX_DUNNING_GRACE_DAYS}).`,
+          false,
+        );
+      }
+      const id = invoiceIdSchema.safeParse(invoiceId);
+      if (!id.success) {
+        throw new HttpError(
+          400,
+          ErrorCodes.VALIDATION_FAILED,
+          'Invalid invoice id.',
+          false,
+        );
+      }
+      const invoice = await commission.updateDunning(
+        id.data,
+        parsed.data,
+        await adminGuard.getAdminEmail(headers),
+      );
+      return {
+        invoiceId: invoice.id,
+        status: invoice.status,
+        dunningState: invoice.dunningState,
+        retryGraceDays: invoice.retryGraceDays,
+        nextRetryAt: invoice.nextRetryAt?.toISOString() ?? null,
       };
     },
 

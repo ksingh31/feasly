@@ -19,8 +19,8 @@
  *   community — tiers.{standard,premium,luxury} each with buildLow/buildHigh,
  *   landValue, totalLow/totalHigh. If missing or malformed, community summaries
  *   include assessed values only and note that ranges are pending.
- * - `DEFAULT_APP_CONFIG.copy.marketing` (ConfigService): FAQ items and
- *   how-it-works steps — the same copy rendered on the site.
+ * - `DEFAULT_APP_CONFIG.copy.marketing` (ConfigService) FAQ items and
+ *   `DEFAULT_HOW_IT_WORKS_COPY` how-it-works steps — the same copy rendered on the site.
  *
  * Deny-list: both files are scanned for proprietary cost-model terms
  * (`per_sqft`, `margin`, `param`, etc.). The build fails on a hit.
@@ -39,6 +39,7 @@ import { scanDenyList } from './community-aggregates.schema.js';
 import { DEFAULT_APP_CONFIG } from '../src/app/core/config/app-config.defaults.js';
 import { findSeoRoute } from '../src/app/core/seo/seo-routes.js';
 import { canonicalPath, loadIndexablePages } from './indexable-pages.js';
+import { DEFAULT_HOW_IT_WORKS_COPY } from '../src/app/features/marketing/how-it-works-copy.defaults.js';
 
 const SCRIPT_DIR = dirname(fileURLToPath(import.meta.url));
 const AGGREGATES_PATH = join(SCRIPT_DIR, '..', 'src', 'content', 'data', 'community-aggregates.json');
@@ -180,7 +181,8 @@ function buildLlmsTxt(
   communities: CommunitySummary[],
   costDataVersion: string,
 ): string {
-  const { howItWorks, faq } = DEFAULT_APP_CONFIG.copy.marketing;
+  const { faq } = DEFAULT_APP_CONFIG.copy.marketing;
+  const howItWorks = DEFAULT_HOW_IT_WORKS_COPY;
 
   const lines: string[] = [
     '# Feasly',
@@ -233,7 +235,8 @@ function buildLlmsFullTxt(
   communities: CommunitySummary[],
   costDataVersion: string,
 ): string {
-  const { howItWorks, faq } = DEFAULT_APP_CONFIG.copy.marketing;
+  const { faq } = DEFAULT_APP_CONFIG.copy.marketing;
+  const howItWorks = DEFAULT_HOW_IT_WORKS_COPY;
 
   const lines: string[] = [
     '# Feasly — Full Reference',

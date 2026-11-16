@@ -26,9 +26,12 @@ import type {
   CommissionPaymentReceivedEmailInput,
   CommissionPaymentFailedEmailInput,
   CommissionPaymentActionRequiredEmailInput,
+  CommissionInvoiceOverdueEmailInput,
   ContractNeedsRecordingEmailInput,
+  CardExpiryReminderEmailInput,
   BuilderNewLeadEmailInput,
   BuilderNeedsYouDigestEmailInput,
+  ErasureConfirmationEmailInput,
 } from './email.service';
 
 export interface SandboxEmailServiceDeps {
@@ -80,11 +83,17 @@ export function createSandboxSuppressingEmailService(
     sendCommissionPaymentActionRequired: (
       _input: CommissionPaymentActionRequiredEmailInput,
     ) => suppressed('sendCommissionPaymentActionRequired', log),
+    sendCommissionInvoiceOverdue: (_input: CommissionInvoiceOverdueEmailInput) =>
+      suppressed('sendCommissionInvoiceOverdue', log),
+    sendCardExpiryReminder: (_input: CardExpiryReminderEmailInput) =>
+      suppressed('sendCardExpiryReminder', log),
     sendContractNeedsRecording: (_input: ContractNeedsRecordingEmailInput) =>
       suppressed('sendContractNeedsRecording', log),
     sendBuilderNewLead: (_input: BuilderNewLeadEmailInput) =>
       suppressed('sendBuilderNewLead', log),
     sendBuilderNeedsYouDigest: (_input: BuilderNeedsYouDigestEmailInput) =>
       suppressed('sendBuilderNeedsYouDigest', log),
+    sendErasureConfirmation: (_input: ErasureConfirmationEmailInput) =>
+      suppressed('sendErasureConfirmation', log),
   };
 }

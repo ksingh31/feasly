@@ -2,13 +2,15 @@
  * Thin funnel route (admin/07). Routes are adapters, not logic:
  * validate input → call exactly one service method → return the result.
  *
- * `GET /api/v1/admin/funnels?from=&to=&tenant_key=` — per-step funnel counts
- * + step-to-step conversion rates from the analytics events table.
+ * `GET /api/v1/admin/funnels?from=&to=&tenant_key=&utm_source=&utm_campaign=`
+ * — per-step funnel counts + step-to-step conversion rates from the
+ * analytics events table, plus a per-(source, campaign) breakdown (#814).
  *
  * Query params:
  * - `from`, `to`: ISO-8601 dates (inclusive). Omitted = unbounded.
  * - `tenant_key`: omitted = all traffic; `direct` = Feasly-direct only
  *   (events with no tenant attribution); otherwise one embed tenant's key.
+ * - `utm_source`, `utm_campaign` (#814): exact-match campaign filters.
  *
  * Auth: the adapter enforces the registry's `analytics:read` permission
  * before the route runs; the route itself additionally requires an admin
@@ -21,6 +23,7 @@
  * - a route depends on the service *interface*, never the implementation
  */
 import { z } from 'zod';
+import { ANALYTICS_SOURCE_FIELD_MAX_LENGTH } from '@feasly/contracts';
 import { ErrorCodes, HttpError } from '../middleware/errors';
 import type { AdminGuard } from '../middleware/admin-guard';
 import type { FunnelReport, FunnelService } from '../services/funnel.service';
@@ -33,7 +36,7 @@ export interface FunnelRouteDeps {
 
 export interface FunnelRoute {
   /**
-   * GET /api/v1/admin/funnels?from=&to=&tenant_key=
+   * GET /api/v1/admin/funnels?from=&to=&tenant_key=&utm_source=&utm_campaign=
    */
   getFunnel(
     headers: Record<string, string | string[] | undefined>,
@@ -45,6 +48,18 @@ const querySchema = z.object({
   from: z.string().trim().min(1).max(40).optional(),
   to: z.string().trim().min(1).max(40).optional(),
   tenant_key: z.string().trim().min(1).max(100).optional(),
+  utm_source: z
+    .string()
+    .trim()
+    .min(1)
+    .max(ANALYTICS_SOURCE_FIELD_MAX_LENGTH)
+    .optional(),
+  utm_campaign: z
+    .string()
+    .trim()
+    .min(1)
+    .max(ANALYTICS_SOURCE_FIELD_MAX_LENGTH)
+    .optional(),
 });
 
 function parseDate(value: string | undefined, name: string): Date | undefined {
@@ -98,6 +113,12 @@ export function createFunnelRoute(deps: FunnelRouteDeps): FunnelRoute {
         from,
         to,
         tenant: parseTenantFilter(parsed.data.tenant_key),
+        ...(parsed.data.utm_source !== undefined
+          ? { utmSource: parsed.data.utm_source }
+          : {}),
+        ...(parsed.data.utm_campaign !== undefined
+          ? { utmCampaign: parsed.data.utm_campaign }
+          : {}),
       });
     },
   };

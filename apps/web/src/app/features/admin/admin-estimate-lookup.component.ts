@@ -27,8 +27,8 @@ import {
   UiButtonComponent,
   UiTextFieldComponent,
 } from '../../shared/ui';
-import { ConfigService } from '../../core/config/config.service';
 import { AdminEstimatesApiService } from './admin-estimates-api.service';
+import { injectAdminCopy } from './admin-copy';
 
 /** Lookup lifecycle for the admin estimate view. */
 type LookupStatus = 'idle' | 'loading' | 'ready' | 'not-found' | 'error';
@@ -105,7 +105,7 @@ export class AdminEstimateLookupComponent {
   private readonly money = new KitMoneyPipe();
 
   /** Technical IDs copy (#538). */
-  protected readonly entityCopy = inject(ConfigService).get('copy').admin.entities;
+  protected readonly entityCopy = injectAdminCopy().entities;
 
   /** Estimate ID being looked up (from the `:id` route param). */
   protected readonly lookupId = signal<string | null>(null);

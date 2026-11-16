@@ -19,8 +19,11 @@ import type {
 } from './email.types';
 import { EmailProviderError, type EmailFailureCode } from './email.types';
 import { sanitizeErrorMessage } from '../../lib/sanitize-error';
+import type { BuildTimeline } from '../../lib/build-timeline';
 import {
   renderCallbackTeamEmail,
+  renderCommissionInvoiceOverdueEmail,
+  renderCardExpiryReminderEmail,
   renderCommissionInvoiceReadyEmail,
   renderCommissionPaymentFailedEmail,
   renderCommissionPaymentActionRequiredEmail,
@@ -28,6 +31,7 @@ import {
   renderBuilderNeedsYouDigestEmail,
   renderBuilderNewLeadEmail,
   renderContractNeedsRecordingEmail,
+  renderErasureConfirmationEmail,
   renderFollowUpEmail,
   renderInvitationEmail,
   renderMagicLinkEmail,
@@ -57,6 +61,11 @@ export interface MagicLinkEmailInput {
   readonly address?: string;
   /** #703 (consumer only): the issued token's `expires_at`. */
   readonly expiresOn?: Date;
+  /**
+   * #823 (consumer only): the estimate's project type — the typical
+   * new-build timeline renders only for `'new_build'`.
+   */
+  readonly projectType?: string;
 }
 
 export interface PartnerShareEmailInput {
@@ -173,7 +182,37 @@ export interface CommissionPaymentFailedEmailInput {
   readonly currency: string;
   /** Days the builder has to update the card before collection steps. */
   readonly updateWithinDays: number;
+  /** #718: next automatic retry; null = none scheduled; omitted = legacy copy. */
+  readonly nextRetryAt?: Date | null;
+  /** #718: the last automatic attempt failed — final notice copy. */
+  readonly finalNotice?: boolean;
+  /**
+   * Why the invoice is unpaid. Absent / 'declined' = the card was declined
+   * (BILL-04). 'chargeback_lost' = the bank reversed a paid charge after a
+   * lost chargeback and the commission is due again (#873).
+   */
+  readonly reason?: 'declined' | 'chargeback_lost';
   readonly tax?: CommissionEmailTax;
+}
+
+/** #718 input: a manual-method invoice is past its due date. */
+export interface CommissionInvoiceOverdueEmailInput {
+  readonly to: string;
+  readonly invoiceRef: string;
+  readonly commissionCents: number;
+  readonly currency: string;
+  readonly dueAt: Date;
+  readonly tax?: CommissionEmailTax;
+}
+
+/** #880 input: the saved card enters the expiry warning window (once per card). */
+export interface CardExpiryReminderEmailInput {
+  readonly to: string;
+  readonly businessName: string;
+  readonly brand: string;
+  readonly last4: string;
+  readonly expMonth: number;
+  readonly expYear: number;
 }
 
 /** #712 input: the bank wants the builder to confirm the charge (3DS). */
@@ -221,6 +260,16 @@ export interface BuilderNeedsYouDigestEmailInput {
   readonly maxPerGroup: number;
 }
 
+/** #806: the erase-confirmation link (privacy self-service step 2). */
+export interface ErasureConfirmationEmailInput {
+  readonly to: string;
+  readonly name?: string;
+  /** `${appBaseUrl}/privacy/confirm/${requestId}#token=${token}`. */
+  readonly confirmUrl: string;
+  /** Hours until the link expires — rendered from config. */
+  readonly expiresInHours: number;
+}
+
 export interface EmailService {
   sendMagicLink(input: MagicLinkEmailInput): Promise<EmailDelivery>;
   sendInvitation(input: InvitationEmailInput): Promise<EmailDelivery>;
@@ -248,6 +297,14 @@ export interface EmailService {
   sendCommissionPaymentActionRequired(
     input: CommissionPaymentActionRequiredEmailInput,
   ): Promise<EmailDelivery>;
+  /** #718: manual-method invoice past its due date (sent once). */
+  sendCommissionInvoiceOverdue(
+    input: CommissionInvoiceOverdueEmailInput,
+  ): Promise<EmailDelivery>;
+  /** #880: one-time "your card expires soon" reminder (replace-card CTA). */
+  sendCardExpiryReminder(
+    input: CardExpiryReminderEmailInput,
+  ): Promise<EmailDelivery>;
   /** Issue #530: lead marked won — ask an org admin to record the contract. */
   sendContractNeedsRecording(
     input: ContractNeedsRecordingEmailInput,
@@ -257,6 +314,10 @@ export interface EmailService {
   /** #725: daily "Needs you" digest (never sent for an empty feed). */
   sendBuilderNeedsYouDigest(
     input: BuilderNeedsYouDigestEmailInput,
+  ): Promise<EmailDelivery>;
+  /** #806: "confirm you want to delete your data" link (transactional). */
+  sendErasureConfirmation(
+    input: ErasureConfirmationEmailInput,
   ): Promise<EmailDelivery>;
 }
 
@@ -275,6 +336,8 @@ export interface EmailServiceDeps {
   readonly maxAttempts?: number;
   /** Backoff between attempts, ms. Default 1000. */
   readonly retryBackoffMs?: number;
+  /** #823: typical build timeline rendered in the consumer report email. */
+  readonly buildTimeline?: BuildTimeline;
 }
 
 /**
@@ -326,6 +389,7 @@ export function createEmailService(deps: EmailServiceDeps): EmailService {
     appBaseUrl: deps.appBaseUrl,
     unsubscribeBaseUrl: deps.unsubscribeBaseUrl,
     brandName: 'Feasly',
+    ...(deps.buildTimeline ? { buildTimeline: deps.buildTimeline } : {}),
   };
 
   /**
@@ -501,6 +565,22 @@ export function createEmailService(deps: EmailServiceDeps): EmailService {
         commissionCents: input.commissionCents,
         currency: input.currency,
         updateWithinDays: input.updateWithinDays,
+        ...(input.nextRetryAt !== undefined ? { nextRetryAt: input.nextRetryAt } : {}),
+        ...(input.finalNotice === true ? { finalNotice: true } : {}),
+        ...(input.reason ? { reason: input.reason } : {}),
+        ...(input.tax ? { tax: input.tax } : {}),
+      });
+      return deliver({ ...rendered, to: input.to });
+    },
+
+    async sendCommissionInvoiceOverdue(
+      input: CommissionInvoiceOverdueEmailInput,
+    ): Promise<EmailDelivery> {
+      const rendered = renderCommissionInvoiceOverdueEmail(ctx, {
+        invoiceRef: input.invoiceRef,
+        commissionCents: input.commissionCents,
+        currency: input.currency,
+        dueAt: input.dueAt,
         ...(input.tax ? { tax: input.tax } : {}),
       });
       return deliver({ ...rendered, to: input.to });
@@ -515,6 +595,19 @@ export function createEmailService(deps: EmailServiceDeps): EmailService {
         commissionCents: input.commissionCents,
         currency: input.currency,
         ...(input.tax ? { tax: input.tax } : {}),
+      });
+      return deliver({ ...rendered, to: input.to });
+    },
+
+    async sendCardExpiryReminder(
+      input: CardExpiryReminderEmailInput,
+    ): Promise<EmailDelivery> {
+      const rendered = renderCardExpiryReminderEmail(ctx, {
+        businessName: input.businessName,
+        brand: input.brand,
+        last4: input.last4,
+        expMonth: input.expMonth,
+        expYear: input.expYear,
       });
       return deliver({ ...rendered, to: input.to });
     },
@@ -555,6 +648,17 @@ export function createEmailService(deps: EmailServiceDeps): EmailService {
         wonWithoutContract: input.wonWithoutContract,
         staleAfterDays: input.staleAfterDays,
         maxPerGroup: input.maxPerGroup,
+      });
+      return deliver({ ...rendered, to: input.to });
+    },
+
+    async sendErasureConfirmation(
+      input: ErasureConfirmationEmailInput,
+    ): Promise<EmailDelivery> {
+      const rendered = renderErasureConfirmationEmail(ctx, {
+        name: input.name,
+        confirmUrl: input.confirmUrl,
+        expiresInHours: input.expiresInHours,
       });
       return deliver({ ...rendered, to: input.to });
     },

@@ -151,3 +151,79 @@ export function haversineMeters(a: LonLat, b: LonLat): number {
     Math.cos(toRad(a.lat)) * Math.cos(toRad(b.lat)) * Math.sin(dLon / 2) ** 2;
   return 2 * EARTH_RADIUS_M * Math.asin(Math.min(1, Math.sqrt(h)));
 }
+
+/**
+ * True when the point lies inside a GeoJSON Polygon or MultiPolygon (#774):
+ * inside some polygon's outer ring and in none of that polygon's holes.
+ * False for missing or malformed geometry.
+ */
+export function pointInGeometry(point: LonLat, geometry: unknown): boolean {
+  if (typeof geometry !== 'object' || geometry === null) return false;
+  const { type, coordinates } = geometry as { type?: unknown; coordinates?: unknown };
+  if (!Array.isArray(coordinates)) return false;
+  const polygons: unknown[] =
+    type === 'MultiPolygon' ? coordinates : type === 'Polygon' ? [coordinates] : [];
+  for (const polygon of polygons) {
+    if (!Array.isArray(polygon)) continue;
+    const outer = toRing(polygon[0]);
+    if (!outer || !pointInRing(point, outer)) continue;
+    const inHole = polygon.slice(1).some((hole) => {
+      const ring = toRing(hole);
+      return ring !== null && pointInRing(point, ring);
+    });
+    if (!inHole) return true;
+  }
+  return false;
+}
+
+/**
+ * Approximate area in square metres of a GeoJSON Polygon/MultiPolygon (#777):
+ * outer rings minus holes, each projected equirectangularly at its own mean
+ * latitude. Accurate to well under 1% at community scale. 0 when malformed.
+ */
+export function polygonAreaM2(geometry: unknown): number {
+  if (typeof geometry !== 'object' || geometry === null) return 0;
+  const { type, coordinates } = geometry as { type?: unknown; coordinates?: unknown };
+  if (!Array.isArray(coordinates)) return 0;
+  const polygons: unknown[] =
+    type === 'MultiPolygon' ? coordinates : type === 'Polygon' ? [coordinates] : [];
+  const toRad = (deg: number): number => (deg * Math.PI) / 180;
+  const ringArea = (ring: Ring): number => {
+    const meanLat = ring.reduce((sum, [, y]) => sum + y, 0) / ring.length;
+    const k = Math.cos(toRad(meanLat));
+    const projected = ring.map(
+      ([x, y]) => [toRad(x) * k * EARTH_RADIUS_M, toRad(y) * EARTH_RADIUS_M] as const,
+    );
+    return Math.abs(signedArea(projected));
+  };
+  let total = 0;
+  for (const polygon of polygons) {
+    if (!Array.isArray(polygon)) continue;
+    polygon.forEach((rawRing, index) => {
+      const ring = toRing(rawRing);
+      if (!ring) return;
+      total += index === 0 ? ringArea(ring) : -ringArea(ring);
+    });
+  }
+  return Math.max(total, 0);
+}
+
+/**
+ * One representative point for a GeoJSON LineString/MultiLineString (#777):
+ * the middle vertex of its longest part (by vertex count). Null when malformed.
+ */
+export function lineRepresentativePoint(geometry: unknown): LonLat | null {
+  if (typeof geometry !== 'object' || geometry === null) return null;
+  const { type, coordinates } = geometry as { type?: unknown; coordinates?: unknown };
+  if (!Array.isArray(coordinates)) return null;
+  const lines: unknown[] =
+    type === 'MultiLineString' ? coordinates : type === 'LineString' ? [coordinates] : [];
+  let best: Array<[number, number]> | null = null;
+  for (const line of lines) {
+    if (!Array.isArray(line) || line.length === 0 || !line.every(isPosition)) continue;
+    if (!best || line.length > best.length) best = line as Array<[number, number]>;
+  }
+  if (!best) return null;
+  const [lon, lat] = best[Math.floor(best.length / 2)]!;
+  return { lon, lat };
+}

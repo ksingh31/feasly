@@ -45,17 +45,19 @@
   } @else if (ready()) {
     <p class="ready-note">{{ copy.readyNote }}</p>
 
-    <!-- Blurred pre-gate figures: the REAL computed ranges, rendered with
-         CSS blur (aria-hidden, unselectable, no pointer interaction) until
-         the lead gate unlocks. #507 (M3): DOM order is total → CTA → build so
+    <!-- #835 (owner, 2026-11-15): the total range from the engine shows in
+         the clear before the gate. The rest of the full estimate — "most
+         likely" and the build cost — stays blurred (aria-hidden,
+         unselectable) until the gate. #507 (M3): DOM order is total → CTA → build so
          the payoff and the single CTA share the first phone viewport; on
          desktop the grid puts total and build side by side, CTA below. -->
     @if (previewFigures(); as figures) {
-      <section class="figures" aria-label="Locked estimate figures">
-        <div class="figure-card hero-total locked">
+      <section class="figures" aria-label="Estimate figures">
+        <div class="figure-card hero-total">
           <h2>{{ reportCopy.totalLabel }}</h2>
-          <!-- #504: range-first headline, base secondary — both blurred. -->
-          <p class="locked-value" aria-hidden="true">{{ previewRange(figures.total) }}</p>
+          <!-- #504: range-first headline (#835: in the clear), base secondary (blurred). -->
+          <p class="total-range">{{ previewRange(figures.total) }}</p>
+          <p class="total-note">{{ copy.totalShownNote }}</p>
           <p class="most-likely locked-value" aria-hidden="true">
             {{ reportCopy.mostLikelyLabel }} {{ formatCompact(figures.total.base) }}
           </p>
@@ -84,6 +86,50 @@
     <!-- City-assessed property facts stay visible, below the payoff. -->
     <div class="property-facts">
       <app-property-card [property]="p" [showLandNote]="!isReno()" />
+    </div>
+  }
+
+  @if (property(); as p) {
+    <!-- #835: free address overview before the gate — district and what it
+         typically allows, the redevelop/renovate steer, the typical build
+         timeline. No dollar figures. -->
+    <section class="overview" aria-labelledby="overview-heading">
+      <h2 id="overview-heading" class="overview-heading">{{ copy.overviewHeading }}</h2>
+      <dl class="overview-facts">
+        <div>
+          <dt>{{ copy.overviewDistrictLabel }}</dt>
+          <dd class="overview-district">
+            {{ district() }}@if (p.landUse?.description) {<span class="overview-district-name"> · {{ p.landUse?.description }}</span>}
+          </dd>
+        </div>
+        @if (districtAllows(); as allows) {
+          <div>
+            <dt>{{ copy.overviewAllowedLabel }}</dt>
+            <dd class="overview-allows">{{ allows }}</dd>
+          </div>
+        }
+        @if (steerLine(); as steer) {
+          <div>
+            <dt>{{ copy.overviewSteerLabel }}</dt>
+            <dd class="overview-steer">{{ steer }}</dd>
+          </div>
+        }
+      </dl>
+      <p class="overview-note">{{ copy.overviewConfirmNote }}</p>
+    </section>
+  }
+
+  @if (property() && !isReno()) {
+    <div class="timeline-card">
+      <app-build-timeline />
+    </div>
+  }
+
+  @if (ready() && !isReno()) {
+    <!-- #824: what the estimate includes (engine line items) and leaves
+         out. No figures — safe to show pre-gate. -->
+    <div class="scope-card">
+      <app-estimate-scope [headingLevel]="2" />
     </div>
   }
 </main>

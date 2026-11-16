@@ -10,6 +10,8 @@
  * because new rows sort after the cursor position. The cursor is an opaque
  * base64-encoded JSON `{ createdAt, id }`.
  */
+import type { CampaignSourceColumns } from '../lib/campaign-source';
+import { leadAttributionFromRow } from './lead.store';
 import { and, asc, desc, eq, gte, ilike, isNotNull, isNull, lte, or, sql } from 'drizzle-orm';
 import type { AppDb } from '../db/client';
 import { estimates, leads, magicLinks } from '../db/schema';
@@ -85,6 +87,11 @@ export interface AdminLeadRow {
   readonly projectType: string | null;
   /** Builder id the lead is assigned to (null when unassigned). */
   readonly builderId: string | null;
+  /**
+   * #814: campaign attribution (`source_*` columns). Optional so
+   * hand-built test rows stay valid; absent = none.
+   */
+  readonly attribution?: CampaignSourceColumns;
 }
 
 export interface AdminLeadListResult {
@@ -277,6 +284,7 @@ function toRow(
     createdAt: lead.createdAt,
     projectType,
     builderId: lead.builderId,
+    attribution: leadAttributionFromRow(lead),
   };
 }
 

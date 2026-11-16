@@ -12,6 +12,7 @@ import {
   ConfirmErasure,
   DownloadMyData,
   RequestErasure,
+  ResendErasureEmail,
   ResetPrivacy,
   SendPrivacyLink,
 } from './privacy.actions';
@@ -35,6 +36,7 @@ const ERASE: ErasureRequestResponse = {
   status: 'requested',
   consequences: ['Your leads are deleted.'],
   createdAt: '2026-11-15T00:00:00.000Z',
+  confirmationEmailSent: true,
 };
 
 const err = (code: string, message = 'x') => throwError(() => ({ code, message, retryable: false }));
@@ -88,6 +90,41 @@ describe('PrivacyState (#706)', () => {
     store.dispatch(new CancelErasure());
     expect(store.selectSnapshot(PrivacyState.erase)).toBe('idle');
     expect(store.selectSnapshot(PrivacyState.eraseRequestId)).toBeNull();
+  });
+
+  it('RequestErasure records whether the confirmation email went out (#806)', () => {
+    api.requestErasure.mockReturnValue(of(ERASE));
+    store.dispatch(new RequestErasure('tok'));
+    expect(store.selectSnapshot(PrivacyState.eraseEmail)).toBe('sent');
+    store.dispatch(new CancelErasure());
+    expect(store.selectSnapshot(PrivacyState.eraseEmail)).toBe('unknown');
+    api.requestErasure.mockReturnValue(of({ ...ERASE, confirmationEmailSent: false }));
+    store.dispatch(new RequestErasure('tok'));
+    expect(store.selectSnapshot(PrivacyState.erase)).toBe('pending');
+    expect(store.selectSnapshot(PrivacyState.eraseEmail)).toBe('not-sent');
+  });
+
+  it('ResendErasureEmail stays pending and updates the email status (#806)', () => {
+    api.requestErasure.mockReturnValue(of({ ...ERASE, confirmationEmailSent: false }));
+    store.dispatch(new RequestErasure('tok'));
+    api.requestErasure.mockReturnValue(of(ERASE));
+    store.dispatch(new ResendErasureEmail('tok'));
+    expect(api.requestErasure).toHaveBeenLastCalledWith('tok');
+    expect(store.selectSnapshot(PrivacyState.erase)).toBe('pending');
+    expect(store.selectSnapshot(PrivacyState.eraseEmail)).toBe('sent');
+  });
+
+  it.each([
+    ['RATE_LIMITED', 'rate-limited', 'not-sent'],
+    ['http_500', 'error', 'not-sent'],
+    ['UNAUTHENTICATED', 'expired', 'unknown'],
+  ] as const)('ResendErasureEmail maps %s to erase=%s', (code, erase, email) => {
+    api.requestErasure.mockReturnValue(of({ ...ERASE, confirmationEmailSent: false }));
+    store.dispatch(new RequestErasure('tok'));
+    api.requestErasure.mockReturnValue(err(code));
+    store.dispatch(new ResendErasureEmail('tok'));
+    expect(store.selectSnapshot(PrivacyState.erase)).toBe(erase);
+    expect(store.selectSnapshot(PrivacyState.eraseEmail)).toBe(email);
   });
 
   it('RequestErasure maps a rate limit', () => {

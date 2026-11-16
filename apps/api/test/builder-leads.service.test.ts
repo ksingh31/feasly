@@ -11,6 +11,7 @@
  * Fakes in-memory: no DB, no network. Tests run under vitest.
  */
 import { describe, expect, it, vi } from 'vitest';
+import { BUILDER_STATUSES, BUILDER_STATUS_POLICY, type BuilderStatus } from '@feasly/contracts';
 import {
   createBuilderLeadsService,
   type BuilderLeadsServiceDeps,
@@ -65,7 +66,7 @@ function makeLead(overrides?: {
 function makeBuilderRow(overrides?: {
   readonly id?: string;
   readonly tenantKey?: string;
-  readonly status?: 'active' | 'inactive';
+  readonly status?: string;
 }) {
   const now = new Date();
   return {
@@ -79,7 +80,7 @@ function makeBuilderRow(overrides?: {
     accentColor: '#C9A227',
     allowedOrigins: [],
     plan: null,
-    status: overrides?.status ?? ('active' as const),
+    status: (overrides?.status ?? 'active') as BuilderStatus,
     settings: {},
     createdAt: now,
     updatedAt: now,
@@ -217,8 +218,37 @@ function makeDeps() {
 
   const service = createBuilderLeadsService({ leadStore, audit, builders });
 
-  return { service, leadStore, builders, audit, statusHistory, leads };
+  return { service, leadStore, builders, audit, statusHistory, leads, buildersByTenantKey };
 }
+
+describe('builder-leads service: reassigned leads (#721)', () => {
+  it('listLeads returns the leads Feasly moved away, scoped to the builder', async () => {
+    const { leadStore, audit, builders } = makeDeps();
+    const listReassignedAway = vi.fn(async () => [
+      { id: 'lead-moved', name: 'Moved Lead', reassignedAt: '2026-11-15T12:00:00.000Z' },
+    ]);
+    const service = createBuilderLeadsService({
+      leadStore,
+      audit,
+      builders,
+      reassignments: { listReassignedAway },
+    });
+    const result = await service.listLeads('elite-craft');
+    const eliteCraft = await builders.getByTenantKey('elite-craft');
+    expect(listReassignedAway).toHaveBeenCalledWith(eliteCraft!.id);
+    expect(result.reassigned).toEqual([
+      { id: 'lead-moved', name: 'Moved Lead', reassignedAt: '2026-11-15T12:00:00.000Z' },
+    ]);
+    // A reassigned lead is never in the active list.
+    expect(result.leads.map((l) => l.id)).not.toContain('lead-moved');
+  });
+
+  it('listLeads returns an empty reassigned list when not wired', async () => {
+    const { service } = makeDeps();
+    const result = await service.listLeads('elite-craft');
+    expect(result.reassigned).toEqual([]);
+  });
+});
 
 describe('builder-leads service (embed/09)', () => {
   it('listLeads returns only the builder-assigned leads', async () => {    const { service } = makeDeps();
@@ -239,9 +269,44 @@ describe('builder-leads service (embed/09)', () => {
     await expect(service.listLeads('nope')).rejects.toMatchObject({ status: 404 });
   });
 
-  it('listLeads on an inactive builder throws 404', async () => {
+  it('listLeads on a legacy inactive builder reads as suspended: read-only (#860)', async () => {
     const { service } = makeDeps();
-    await expect(service.listLeads('inactive')).rejects.toMatchObject({ status: 404 });
+    await expect(service.listLeads('inactive')).resolves.toMatchObject({ leads: [] });
+  });
+
+  // #860: one test per status for this enforcement point (portalRead for
+  // the list, portalWrite for status changes and mark-won).
+  describe.each(BUILDER_STATUSES)('policy enforcement — builder %s', (status) => {
+    const canRead = BUILDER_STATUS_POLICY[status].portalRead;
+    const canWrite = BUILDER_STATUS_POLICY[status].portalWrite;
+
+    function depsWithStatus() {
+      const deps = makeDeps();
+      deps.buildersByTenantKey.set(
+        'elite-craft',
+        makeBuilderRow({ id: ELITE_BUILDER_ID, tenantKey: 'elite-craft', status }),
+      );
+      return deps;
+    }
+
+    it(`listLeads ${canRead ? 'is allowed' : 'is refused with 403 BUILDER_PAUSED'}`, async () => {
+      const { service } = depsWithStatus();
+      const p = service.listLeads('elite-craft');
+      if (canRead) await expect(p).resolves.toMatchObject({ leads: expect.any(Array) });
+      else await expect(p).rejects.toMatchObject({ status: 403, code: 'BUILDER_PAUSED' });
+    });
+
+    it(`updateStatus ${canWrite ? 'is allowed' : 'is refused with 403 BUILDER_PAUSED'}`, async () => {
+      const { service, leads } = depsWithStatus();
+      const p = service.updateStatus('lead-1', { status: 'contacted' }, 'elite-craft', 'b@example.com');
+      if (canWrite) {
+        await expect(p).resolves.toMatchObject({ ok: true });
+        expect(leads.get('lead-1')?.status).toBe('contacted');
+      } else {
+        await expect(p).rejects.toMatchObject({ status: 403, code: 'BUILDER_PAUSED' });
+        expect(leads.get('lead-1')?.status).toBe('new');
+      }
+    });
   });
 
   it('listLeads summary counts by status', async () => {
@@ -774,6 +839,67 @@ describe('builder-leads status lock (2026-09-29)', () => {
     );
     expect(result.ok).toBe(true);
     expect(leads.get('lead-1')?.status).toBe('contacted');
+  });
+});
+
+describe('builder-leads latest callback (#836)', () => {
+  const row = (id: string, createdAt: string, preferredDate: string | null) => ({
+    id,
+    leadId: 'lead-1',
+    name: 'Home Owner',
+    phone: '403-555-0100',
+    window: 'morning',
+    preferredDate,
+    notes: id === 'cb-new' ? 'Mornings only' : null,
+    status: 'pending',
+    createdAt: new Date(createdAt),
+  });
+
+  it('attaches the newest callback per lead in one store call', async () => {
+    const base = makeDeps();
+    const calls: Array<ReadonlyArray<string>> = [];
+    const service = createBuilderLeadsService({
+      leadStore: base.leadStore,
+      audit: base.audit,
+      builders: base.builders,
+      callbackSummaries: {
+        listByLeadIds: async (ids) => {
+          calls.push(ids);
+          // Store contract: newest first.
+          return [
+            row('cb-new', '2026-11-16T12:00:00Z', '2026-11-18'),
+            row('cb-old', '2026-11-10T12:00:00Z', null),
+          ];
+        },
+      },
+    });
+    const result = await service.listLeads('elite-craft');
+    const lead1 = result.leads.find((lead) => lead.id === 'lead-1');
+    expect(lead1?.latestCallback).toEqual({
+      id: 'cb-new',
+      window: 'morning',
+      preferredDate: '2026-11-18',
+      notes: 'Mornings only',
+      phone: '403-555-0100',
+      status: 'pending',
+      createdAt: '2026-11-16T12:00:00.000Z',
+    });
+    for (const other of result.leads.filter((lead) => lead.id !== 'lead-1')) {
+      expect(other.latestCallback).toBeNull();
+    }
+    expect(calls).toHaveLength(1);
+    expect(calls[0]).toContain('lead-1');
+  });
+
+  it('is null when no callback store is wired', async () => {
+    const base = makeDeps();
+    const service = createBuilderLeadsService({
+      leadStore: base.leadStore,
+      audit: base.audit,
+      builders: base.builders,
+    });
+    const result = await service.listLeads('elite-craft');
+    expect(result.leads[0]?.latestCallback).toBeNull();
   });
 });
 
@@ -1386,10 +1512,10 @@ describe('builder-leads "Needs you" feed (issue #526)', () => {
     });
   });
 
-  it('throws 404 for an unknown or inactive builder', async () => {
+  it('throws 404 for an unknown builder; a suspended one still reads (#860)', async () => {
     const { service } = makeNeedsYouService({ leads: [] });
     await expect(service.getNeedsYou('nope')).rejects.toMatchObject({ status: 404 });
-    await expect(service.getNeedsYou('inactive')).rejects.toMatchObject({ status: 404 });
+    await expect(service.getNeedsYou('inactive')).resolves.toMatchObject({ uncontacted: [] });
   });
 
   it('fails with 500 instead of inventing a threshold when unconfigured', async () => {

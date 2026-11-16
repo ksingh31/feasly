@@ -66,6 +66,23 @@
           [(value)]="tenantKey"
         />
       }
+      <ui-text-field
+        class="funnels__field funnels__utm-source"
+        [label]="copy.utmSourceLabel"
+        [placeholder]="copy.utmSourcePlaceholder"
+        [hint]="copy.utmHint"
+        autocomplete="off"
+        [disabled]="loading()"
+        [(value)]="utmSource"
+      />
+      <ui-text-field
+        class="funnels__field funnels__utm-campaign"
+        [label]="copy.utmCampaignLabel"
+        [placeholder]="copy.utmCampaignPlaceholder"
+        autocomplete="off"
+        [disabled]="loading()"
+        [(value)]="utmCampaign"
+      />
       <div class="funnels__actions">
         <button
           type="submit"
@@ -136,6 +153,40 @@
           </li>
         }
       </ol>
+
+      @if (sourceGroups().length > 0) {
+        <section class="funnels__sources" aria-labelledby="funnels-sources-heading">
+          <h2 id="funnels-sources-heading" class="funnels__sources-heading">{{ copy.sourcesHeading }}</h2>
+          <p class="funnels__sources-note">{{ copy.sourcesNote }}</p>
+          <table class="funnels__sources-table">
+            <thead>
+              <tr>
+                <th scope="col">{{ copy.sourceHeader }}</th>
+                <th scope="col">{{ copy.campaignHeader }}</th>
+                @for (step of steps(); track step.step) {
+                  <th scope="col" class="funnels__num">{{ step.label }}</th>
+                }
+                <th scope="col" class="funnels__num">{{ copy.overallConversion }}</th>
+              </tr>
+            </thead>
+            <tbody>
+              @for (group of sourceGroups(); track groupKey(group)) {
+                <tr>
+                  <td [attr.data-label]="copy.sourceHeader">{{ groupValue(group.utmSource) }}</td>
+                  <td [attr.data-label]="copy.campaignHeader">{{ groupValue(group.utmCampaign) }}</td>
+                  @for (step of group.steps; track step.step) {
+                    <td class="funnels__num" [attr.data-label]="step.label">{{ step.count | kitCount }}</td>
+                  }
+                  <td class="funnels__num" [attr.data-label]="copy.overallConversion">{{ groupConversion(group) }}</td>
+                </tr>
+              }
+            </tbody>
+          </table>
+          @if (sourceGroupsTruncated()) {
+            <p class="funnels__sources-note">{{ copy.sourcesTruncated }}</p>
+          }
+        </section>
+      }
     }
   }
 </div>

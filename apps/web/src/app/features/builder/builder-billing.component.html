@@ -59,15 +59,23 @@
             </div>
           </dl>
 
-          <div class="builder-billing__panel-actions">
-            <button
-              type="button"
-              class="builder-billing__btn"
-              (click)="openCard()"
-            >
-              {{ copy.billingUpdateCard }}
-            </button>
-          </div>
+          @if (!hasExpiryNotice()) {
+            <div class="builder-billing__panel-actions">
+              <button
+                type="button"
+                class="builder-billing__btn"
+                (click)="openCard()"
+              >
+                {{ copy.billingUpdateCard }}
+              </button>
+            </div>
+          }
+
+          <app-builder-card-lifecycle
+            [card]="cardOnFile"
+            [canRemove]="isAdmin()"
+            (replace)="openCard()"
+          />
         } @else {
           <div class="builder-billing__empty">
             <p class="builder-billing__empty-title">

@@ -50,7 +50,7 @@ third-party scripts.
 | Token oracle | Magic-token routes | Unknown and expired tokens return the same response | `phase2-report.test.ts`, `unsubscribe.service.test.ts` |
 | Rates/margins leak | Public serializers, OpenAPI | Secret-leak tests. OpenAPI carries no parameters. | `embed-config.route.test.ts`, `openapi.drift.test.ts` |
 | Pre-gate figures in DOM | Report | **Accepted** (owner decision 2026-11-13). The blur is a nudge, not a boundary. | CLAUDE.md |
-| **D**enial of service / cost | Estimate, narrative, mail, LLM | Per-IP/email/tenant/key limits shared in Postgres for money/mail endpoints. Narrative 5/day per estimate. Budget cap CA$10/mo. | [rate-limits.md](rate-limits.md) |
+| **D**enial of service / cost | Estimate, narrative, mail, LLM | Per-IP/email/tenant/key limits shared in Postgres for money/mail endpoints. Narrative LLM runs monthly per community, capped per run (#759) — no LLM call per estimate. Budget cap CA$10/mo. | [rate-limits.md](rate-limits.md) |
 | Prompt injection | Narrative (live), chat (planned) | Narrative prompt contains no user free text. Output is validated. Chat is **not live**: it needs input isolation, an output filter, and a global budget before go-live. | route-audit F-2 |
 | **E**levation via view-as | Admin/builder view-as | Admin targets rejected. The borrowed view never includes `view_as`. An unknown target fails closed. | `view-as.service.test.ts`, `builder-view-as.service.test.ts` |
 | CSRF on cookie sessions | Cookie-authenticated POSTs | **Open, F-6 (Medium).** Bearer is primary. The cookie path lacks an Origin check. | asvs-l1.md |

@@ -7,6 +7,13 @@
   color: var(--muted);
 }
 
+/* #879: one card per builder — saving replaces the current one. */
+.card-modal__replace-note {
+  margin: calc(-1 * var(--space-2)) 0 var(--space-4);
+  font: var(--type-body-sm);
+  color: var(--muted);
+}
+
 .card-modal__label {
   margin: 0 0 var(--space-2);
   font: var(--type-label);

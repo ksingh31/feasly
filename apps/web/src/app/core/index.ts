@@ -4,3 +4,5 @@ export * from './api';
 export * from './seo';
 export * from './utils';
 export * from './data-freshness';
+export * from './partners';
+export * from './a11y';

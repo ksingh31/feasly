@@ -19,6 +19,8 @@ import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
 import { DEFAULT_APP_CONFIG } from '../config/app-config.defaults';
 import { pricingCoverageIssue, type PricingCoverageBounds } from './coverage';
+import { DEFAULT_ZONING_GUIDE_COPY } from '../config/zoning-guide-copy.defaults';
+import { DEFAULT_HOW_IT_WORKS_COPY } from '../../features/marketing/how-it-works-copy.defaults';
 
 const here = dirname(fileURLToPath(import.meta.url));
 const DISTRICTS = DEFAULT_APP_CONFIG.coverage.singleFamilyDistricts.calgary;
@@ -93,7 +95,7 @@ describe('estimator eligibility — single source (#685 AC3/AC4)', () => {
   });
 
   it('the zoning guide table marks exactly the configured districts as buildable', () => {
-    const zones = DEFAULT_APP_CONFIG.copy.marketing.zoningGuide.zones;
+    const zones = DEFAULT_ZONING_GUIDE_COPY.zones;
     const yes = new Set<string>();
     const notYes = new Set<string>();
     for (const zone of zones) {
@@ -113,9 +115,9 @@ describe('estimator eligibility — single source (#685 AC3/AC4)', () => {
   });
 
   it('the how-it-works card and the FAQ answer do not enumerate districts', () => {
-    const faq = DEFAULT_APP_CONFIG.copy.marketing.zoningGuide.faqs.find((f) => f.anchor === 'why-single-family-only');
+    const faq = DEFAULT_ZONING_GUIDE_COPY.faqs.find((f) => f.anchor === 'why-single-family-only');
     expect(faq).toBeDefined();
-    const card = DEFAULT_APP_CONFIG.copy.marketing.howItWorks.zoningCardBody;
+    const card = DEFAULT_HOW_IT_WORKS_COPY.zoningCardBody;
     for (const text of [card, faq?.a ?? '']) {
       for (const code of configured) {
         if (code === 'DC') continue;

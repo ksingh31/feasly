@@ -7,7 +7,7 @@
  * aggregated payload for `GET /api/v1/admin/billing`.
  */
 
-import type { BuilderPaymentMethod } from './billing';
+import type { BuilderPaymentMethod, DunningState } from './billing';
 
 /** Active billing model (Karan 2026-09-24: commission; config-switchable). */
 export type BillingHealthModel = 'commission' | 'flat';
@@ -46,6 +46,21 @@ export interface BillingHealthDunningInvoice {  readonly id: string;
    * invoice sits until staff marks it paid.
    */
   readonly paymentMethod: BuilderPaymentMethod;
+  /*
+   * Dunning schedule (#718). Optional only so pre-#718 fixtures compile;
+   * the API always sends them.
+   */
+  /** ISO 8601 — next automatic retry; null when none is scheduled. */
+  readonly nextRetryAt?: string | null;
+  /** Admin control over automatic retries (active | paused | cancelled). */
+  readonly dunningState?: DunningState;
+  /** Grace period in days between a failed charge and the next retry. */
+  readonly retryGraceDays?: number;
+  /**
+   * ISO 8601 — when the final automatic retry failed. Non-null = flagged
+   * for collections; these sort to the top of the dunning queue.
+   */
+  readonly collectionsAt?: string | null;
 }
 
 /** An in-review commission invoice, for the admin billing work queue. */
@@ -70,6 +85,17 @@ export interface BillingHealthInReviewInvoice {
    * invoice sits until staff marks it paid.
    */
   readonly paymentMethod: BuilderPaymentMethod;
+  /**
+   * #718: manual-method invoices only — ISO 8601 due date (review window
+   * end + grace period). Null for card invoices. Optional only so pre-#718
+   * fixtures compile.
+   */
+  readonly dueAt?: string | null;
+  /**
+   * #718: whole days a manual-method invoice is past `dueAt` ("awaiting
+   * manual payment — N days"); 0 when not overdue or a card invoice.
+   */
+  readonly overdueDays?: number;
 }
 
 /** MRR as reported by the dashboard. */

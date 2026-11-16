@@ -152,6 +152,7 @@ exports[`OpenAPI drift > generated spec matches the snapshot 1`] = `
         "enum": [
           "step_view",
           "gate_view",
+          "gate_submit",
           "gate_convert",
           "report_open",
           "tier_toggle",
@@ -452,9 +453,18 @@ exports[`OpenAPI drift > generated spec matches the snapshot 1`] = `
             "minLength": 1,
             "type": "string",
           },
+          "notes": {
+            "maxLength": 500,
+            "type": "string",
+          },
           "phone": {
             "maxLength": 32,
             "minLength": 7,
+            "type": "string",
+          },
+          "preferredDate": {
+            "description": "Preferred call day (YYYY-MM-DD, America/Edmonton): a weekday from tomorrow through the next 14 days",
+            "pattern": "^\\d{4}-\\d{2}-\\d{2}$",
             "type": "string",
           },
           "reportToken": {
@@ -480,6 +490,12 @@ exports[`OpenAPI drift > generated spec matches the snapshot 1`] = `
               true,
             ],
             "type": "boolean",
+          },
+          "preferredDate": {
+            "type": [
+              "string",
+              "null",
+            ],
           },
           "window": {
             "$ref": "#/components/schemas/CallbackWindow",
@@ -518,6 +534,148 @@ exports[`OpenAPI drift > generated spec matches the snapshot 1`] = `
         },
         "required": [
           "refreshedMonth",
+        ],
+        "type": "object",
+      },
+      "CommunityLot": {
+        "additionalProperties": false,
+        "properties": {
+          "address": {
+            "description": "Street address as published by the City",
+            "minLength": 1,
+            "type": "string",
+          },
+          "assessedValue": {
+            "description": "City-assessed value, whole CAD (not market value, not a Feasly estimate)",
+            "type": "integer",
+          },
+          "district": {
+            "description": "Current land-use district, e.g. R-CG",
+            "type": [
+              "string",
+              "null",
+            ],
+          },
+          "districtSource": {
+            "enum": [
+              "land-use-districts",
+              "assessment-roll",
+            ],
+            "type": "string",
+          },
+          "firstSeenAt": {
+            "description": "When Feasly first listed the lot",
+            "format": "date-time",
+            "type": "string",
+          },
+          "kind": {
+            "enum": [
+              "vacant",
+              "candidate",
+            ],
+            "type": "string",
+          },
+          "latitude": {
+            "type": [
+              "number",
+              "null",
+            ],
+          },
+          "longitude": {
+            "type": [
+              "number",
+              "null",
+            ],
+          },
+          "lotSqft": {
+            "description": "Lot area in square feet; null when unknown",
+            "type": [
+              "integer",
+              "null",
+            ],
+          },
+          "rollNumber": {
+            "description": "City assessment roll number",
+            "minLength": 1,
+            "type": "string",
+          },
+          "rollYear": {
+            "description": "Assessment roll year of the value",
+            "type": "string",
+          },
+        },
+        "required": [
+          "rollNumber",
+          "address",
+          "lotSqft",
+          "assessedValue",
+          "rollYear",
+          "district",
+          "districtSource",
+          "kind",
+          "latitude",
+          "longitude",
+          "firstSeenAt",
+        ],
+        "type": "object",
+      },
+      "CommunityLotsResponse": {
+        "additionalProperties": false,
+        "properties": {
+          "city": {
+            "type": "string",
+          },
+          "community": {
+            "additionalProperties": false,
+            "properties": {
+              "name": {
+                "type": "string",
+              },
+              "slug": {
+                "type": "string",
+              },
+            },
+            "required": [
+              "slug",
+              "name",
+            ],
+            "type": "object",
+          },
+          "lots": {
+            "items": {
+              "$ref": "#/components/schemas/CommunityLot",
+            },
+            "type": "array",
+          },
+          "nextCursor": {
+            "description": "Opaque cursor for the next page; null on the last",
+            "type": [
+              "string",
+              "null",
+            ],
+          },
+          "refreshedAt": {
+            "format": "date-time",
+            "type": "string",
+          },
+          "stale": {
+            "description": "True when the refresh is older than the configured threshold",
+            "type": "boolean",
+          },
+          "total": {
+            "description": "Lots matching the filters, across all pages",
+            "minimum": 0,
+            "type": "integer",
+          },
+        },
+        "required": [
+          "community",
+          "city",
+          "refreshedAt",
+          "stale",
+          "total",
+          "lots",
+          "nextCursor",
         ],
         "type": "object",
       },
@@ -843,6 +1001,17 @@ exports[`OpenAPI drift > generated spec matches the snapshot 1`] = `
       },
       "LeadRequest": {
         "properties": {
+          "consent": {
+            "description": "Required with an API key: true attests the person asked to be contacted about their estimate",
+            "enum": [
+              true,
+            ],
+            "type": "boolean",
+          },
+          "consentVersion": {
+            "description": "Required with an API key: the current attestation wording version (docs/api/developers.md)",
+            "type": "string",
+          },
           "elapsedMs": {
             "description": "Milliseconds the form was on screen before submit (browser clients). Optional for API callers.",
             "type": "number",
@@ -1405,6 +1574,278 @@ exports[`OpenAPI drift > generated spec matches the snapshot 1`] = `
         ],
         "type": "object",
       },
+      "School": {
+        "additionalProperties": false,
+        "properties": {
+          "address": {
+            "type": [
+              "string",
+              "null",
+            ],
+          },
+          "authority": {
+            "description": "Legal school authority as listed by the source.",
+            "type": [
+              "string",
+              "null",
+            ],
+          },
+          "board": {
+            "type": [
+              "string",
+              "null",
+            ],
+          },
+          "communityCode": {
+            "type": [
+              "string",
+              "null",
+            ],
+          },
+          "communityName": {
+            "type": [
+              "string",
+              "null",
+            ],
+          },
+          "grades": {
+            "description": "Grades as the source states them.",
+            "type": [
+              "string",
+              "null",
+            ],
+          },
+          "id": {
+            "description": "Directory id (path parameter of GET /v1/schools/{id}).",
+            "minLength": 1,
+            "type": "string",
+          },
+          "lat": {
+            "type": [
+              "number",
+              "null",
+            ],
+          },
+          "lng": {
+            "type": [
+              "number",
+              "null",
+            ],
+          },
+          "name": {
+            "minLength": 1,
+            "type": "string",
+          },
+          "postalCode": {
+            "type": [
+              "string",
+              "null",
+            ],
+          },
+          "programs": {
+            "items": {
+              "$ref": "#/components/schemas/SchoolProgram",
+            },
+            "type": "array",
+          },
+          "refreshedAt": {
+            "format": "date-time",
+            "type": "string",
+          },
+          "sources": {
+            "additionalProperties": false,
+            "description": "Field → the source its value came from.",
+            "properties": {
+              "address": {
+                "$ref": "#/components/schemas/SchoolSourceId",
+              },
+              "authority": {
+                "$ref": "#/components/schemas/SchoolSourceId",
+              },
+              "board": {
+                "$ref": "#/components/schemas/SchoolSourceId",
+              },
+              "community": {
+                "$ref": "#/components/schemas/SchoolSourceId",
+              },
+              "coordinates": {
+                "$ref": "#/components/schemas/SchoolSourceId",
+              },
+              "grades": {
+                "$ref": "#/components/schemas/SchoolSourceId",
+              },
+              "name": {
+                "$ref": "#/components/schemas/SchoolSourceId",
+              },
+              "programs": {
+                "$ref": "#/components/schemas/SchoolSourceId",
+              },
+              "tuition": {
+                "$ref": "#/components/schemas/SchoolSourceId",
+              },
+              "type": {
+                "$ref": "#/components/schemas/SchoolSourceId",
+              },
+              "website": {
+                "$ref": "#/components/schemas/SchoolSourceId",
+              },
+            },
+            "type": "object",
+          },
+          "tuition": {
+            "description": "True when the school charges tuition (private schools). Never an amount.",
+            "type": "boolean",
+          },
+          "type": {
+            "$ref": "#/components/schemas/SchoolType",
+          },
+          "website": {
+            "format": "uri",
+            "type": [
+              "string",
+              "null",
+            ],
+          },
+        },
+        "required": [
+          "id",
+          "name",
+          "type",
+          "board",
+          "authority",
+          "grades",
+          "programs",
+          "address",
+          "postalCode",
+          "lat",
+          "lng",
+          "website",
+          "tuition",
+          "communityCode",
+          "communityName",
+          "sources",
+          "refreshedAt",
+        ],
+        "type": "object",
+      },
+      "SchoolProgram": {
+        "enum": [
+          "french-immersion",
+          "international-baccalaureate",
+          "advanced-placement",
+          "arts",
+          "spanish-bilingual",
+          "german-bilingual",
+          "mandarin-bilingual",
+          "montessori",
+          "waldorf",
+          "stem",
+          "sports",
+          "indigenous-focus",
+          "traditional-learning",
+          "dual-credit",
+          "outreach",
+          "online",
+        ],
+        "type": "string",
+      },
+      "SchoolResponse": {
+        "additionalProperties": false,
+        "properties": {
+          "attributions": {
+            "items": {
+              "$ref": "#/components/schemas/SchoolSourceAttribution",
+            },
+            "type": "array",
+          },
+          "disclaimer": {
+            "minLength": 1,
+            "type": "string",
+          },
+          "school": {
+            "$ref": "#/components/schemas/School",
+          },
+        },
+        "required": [
+          "school",
+          "attributions",
+          "disclaimer",
+        ],
+        "type": "object",
+      },
+      "SchoolSourceAttribution": {
+        "additionalProperties": false,
+        "properties": {
+          "id": {
+            "$ref": "#/components/schemas/SchoolSourceId",
+          },
+          "label": {
+            "minLength": 1,
+            "type": "string",
+          },
+          "licence": {
+            "minLength": 1,
+            "type": "string",
+          },
+          "url": {
+            "format": "uri",
+            "type": "string",
+          },
+        },
+        "required": [
+          "id",
+          "label",
+          "licence",
+          "url",
+        ],
+        "type": "object",
+      },
+      "SchoolSourceId": {
+        "enum": [
+          "calgary-open-data",
+          "alberta-authority-list",
+          "openstreetmap",
+        ],
+        "type": "string",
+      },
+      "SchoolType": {
+        "enum": [
+          "public_cbe",
+          "catholic_ccsd",
+          "francophone",
+          "charter",
+          "private",
+          "alternative",
+        ],
+        "type": "string",
+      },
+      "SchoolsListResponse": {
+        "additionalProperties": false,
+        "properties": {
+          "attributions": {
+            "items": {
+              "$ref": "#/components/schemas/SchoolSourceAttribution",
+            },
+            "type": "array",
+          },
+          "disclaimer": {
+            "minLength": 1,
+            "type": "string",
+          },
+          "schools": {
+            "items": {
+              "$ref": "#/components/schemas/School",
+            },
+            "type": "array",
+          },
+        },
+        "required": [
+          "schools",
+          "attributions",
+          "disclaimer",
+        ],
+        "type": "object",
+      },
       "TierRevisionRequest": {
         "description": "At least one of tier or sqft is required",
         "properties": {
@@ -1478,6 +1919,34 @@ exports[`OpenAPI drift > generated spec matches the snapshot 1`] = `
           "vancouver",
         ],
         "type": "string",
+      },
+      "ZoningCatalogueFreshness": {
+        "additionalProperties": false,
+        "properties": {
+          "latestChangeDetectedOn": {
+            "description": "ISO date of the latest City change detected; null when none.",
+            "pattern": "^\\d{4}-\\d{2}-\\d{2}$",
+            "type": [
+              "string",
+              "null",
+            ],
+          },
+          "rulesAsOf": {
+            "description": "ISO date the catalogue's rules are as of (its effectiveDate).",
+            "pattern": "^\\d{4}-\\d{2}-\\d{2}$",
+            "type": "string",
+          },
+          "stale": {
+            "description": "True when the City changed its rules or districts after rulesAsOf — confirm with the City.",
+            "type": "boolean",
+          },
+        },
+        "required": [
+          "rulesAsOf",
+          "stale",
+          "latestChangeDetectedOn",
+        ],
+        "type": "object",
       },
       "ZoningDistrict": {
         "additionalProperties": false,
@@ -1697,6 +2166,9 @@ exports[`OpenAPI drift > generated spec matches the snapshot 1`] = `
             "pattern": "^\\d{4}-\\d{2}-\\d{2}$",
             "type": "string",
           },
+          "freshness": {
+            "$ref": "#/components/schemas/ZoningCatalogueFreshness",
+          },
           "sourceUrl": {
             "description": "The City's bylaw page — where to confirm the rules.",
             "format": "uri",
@@ -1742,7 +2214,7 @@ exports[`OpenAPI drift > generated spec matches the snapshot 1`] = `
 Public endpoints use API-key Bearer auth. Admin key endpoints use the interim \`X-Admin-Key\` header.
 
 ## Rate limits
-Per-key limits (default 100 req/min) plus per-endpoint IP limits. 429 responses use RFC 7807 problem+json.
+Per-key limits (default 100 req/min), per-key daily and monthly quotas (UTC calendar periods; invite-only beta defaults in the developer guide), plus per-endpoint IP limits. 429 responses use RFC 7807 problem+json with Retry-After.
 
 ## Errors
 All errors are RFC 7807 \`application/problem+json\` with a Feasly \`code\` and \`correlationId\`.
@@ -1789,8 +2261,44 @@ URL versioning (\`/v1/\`). Breaking changes ship as \`/v2/\` with 6 months notic
                 },
               },
             },
-            "description": "Rate limit exceeded — per-key sliding window (60s) or per-IP fixed window. Body is RFC 7807 problem+json with code RATE_LIMITED. The X-RateLimit-* headers report the key's quota state.",
+            "description": "Rate limit exceeded — per-key sliding window (60s) or per-IP fixed window (code RATE_LIMITED, X-RateLimit-* headers), or the key's daily/monthly quota (code QUOTA_EXCEEDED, X-Quota-Period / -Limit / -Remaining / -Reset headers). Body is RFC 7807 problem+json; Retry-After says when to try again.",
             "headers": {
+              "X-Quota-Limit": {
+                "description": "QUOTA_EXCEEDED only: requests allowed per period for this API key.",
+                "required": false,
+                "schema": {
+                  "description": "QUOTA_EXCEEDED only: requests allowed per period for this API key.",
+                  "type": "integer",
+                },
+              },
+              "X-Quota-Period": {
+                "description": "QUOTA_EXCEEDED only: which quota ran out (UTC calendar day or month).",
+                "required": false,
+                "schema": {
+                  "description": "QUOTA_EXCEEDED only: which quota ran out (UTC calendar day or month).",
+                  "enum": [
+                    "day",
+                    "month",
+                  ],
+                  "type": "string",
+                },
+              },
+              "X-Quota-Remaining": {
+                "description": "QUOTA_EXCEEDED only: requests remaining in the period (0).",
+                "required": false,
+                "schema": {
+                  "description": "QUOTA_EXCEEDED only: requests remaining in the period (0).",
+                  "type": "integer",
+                },
+              },
+              "X-Quota-Reset": {
+                "description": "QUOTA_EXCEEDED only: Unix epoch seconds when the period resets.",
+                "required": false,
+                "schema": {
+                  "description": "QUOTA_EXCEEDED only: Unix epoch seconds when the period resets.",
+                  "type": "integer",
+                },
+              },
               "X-RateLimit-Limit": {
                 "description": "Requests allowed per 60-second window for this API key.",
                 "required": true,
@@ -1875,8 +2383,44 @@ URL versioning (\`/v1/\`). Breaking changes ship as \`/v2/\` with 6 months notic
                 },
               },
             },
-            "description": "Rate limit exceeded — per-key sliding window (60s) or per-IP fixed window. Body is RFC 7807 problem+json with code RATE_LIMITED. The X-RateLimit-* headers report the key's quota state.",
+            "description": "Rate limit exceeded — per-key sliding window (60s) or per-IP fixed window (code RATE_LIMITED, X-RateLimit-* headers), or the key's daily/monthly quota (code QUOTA_EXCEEDED, X-Quota-Period / -Limit / -Remaining / -Reset headers). Body is RFC 7807 problem+json; Retry-After says when to try again.",
             "headers": {
+              "X-Quota-Limit": {
+                "description": "QUOTA_EXCEEDED only: requests allowed per period for this API key.",
+                "required": false,
+                "schema": {
+                  "description": "QUOTA_EXCEEDED only: requests allowed per period for this API key.",
+                  "type": "integer",
+                },
+              },
+              "X-Quota-Period": {
+                "description": "QUOTA_EXCEEDED only: which quota ran out (UTC calendar day or month).",
+                "required": false,
+                "schema": {
+                  "description": "QUOTA_EXCEEDED only: which quota ran out (UTC calendar day or month).",
+                  "enum": [
+                    "day",
+                    "month",
+                  ],
+                  "type": "string",
+                },
+              },
+              "X-Quota-Remaining": {
+                "description": "QUOTA_EXCEEDED only: requests remaining in the period (0).",
+                "required": false,
+                "schema": {
+                  "description": "QUOTA_EXCEEDED only: requests remaining in the period (0).",
+                  "type": "integer",
+                },
+              },
+              "X-Quota-Reset": {
+                "description": "QUOTA_EXCEEDED only: Unix epoch seconds when the period resets.",
+                "required": false,
+                "schema": {
+                  "description": "QUOTA_EXCEEDED only: Unix epoch seconds when the period resets.",
+                  "type": "integer",
+                },
+              },
               "X-RateLimit-Limit": {
                 "description": "Requests allowed per 60-second window for this API key.",
                 "required": true,
@@ -1990,8 +2534,44 @@ URL versioning (\`/v1/\`). Breaking changes ship as \`/v2/\` with 6 months notic
                 },
               },
             },
-            "description": "Rate limit exceeded — per-key sliding window (60s) or per-IP fixed window. Body is RFC 7807 problem+json with code RATE_LIMITED. The X-RateLimit-* headers report the key's quota state.",
+            "description": "Rate limit exceeded — per-key sliding window (60s) or per-IP fixed window (code RATE_LIMITED, X-RateLimit-* headers), or the key's daily/monthly quota (code QUOTA_EXCEEDED, X-Quota-Period / -Limit / -Remaining / -Reset headers). Body is RFC 7807 problem+json; Retry-After says when to try again.",
             "headers": {
+              "X-Quota-Limit": {
+                "description": "QUOTA_EXCEEDED only: requests allowed per period for this API key.",
+                "required": false,
+                "schema": {
+                  "description": "QUOTA_EXCEEDED only: requests allowed per period for this API key.",
+                  "type": "integer",
+                },
+              },
+              "X-Quota-Period": {
+                "description": "QUOTA_EXCEEDED only: which quota ran out (UTC calendar day or month).",
+                "required": false,
+                "schema": {
+                  "description": "QUOTA_EXCEEDED only: which quota ran out (UTC calendar day or month).",
+                  "enum": [
+                    "day",
+                    "month",
+                  ],
+                  "type": "string",
+                },
+              },
+              "X-Quota-Remaining": {
+                "description": "QUOTA_EXCEEDED only: requests remaining in the period (0).",
+                "required": false,
+                "schema": {
+                  "description": "QUOTA_EXCEEDED only: requests remaining in the period (0).",
+                  "type": "integer",
+                },
+              },
+              "X-Quota-Reset": {
+                "description": "QUOTA_EXCEEDED only: Unix epoch seconds when the period resets.",
+                "required": false,
+                "schema": {
+                  "description": "QUOTA_EXCEEDED only: Unix epoch seconds when the period resets.",
+                  "type": "integer",
+                },
+              },
               "X-RateLimit-Limit": {
                 "description": "Requests allowed per 60-second window for this API key.",
                 "required": true,
@@ -2086,8 +2666,44 @@ URL versioning (\`/v1/\`). Breaking changes ship as \`/v2/\` with 6 months notic
                 },
               },
             },
-            "description": "Rate limit exceeded — per-key sliding window (60s) or per-IP fixed window. Body is RFC 7807 problem+json with code RATE_LIMITED. The X-RateLimit-* headers report the key's quota state.",
+            "description": "Rate limit exceeded — per-key sliding window (60s) or per-IP fixed window (code RATE_LIMITED, X-RateLimit-* headers), or the key's daily/monthly quota (code QUOTA_EXCEEDED, X-Quota-Period / -Limit / -Remaining / -Reset headers). Body is RFC 7807 problem+json; Retry-After says when to try again.",
             "headers": {
+              "X-Quota-Limit": {
+                "description": "QUOTA_EXCEEDED only: requests allowed per period for this API key.",
+                "required": false,
+                "schema": {
+                  "description": "QUOTA_EXCEEDED only: requests allowed per period for this API key.",
+                  "type": "integer",
+                },
+              },
+              "X-Quota-Period": {
+                "description": "QUOTA_EXCEEDED only: which quota ran out (UTC calendar day or month).",
+                "required": false,
+                "schema": {
+                  "description": "QUOTA_EXCEEDED only: which quota ran out (UTC calendar day or month).",
+                  "enum": [
+                    "day",
+                    "month",
+                  ],
+                  "type": "string",
+                },
+              },
+              "X-Quota-Remaining": {
+                "description": "QUOTA_EXCEEDED only: requests remaining in the period (0).",
+                "required": false,
+                "schema": {
+                  "description": "QUOTA_EXCEEDED only: requests remaining in the period (0).",
+                  "type": "integer",
+                },
+              },
+              "X-Quota-Reset": {
+                "description": "QUOTA_EXCEEDED only: Unix epoch seconds when the period resets.",
+                "required": false,
+                "schema": {
+                  "description": "QUOTA_EXCEEDED only: Unix epoch seconds when the period resets.",
+                  "type": "integer",
+                },
+              },
               "X-RateLimit-Limit": {
                 "description": "Requests allowed per 60-second window for this API key.",
                 "required": true,
@@ -2177,8 +2793,44 @@ URL versioning (\`/v1/\`). Breaking changes ship as \`/v2/\` with 6 months notic
                 },
               },
             },
-            "description": "Rate limit exceeded — per-key sliding window (60s) or per-IP fixed window. Body is RFC 7807 problem+json with code RATE_LIMITED. The X-RateLimit-* headers report the key's quota state.",
+            "description": "Rate limit exceeded — per-key sliding window (60s) or per-IP fixed window (code RATE_LIMITED, X-RateLimit-* headers), or the key's daily/monthly quota (code QUOTA_EXCEEDED, X-Quota-Period / -Limit / -Remaining / -Reset headers). Body is RFC 7807 problem+json; Retry-After says when to try again.",
             "headers": {
+              "X-Quota-Limit": {
+                "description": "QUOTA_EXCEEDED only: requests allowed per period for this API key.",
+                "required": false,
+                "schema": {
+                  "description": "QUOTA_EXCEEDED only: requests allowed per period for this API key.",
+                  "type": "integer",
+                },
+              },
+              "X-Quota-Period": {
+                "description": "QUOTA_EXCEEDED only: which quota ran out (UTC calendar day or month).",
+                "required": false,
+                "schema": {
+                  "description": "QUOTA_EXCEEDED only: which quota ran out (UTC calendar day or month).",
+                  "enum": [
+                    "day",
+                    "month",
+                  ],
+                  "type": "string",
+                },
+              },
+              "X-Quota-Remaining": {
+                "description": "QUOTA_EXCEEDED only: requests remaining in the period (0).",
+                "required": false,
+                "schema": {
+                  "description": "QUOTA_EXCEEDED only: requests remaining in the period (0).",
+                  "type": "integer",
+                },
+              },
+              "X-Quota-Reset": {
+                "description": "QUOTA_EXCEEDED only: Unix epoch seconds when the period resets.",
+                "required": false,
+                "schema": {
+                  "description": "QUOTA_EXCEEDED only: Unix epoch seconds when the period resets.",
+                  "type": "integer",
+                },
+              },
               "X-RateLimit-Limit": {
                 "description": "Requests allowed per 60-second window for this API key.",
                 "required": true,
@@ -2279,8 +2931,44 @@ URL versioning (\`/v1/\`). Breaking changes ship as \`/v2/\` with 6 months notic
                 },
               },
             },
-            "description": "Rate limit exceeded — per-key sliding window (60s) or per-IP fixed window. Body is RFC 7807 problem+json with code RATE_LIMITED. The X-RateLimit-* headers report the key's quota state.",
+            "description": "Rate limit exceeded — per-key sliding window (60s) or per-IP fixed window (code RATE_LIMITED, X-RateLimit-* headers), or the key's daily/monthly quota (code QUOTA_EXCEEDED, X-Quota-Period / -Limit / -Remaining / -Reset headers). Body is RFC 7807 problem+json; Retry-After says when to try again.",
             "headers": {
+              "X-Quota-Limit": {
+                "description": "QUOTA_EXCEEDED only: requests allowed per period for this API key.",
+                "required": false,
+                "schema": {
+                  "description": "QUOTA_EXCEEDED only: requests allowed per period for this API key.",
+                  "type": "integer",
+                },
+              },
+              "X-Quota-Period": {
+                "description": "QUOTA_EXCEEDED only: which quota ran out (UTC calendar day or month).",
+                "required": false,
+                "schema": {
+                  "description": "QUOTA_EXCEEDED only: which quota ran out (UTC calendar day or month).",
+                  "enum": [
+                    "day",
+                    "month",
+                  ],
+                  "type": "string",
+                },
+              },
+              "X-Quota-Remaining": {
+                "description": "QUOTA_EXCEEDED only: requests remaining in the period (0).",
+                "required": false,
+                "schema": {
+                  "description": "QUOTA_EXCEEDED only: requests remaining in the period (0).",
+                  "type": "integer",
+                },
+              },
+              "X-Quota-Reset": {
+                "description": "QUOTA_EXCEEDED only: Unix epoch seconds when the period resets.",
+                "required": false,
+                "schema": {
+                  "description": "QUOTA_EXCEEDED only: Unix epoch seconds when the period resets.",
+                  "type": "integer",
+                },
+              },
               "X-RateLimit-Limit": {
                 "description": "Requests allowed per 60-second window for this API key.",
                 "required": true,
@@ -2328,7 +3016,7 @@ URL versioning (\`/v1/\`). Breaking changes ship as \`/v2/\` with 6 months notic
     },
     "/v1/admin/funnels": {
       "get": {
-        "description": "Aggregates the append-only analytics events table into the consumer funnel (scope → details → preview → gate → report) with per-step counts and step-to-step conversion rates. Optional ISO-8601 from/to bounds (inclusive). tenant_key filters to one embed tenant, "direct" selects Feasly-direct traffic only, omitted = all traffic. Admin-only (X-Admin-Key interim until admin/01). Numbers only — no PII.",
+        "description": "Aggregates the append-only analytics events table into the consumer funnel (landing view → address selected → preview → gate view → gate convert → report open) with per-step counts and step-to-step conversion rates, plus the same funnel per (utm_source, utm_campaign) in bySource (largest first, capped). Optional ISO-8601 from/to bounds (inclusive). tenant_key filters to one embed tenant, "direct" selects Feasly-direct traffic only, omitted = all traffic. utm_source / utm_campaign filter to one campaign source (exact match). Admin-only (X-Admin-Key interim until admin/01). Numbers only — no PII.",
         "parameters": [
           {
             "description": "ISO-8601 start (inclusive)",
@@ -2360,6 +3048,28 @@ URL versioning (\`/v1/\`). Breaking changes ship as \`/v2/\` with 6 months notic
               "type": "string",
             },
           },
+          {
+            "description": "Exact utm_source filter",
+            "in": "query",
+            "name": "utm_source",
+            "required": false,
+            "schema": {
+              "description": "Exact utm_source filter",
+              "maxLength": 100,
+              "type": "string",
+            },
+          },
+          {
+            "description": "Exact utm_campaign filter",
+            "in": "query",
+            "name": "utm_campaign",
+            "required": false,
+            "schema": {
+              "description": "Exact utm_campaign filter",
+              "maxLength": 100,
+              "type": "string",
+            },
+          },
         ],
         "responses": {
           "200": {
@@ -2367,6 +3077,63 @@ URL versioning (\`/v1/\`). Breaking changes ship as \`/v2/\` with 6 months notic
               "application/json": {
                 "schema": {
                   "properties": {
+                    "bySource": {
+                      "items": {
+                        "properties": {
+                          "steps": {
+                            "items": {
+                              "properties": {
+                                "conversionFromPrevious": {
+                                  "type": [
+                                    "number",
+                                    "null",
+                                  ],
+                                },
+                                "count": {
+                                  "type": "integer",
+                                },
+                                "label": {
+                                  "type": "string",
+                                },
+                                "step": {
+                                  "type": "string",
+                                },
+                              },
+                              "required": [
+                                "step",
+                                "label",
+                                "count",
+                                "conversionFromPrevious",
+                              ],
+                              "type": "object",
+                            },
+                            "type": "array",
+                          },
+                          "utmCampaign": {
+                            "type": [
+                              "string",
+                              "null",
+                            ],
+                          },
+                          "utmSource": {
+                            "type": [
+                              "string",
+                              "null",
+                            ],
+                          },
+                        },
+                        "required": [
+                          "utmSource",
+                          "utmCampaign",
+                          "steps",
+                        ],
+                        "type": "object",
+                      },
+                      "type": "array",
+                    },
+                    "bySourceTruncated": {
+                      "type": "boolean",
+                    },
                     "from": {
                       "format": "date-time",
                       "type": [
@@ -2413,12 +3180,28 @@ URL versioning (\`/v1/\`). Breaking changes ship as \`/v2/\` with 6 months notic
                         "null",
                       ],
                     },
+                    "utmCampaign": {
+                      "type": [
+                        "string",
+                        "null",
+                      ],
+                    },
+                    "utmSource": {
+                      "type": [
+                        "string",
+                        "null",
+                      ],
+                    },
                   },
                   "required": [
                     "from",
                     "to",
                     "tenant",
+                    "utmSource",
+                    "utmCampaign",
                     "steps",
+                    "bySource",
+                    "bySourceTruncated",
                   ],
                   "type": "object",
                 },
@@ -2444,8 +3227,44 @@ URL versioning (\`/v1/\`). Breaking changes ship as \`/v2/\` with 6 months notic
                 },
               },
             },
-            "description": "Rate limit exceeded — per-key sliding window (60s) or per-IP fixed window. Body is RFC 7807 problem+json with code RATE_LIMITED. The X-RateLimit-* headers report the key's quota state.",
+            "description": "Rate limit exceeded — per-key sliding window (60s) or per-IP fixed window (code RATE_LIMITED, X-RateLimit-* headers), or the key's daily/monthly quota (code QUOTA_EXCEEDED, X-Quota-Period / -Limit / -Remaining / -Reset headers). Body is RFC 7807 problem+json; Retry-After says when to try again.",
             "headers": {
+              "X-Quota-Limit": {
+                "description": "QUOTA_EXCEEDED only: requests allowed per period for this API key.",
+                "required": false,
+                "schema": {
+                  "description": "QUOTA_EXCEEDED only: requests allowed per period for this API key.",
+                  "type": "integer",
+                },
+              },
+              "X-Quota-Period": {
+                "description": "QUOTA_EXCEEDED only: which quota ran out (UTC calendar day or month).",
+                "required": false,
+                "schema": {
+                  "description": "QUOTA_EXCEEDED only: which quota ran out (UTC calendar day or month).",
+                  "enum": [
+                    "day",
+                    "month",
+                  ],
+                  "type": "string",
+                },
+              },
+              "X-Quota-Remaining": {
+                "description": "QUOTA_EXCEEDED only: requests remaining in the period (0).",
+                "required": false,
+                "schema": {
+                  "description": "QUOTA_EXCEEDED only: requests remaining in the period (0).",
+                  "type": "integer",
+                },
+              },
+              "X-Quota-Reset": {
+                "description": "QUOTA_EXCEEDED only: Unix epoch seconds when the period resets.",
+                "required": false,
+                "schema": {
+                  "description": "QUOTA_EXCEEDED only: Unix epoch seconds when the period resets.",
+                  "type": "integer",
+                },
+              },
               "X-RateLimit-Limit": {
                 "description": "Requests allowed per 60-second window for this API key.",
                 "required": true,
@@ -2580,8 +3399,44 @@ URL versioning (\`/v1/\`). Breaking changes ship as \`/v2/\` with 6 months notic
                 },
               },
             },
-            "description": "Rate limit exceeded — per-key sliding window (60s) or per-IP fixed window. Body is RFC 7807 problem+json with code RATE_LIMITED. The X-RateLimit-* headers report the key's quota state.",
+            "description": "Rate limit exceeded — per-key sliding window (60s) or per-IP fixed window (code RATE_LIMITED, X-RateLimit-* headers), or the key's daily/monthly quota (code QUOTA_EXCEEDED, X-Quota-Period / -Limit / -Remaining / -Reset headers). Body is RFC 7807 problem+json; Retry-After says when to try again.",
             "headers": {
+              "X-Quota-Limit": {
+                "description": "QUOTA_EXCEEDED only: requests allowed per period for this API key.",
+                "required": false,
+                "schema": {
+                  "description": "QUOTA_EXCEEDED only: requests allowed per period for this API key.",
+                  "type": "integer",
+                },
+              },
+              "X-Quota-Period": {
+                "description": "QUOTA_EXCEEDED only: which quota ran out (UTC calendar day or month).",
+                "required": false,
+                "schema": {
+                  "description": "QUOTA_EXCEEDED only: which quota ran out (UTC calendar day or month).",
+                  "enum": [
+                    "day",
+                    "month",
+                  ],
+                  "type": "string",
+                },
+              },
+              "X-Quota-Remaining": {
+                "description": "QUOTA_EXCEEDED only: requests remaining in the period (0).",
+                "required": false,
+                "schema": {
+                  "description": "QUOTA_EXCEEDED only: requests remaining in the period (0).",
+                  "type": "integer",
+                },
+              },
+              "X-Quota-Reset": {
+                "description": "QUOTA_EXCEEDED only: Unix epoch seconds when the period resets.",
+                "required": false,
+                "schema": {
+                  "description": "QUOTA_EXCEEDED only: Unix epoch seconds when the period resets.",
+                  "type": "integer",
+                },
+              },
               "X-RateLimit-Limit": {
                 "description": "Requests allowed per 60-second window for this API key.",
                 "required": true,
@@ -2671,8 +3526,44 @@ URL versioning (\`/v1/\`). Breaking changes ship as \`/v2/\` with 6 months notic
                 },
               },
             },
-            "description": "Rate limit exceeded — per-key sliding window (60s) or per-IP fixed window. Body is RFC 7807 problem+json with code RATE_LIMITED. The X-RateLimit-* headers report the key's quota state.",
+            "description": "Rate limit exceeded — per-key sliding window (60s) or per-IP fixed window (code RATE_LIMITED, X-RateLimit-* headers), or the key's daily/monthly quota (code QUOTA_EXCEEDED, X-Quota-Period / -Limit / -Remaining / -Reset headers). Body is RFC 7807 problem+json; Retry-After says when to try again.",
             "headers": {
+              "X-Quota-Limit": {
+                "description": "QUOTA_EXCEEDED only: requests allowed per period for this API key.",
+                "required": false,
+                "schema": {
+                  "description": "QUOTA_EXCEEDED only: requests allowed per period for this API key.",
+                  "type": "integer",
+                },
+              },
+              "X-Quota-Period": {
+                "description": "QUOTA_EXCEEDED only: which quota ran out (UTC calendar day or month).",
+                "required": false,
+                "schema": {
+                  "description": "QUOTA_EXCEEDED only: which quota ran out (UTC calendar day or month).",
+                  "enum": [
+                    "day",
+                    "month",
+                  ],
+                  "type": "string",
+                },
+              },
+              "X-Quota-Remaining": {
+                "description": "QUOTA_EXCEEDED only: requests remaining in the period (0).",
+                "required": false,
+                "schema": {
+                  "description": "QUOTA_EXCEEDED only: requests remaining in the period (0).",
+                  "type": "integer",
+                },
+              },
+              "X-Quota-Reset": {
+                "description": "QUOTA_EXCEEDED only: Unix epoch seconds when the period resets.",
+                "required": false,
+                "schema": {
+                  "description": "QUOTA_EXCEEDED only: Unix epoch seconds when the period resets.",
+                  "type": "integer",
+                },
+              },
               "X-RateLimit-Limit": {
                 "description": "Requests allowed per 60-second window for this API key.",
                 "required": true,
@@ -2746,8 +3637,44 @@ URL versioning (\`/v1/\`). Breaking changes ship as \`/v2/\` with 6 months notic
                 },
               },
             },
-            "description": "Rate limit exceeded — per-key sliding window (60s) or per-IP fixed window. Body is RFC 7807 problem+json with code RATE_LIMITED. The X-RateLimit-* headers report the key's quota state.",
+            "description": "Rate limit exceeded — per-key sliding window (60s) or per-IP fixed window (code RATE_LIMITED, X-RateLimit-* headers), or the key's daily/monthly quota (code QUOTA_EXCEEDED, X-Quota-Period / -Limit / -Remaining / -Reset headers). Body is RFC 7807 problem+json; Retry-After says when to try again.",
             "headers": {
+              "X-Quota-Limit": {
+                "description": "QUOTA_EXCEEDED only: requests allowed per period for this API key.",
+                "required": false,
+                "schema": {
+                  "description": "QUOTA_EXCEEDED only: requests allowed per period for this API key.",
+                  "type": "integer",
+                },
+              },
+              "X-Quota-Period": {
+                "description": "QUOTA_EXCEEDED only: which quota ran out (UTC calendar day or month).",
+                "required": false,
+                "schema": {
+                  "description": "QUOTA_EXCEEDED only: which quota ran out (UTC calendar day or month).",
+                  "enum": [
+                    "day",
+                    "month",
+                  ],
+                  "type": "string",
+                },
+              },
+              "X-Quota-Remaining": {
+                "description": "QUOTA_EXCEEDED only: requests remaining in the period (0).",
+                "required": false,
+                "schema": {
+                  "description": "QUOTA_EXCEEDED only: requests remaining in the period (0).",
+                  "type": "integer",
+                },
+              },
+              "X-Quota-Reset": {
+                "description": "QUOTA_EXCEEDED only: Unix epoch seconds when the period resets.",
+                "required": false,
+                "schema": {
+                  "description": "QUOTA_EXCEEDED only: Unix epoch seconds when the period resets.",
+                  "type": "integer",
+                },
+              },
               "X-RateLimit-Limit": {
                 "description": "Requests allowed per 60-second window for this API key.",
                 "required": true,
@@ -2787,6 +3714,207 @@ URL versioning (\`/v1/\`). Breaking changes ship as \`/v2/\` with 6 months notic
         },
         "security": [],
         "summary": "Get City assessment dataset freshness",
+      },
+    },
+    "/v1/communities/{slug}/lots": {
+      "get": {
+        "description": "Vacant residential lots in an established infill community, derived weekly from City of Calgary open data (assessment roll + current Land Use Districts map). Each lot carries its address, lot area, City-assessed value (not market value) and roll year, and current district. Cursor-paginated; \`stale\` is true when the last refresh is older than the configured threshold. Unknown or non-infill communities return 404. Public by design; cached (Cache-Control public).",
+        "parameters": [
+          {
+            "description": "Community slug (kebab-case)",
+            "in": "path",
+            "name": "slug",
+            "required": true,
+            "schema": {
+              "description": "Community slug (kebab-case)",
+              "type": "string",
+            },
+          },
+          {
+            "in": "query",
+            "name": "kind",
+            "required": false,
+            "schema": {
+              "enum": [
+                "vacant",
+                "candidate",
+              ],
+              "type": "string",
+            },
+          },
+          {
+            "description": "Exact current district code, e.g. R-CG",
+            "in": "query",
+            "name": "district",
+            "required": false,
+            "schema": {
+              "description": "Exact current district code, e.g. R-CG",
+              "type": "string",
+            },
+          },
+          {
+            "description": "Minimum lot area (sq ft)",
+            "in": "query",
+            "name": "minLotSqft",
+            "required": false,
+            "schema": {
+              "description": "Minimum lot area (sq ft)",
+              "pattern": "^\\d+$",
+              "type": "string",
+            },
+          },
+          {
+            "description": "Maximum lot area (sq ft)",
+            "in": "query",
+            "name": "maxLotSqft",
+            "required": false,
+            "schema": {
+              "description": "Maximum lot area (sq ft)",
+              "pattern": "^\\d+$",
+              "type": "string",
+            },
+          },
+          {
+            "in": "query",
+            "name": "sort",
+            "required": false,
+            "schema": {
+              "enum": [
+                "address",
+                "lot-size-asc",
+                "lot-size-desc",
+              ],
+              "type": "string",
+            },
+          },
+          {
+            "description": "Page size (capped by config)",
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "description": "Page size (capped by config)",
+              "pattern": "^\\d+$",
+              "type": "string",
+            },
+          },
+          {
+            "description": "nextCursor from the previous page",
+            "in": "query",
+            "name": "cursor",
+            "required": false,
+            "schema": {
+              "description": "nextCursor from the previous page",
+              "type": "string",
+            },
+          },
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CommunityLotsResponse",
+                },
+              },
+            },
+            "description": "One page of the community's lots",
+          },
+          "400": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails",
+                },
+              },
+            },
+            "description": "Bad request — validation failed",
+          },
+          "429": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails",
+                },
+              },
+            },
+            "description": "Rate limit exceeded — per-key sliding window (60s) or per-IP fixed window (code RATE_LIMITED, X-RateLimit-* headers), or the key's daily/monthly quota (code QUOTA_EXCEEDED, X-Quota-Period / -Limit / -Remaining / -Reset headers). Body is RFC 7807 problem+json; Retry-After says when to try again.",
+            "headers": {
+              "X-Quota-Limit": {
+                "description": "QUOTA_EXCEEDED only: requests allowed per period for this API key.",
+                "required": false,
+                "schema": {
+                  "description": "QUOTA_EXCEEDED only: requests allowed per period for this API key.",
+                  "type": "integer",
+                },
+              },
+              "X-Quota-Period": {
+                "description": "QUOTA_EXCEEDED only: which quota ran out (UTC calendar day or month).",
+                "required": false,
+                "schema": {
+                  "description": "QUOTA_EXCEEDED only: which quota ran out (UTC calendar day or month).",
+                  "enum": [
+                    "day",
+                    "month",
+                  ],
+                  "type": "string",
+                },
+              },
+              "X-Quota-Remaining": {
+                "description": "QUOTA_EXCEEDED only: requests remaining in the period (0).",
+                "required": false,
+                "schema": {
+                  "description": "QUOTA_EXCEEDED only: requests remaining in the period (0).",
+                  "type": "integer",
+                },
+              },
+              "X-Quota-Reset": {
+                "description": "QUOTA_EXCEEDED only: Unix epoch seconds when the period resets.",
+                "required": false,
+                "schema": {
+                  "description": "QUOTA_EXCEEDED only: Unix epoch seconds when the period resets.",
+                  "type": "integer",
+                },
+              },
+              "X-RateLimit-Limit": {
+                "description": "Requests allowed per 60-second window for this API key.",
+                "required": true,
+                "schema": {
+                  "description": "Requests allowed per 60-second window for this API key.",
+                  "type": "integer",
+                },
+              },
+              "X-RateLimit-Remaining": {
+                "description": "Requests remaining in the current window.",
+                "required": true,
+                "schema": {
+                  "description": "Requests remaining in the current window.",
+                  "type": "integer",
+                },
+              },
+              "X-RateLimit-Reset": {
+                "description": "Unix epoch seconds when the current window slides past the oldest request.",
+                "required": true,
+                "schema": {
+                  "description": "Unix epoch seconds when the current window slides past the oldest request.",
+                  "type": "integer",
+                },
+              },
+            },
+          },
+          "500": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails",
+                },
+              },
+            },
+            "description": "Internal server error",
+          },
+        },
+        "security": [],
+        "summary": "List lots in a community",
       },
     },
     "/v1/communities/{slug}/stats": {
@@ -2833,8 +3961,44 @@ URL versioning (\`/v1/\`). Breaking changes ship as \`/v2/\` with 6 months notic
                 },
               },
             },
-            "description": "Rate limit exceeded — per-key sliding window (60s) or per-IP fixed window. Body is RFC 7807 problem+json with code RATE_LIMITED. The X-RateLimit-* headers report the key's quota state.",
+            "description": "Rate limit exceeded — per-key sliding window (60s) or per-IP fixed window (code RATE_LIMITED, X-RateLimit-* headers), or the key's daily/monthly quota (code QUOTA_EXCEEDED, X-Quota-Period / -Limit / -Remaining / -Reset headers). Body is RFC 7807 problem+json; Retry-After says when to try again.",
             "headers": {
+              "X-Quota-Limit": {
+                "description": "QUOTA_EXCEEDED only: requests allowed per period for this API key.",
+                "required": false,
+                "schema": {
+                  "description": "QUOTA_EXCEEDED only: requests allowed per period for this API key.",
+                  "type": "integer",
+                },
+              },
+              "X-Quota-Period": {
+                "description": "QUOTA_EXCEEDED only: which quota ran out (UTC calendar day or month).",
+                "required": false,
+                "schema": {
+                  "description": "QUOTA_EXCEEDED only: which quota ran out (UTC calendar day or month).",
+                  "enum": [
+                    "day",
+                    "month",
+                  ],
+                  "type": "string",
+                },
+              },
+              "X-Quota-Remaining": {
+                "description": "QUOTA_EXCEEDED only: requests remaining in the period (0).",
+                "required": false,
+                "schema": {
+                  "description": "QUOTA_EXCEEDED only: requests remaining in the period (0).",
+                  "type": "integer",
+                },
+              },
+              "X-Quota-Reset": {
+                "description": "QUOTA_EXCEEDED only: Unix epoch seconds when the period resets.",
+                "required": false,
+                "schema": {
+                  "description": "QUOTA_EXCEEDED only: Unix epoch seconds when the period resets.",
+                  "type": "integer",
+                },
+              },
               "X-RateLimit-Limit": {
                 "description": "Requests allowed per 60-second window for this API key.",
                 "required": true,
@@ -2920,8 +4084,44 @@ URL versioning (\`/v1/\`). Breaking changes ship as \`/v2/\` with 6 months notic
                 },
               },
             },
-            "description": "Rate limit exceeded — per-key sliding window (60s) or per-IP fixed window. Body is RFC 7807 problem+json with code RATE_LIMITED. The X-RateLimit-* headers report the key's quota state.",
+            "description": "Rate limit exceeded — per-key sliding window (60s) or per-IP fixed window (code RATE_LIMITED, X-RateLimit-* headers), or the key's daily/monthly quota (code QUOTA_EXCEEDED, X-Quota-Period / -Limit / -Remaining / -Reset headers). Body is RFC 7807 problem+json; Retry-After says when to try again.",
             "headers": {
+              "X-Quota-Limit": {
+                "description": "QUOTA_EXCEEDED only: requests allowed per period for this API key.",
+                "required": false,
+                "schema": {
+                  "description": "QUOTA_EXCEEDED only: requests allowed per period for this API key.",
+                  "type": "integer",
+                },
+              },
+              "X-Quota-Period": {
+                "description": "QUOTA_EXCEEDED only: which quota ran out (UTC calendar day or month).",
+                "required": false,
+                "schema": {
+                  "description": "QUOTA_EXCEEDED only: which quota ran out (UTC calendar day or month).",
+                  "enum": [
+                    "day",
+                    "month",
+                  ],
+                  "type": "string",
+                },
+              },
+              "X-Quota-Remaining": {
+                "description": "QUOTA_EXCEEDED only: requests remaining in the period (0).",
+                "required": false,
+                "schema": {
+                  "description": "QUOTA_EXCEEDED only: requests remaining in the period (0).",
+                  "type": "integer",
+                },
+              },
+              "X-Quota-Reset": {
+                "description": "QUOTA_EXCEEDED only: Unix epoch seconds when the period resets.",
+                "required": false,
+                "schema": {
+                  "description": "QUOTA_EXCEEDED only: Unix epoch seconds when the period resets.",
+                  "type": "integer",
+                },
+              },
               "X-RateLimit-Limit": {
                 "description": "Requests allowed per 60-second window for this API key.",
                 "required": true,
@@ -3004,8 +4204,44 @@ URL versioning (\`/v1/\`). Breaking changes ship as \`/v2/\` with 6 months notic
                 },
               },
             },
-            "description": "Rate limit exceeded — per-key sliding window (60s) or per-IP fixed window. Body is RFC 7807 problem+json with code RATE_LIMITED. The X-RateLimit-* headers report the key's quota state.",
+            "description": "Rate limit exceeded — per-key sliding window (60s) or per-IP fixed window (code RATE_LIMITED, X-RateLimit-* headers), or the key's daily/monthly quota (code QUOTA_EXCEEDED, X-Quota-Period / -Limit / -Remaining / -Reset headers). Body is RFC 7807 problem+json; Retry-After says when to try again.",
             "headers": {
+              "X-Quota-Limit": {
+                "description": "QUOTA_EXCEEDED only: requests allowed per period for this API key.",
+                "required": false,
+                "schema": {
+                  "description": "QUOTA_EXCEEDED only: requests allowed per period for this API key.",
+                  "type": "integer",
+                },
+              },
+              "X-Quota-Period": {
+                "description": "QUOTA_EXCEEDED only: which quota ran out (UTC calendar day or month).",
+                "required": false,
+                "schema": {
+                  "description": "QUOTA_EXCEEDED only: which quota ran out (UTC calendar day or month).",
+                  "enum": [
+                    "day",
+                    "month",
+                  ],
+                  "type": "string",
+                },
+              },
+              "X-Quota-Remaining": {
+                "description": "QUOTA_EXCEEDED only: requests remaining in the period (0).",
+                "required": false,
+                "schema": {
+                  "description": "QUOTA_EXCEEDED only: requests remaining in the period (0).",
+                  "type": "integer",
+                },
+              },
+              "X-Quota-Reset": {
+                "description": "QUOTA_EXCEEDED only: Unix epoch seconds when the period resets.",
+                "required": false,
+                "schema": {
+                  "description": "QUOTA_EXCEEDED only: Unix epoch seconds when the period resets.",
+                  "type": "integer",
+                },
+              },
               "X-RateLimit-Limit": {
                 "description": "Requests allowed per 60-second window for this API key.",
                 "required": true,
@@ -3092,8 +4328,44 @@ URL versioning (\`/v1/\`). Breaking changes ship as \`/v2/\` with 6 months notic
                 },
               },
             },
-            "description": "Rate limit exceeded — per-key sliding window (60s) or per-IP fixed window. Body is RFC 7807 problem+json with code RATE_LIMITED. The X-RateLimit-* headers report the key's quota state.",
+            "description": "Rate limit exceeded — per-key sliding window (60s) or per-IP fixed window (code RATE_LIMITED, X-RateLimit-* headers), or the key's daily/monthly quota (code QUOTA_EXCEEDED, X-Quota-Period / -Limit / -Remaining / -Reset headers). Body is RFC 7807 problem+json; Retry-After says when to try again.",
             "headers": {
+              "X-Quota-Limit": {
+                "description": "QUOTA_EXCEEDED only: requests allowed per period for this API key.",
+                "required": false,
+                "schema": {
+                  "description": "QUOTA_EXCEEDED only: requests allowed per period for this API key.",
+                  "type": "integer",
+                },
+              },
+              "X-Quota-Period": {
+                "description": "QUOTA_EXCEEDED only: which quota ran out (UTC calendar day or month).",
+                "required": false,
+                "schema": {
+                  "description": "QUOTA_EXCEEDED only: which quota ran out (UTC calendar day or month).",
+                  "enum": [
+                    "day",
+                    "month",
+                  ],
+                  "type": "string",
+                },
+              },
+              "X-Quota-Remaining": {
+                "description": "QUOTA_EXCEEDED only: requests remaining in the period (0).",
+                "required": false,
+                "schema": {
+                  "description": "QUOTA_EXCEEDED only: requests remaining in the period (0).",
+                  "type": "integer",
+                },
+              },
+              "X-Quota-Reset": {
+                "description": "QUOTA_EXCEEDED only: Unix epoch seconds when the period resets.",
+                "required": false,
+                "schema": {
+                  "description": "QUOTA_EXCEEDED only: Unix epoch seconds when the period resets.",
+                  "type": "integer",
+                },
+              },
               "X-RateLimit-Limit": {
                 "description": "Requests allowed per 60-second window for this API key.",
                 "required": true,
@@ -3191,8 +4463,44 @@ URL versioning (\`/v1/\`). Breaking changes ship as \`/v2/\` with 6 months notic
                 },
               },
             },
-            "description": "Rate limit exceeded — per-key sliding window (60s) or per-IP fixed window. Body is RFC 7807 problem+json with code RATE_LIMITED. The X-RateLimit-* headers report the key's quota state.",
+            "description": "Rate limit exceeded — per-key sliding window (60s) or per-IP fixed window (code RATE_LIMITED, X-RateLimit-* headers), or the key's daily/monthly quota (code QUOTA_EXCEEDED, X-Quota-Period / -Limit / -Remaining / -Reset headers). Body is RFC 7807 problem+json; Retry-After says when to try again.",
             "headers": {
+              "X-Quota-Limit": {
+                "description": "QUOTA_EXCEEDED only: requests allowed per period for this API key.",
+                "required": false,
+                "schema": {
+                  "description": "QUOTA_EXCEEDED only: requests allowed per period for this API key.",
+                  "type": "integer",
+                },
+              },
+              "X-Quota-Period": {
+                "description": "QUOTA_EXCEEDED only: which quota ran out (UTC calendar day or month).",
+                "required": false,
+                "schema": {
+                  "description": "QUOTA_EXCEEDED only: which quota ran out (UTC calendar day or month).",
+                  "enum": [
+                    "day",
+                    "month",
+                  ],
+                  "type": "string",
+                },
+              },
+              "X-Quota-Remaining": {
+                "description": "QUOTA_EXCEEDED only: requests remaining in the period (0).",
+                "required": false,
+                "schema": {
+                  "description": "QUOTA_EXCEEDED only: requests remaining in the period (0).",
+                  "type": "integer",
+                },
+              },
+              "X-Quota-Reset": {
+                "description": "QUOTA_EXCEEDED only: Unix epoch seconds when the period resets.",
+                "required": false,
+                "schema": {
+                  "description": "QUOTA_EXCEEDED only: Unix epoch seconds when the period resets.",
+                  "type": "integer",
+                },
+              },
               "X-RateLimit-Limit": {
                 "description": "Requests allowed per 60-second window for this API key.",
                 "required": true,
@@ -3236,7 +4544,7 @@ URL versioning (\`/v1/\`). Breaking changes ship as \`/v2/\` with 6 months notic
     },
     "/v1/leads": {
       "post": {
-        "description": "Captures a lead and sends the magic-link email. The lead is persisted even if the link is never clicked.",
+        "description": "Captures a lead and sends the magic-link email. The lead is persisted even if the link is never clicked. With an API key the request must attest consent (\`consent: true\` plus the current \`consentVersion\`, else 400 CONSENT_REQUIRED); the attestation is stored with the key, and the lead is held for review by the Feasly team before anyone is emailed.",
         "requestBody": {
           "content": {
             "application/json": {
@@ -3275,8 +4583,44 @@ URL versioning (\`/v1/\`). Breaking changes ship as \`/v2/\` with 6 months notic
                 },
               },
             },
-            "description": "Rate limit exceeded — per-key sliding window (60s) or per-IP fixed window. Body is RFC 7807 problem+json with code RATE_LIMITED. The X-RateLimit-* headers report the key's quota state.",
+            "description": "Rate limit exceeded — per-key sliding window (60s) or per-IP fixed window (code RATE_LIMITED, X-RateLimit-* headers), or the key's daily/monthly quota (code QUOTA_EXCEEDED, X-Quota-Period / -Limit / -Remaining / -Reset headers). Body is RFC 7807 problem+json; Retry-After says when to try again.",
             "headers": {
+              "X-Quota-Limit": {
+                "description": "QUOTA_EXCEEDED only: requests allowed per period for this API key.",
+                "required": false,
+                "schema": {
+                  "description": "QUOTA_EXCEEDED only: requests allowed per period for this API key.",
+                  "type": "integer",
+                },
+              },
+              "X-Quota-Period": {
+                "description": "QUOTA_EXCEEDED only: which quota ran out (UTC calendar day or month).",
+                "required": false,
+                "schema": {
+                  "description": "QUOTA_EXCEEDED only: which quota ran out (UTC calendar day or month).",
+                  "enum": [
+                    "day",
+                    "month",
+                  ],
+                  "type": "string",
+                },
+              },
+              "X-Quota-Remaining": {
+                "description": "QUOTA_EXCEEDED only: requests remaining in the period (0).",
+                "required": false,
+                "schema": {
+                  "description": "QUOTA_EXCEEDED only: requests remaining in the period (0).",
+                  "type": "integer",
+                },
+              },
+              "X-Quota-Reset": {
+                "description": "QUOTA_EXCEEDED only: Unix epoch seconds when the period resets.",
+                "required": false,
+                "schema": {
+                  "description": "QUOTA_EXCEEDED only: Unix epoch seconds when the period resets.",
+                  "type": "integer",
+                },
+              },
               "X-RateLimit-Limit": {
                 "description": "Requests allowed per 60-second window for this API key.",
                 "required": true,
@@ -3354,8 +4698,44 @@ URL versioning (\`/v1/\`). Breaking changes ship as \`/v2/\` with 6 months notic
                 },
               },
             },
-            "description": "Rate limit exceeded — per-key sliding window (60s) or per-IP fixed window. Body is RFC 7807 problem+json with code RATE_LIMITED. The X-RateLimit-* headers report the key's quota state.",
+            "description": "Rate limit exceeded — per-key sliding window (60s) or per-IP fixed window (code RATE_LIMITED, X-RateLimit-* headers), or the key's daily/monthly quota (code QUOTA_EXCEEDED, X-Quota-Period / -Limit / -Remaining / -Reset headers). Body is RFC 7807 problem+json; Retry-After says when to try again.",
             "headers": {
+              "X-Quota-Limit": {
+                "description": "QUOTA_EXCEEDED only: requests allowed per period for this API key.",
+                "required": false,
+                "schema": {
+                  "description": "QUOTA_EXCEEDED only: requests allowed per period for this API key.",
+                  "type": "integer",
+                },
+              },
+              "X-Quota-Period": {
+                "description": "QUOTA_EXCEEDED only: which quota ran out (UTC calendar day or month).",
+                "required": false,
+                "schema": {
+                  "description": "QUOTA_EXCEEDED only: which quota ran out (UTC calendar day or month).",
+                  "enum": [
+                    "day",
+                    "month",
+                  ],
+                  "type": "string",
+                },
+              },
+              "X-Quota-Remaining": {
+                "description": "QUOTA_EXCEEDED only: requests remaining in the period (0).",
+                "required": false,
+                "schema": {
+                  "description": "QUOTA_EXCEEDED only: requests remaining in the period (0).",
+                  "type": "integer",
+                },
+              },
+              "X-Quota-Reset": {
+                "description": "QUOTA_EXCEEDED only: Unix epoch seconds when the period resets.",
+                "required": false,
+                "schema": {
+                  "description": "QUOTA_EXCEEDED only: Unix epoch seconds when the period resets.",
+                  "type": "integer",
+                },
+              },
               "X-RateLimit-Limit": {
                 "description": "Requests allowed per 60-second window for this API key.",
                 "required": true,
@@ -3456,8 +4836,44 @@ URL versioning (\`/v1/\`). Breaking changes ship as \`/v2/\` with 6 months notic
                 },
               },
             },
-            "description": "Rate limit exceeded — per-key sliding window (60s) or per-IP fixed window. Body is RFC 7807 problem+json with code RATE_LIMITED. The X-RateLimit-* headers report the key's quota state.",
+            "description": "Rate limit exceeded — per-key sliding window (60s) or per-IP fixed window (code RATE_LIMITED, X-RateLimit-* headers), or the key's daily/monthly quota (code QUOTA_EXCEEDED, X-Quota-Period / -Limit / -Remaining / -Reset headers). Body is RFC 7807 problem+json; Retry-After says when to try again.",
             "headers": {
+              "X-Quota-Limit": {
+                "description": "QUOTA_EXCEEDED only: requests allowed per period for this API key.",
+                "required": false,
+                "schema": {
+                  "description": "QUOTA_EXCEEDED only: requests allowed per period for this API key.",
+                  "type": "integer",
+                },
+              },
+              "X-Quota-Period": {
+                "description": "QUOTA_EXCEEDED only: which quota ran out (UTC calendar day or month).",
+                "required": false,
+                "schema": {
+                  "description": "QUOTA_EXCEEDED only: which quota ran out (UTC calendar day or month).",
+                  "enum": [
+                    "day",
+                    "month",
+                  ],
+                  "type": "string",
+                },
+              },
+              "X-Quota-Remaining": {
+                "description": "QUOTA_EXCEEDED only: requests remaining in the period (0).",
+                "required": false,
+                "schema": {
+                  "description": "QUOTA_EXCEEDED only: requests remaining in the period (0).",
+                  "type": "integer",
+                },
+              },
+              "X-Quota-Reset": {
+                "description": "QUOTA_EXCEEDED only: Unix epoch seconds when the period resets.",
+                "required": false,
+                "schema": {
+                  "description": "QUOTA_EXCEEDED only: Unix epoch seconds when the period resets.",
+                  "type": "integer",
+                },
+              },
               "X-RateLimit-Limit": {
                 "description": "Requests allowed per 60-second window for this API key.",
                 "required": true,
@@ -3568,8 +4984,44 @@ URL versioning (\`/v1/\`). Breaking changes ship as \`/v2/\` with 6 months notic
                 },
               },
             },
-            "description": "Rate limit exceeded — per-key sliding window (60s) or per-IP fixed window. Body is RFC 7807 problem+json with code RATE_LIMITED. The X-RateLimit-* headers report the key's quota state.",
+            "description": "Rate limit exceeded — per-key sliding window (60s) or per-IP fixed window (code RATE_LIMITED, X-RateLimit-* headers), or the key's daily/monthly quota (code QUOTA_EXCEEDED, X-Quota-Period / -Limit / -Remaining / -Reset headers). Body is RFC 7807 problem+json; Retry-After says when to try again.",
             "headers": {
+              "X-Quota-Limit": {
+                "description": "QUOTA_EXCEEDED only: requests allowed per period for this API key.",
+                "required": false,
+                "schema": {
+                  "description": "QUOTA_EXCEEDED only: requests allowed per period for this API key.",
+                  "type": "integer",
+                },
+              },
+              "X-Quota-Period": {
+                "description": "QUOTA_EXCEEDED only: which quota ran out (UTC calendar day or month).",
+                "required": false,
+                "schema": {
+                  "description": "QUOTA_EXCEEDED only: which quota ran out (UTC calendar day or month).",
+                  "enum": [
+                    "day",
+                    "month",
+                  ],
+                  "type": "string",
+                },
+              },
+              "X-Quota-Remaining": {
+                "description": "QUOTA_EXCEEDED only: requests remaining in the period (0).",
+                "required": false,
+                "schema": {
+                  "description": "QUOTA_EXCEEDED only: requests remaining in the period (0).",
+                  "type": "integer",
+                },
+              },
+              "X-Quota-Reset": {
+                "description": "QUOTA_EXCEEDED only: Unix epoch seconds when the period resets.",
+                "required": false,
+                "schema": {
+                  "description": "QUOTA_EXCEEDED only: Unix epoch seconds when the period resets.",
+                  "type": "integer",
+                },
+              },
               "X-RateLimit-Limit": {
                 "description": "Requests allowed per 60-second window for this API key.",
                 "required": true,
@@ -3665,8 +5117,44 @@ URL versioning (\`/v1/\`). Breaking changes ship as \`/v2/\` with 6 months notic
                 },
               },
             },
-            "description": "Rate limit exceeded — per-key sliding window (60s) or per-IP fixed window. Body is RFC 7807 problem+json with code RATE_LIMITED. The X-RateLimit-* headers report the key's quota state.",
+            "description": "Rate limit exceeded — per-key sliding window (60s) or per-IP fixed window (code RATE_LIMITED, X-RateLimit-* headers), or the key's daily/monthly quota (code QUOTA_EXCEEDED, X-Quota-Period / -Limit / -Remaining / -Reset headers). Body is RFC 7807 problem+json; Retry-After says when to try again.",
             "headers": {
+              "X-Quota-Limit": {
+                "description": "QUOTA_EXCEEDED only: requests allowed per period for this API key.",
+                "required": false,
+                "schema": {
+                  "description": "QUOTA_EXCEEDED only: requests allowed per period for this API key.",
+                  "type": "integer",
+                },
+              },
+              "X-Quota-Period": {
+                "description": "QUOTA_EXCEEDED only: which quota ran out (UTC calendar day or month).",
+                "required": false,
+                "schema": {
+                  "description": "QUOTA_EXCEEDED only: which quota ran out (UTC calendar day or month).",
+                  "enum": [
+                    "day",
+                    "month",
+                  ],
+                  "type": "string",
+                },
+              },
+              "X-Quota-Remaining": {
+                "description": "QUOTA_EXCEEDED only: requests remaining in the period (0).",
+                "required": false,
+                "schema": {
+                  "description": "QUOTA_EXCEEDED only: requests remaining in the period (0).",
+                  "type": "integer",
+                },
+              },
+              "X-Quota-Reset": {
+                "description": "QUOTA_EXCEEDED only: Unix epoch seconds when the period resets.",
+                "required": false,
+                "schema": {
+                  "description": "QUOTA_EXCEEDED only: Unix epoch seconds when the period resets.",
+                  "type": "integer",
+                },
+              },
               "X-RateLimit-Limit": {
                 "description": "Requests allowed per 60-second window for this API key.",
                 "required": true,
@@ -3761,8 +5249,44 @@ URL versioning (\`/v1/\`). Breaking changes ship as \`/v2/\` with 6 months notic
                 },
               },
             },
-            "description": "Rate limit exceeded — per-key sliding window (60s) or per-IP fixed window. Body is RFC 7807 problem+json with code RATE_LIMITED. The X-RateLimit-* headers report the key's quota state.",
+            "description": "Rate limit exceeded — per-key sliding window (60s) or per-IP fixed window (code RATE_LIMITED, X-RateLimit-* headers), or the key's daily/monthly quota (code QUOTA_EXCEEDED, X-Quota-Period / -Limit / -Remaining / -Reset headers). Body is RFC 7807 problem+json; Retry-After says when to try again.",
             "headers": {
+              "X-Quota-Limit": {
+                "description": "QUOTA_EXCEEDED only: requests allowed per period for this API key.",
+                "required": false,
+                "schema": {
+                  "description": "QUOTA_EXCEEDED only: requests allowed per period for this API key.",
+                  "type": "integer",
+                },
+              },
+              "X-Quota-Period": {
+                "description": "QUOTA_EXCEEDED only: which quota ran out (UTC calendar day or month).",
+                "required": false,
+                "schema": {
+                  "description": "QUOTA_EXCEEDED only: which quota ran out (UTC calendar day or month).",
+                  "enum": [
+                    "day",
+                    "month",
+                  ],
+                  "type": "string",
+                },
+              },
+              "X-Quota-Remaining": {
+                "description": "QUOTA_EXCEEDED only: requests remaining in the period (0).",
+                "required": false,
+                "schema": {
+                  "description": "QUOTA_EXCEEDED only: requests remaining in the period (0).",
+                  "type": "integer",
+                },
+              },
+              "X-Quota-Reset": {
+                "description": "QUOTA_EXCEEDED only: Unix epoch seconds when the period resets.",
+                "required": false,
+                "schema": {
+                  "description": "QUOTA_EXCEEDED only: Unix epoch seconds when the period resets.",
+                  "type": "integer",
+                },
+              },
               "X-RateLimit-Limit": {
                 "description": "Requests allowed per 60-second window for this API key.",
                 "required": true,
@@ -3802,6 +5326,261 @@ URL versioning (\`/v1/\`). Breaking changes ship as \`/v2/\` with 6 months notic
         },
         "security": [],
         "summary": "Append a tier/sqft what-if revision",
+      },
+    },
+    "/v1/schools": {
+      "get": {
+        "description": "Every Calgary K–12 school with type, board, grades, programs, address, coordinates, website and tuition flag, built monthly from free public sources (City of Calgary, Alberta school authority list, OpenStreetMap). Each field names its source. Optional community and type filters. School details change — confirm with the school or board. Public by design.",
+        "parameters": [
+          {
+            "description": "City community code, e.g. ALT.",
+            "in": "query",
+            "name": "community",
+            "required": false,
+            "schema": {
+              "description": "City community code, e.g. ALT.",
+              "pattern": "^[A-Za-z0-9]{2,5}$",
+              "type": "string",
+            },
+          },
+          {
+            "in": "query",
+            "name": "type",
+            "required": false,
+            "schema": {
+              "$ref": "#/components/schemas/SchoolType",
+            },
+          },
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SchoolsListResponse",
+                },
+              },
+            },
+            "description": "Schools, name order",
+          },
+          "400": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails",
+                },
+              },
+            },
+            "description": "Bad request — validation failed",
+          },
+          "429": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails",
+                },
+              },
+            },
+            "description": "Rate limit exceeded — per-key sliding window (60s) or per-IP fixed window (code RATE_LIMITED, X-RateLimit-* headers), or the key's daily/monthly quota (code QUOTA_EXCEEDED, X-Quota-Period / -Limit / -Remaining / -Reset headers). Body is RFC 7807 problem+json; Retry-After says when to try again.",
+            "headers": {
+              "X-Quota-Limit": {
+                "description": "QUOTA_EXCEEDED only: requests allowed per period for this API key.",
+                "required": false,
+                "schema": {
+                  "description": "QUOTA_EXCEEDED only: requests allowed per period for this API key.",
+                  "type": "integer",
+                },
+              },
+              "X-Quota-Period": {
+                "description": "QUOTA_EXCEEDED only: which quota ran out (UTC calendar day or month).",
+                "required": false,
+                "schema": {
+                  "description": "QUOTA_EXCEEDED only: which quota ran out (UTC calendar day or month).",
+                  "enum": [
+                    "day",
+                    "month",
+                  ],
+                  "type": "string",
+                },
+              },
+              "X-Quota-Remaining": {
+                "description": "QUOTA_EXCEEDED only: requests remaining in the period (0).",
+                "required": false,
+                "schema": {
+                  "description": "QUOTA_EXCEEDED only: requests remaining in the period (0).",
+                  "type": "integer",
+                },
+              },
+              "X-Quota-Reset": {
+                "description": "QUOTA_EXCEEDED only: Unix epoch seconds when the period resets.",
+                "required": false,
+                "schema": {
+                  "description": "QUOTA_EXCEEDED only: Unix epoch seconds when the period resets.",
+                  "type": "integer",
+                },
+              },
+              "X-RateLimit-Limit": {
+                "description": "Requests allowed per 60-second window for this API key.",
+                "required": true,
+                "schema": {
+                  "description": "Requests allowed per 60-second window for this API key.",
+                  "type": "integer",
+                },
+              },
+              "X-RateLimit-Remaining": {
+                "description": "Requests remaining in the current window.",
+                "required": true,
+                "schema": {
+                  "description": "Requests remaining in the current window.",
+                  "type": "integer",
+                },
+              },
+              "X-RateLimit-Reset": {
+                "description": "Unix epoch seconds when the current window slides past the oldest request.",
+                "required": true,
+                "schema": {
+                  "description": "Unix epoch seconds when the current window slides past the oldest request.",
+                  "type": "integer",
+                },
+              },
+            },
+          },
+          "500": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails",
+                },
+              },
+            },
+            "description": "Internal server error",
+          },
+        },
+        "security": [],
+        "summary": "List Calgary K–12 schools",
+      },
+    },
+    "/v1/schools/{id}": {
+      "get": {
+        "description": "One school from the schools directory, with per-field source attribution. Public by design.",
+        "parameters": [
+          {
+            "description": "Directory id, e.g. city-<guid> or osm-way-<id>.",
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "description": "Directory id, e.g. city-<guid> or osm-way-<id>.",
+              "type": "string",
+            },
+          },
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SchoolResponse",
+                },
+              },
+            },
+            "description": "The school",
+          },
+          "400": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails",
+                },
+              },
+            },
+            "description": "Bad request — validation failed",
+          },
+          "429": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails",
+                },
+              },
+            },
+            "description": "Rate limit exceeded — per-key sliding window (60s) or per-IP fixed window (code RATE_LIMITED, X-RateLimit-* headers), or the key's daily/monthly quota (code QUOTA_EXCEEDED, X-Quota-Period / -Limit / -Remaining / -Reset headers). Body is RFC 7807 problem+json; Retry-After says when to try again.",
+            "headers": {
+              "X-Quota-Limit": {
+                "description": "QUOTA_EXCEEDED only: requests allowed per period for this API key.",
+                "required": false,
+                "schema": {
+                  "description": "QUOTA_EXCEEDED only: requests allowed per period for this API key.",
+                  "type": "integer",
+                },
+              },
+              "X-Quota-Period": {
+                "description": "QUOTA_EXCEEDED only: which quota ran out (UTC calendar day or month).",
+                "required": false,
+                "schema": {
+                  "description": "QUOTA_EXCEEDED only: which quota ran out (UTC calendar day or month).",
+                  "enum": [
+                    "day",
+                    "month",
+                  ],
+                  "type": "string",
+                },
+              },
+              "X-Quota-Remaining": {
+                "description": "QUOTA_EXCEEDED only: requests remaining in the period (0).",
+                "required": false,
+                "schema": {
+                  "description": "QUOTA_EXCEEDED only: requests remaining in the period (0).",
+                  "type": "integer",
+                },
+              },
+              "X-Quota-Reset": {
+                "description": "QUOTA_EXCEEDED only: Unix epoch seconds when the period resets.",
+                "required": false,
+                "schema": {
+                  "description": "QUOTA_EXCEEDED only: Unix epoch seconds when the period resets.",
+                  "type": "integer",
+                },
+              },
+              "X-RateLimit-Limit": {
+                "description": "Requests allowed per 60-second window for this API key.",
+                "required": true,
+                "schema": {
+                  "description": "Requests allowed per 60-second window for this API key.",
+                  "type": "integer",
+                },
+              },
+              "X-RateLimit-Remaining": {
+                "description": "Requests remaining in the current window.",
+                "required": true,
+                "schema": {
+                  "description": "Requests remaining in the current window.",
+                  "type": "integer",
+                },
+              },
+              "X-RateLimit-Reset": {
+                "description": "Unix epoch seconds when the current window slides past the oldest request.",
+                "required": true,
+                "schema": {
+                  "description": "Unix epoch seconds when the current window slides past the oldest request.",
+                  "type": "integer",
+                },
+              },
+            },
+          },
+          "500": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails",
+                },
+              },
+            },
+            "description": "Internal server error",
+          },
+        },
+        "security": [],
+        "summary": "Get one school",
       },
     },
     "/v1/shares": {
@@ -3845,8 +5624,44 @@ URL versioning (\`/v1/\`). Breaking changes ship as \`/v2/\` with 6 months notic
                 },
               },
             },
-            "description": "Rate limit exceeded — per-key sliding window (60s) or per-IP fixed window. Body is RFC 7807 problem+json with code RATE_LIMITED. The X-RateLimit-* headers report the key's quota state.",
+            "description": "Rate limit exceeded — per-key sliding window (60s) or per-IP fixed window (code RATE_LIMITED, X-RateLimit-* headers), or the key's daily/monthly quota (code QUOTA_EXCEEDED, X-Quota-Period / -Limit / -Remaining / -Reset headers). Body is RFC 7807 problem+json; Retry-After says when to try again.",
             "headers": {
+              "X-Quota-Limit": {
+                "description": "QUOTA_EXCEEDED only: requests allowed per period for this API key.",
+                "required": false,
+                "schema": {
+                  "description": "QUOTA_EXCEEDED only: requests allowed per period for this API key.",
+                  "type": "integer",
+                },
+              },
+              "X-Quota-Period": {
+                "description": "QUOTA_EXCEEDED only: which quota ran out (UTC calendar day or month).",
+                "required": false,
+                "schema": {
+                  "description": "QUOTA_EXCEEDED only: which quota ran out (UTC calendar day or month).",
+                  "enum": [
+                    "day",
+                    "month",
+                  ],
+                  "type": "string",
+                },
+              },
+              "X-Quota-Remaining": {
+                "description": "QUOTA_EXCEEDED only: requests remaining in the period (0).",
+                "required": false,
+                "schema": {
+                  "description": "QUOTA_EXCEEDED only: requests remaining in the period (0).",
+                  "type": "integer",
+                },
+              },
+              "X-Quota-Reset": {
+                "description": "QUOTA_EXCEEDED only: Unix epoch seconds when the period resets.",
+                "required": false,
+                "schema": {
+                  "description": "QUOTA_EXCEEDED only: Unix epoch seconds when the period resets.",
+                  "type": "integer",
+                },
+              },
               "X-RateLimit-Limit": {
                 "description": "Requests allowed per 60-second window for this API key.",
                 "required": true,
@@ -3934,8 +5749,44 @@ URL versioning (\`/v1/\`). Breaking changes ship as \`/v2/\` with 6 months notic
                 },
               },
             },
-            "description": "Rate limit exceeded — per-key sliding window (60s) or per-IP fixed window. Body is RFC 7807 problem+json with code RATE_LIMITED. The X-RateLimit-* headers report the key's quota state.",
+            "description": "Rate limit exceeded — per-key sliding window (60s) or per-IP fixed window (code RATE_LIMITED, X-RateLimit-* headers), or the key's daily/monthly quota (code QUOTA_EXCEEDED, X-Quota-Period / -Limit / -Remaining / -Reset headers). Body is RFC 7807 problem+json; Retry-After says when to try again.",
             "headers": {
+              "X-Quota-Limit": {
+                "description": "QUOTA_EXCEEDED only: requests allowed per period for this API key.",
+                "required": false,
+                "schema": {
+                  "description": "QUOTA_EXCEEDED only: requests allowed per period for this API key.",
+                  "type": "integer",
+                },
+              },
+              "X-Quota-Period": {
+                "description": "QUOTA_EXCEEDED only: which quota ran out (UTC calendar day or month).",
+                "required": false,
+                "schema": {
+                  "description": "QUOTA_EXCEEDED only: which quota ran out (UTC calendar day or month).",
+                  "enum": [
+                    "day",
+                    "month",
+                  ],
+                  "type": "string",
+                },
+              },
+              "X-Quota-Remaining": {
+                "description": "QUOTA_EXCEEDED only: requests remaining in the period (0).",
+                "required": false,
+                "schema": {
+                  "description": "QUOTA_EXCEEDED only: requests remaining in the period (0).",
+                  "type": "integer",
+                },
+              },
+              "X-Quota-Reset": {
+                "description": "QUOTA_EXCEEDED only: Unix epoch seconds when the period resets.",
+                "required": false,
+                "schema": {
+                  "description": "QUOTA_EXCEEDED only: Unix epoch seconds when the period resets.",
+                  "type": "integer",
+                },
+              },
               "X-RateLimit-Limit": {
                 "description": "Requests allowed per 60-second window for this API key.",
                 "required": true,
@@ -4076,8 +5927,44 @@ URL versioning (\`/v1/\`). Breaking changes ship as \`/v2/\` with 6 months notic
                 },
               },
             },
-            "description": "Rate limit exceeded — per-key sliding window (60s) or per-IP fixed window. Body is RFC 7807 problem+json with code RATE_LIMITED. The X-RateLimit-* headers report the key's quota state.",
+            "description": "Rate limit exceeded — per-key sliding window (60s) or per-IP fixed window (code RATE_LIMITED, X-RateLimit-* headers), or the key's daily/monthly quota (code QUOTA_EXCEEDED, X-Quota-Period / -Limit / -Remaining / -Reset headers). Body is RFC 7807 problem+json; Retry-After says when to try again.",
             "headers": {
+              "X-Quota-Limit": {
+                "description": "QUOTA_EXCEEDED only: requests allowed per period for this API key.",
+                "required": false,
+                "schema": {
+                  "description": "QUOTA_EXCEEDED only: requests allowed per period for this API key.",
+                  "type": "integer",
+                },
+              },
+              "X-Quota-Period": {
+                "description": "QUOTA_EXCEEDED only: which quota ran out (UTC calendar day or month).",
+                "required": false,
+                "schema": {
+                  "description": "QUOTA_EXCEEDED only: which quota ran out (UTC calendar day or month).",
+                  "enum": [
+                    "day",
+                    "month",
+                  ],
+                  "type": "string",
+                },
+              },
+              "X-Quota-Remaining": {
+                "description": "QUOTA_EXCEEDED only: requests remaining in the period (0).",
+                "required": false,
+                "schema": {
+                  "description": "QUOTA_EXCEEDED only: requests remaining in the period (0).",
+                  "type": "integer",
+                },
+              },
+              "X-Quota-Reset": {
+                "description": "QUOTA_EXCEEDED only: Unix epoch seconds when the period resets.",
+                "required": false,
+                "schema": {
+                  "description": "QUOTA_EXCEEDED only: Unix epoch seconds when the period resets.",
+                  "type": "integer",
+                },
+              },
               "X-RateLimit-Limit": {
                 "description": "Requests allowed per 60-second window for this API key.",
                 "required": true,
@@ -4151,8 +6038,44 @@ URL versioning (\`/v1/\`). Breaking changes ship as \`/v2/\` with 6 months notic
                 },
               },
             },
-            "description": "Rate limit exceeded — per-key sliding window (60s) or per-IP fixed window. Body is RFC 7807 problem+json with code RATE_LIMITED. The X-RateLimit-* headers report the key's quota state.",
+            "description": "Rate limit exceeded — per-key sliding window (60s) or per-IP fixed window (code RATE_LIMITED, X-RateLimit-* headers), or the key's daily/monthly quota (code QUOTA_EXCEEDED, X-Quota-Period / -Limit / -Remaining / -Reset headers). Body is RFC 7807 problem+json; Retry-After says when to try again.",
             "headers": {
+              "X-Quota-Limit": {
+                "description": "QUOTA_EXCEEDED only: requests allowed per period for this API key.",
+                "required": false,
+                "schema": {
+                  "description": "QUOTA_EXCEEDED only: requests allowed per period for this API key.",
+                  "type": "integer",
+                },
+              },
+              "X-Quota-Period": {
+                "description": "QUOTA_EXCEEDED only: which quota ran out (UTC calendar day or month).",
+                "required": false,
+                "schema": {
+                  "description": "QUOTA_EXCEEDED only: which quota ran out (UTC calendar day or month).",
+                  "enum": [
+                    "day",
+                    "month",
+                  ],
+                  "type": "string",
+                },
+              },
+              "X-Quota-Remaining": {
+                "description": "QUOTA_EXCEEDED only: requests remaining in the period (0).",
+                "required": false,
+                "schema": {
+                  "description": "QUOTA_EXCEEDED only: requests remaining in the period (0).",
+                  "type": "integer",
+                },
+              },
+              "X-Quota-Reset": {
+                "description": "QUOTA_EXCEEDED only: Unix epoch seconds when the period resets.",
+                "required": false,
+                "schema": {
+                  "description": "QUOTA_EXCEEDED only: Unix epoch seconds when the period resets.",
+                  "type": "integer",
+                },
+              },
               "X-RateLimit-Limit": {
                 "description": "Requests allowed per 60-second window for this API key.",
                 "required": true,

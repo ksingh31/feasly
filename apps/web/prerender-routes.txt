@@ -3,6 +3,7 @@
 /terms
 /how-it-works
 /faq
+/help
 /guides/cost-to-build-a-house-calgary
 /guides/calgary-zoning-explained
 /developers
