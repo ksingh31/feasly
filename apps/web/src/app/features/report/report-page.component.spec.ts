@@ -366,7 +366,7 @@ describe('ReportPageComponent', () => {
         ) as HTMLButtonElement;
         request.click();
         fixture.detectChanges();
-        await pollFor(() => text().includes('Enter your name and a phone number'), 'callback validation');
+        await pollFor(() => text().includes('Enter your name, a phone number and a preferred day'), 'callback validation');
         const name = fixture.nativeElement.querySelector('input[formControlName="name"]') as HTMLInputElement;
         const phone = fixture.nativeElement.querySelector('input[formControlName="phone"]') as HTMLInputElement;
         name.value = 'Test Buyer';
@@ -374,7 +374,7 @@ describe('ReportPageComponent', () => {
         phone.value = '4035551234';
         phone.dispatchEvent(new Event('input'));
         request.click();
-        await pollFor(() => text().includes('Callback requested'), 'callback sent');
+        await pollFor(() => text().includes('We’ll aim to call you'), 'callback sent');
         expect(callbackSpy).toHaveBeenCalled();
         expect(text()).not.toContain('no longer available in this tab');
       });
@@ -1165,15 +1165,37 @@ describe('ReportPageComponent', () => {
       ) as HTMLButtonElement;
       request.click();
       fixture.detectChanges();
-      await pollFor(() => text().includes('Enter your name and a phone number'), 'callback validation');
+      await pollFor(() => text().includes('Enter your name, a phone number and a preferred day'), 'callback validation');
       const name = fixture.nativeElement.querySelector('input[formControlName="name"]') as HTMLInputElement;
       const phone = fixture.nativeElement.querySelector('input[formControlName="phone"]') as HTMLInputElement;
       name.value = 'Test Buyer';
       name.dispatchEvent(new Event('input'));
       phone.value = '4035551234';
       phone.dispatchEvent(new Event('input'));
+      const callbackSpy = vi.spyOn(TestBed.inject(API_SERVICE), 'requestCallback');
+      const day = fixture.nativeElement.querySelector(
+        'select[formControlName="preferredDate"]',
+      ) as HTMLSelectElement;
+      const windowSelect = fixture.nativeElement.querySelector(
+        'select[formControlName="window"]',
+      ) as HTMLSelectElement;
+      const notes = fixture.nativeElement.querySelector(
+        'textarea[formControlName="notes"]',
+      ) as HTMLTextAreaElement;
+      // #836: a weekday is preselected; pick the second one and the evening window.
+      const dayValue = day.options[2]!.value;
+      day.value = dayValue;
+      day.dispatchEvent(new Event('change'));
+      windowSelect.value = 'evening';
+      windowSelect.dispatchEvent(new Event('change'));
+      notes.value = '  Side door  ';
+      notes.dispatchEvent(new Event('input'));
       request.click();
-      await pollFor(() => text().includes('Callback requested'), 'callback sent');
+      await pollFor(() => text().includes('We’ll aim to call you'), 'callback sent');
+      expect(callbackSpy).toHaveBeenCalledWith(
+        expect.objectContaining({ preferredDate: dayValue, window: 'evening', notes: 'Side door' }),
+      );
+      expect(text()).toContain(`We’ll aim to call you ${day.options[2]!.textContent!.trim()} in the evening (5–8 p.m. MT).`);
       // The callback request is reported to analytics (consent-gated inside
       // the real service; mocked here).
       expect(TestBed.inject(AnalyticsService).track).toHaveBeenCalledWith('callback_request');

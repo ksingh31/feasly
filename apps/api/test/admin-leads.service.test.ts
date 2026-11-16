@@ -436,6 +436,42 @@ describe('admin-leads service (admin/02)', () => {
       ]);
     });
 
+    it('includes the callback requests with preferred day, window and notes (#836)', async () => {
+      const deps = makeDeps();
+      const listByLeadId = vi.fn(async () => [
+        {
+          id: 'cb-2',
+          leadId: 'lead-1',
+          name: 'Home Owner',
+          phone: '403-555-0100',
+          window: 'afternoon',
+          preferredDate: '2026-11-18',
+          notes: 'Side door',
+          status: 'pending',
+          createdAt: new Date('2026-11-16T12:00:00Z'),
+        },
+      ]);
+      const service = createAdminLeadsService({ ...deps, callbacks: { listByLeadId } });
+      vi.mocked(deps.store.findByIdWithEstimate).mockResolvedValue(makeLeadRow());
+      vi.mocked(deps.estimateStore.findById).mockResolvedValue(null);
+      vi.mocked(deps.store.getMagicLinkStatus).mockResolvedValue('sent');
+
+      const result = await service.getLead('lead-1', ADMIN_EMAIL);
+
+      expect(listByLeadId).toHaveBeenCalledWith('lead-1');
+      expect(result.callbacks).toEqual([
+        {
+          id: 'cb-2',
+          window: 'afternoon',
+          preferredDate: '2026-11-18',
+          notes: 'Side door',
+          phone: '403-555-0100',
+          status: 'pending',
+          createdAt: '2026-11-16T12:00:00.000Z',
+        },
+      ]);
+    });
+
     it('reads zero ranges (not $0 display bug) for comparison estimates', async () => {
       const deps = makeDeps();
       const service = createAdminLeadsService(deps);

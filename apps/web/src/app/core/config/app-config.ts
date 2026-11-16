@@ -676,6 +676,14 @@ export interface BuilderLeadDrawerCopy {
   /** Header meta: `{date}` is when the lead arrived. */
   arrivedMeta: string;
   contactHeading: string;
+  /** #836: the homeowner's callback request (preferred day, window, notes). */
+  callbackHeading: string;
+  callbackDayLabel: string;
+  callbackWindowLabel: string;
+  callbackNotesLabel: string;
+  callbackRequestedLabel: string;
+  /** Shown for a request filed before #836 (no preferred day). */
+  callbackAnyDay: string;
   statusHeading: string;
   detailsHeading: string;
   activityHeading: string;
@@ -1055,6 +1063,14 @@ export interface AppConfig {
      * estimate-input-bounds-drift.spec.ts fails CI if they diverge.
      */
     estimateRoundingStep: number;
+    /**
+     * #836: callback preferred day — weekdays from tomorrow through this
+     * many calendar days ahead (Edmonton). Mirrors the API's
+     * LEAD_CALLBACK_DATE_WINDOW_DAYS; the API re-validates.
+     */
+    callbackDateWindowDays: number;
+    /** #836: callback notes cap (characters); the API enforces the same. */
+    callbackNotesMaxLength: number;
   };
   /**
    * What a new-build estimate includes and leaves out (#824, owner decision
@@ -1758,8 +1774,19 @@ export interface AppConfig {
       callbackNameLabel: string;
       callbackPhoneLabel: string;
       callbackWindowLabel: string;
-      callbackWindows: { id: CallbackWindow; label: string }[];
+      /**
+       * #836: time windows. `range` is the clock range shown with the label
+       * ("9 a.m.–12 p.m. MT"); `phrase` reads after the day in the
+       * confirmation ("in the morning"). Portal + admin reuse these labels.
+       */
+      callbackWindows: { id: CallbackWindow; label: string; range: string; phrase: string }[];
+      /** #836: preferred-day picker. */
+      callbackDayLabel: string;
+      callbackDayPlaceholder: string;
+      /** #836: optional notes. */
+      callbackNotesLabel: string;
       callbackCta: string;
+      /** #836: "We'll aim to call you {day} {window}." — {window} = phrase + range. */
       callbackSuccess: string;
       callbackError: string;
       callbackInvalid: string;
@@ -2543,6 +2570,18 @@ export interface AppConfig {
           noActivity: string;
           /** #815: shown when the lead arrived with no campaign attribution. */
           noAttribution: string;
+          /** #836: callback requests section (preferred day, window, notes). */
+          callbacksHeading: string;
+          noCallbacks: string;
+          callbackLabels: {
+            day: string;
+            window: string;
+            notes: string;
+            phone: string;
+            requested: string;
+          };
+          /** Shown for a request filed before #836 (no preferred day). */
+          callbackAnyDay: string;
           honeypotBadge: string;
           /** Activity sub-list of builder moves (#803). */
           reassignmentsHeading: string;

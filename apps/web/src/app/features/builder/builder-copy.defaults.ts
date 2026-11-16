@@ -494,6 +494,12 @@ export const DEFAULT_BUILDER_COPY: BuilderCopy = {
   leadDrawer: {
     arrivedMeta: 'Arrived {date}',
     contactHeading: 'Contact',
+    callbackHeading: 'Callback request',
+    callbackDayLabel: 'Preferred day',
+    callbackWindowLabel: 'Time window',
+    callbackNotesLabel: 'Their notes',
+    callbackRequestedLabel: 'Requested',
+    callbackAnyDay: 'Any weekday',
     statusHeading: 'Status',
     detailsHeading: 'Details',
     activityHeading: 'Activity',

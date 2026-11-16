@@ -123,6 +123,9 @@ export const DEFAULT_APP_CONFIG: AppConfig = {
      * cost-data top-level `roundTo` — the drift spec keeps them equal.
      */
     estimateRoundingStep: 1000,
+    /** #836: mirrors the API's LEAD_CALLBACK_DATE_WINDOW_DAYS default. */
+    callbackDateWindowDays: 14,
+    callbackNotesMaxLength: 500,
   },
   howWeEstimate: {
     /**
@@ -727,14 +730,17 @@ export const DEFAULT_APP_CONFIG: AppConfig = {
       callbackPhoneLabel: 'Phone number',
       callbackWindowLabel: 'Preferred time',
       callbackWindows: [
-        { id: 'morning', label: 'Morning' },
-        { id: 'afternoon', label: 'Afternoon' },
-        { id: 'evening', label: 'Evening' },
+        { id: 'morning', label: 'Morning', range: '9 a.m.–12 p.m. MT', phrase: 'in the morning' },
+        { id: 'afternoon', label: 'Afternoon', range: '12–5 p.m. MT', phrase: 'in the afternoon' },
+        { id: 'evening', label: 'Evening', range: '5–8 p.m. MT', phrase: 'in the evening' },
       ],
+      callbackDayLabel: 'Preferred day',
+      callbackDayPlaceholder: 'Choose a weekday',
+      callbackNotesLabel: 'Notes (optional)',
       callbackCta: 'Request callback',
-      callbackSuccess: 'Callback requested — we will call at your preferred time.',
+      callbackSuccess: 'We’ll aim to call you {day} {window}.',
       callbackError: 'We could not request the callback. Please try again in a moment.',
-      callbackInvalid: 'Enter your name and a phone number.',
+      callbackInvalid: 'Enter your name, a phone number and a preferred day.',
       pdfCta: 'Download PDF',
       pdfGenerating: 'Preparing your PDF…',
       pdfError: 'We could not generate the PDF. Please try again in a moment.',
@@ -1832,6 +1838,16 @@ export const DEFAULT_APP_CONFIG: AppConfig = {
           commentsHint: 'Choose per comment whether the builder sees it.',
           noActivity: 'No status changes yet.',
           noAttribution: 'No campaign details — a direct visit, or analytics were declined.',
+          callbacksHeading: 'Callback requests',
+          noCallbacks: 'No callback requested.',
+          callbackLabels: {
+            day: 'Preferred day',
+            window: 'Time window',
+            notes: 'Notes',
+            phone: 'Phone',
+            requested: 'Requested',
+          },
+          callbackAnyDay: 'Any weekday',
           honeypotBadge: 'Honeypot-flagged',
           reassignmentsHeading: 'Builder changes',
           unknownBuilder: 'Removed builder',

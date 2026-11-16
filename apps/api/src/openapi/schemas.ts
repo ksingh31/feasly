@@ -763,6 +763,14 @@ export const CallbackRequestSchema = z
     name: z.string().min(1).max(120),
     phone: z.string().min(7).max(32),
     window: CallbackWindowSchema,
+    preferredDate: z
+      .string()
+      .regex(/^\d{4}-\d{2}-\d{2}$/)
+      .optional()
+      .describe(
+        'Preferred call day (YYYY-MM-DD, America/Edmonton): a weekday from tomorrow through the next 14 days',
+      ),
+    notes: z.string().max(500).optional(),
   })
   .openapi('CallbackRequest');
 
@@ -770,6 +778,7 @@ export const CallbackResponseSchema = z
   .object({
     ok: z.literal(true),
     window: CallbackWindowSchema,
+    preferredDate: z.string().nullable().optional(),
   })
   .openapi('CallbackResponse');
 

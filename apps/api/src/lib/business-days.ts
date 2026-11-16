@@ -164,3 +164,43 @@ export function businessDaysBetween(
   }
   return forward ? count : -count;
 }
+
+/** `YYYY-MM-DD` calendar-date key. */
+const DATE_KEY = /^(\d{4})-(\d{2})-(\d{2})$/;
+
+/** The instant's calendar date in the timezone, as `YYYY-MM-DD`. */
+export function calendarDateKey(instant: Date, timeZone: string): string {
+  const wall = zonedParts(instant, timeZone);
+  const pad = (n: number): string => String(n).padStart(2, '0');
+  return `${wall.year}-${pad(wall.month)}-${pad(wall.day)}`;
+}
+
+/**
+ * #836: true when `key` is a real `YYYY-MM-DD` business day (Mon–Fri)
+ * strictly after `todayKey` and at most `windowDays` calendar days after
+ * it. Pure calendar arithmetic — no clock, no timezone.
+ */
+export function isBusinessDateWithin(
+  key: string,
+  todayKey: string,
+  windowDays: number,
+): boolean {
+  const match = DATE_KEY.exec(key);
+  const today = DATE_KEY.exec(todayKey);
+  if (!match || !today) {
+    return false;
+  }
+  const [year, month, day] = [Number(match[1]), Number(match[2]), Number(match[3])];
+  const utc = new Date(Date.UTC(year, month - 1, day));
+  // Reject rollovers like 2026-02-31.
+  if (
+    utc.getUTCFullYear() !== year ||
+    utc.getUTCMonth() !== month - 1 ||
+    utc.getUTCDate() !== day
+  ) {
+    return false;
+  }
+  const todayUtc = Date.UTC(Number(today[1]), Number(today[2]) - 1, Number(today[3]));
+  const diffDays = Math.round((utc.getTime() - todayUtc) / MS_PER_DAY);
+  return diffDays >= 1 && diffDays <= windowDays && isWeekdayDate(year, month, day);
+}

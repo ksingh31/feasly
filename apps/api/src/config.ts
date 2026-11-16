@@ -239,6 +239,8 @@ const EnvSchema = z.object({
   // lead with no status change for this many days counts as stale; the
   // feed scans at most this many of the builder's newest leads.
   LEAD_NEEDS_YOU_STALE_DAYS: z.coerce.number().int().positive().default(7),
+  // #836: how far ahead (calendar days) a callback's preferred day may be.
+  LEAD_CALLBACK_DATE_WINDOW_DAYS: z.coerce.number().int().positive().default(14),
   LEAD_NEEDS_YOU_SCAN_LIMIT: z.coerce.number().int().positive().default(500),
 
   // api-mcp/09: sandbox purge timer. Rows with sandbox=true older than
@@ -932,6 +934,11 @@ export interface LeadConfig {
    * ms are quarantined like the honeypot. 0 disables the check.
    */
   readonly minSubmitMs: number;
+  /**
+   * #836: a callback's preferred day must fall within this many calendar
+   * days after today (America/Edmonton), business days only.
+   */
+  readonly callbackDateWindowDays: number;
 }
 
 /**
@@ -2067,6 +2074,7 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): ApiConfig {
       needsYouStaleDays: e.LEAD_NEEDS_YOU_STALE_DAYS,
       needsYouScanLimit: e.LEAD_NEEDS_YOU_SCAN_LIMIT,
       minSubmitMs: e.LEAD_MIN_SUBMIT_MS,
+      callbackDateWindowDays: e.LEAD_CALLBACK_DATE_WINDOW_DAYS,
     },
     botChallenge: {
       enabled: e.TURNSTILE_SITE_KEY !== '' && e.TURNSTILE_SECRET_KEY !== '',
