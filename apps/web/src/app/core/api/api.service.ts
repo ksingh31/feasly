@@ -206,8 +206,16 @@ export interface ApiKeyUpdatePatch {
   readonly rate_limit_per_min?: number;
 }
 
-/** DI token for the ApiService. Inject this, never a concrete class. */
-export const API_SERVICE = new InjectionToken<ApiService>('feasly.api-service');
+/**
+ * DI token for the ApiService. Inject this, never a concrete class.
+ * #783: the token also carries a root default (the same lazy, per-call
+ * implementation `provideApi()` wires), so shared chrome such as the nav
+ * search can inject it on any page without every host providing it.
+ */
+export const API_SERVICE = new InjectionToken<ApiService>('feasly.api-service', {
+  providedIn: 'root',
+  factory: () => new LazyApiService(),
+});
 
 /**
  * Wires the ApiService implementation from config: `api.useMockApi` selects

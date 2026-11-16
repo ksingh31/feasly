@@ -92,6 +92,7 @@ export const DEFAULT_APP_CONFIG: AppConfig = {
   limits: {
     communityPageLimit: 24,
     autocompleteSuggestionLimit: 6,
+    communitySuggestionLimit: 4,
     /**
      * Mirror of the cost-data inputBounds
      * (packages/cost-engine/cost-data/v0.4.1-uncalibrated.json). The property
@@ -146,7 +147,8 @@ export const DEFAULT_APP_CONFIG: AppConfig = {
   deepLink: {
     addressMinLength: 3,
     addressMaxLength: 120,
-    sources: ['community-lots', 'community-profile', 'guide', 'email', 'paid-search', 'share'],
+    sources: ['community-lots', 'community-profile', 'guide', 'email', 'paid-search', 'share', 'site-search'],
+    siteSearchSource: 'site-search',
   },
   analytics: {
     enabled: false,
@@ -266,6 +268,11 @@ export const DEFAULT_APP_CONFIG: AppConfig = {
       error: 'Address search is temporarily unavailable. Please try again in a moment.',
       retryLabel: 'Retry',
       searchingLabel: 'Searching addresses…',
+      siteSearchLabel: 'Search an address or community',
+      siteSearchPlaceholder: 'Address or community',
+      communitiesGroupLabel: 'Communities',
+      addressesGroupLabel: 'Addresses',
+      communityOptionHint: 'Community guide',
     },
     embed: {
       widgetLabel: 'Home building cost estimator',
