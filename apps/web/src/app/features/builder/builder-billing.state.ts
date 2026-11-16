@@ -1,7 +1,7 @@
-import { inject, Injectable } from '@angular/core';
+import { EnvironmentProviders, inject, Injectable } from '@angular/core';
 import { of } from 'rxjs';
 import { catchError, tap } from 'rxjs/operators';
-import { Action, Selector, State, StateContext } from '@ngxs/store';
+import { Action, provideStates, Selector, State, StateContext } from '@ngxs/store';
 import type { ApiError, BuilderBillingOverviewResponse, CardOnFileStatus } from '@feasly/contracts';
 import { BuilderBillingApiService } from './builder-billing-api.service';
 import type { BuilderPaymentMethod } from './builder-payment-methods';
@@ -235,3 +235,11 @@ export class BuilderBillingState {
     ctx.setState(defaults);
   }
 }
+
+/**
+ * Lazy registration (#980): BuilderBillingState is provided at the `builder`
+ * shell route via lazyProvider (app.routes.ts), not in the root store, so the
+ * billing state stays out of the initial bundle every public page loads.
+ * Memory-only (never persisted), and every consumer lives under the shell.
+ */
+export const builderBillingStateProvider: EnvironmentProviders = provideStates([BuilderBillingState]);
