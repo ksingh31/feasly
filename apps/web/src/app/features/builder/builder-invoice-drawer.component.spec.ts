@@ -10,9 +10,10 @@ import { provideHttpClientTesting } from '@angular/common/http/testing';
 import { type ComponentFixture, TestBed } from '@angular/core/testing';
 import { provideRouter } from '@angular/router';
 import { Store, provideStore } from '@ngxs/store';
-import { NEVER, Subject, of, throwError } from 'rxjs';
+import { NEVER, Subject, map, of, throwError, timer } from 'rxjs';
 import type { Observable } from 'rxjs';
 import type { ConfirmInvoicePaymentResponse, SimulatedIntentResponse } from '@feasly/contracts';
+import type { Stripe } from '@stripe/stripe-js';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { UiModalService, UiToastService, type UiToastOptions } from '@app/shared/ui';
 import { stubObjectUrls } from '../../shared/test-helpers/object-url.stub';
@@ -23,10 +24,10 @@ import { LoadBillingOverview } from './builder-billing.actions';
 import { BuilderBillingState } from './builder-billing.state';
 import { BUILDER_COPY } from './builder-copy';
 import { DEFAULT_BUILDER_COPY } from './builder-copy.defaults';
-import { BuilderCardModalComponent } from './builder-card-modal.component';
+import { BuilderCardModalComponent, STRIPE_LOADER } from './builder-card-modal.component';
 import { BuilderInvoiceDrawerComponent } from './builder-invoice-drawer.component';
 import { BuilderInvoiceMethodModalComponent } from './builder-invoice-method-modal.component';
-import { LoadInvoices, SelectInvoice } from './builder-invoices.actions';
+import { LoadInvoices, RefreshSelectedInvoice, SelectInvoice } from './builder-invoices.actions';
 import { BuilderInvoicesApiService, type BuilderCommissionInvoice } from './builder-invoices-api.service';
 import { BuilderInvoicesState } from './builder-invoices.state';
 import type { BuilderPaymentMethod } from './builder-payment-methods';
@@ -75,13 +76,18 @@ interface Setup {
   /** #791: POST confirm-payment answer; when set, the billing API is stubbed. */
   readonly confirm?: () => Observable<ConfirmInvoicePaymentResponse>;
   readonly authenticate?: () => Observable<SimulatedIntentResponse>;
+  /** #867: Stripe.js fake handed out by STRIPE_LOADER (null = failed to load). */
+  readonly stripe?: { confirmCardPayment: ReturnType<typeof vi.fn> } | null;
+  /** #867: billing config overrides (publishable key, poll cadence). */
+  readonly billing?: Partial<typeof DEFAULT_APP_CONFIG.billing>;
 }
 
 async function setup(options: Setup = {}) {
   const inv = options.invoice ?? invoice();
   let fail = options.getFails ?? false;
+  let current = inv;
   const api = {
-    getInvoice: vi.fn(() => (fail ? throwError(() => new Error('boom')) : of(inv))),
+    getInvoice: vi.fn(() => (fail ? throwError(() => new Error('boom')) : of(current))),
     listInvoices: vi.fn(() => NEVER),
     downloadInvoicePdf: vi.fn(() => {
       const pdf = options.pdf ?? 'ok';
@@ -95,7 +101,12 @@ async function setup(options: Setup = {}) {
   const toasts = {
     show: vi.fn((_o: UiToastOptions) => ({ id: 1, dismissed: of('manual' as const), dismiss: vi.fn() })),
   };
-  const billing = { ...DEFAULT_APP_CONFIG.billing, questionInvoiceHref: options.questionHref ?? '' };
+  const billing = {
+    ...DEFAULT_APP_CONFIG.billing,
+    questionInvoiceHref: options.questionHref ?? '',
+    ...options.billing,
+  };
+  const loadStripe = vi.fn(async (_key: string) => (options.stripe === undefined ? null : options.stripe) as Stripe | null);
   const billingApi = {
     confirmInvoicePayment: vi.fn(options.confirm ?? (() => NEVER)),
     simulatedAuthenticate: vi.fn(
@@ -123,6 +134,7 @@ async function setup(options: Setup = {}) {
       { provide: BuilderInvoicesApiService, useValue: api },
       { provide: UiModalService, useValue: modals },
       { provide: UiToastService, useValue: toasts },
+      { provide: STRIPE_LOADER, useValue: loadStripe },
       ...(options.confirm ? [{ provide: BuilderBillingApiService, useValue: billingApi }] : []),
     ],
   });
@@ -140,7 +152,10 @@ async function setup(options: Setup = {}) {
     modalClosed,
     toasts,
     billingApi,
+    loadStripe,
     succeedNext: () => (fail = false),
+    /** #867: what the next GET returns — e.g. the webhook settled it. */
+    serverInvoice: (next: BuilderCommissionInvoice) => (current = next),
   };
 }
 
@@ -417,11 +432,24 @@ describe('BuilderInvoiceDrawerComponent (#533)', () => {
     });
   });
 
-  describe('simulated 3DS step (#791)', () => {
+  describe('confirm payment with your bank (#791, #867)', () => {
     const waiting = () =>
       invoice({ status: 'action_required', reviewDueAt: null, stripePaymentIntentId: 'pi_sim_1' });
     const simConfirm = (): Observable<ConfirmInvoicePaymentResponse> =>
       of({ invoiceId: 'inv-1', paymentIntentId: 'pi_sim_1', clientSecret: 'pi_sim_1_secret_x', provider: 'simulated' });
+    const stripeConfirm = (paymentMethodId?: string): (() => Observable<ConfirmInvoicePaymentResponse>) => () =>
+      of({
+        invoiceId: 'inv-1',
+        paymentIntentId: 'pi_1',
+        clientSecret: 'pi_1_secret_y',
+        provider: 'stripe',
+        ...(paymentMethodId ? { paymentMethodId } : {}),
+      });
+    /** Fast poll so specs settle quickly; the webhook "settles" via serverInvoice(). */
+    const fastPoll = { confirmPollIntervalMs: 5, confirmPollAttempts: 400 };
+    /** A window that runs out quickly — for the "Check again" path. */
+    const shortPoll = { confirmPollIntervalMs: 5, confirmPollAttempts: 3 };
+    const stripeBilling = { ...fastPoll, stripePublishableKey: 'pk_test_x' };
 
     async function settle(fixture: ComponentFixture<BuilderInvoiceDrawerComponent>): Promise<void> {
       fixture.detectChanges();
@@ -429,74 +457,314 @@ describe('BuilderInvoiceDrawerComponent (#533)', () => {
       fixture.detectChanges();
     }
 
-    it('offers Complete / Fail for the PaymentIntent of an invoice waiting on 3DS', async () => {
+    /** Polls the DOM until `check` holds or the deadline passes — no fixed sleeps. */
+    async function until(
+      fixture: ComponentFixture<BuilderInvoiceDrawerComponent>,
+      check: () => boolean,
+      deadlineMs = 2000,
+    ): Promise<void> {
+      const end = Date.now() + deadlineMs;
+      while (!check()) {
+        if (Date.now() > end) throw new Error('condition not met before the deadline');
+        await new Promise<void>((resolve) => queueMicrotask(resolve));
+        await fixture.whenStable();
+        fixture.detectChanges();
+        await new Promise<void>((resolve) => requestAnimationFrame(() => resolve()));
+      }
+    }
+
+    it('shows the primary "Confirm payment with your bank" button and asks nothing until it is clicked', async () => {
       const { el, fixture, billingApi } = await setup({ invoice: waiting(), confirm: simConfirm });
       await settle(fixture);
-      expect(billingApi.confirmInvoicePayment).toHaveBeenCalledWith('inv-1');
       expect(q(el, 'invoice-confirm-payment')?.textContent).toContain(COPY.simulated.paymentHeading);
-      expect(q(el, 'simulated-challenge')?.textContent).toContain(COPY.simulated.challengeHeading);
-      expect(q(el, 'simulated-challenge-complete')).not.toBeNull();
-      expect(q(el, 'simulated-challenge-fail')).not.toBeNull();
+      const cta = q(el, 'invoice-confirm-cta') as HTMLButtonElement;
+      expect(cta.textContent?.trim()).toBe(T.confirmPaymentCta);
+      expect(cta.getAttribute('variant')).toBeNull();
+      expect(billingApi.confirmInvoicePayment).not.toHaveBeenCalled();
     });
 
-    it('Complete authenticates the PaymentIntent, toasts, and reloads the invoice, list and overview', async () => {
-      const { el, fixture, billingApi, toasts, store } = await setup({ invoice: waiting(), confirm: simConfirm });
+    it('shows "Confirming…" and disables the button while confirm-payment is in flight', async () => {
+      const { el, fixture } = await setup({ invoice: waiting(), confirm: () => NEVER });
       await settle(fixture);
-      const dispatch = vi.spyOn(store, 'dispatch');
-      q(el, 'simulated-challenge-complete')!.click();
+      q(el, 'invoice-confirm-cta')!.click();
       await settle(fixture);
-      expect(billingApi.simulatedAuthenticate).toHaveBeenCalledWith({ intentId: 'pi_sim_1', outcome: 'complete' });
-      expect(toasts.show).toHaveBeenCalledWith({ message: COPY.simulated.paymentCompletedToast, tone: 'success' });
-      expect(dispatch).toHaveBeenCalledWith([
-        expect.any(SelectInvoice),
-        expect.any(LoadInvoices),
-        expect.any(LoadBillingOverview),
-      ]);
-      expect(q(el, 'invoice-confirm-payment')).toBeNull();
+      const cta = q(el, 'invoice-confirm-cta') as HTMLButtonElement;
+      expect(cta.textContent?.trim()).toBe(T.confirmPaymentBusy);
+      expect(cta.disabled).toBe(true);
+      expect(cta.getAttribute('aria-busy')).toBe('true');
     });
 
-    it('Fail authenticates with outcome "fail" and toasts the failed charge', async () => {
-      const { el, fixture, billingApi, toasts } = await setup({
-        invoice: waiting(),
-        confirm: simConfirm,
-        authenticate: () => of({ intentId: 'pi_sim_1', status: 'requires_payment_method' }),
-      });
-      await settle(fixture);
-      q(el, 'simulated-challenge-fail')!.click();
-      await settle(fixture);
-      expect(billingApi.simulatedAuthenticate).toHaveBeenCalledWith({ intentId: 'pi_sim_1', outcome: 'fail' });
-      expect(toasts.show).toHaveBeenCalledWith({ message: COPY.simulated.paymentFailedToast, tone: 'danger' });
-    });
-
-    it('renders nothing for the Stripe provider (#867 owns that confirm)', async () => {
-      const { el, fixture } = await setup({
-        invoice: waiting(),
-        confirm: () => of({ invoiceId: 'inv-1', paymentIntentId: 'pi_1', clientSecret: 'pi_1_secret', provider: 'stripe' }),
-      });
+    it('never renders the step when the invoice is not waiting on the bank', async () => {
+      const { el, fixture, billingApi } = await setup({ confirm: simConfirm });
       await settle(fixture);
       expect(q(el, 'invoice-confirm-payment')).toBeNull();
-      expect(q(el, 'simulated-challenge')).toBeNull();
+      expect(billingApi.confirmInvoicePayment).not.toHaveBeenCalled();
     });
 
-    it('offers a retry when the confirm-payment lookup fails', async () => {
+    describe('simulated provider', () => {
+      it('offers Complete / Fail for the PaymentIntent after the click (never loads Stripe.js)', async () => {
+        const { el, fixture, billingApi, loadStripe } = await setup({ invoice: waiting(), confirm: simConfirm });
+        await settle(fixture);
+        q(el, 'invoice-confirm-cta')!.click();
+        await settle(fixture);
+        expect(billingApi.confirmInvoicePayment).toHaveBeenCalledWith('inv-1');
+        expect(q(el, 'simulated-challenge')?.textContent).toContain(COPY.simulated.challengeHeading);
+        expect(q(el, 'simulated-challenge-complete')).not.toBeNull();
+        expect(q(el, 'simulated-challenge-fail')).not.toBeNull();
+        expect(q(el, 'invoice-confirm-cta')).toBeNull();
+        expect(loadStripe).not.toHaveBeenCalled();
+      });
+
+      it('Complete authenticates, toasts, refreshes, shows "Confirming…", and clears once the webhook settles it paid', async () => {
+        const { el, fixture, billingApi, toasts, store, serverInvoice } = await setup({
+          invoice: waiting(),
+          confirm: simConfirm,
+          billing: fastPoll,
+        });
+        await settle(fixture);
+        q(el, 'invoice-confirm-cta')!.click();
+        await settle(fixture);
+        const dispatch = vi.spyOn(store, 'dispatch');
+        q(el, 'simulated-challenge-complete')!.click();
+        await settle(fixture);
+        expect(billingApi.simulatedAuthenticate).toHaveBeenCalledWith({ intentId: 'pi_sim_1', outcome: 'complete' });
+        expect(toasts.show).toHaveBeenCalledWith({ message: COPY.simulated.paymentCompletedToast, tone: 'success' });
+        expect(dispatch).toHaveBeenCalledWith([
+          expect.any(RefreshSelectedInvoice),
+          expect.any(LoadInvoices),
+          expect.any(LoadBillingOverview),
+        ]);
+        expect(q(el, 'invoice-confirm-pending')?.textContent).toContain(T.confirmPaymentPending);
+        expect(q(el, 'simulated-challenge')).toBeNull();
+
+        serverInvoice(invoice({ status: 'paid', reviewDueAt: null, paidAt: iso(0) }));
+        await until(fixture, () => q(el, 'invoice-confirm-payment') === null);
+        expect(el.querySelector('ui-status-chip')?.textContent).toContain('Paid');
+        expect(q(el, 'invoice-receipt')).not.toBeNull();
+      });
+
+      it('Fail authenticates with outcome "fail" and toasts the failed charge — never marks anything paid', async () => {
+        const { el, fixture, billingApi, toasts } = await setup({
+          invoice: waiting(),
+          confirm: simConfirm,
+          billing: fastPoll,
+          authenticate: () => of({ intentId: 'pi_sim_1', status: 'requires_payment_method' }),
+        });
+        await settle(fixture);
+        q(el, 'invoice-confirm-cta')!.click();
+        await settle(fixture);
+        q(el, 'simulated-challenge-fail')!.click();
+        await settle(fixture);
+        expect(billingApi.simulatedAuthenticate).toHaveBeenCalledWith({ intentId: 'pi_sim_1', outcome: 'fail' });
+        expect(toasts.show).toHaveBeenCalledWith({ message: COPY.simulated.paymentFailedToast, tone: 'danger' });
+        expect(el.querySelector('ui-status-chip')?.textContent).not.toContain('Paid');
+      });
+    });
+
+    describe('stripe provider', () => {
+      it('confirms the PaymentIntent on-session with the saved card, then waits for the webhook', async () => {
+        const stripe = { confirmCardPayment: vi.fn(async () => ({ paymentIntent: { status: 'succeeded' } })) };
+        const { el, fixture, toasts, loadStripe, serverInvoice } = await setup({
+          invoice: waiting(),
+          confirm: stripeConfirm('pm_saved'),
+          stripe,
+          billing: stripeBilling,
+        });
+        await settle(fixture);
+        q(el, 'invoice-confirm-cta')!.click();
+        await until(fixture, () => q(el, 'invoice-confirm-pending') !== null);
+        expect(loadStripe).toHaveBeenCalledWith('pk_test_x');
+        expect(stripe.confirmCardPayment).toHaveBeenCalledWith('pi_1_secret_y', { payment_method: 'pm_saved' });
+        expect(toasts.show).toHaveBeenCalledWith({ message: COPY.simulated.paymentCompletedToast, tone: 'success' });
+        expect(q(el, 'simulated-challenge')).toBeNull();
+        // Still action_required until the webhook lands — never paid client-side.
+        expect(el.querySelector('ui-status-chip')?.textContent).not.toContain('Paid');
+
+        serverInvoice(invoice({ status: 'paid', reviewDueAt: null, paidAt: iso(0) }));
+        await until(fixture, () => q(el, 'invoice-confirm-payment') === null);
+        expect(el.querySelector('ui-status-chip')?.textContent).toContain('Paid');
+      });
+
+      it('omits payment_method when the API does not know the saved card', async () => {
+        const stripe = { confirmCardPayment: vi.fn(async () => ({ paymentIntent: { status: 'succeeded' } })) };
+        const { el, fixture } = await setup({
+          invoice: waiting(),
+          confirm: stripeConfirm(),
+          stripe,
+          billing: stripeBilling,
+        });
+        await settle(fixture);
+        q(el, 'invoice-confirm-cta')!.click();
+        await until(fixture, () => stripe.confirmCardPayment.mock.calls.length > 0);
+        expect(stripe.confirmCardPayment).toHaveBeenCalledWith('pi_1_secret_y', undefined);
+      });
+
+      it('a declined / abandoned bank check toasts the failure and lets the webhook move it to failed', async () => {
+        const stripe = {
+          confirmCardPayment: vi.fn(async () => ({
+            error: { type: 'card_error', code: 'payment_intent_authentication_failure' },
+          })),
+        };
+        const { el, fixture, toasts, serverInvoice } = await setup({
+          invoice: waiting(),
+          confirm: stripeConfirm('pm_saved'),
+          stripe,
+          billing: stripeBilling,
+        });
+        await settle(fixture);
+        q(el, 'invoice-confirm-cta')!.click();
+        await until(fixture, () => q(el, 'invoice-confirm-pending') !== null);
+        expect(toasts.show).toHaveBeenCalledWith({ message: COPY.simulated.paymentFailedToast, tone: 'danger' });
+
+        serverInvoice(invoice({ status: 'failed', reviewDueAt: null }));
+        await until(fixture, () => q(el, 'invoice-confirm-payment') === null);
+        expect(q(el, 'invoice-update-card')).not.toBeNull();
+      });
+
+      it('a non-decline Stripe.js error (network / rate limit) shows the retry, not a failed-payment toast', async () => {
+        let calls = 0;
+        const stripe = {
+          confirmCardPayment: vi.fn(async () =>
+            ++calls === 1
+              ? { error: { type: 'api_connection_error', message: 'offline' } }
+              : { paymentIntent: { status: 'succeeded' } },
+          ),
+        };
+        const { el, fixture, toasts } = await setup({
+          invoice: waiting(),
+          confirm: stripeConfirm('pm_saved'),
+          stripe,
+          billing: stripeBilling,
+        });
+        await settle(fixture);
+        q(el, 'invoice-confirm-cta')!.click();
+        await until(fixture, () => q(el, 'invoice-confirm-error') !== null);
+        expect(toasts.show).not.toHaveBeenCalled();
+        q(el, 'invoice-confirm-cta')!.click();
+        await until(fixture, () => q(el, 'invoice-confirm-pending') !== null);
+        expect(stripe.confirmCardPayment).toHaveBeenCalledTimes(2);
+        expect(toasts.show).toHaveBeenCalledWith({ message: COPY.simulated.paymentCompletedToast, tone: 'success' });
+      });
+
+      it('treats a PaymentIntent back in requires_payment_method as the bank declining', async () => {
+        const stripe = {
+          confirmCardPayment: vi.fn(async () => ({
+            error: { type: 'invalid_request_error', payment_intent: { status: 'requires_payment_method' } },
+          })),
+        };
+        const { el, fixture, toasts } = await setup({
+          invoice: waiting(),
+          confirm: stripeConfirm('pm_saved'),
+          stripe,
+          billing: stripeBilling,
+        });
+        await settle(fixture);
+        q(el, 'invoice-confirm-cta')!.click();
+        await until(fixture, () => q(el, 'invoice-confirm-pending') !== null);
+        expect(toasts.show).toHaveBeenCalledWith({ message: COPY.simulated.paymentFailedToast, tone: 'danger' });
+      });
+
+      it('shows an error with a retry when Stripe.js fails to load', async () => {
+        const { el, fixture } = await setup({
+          invoice: waiting(),
+          confirm: stripeConfirm('pm_saved'),
+          stripe: null,
+          billing: stripeBilling,
+        });
+        await settle(fixture);
+        q(el, 'invoice-confirm-cta')!.click();
+        await until(fixture, () => q(el, 'invoice-confirm-error') !== null);
+        expect(q(el, 'invoice-confirm-error')?.textContent).toContain(COPY.simulated.paymentLoadError);
+        expect(q(el, 'invoice-confirm-cta')).not.toBeNull();
+      });
+
+      it('shows an error without a publishable key (never calls Stripe.js)', async () => {
+        const stripe = { confirmCardPayment: vi.fn() };
+        const { el, fixture, loadStripe } = await setup({
+          invoice: waiting(),
+          confirm: stripeConfirm('pm_saved'),
+          stripe,
+          billing: fastPoll,
+        });
+        await settle(fixture);
+        q(el, 'invoice-confirm-cta')!.click();
+        await until(fixture, () => q(el, 'invoice-confirm-error') !== null);
+        expect(loadStripe).not.toHaveBeenCalled();
+        expect(stripe.confirmCardPayment).not.toHaveBeenCalled();
+      });
+    });
+
+    it('offers a retry when the confirm-payment call fails', async () => {
       let calls = 0;
       const { el, fixture, billingApi } = await setup({
         invoice: waiting(),
         confirm: () => (++calls === 1 ? throwError(() => new Error('boom')) : simConfirm()),
       });
       await settle(fixture);
-      const error = q(el, 'invoice-confirm-error');
-      expect(error?.textContent).toContain(COPY.simulated.paymentLoadError);
-      (error!.querySelector('button') as HTMLButtonElement).click();
+      q(el, 'invoice-confirm-cta')!.click();
+      await settle(fixture);
+      expect(q(el, 'invoice-confirm-error')?.textContent).toContain(COPY.simulated.paymentLoadError);
+      q(el, 'invoice-confirm-cta')!.click();
       await settle(fixture);
       expect(billingApi.confirmInvoicePayment).toHaveBeenCalledTimes(2);
       expect(q(el, 'simulated-challenge')).not.toBeNull();
     });
 
-    it('never asks for a confirmation when the invoice is not waiting on 3DS', async () => {
-      const { fixture, billingApi } = await setup({ confirm: simConfirm });
+    it('offers "Check again" when the webhook has not settled the invoice within the poll window', async () => {
+      const { el, fixture, api } = await setup({
+        invoice: waiting(),
+        confirm: simConfirm,
+        billing: shortPoll,
+      });
       await settle(fixture);
-      expect(billingApi.confirmInvoicePayment).not.toHaveBeenCalled();
+      q(el, 'invoice-confirm-cta')!.click();
+      await settle(fixture);
+      q(el, 'simulated-challenge-complete')!.click();
+      await until(fixture, () => q(el, 'invoice-confirm-stalled') !== null);
+      expect(q(el, 'invoice-confirm-stalled')?.textContent).toContain(T.confirmPaymentStalled);
+      const gets = api.getInvoice.mock.calls.length;
+      q(el, 'invoice-confirm-check-again')!.click();
+      await settle(fixture);
+      expect(q(el, 'invoice-confirm-pending')).not.toBeNull();
+      await until(fixture, () => api.getInvoice.mock.calls.length > gets);
+    });
+
+    it('waits for the last poll to land: settled on the final attempt reloads the list, never shows stalled', async () => {
+      const { el, fixture, api } = await setup({
+        invoice: waiting(),
+        confirm: simConfirm,
+        billing: { confirmPollIntervalMs: 5, confirmPollAttempts: 1 },
+      });
+      await settle(fixture);
+      q(el, 'invoice-confirm-cta')!.click();
+      await settle(fixture);
+      // The webhook lands while the (slow) final poll is in flight.
+      const paid = invoice({ status: 'paid', reviewDueAt: null, paidAt: iso(0) });
+      api.getInvoice.mockImplementation(() => timer(20).pipe(map(() => paid)));
+      q(el, 'simulated-challenge-complete')!.click();
+      await settle(fixture);
+      const lists = api.listInvoices.mock.calls.length;
+      await until(fixture, () => q(el, 'invoice-confirm-payment') === null || q(el, 'invoice-confirm-stalled') !== null);
+      expect(q(el, 'invoice-confirm-stalled')).toBeNull();
+      await until(fixture, () => api.listInvoices.mock.calls.length > lists);
+    });
+
+    it('the stalled state also offers the confirm button again', async () => {
+      const { el, fixture, billingApi } = await setup({
+        invoice: waiting(),
+        confirm: simConfirm,
+        billing: shortPoll,
+      });
+      await settle(fixture);
+      q(el, 'invoice-confirm-cta')!.click();
+      await settle(fixture);
+      q(el, 'simulated-challenge-complete')!.click();
+      await until(fixture, () => q(el, 'invoice-confirm-stalled') !== null);
+      expect(q(el, 'invoice-confirm-cta')?.textContent).toContain(T.confirmPaymentCta);
+      q(el, 'invoice-confirm-cta')!.click();
+      await settle(fixture);
+      expect(billingApi.confirmInvoicePayment).toHaveBeenCalledTimes(2);
+      expect(q(el, 'simulated-challenge')).not.toBeNull();
     });
   });
 });

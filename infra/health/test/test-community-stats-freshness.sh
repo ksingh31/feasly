@@ -38,14 +38,26 @@ EOF
 cat >"$BIN/az" <<'EOF'
 #!/usr/bin/env bash
 echo "$*" >>"$STATE/az.log"
-rule=""; prev=""
-for a in "$@"; do [[ "$prev" == "--name" || "$prev" == "-n" ]] && rule="$a"; prev="$a"; done
-# Mirror the real CLI: firewall-rule takes --server-name/-s for
-# the server and --name/-n for the rule; --rule-name is not accepted.
+rule=""; server=""; prev=""
+for a in "$@"; do
+  case "$prev" in
+    --name|-n) rule="$a" ;;
+    --server-name|-s) server="$a" ;;
+  esac
+  prev="$a"
+done
+# Mirror the real CLI (azure-cli 2.92): firewall-rule takes --server-name/-s
+# for the server and --name/-n for the rule; --rule-name does not exist (#959).
 if [[ "$*" == *"firewall-rule"* ]]; then
-  [[ "$*" == *"--rule-name"* ]] && { echo "ERROR: unrecognized arguments: --rule-name" >&2; exit 2; }
-  [[ "$*" == *"--server-name "* || " $* " == *" -s "* ]] \
-    || { echo "ERROR: the following arguments are required: --server-name/-s" >&2; exit 2; }
+  if [[ " $* " == *" --rule-name "* ]]; then
+    echo "az: error: unrecognized arguments: --rule-name" >&2; exit 2
+  fi
+  if [[ -z "$server" ]]; then
+    echo "az: error: the following arguments are required: --server-name/-s" >&2; exit 2
+  fi
+  if [[ "$*" != *"firewall-rule list"* && -z "$rule" ]]; then
+    echo "az: error: stub requires --name/-n for the rule" >&2; exit 2
+  fi
 fi
 case "$*" in
   *"firewall-rule create"*)
@@ -114,6 +126,15 @@ grep -q "firewall-rule create" "$STATE/az.log" \
 run denied GITHUB_ACTIONS=true AZ_CREATE_FAILS=1
 [[ $RC -eq 1 && "$OUT" == *"could not create temporary firewall rule"* && "$OUT" == *"FAIL: could not query"* ]] \
   && ok "create denied: fails loudly" || bad "create denied: rc=$RC out=$OUT"
+
+# 6b. Every firewall call uses --server-name/--name, never -n <server> --rule-name (#959).
+run flags GITHUB_ACTIONS=true EXTRA_RULES="ci-freshness-1-1-1"
+grep -q -- "--rule-name" "$STATE/az.log" \
+  && bad "flags: used nonexistent --rule-name" || ok "flags: no --rule-name"
+[[ "$(grep -c firewall-rule "$STATE/az.log")" -ge 3 ]] \
+  && ! grep firewall-rule "$STATE/az.log" | grep -vq -- "--server-name feasly-dev-pg-test" \
+  && ok "flags: create/delete/list all pass --server-name" \
+  || bad "flags: a firewall call lacks --server-name: $(cat "$STATE/az.log")"
 
 # 7. Sweep: rules from killed jobs older than an hour go; recent ones stay.
 OLD="ci-freshness-$(( $(date +%s) - 7200 ))-1-1"

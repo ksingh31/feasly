@@ -122,3 +122,23 @@
   display: block;
   margin-top: var(--space-3);
 }
+
+/* #867: bank-confirmation step for an invoice waiting on 3D Secure. */
+.invoice-drawer__confirm {
+  padding: var(--space-4);
+  border: 1px solid var(--status-warning-fg);
+  border-radius: var(--radius-md);
+}
+.invoice-drawer__note--danger {
+  color: var(--status-danger-fg);
+}
+.invoice-drawer__confirm-cta,
+.invoice-drawer__confirm [data-testid='invoice-confirm-check-again'] {
+  margin-top: var(--space-3);
+  min-height: 44px;
+}
+@media (max-width: 480px) {
+  .invoice-drawer__confirm-cta {
+    width: 100%;
+  }
+}
