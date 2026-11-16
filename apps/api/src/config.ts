@@ -737,6 +737,44 @@ const EnvSchema = z.object({
   PARTNERS_CACHE_TTL_MS: z.coerce.number().int().nonnegative().default(300_000),
   // Cache-Control max-age on GET /api/v1/partners (5 min default).
   PARTNERS_CACHE_MAX_AGE_S: z.coerce.number().int().nonnegative().default(300),
+  // --- Community lot inventory (#691) ---
+  // Vacant residential land-only parcels in established infill communities
+  // (owner decision 2026-11-15: infill only, same rule as #690 — community
+  // boundary class + structure from the City's Community District
+  // Boundaries dataset). Shares SOCRATA_BASE_URL + SOCRATA_DATASET_ID
+  // (assessments) and LAND_USE_* (current district) with property lookup.
+  COMMUNITY_LOTS_CITY: z.string().trim().toLowerCase().min(1).default('calgary'),
+  COMMUNITY_LOTS_BOUNDARIES_DATASET_ID: z.string().min(1).default('surr-xmvs'),
+  COMMUNITY_LOTS_ESTABLISHED_CLASSES: z.string().default('Residential').transform(csvToList),
+  COMMUNITY_LOTS_ESTABLISHED_STRUCTURES: z
+    .string()
+    .default('INNER CITY,1950s,1960s/1970s')
+    .transform(csvToList),
+  // Sliver guard: remnant strips below this lot area are not lots (0 = off).
+  COMMUNITY_LOTS_MIN_LOT_SQFT: z.coerce.number().int().nonnegative().default(1_000),
+  // Current districts that qualify (case-insensitive prefixes): low-density
+  // residential (R-*) and grade-oriented infill (H-GO). Multi-residential,
+  // mixed-use, commercial, Direct Control and special-purpose are excluded.
+  COMMUNITY_LOTS_ALLOWED_DISTRICT_PREFIXES: z.string().default('R-,H-GO').transform(csvToList),
+  // Socrata paging + politeness: rows per page, pause between requests,
+  // concurrent district lookups, per-request timeout.
+  COMMUNITY_LOTS_PAGE_SIZE: z.coerce.number().int().positive().max(50_000).default(1_000),
+  COMMUNITY_LOTS_REQUEST_DELAY_MS: z.coerce.number().int().nonnegative().default(100),
+  COMMUNITY_LOTS_DISTRICT_CONCURRENCY: z.coerce.number().int().positive().max(16).default(4),
+  COMMUNITY_LOTS_HTTP_TIMEOUT_MS: z.coerce.number().int().positive().default(15_000),
+  // Retries per Socrata request (district lookup or page) before the
+  // community is reported failed and its stored lots are kept.
+  COMMUNITY_LOTS_MAX_ATTEMPTS: z.coerce.number().int().positive().max(10).default(3),
+  // Lots older than this are flagged `stale` and fail the freshness check.
+  // Weekly refresh (matches the Land Use Districts dataset) + slack.
+  COMMUNITY_LOTS_STALE_AFTER_DAYS: z.coerce.number().int().positive().default(14),
+  // Consecutive failed refreshes before the community_lots_failed ops alert.
+  COMMUNITY_LOTS_ALERT_AFTER_FAILURES: z.coerce.number().int().positive().default(1),
+  // List page size: default and hard cap.
+  COMMUNITY_LOTS_DEFAULT_LIMIT: z.coerce.number().int().positive().default(50),
+  COMMUNITY_LOTS_MAX_LIMIT: z.coerce.number().int().positive().default(200),
+  // Cache-Control max-age on the public list (data changes weekly).
+  COMMUNITY_LOTS_CACHE_MAX_AGE_S: z.coerce.number().int().nonnegative().default(3_600),
   // --- City-data freshness (landing trust strip) ---
   // Shares the SOCRATA_* source with propertyData; its own TTL because the
   // metadata changes at most monthly (24h default, successful fetches only).
@@ -1648,6 +1686,41 @@ export interface NeighbourhoodDataConfig {
 }
 
 /**
+ * Community lot inventory (#691): which communities and parcels the weekly
+ * refresh lists, how politely it pages Socrata, and how the public list is
+ * served. Dataset ids for assessments / land use come from propertyData /
+ * landUse.
+ */
+export interface CommunityLotsConfig {
+  /** City key stored on every row and served in the response. */
+  readonly city: string;
+  /** Socrata API base (shared SOCRATA_BASE_URL). */
+  readonly socrataBaseUrl: string;
+  /** Assessment dataset (shared SOCRATA_DATASET_ID). */
+  readonly assessmentDatasetId: string;
+  /** Community District Boundaries dataset (established-area flag). */
+  readonly boundariesDatasetId: string;
+  /** Boundary `class` values that count as established infill. */
+  readonly establishedClasses: readonly string[];
+  /** Boundary `comm_structure` values that count as established infill. */
+  readonly establishedStructures: readonly string[];
+  /** Sliver guard: lots below this area are excluded (0 = off). */
+  readonly minLotSqft: number;
+  /** Qualifying current-district prefixes (case-insensitive). */
+  readonly allowedDistrictPrefixes: readonly string[];
+  readonly pageSize: number;
+  readonly requestDelayMs: number;
+  readonly districtConcurrency: number;
+  readonly httpTimeoutMs: number;
+  readonly maxAttempts: number;
+  readonly staleAfterDays: number;
+  readonly alertAfterConsecutiveFailures: number;
+  readonly defaultLimit: number;
+  readonly maxLimit: number;
+  readonly cacheMaxAgeSeconds: number;
+}
+
+/**
  * Postgres backup freshness check (admin/06 `backup_missed`). The daily
  * timer queries ARM with the Function App's managed identity; a stale or
  * missing backup chain fires the alert, recovery sends the all-clear.
@@ -1826,6 +1899,7 @@ export interface ApiConfig {
   readonly narrative: NarrativeConfig;
   readonly communityNarratives: CommunityNarrativesConfig;
   readonly communityStatsRefresh: CommunityStatsRefreshConfig;
+  readonly communityLots: CommunityLotsConfig;
   readonly neighbourhoodData: NeighbourhoodDataConfig;
   readonly backupCheck: BackupCheckConfig;
   readonly embed: EmbedConfig;
@@ -2198,6 +2272,26 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): ApiConfig {
       minAssessmentCount: e.COMMUNITY_STATS_MIN_ASSESSMENTS,
       alertAfterConsecutiveFailures: e.COMMUNITY_STATS_ALERT_AFTER_FAILURES,
       pruneMinRows: e.COMMUNITY_STATS_PRUNE_MIN_ROWS,
+    },
+    communityLots: {
+      city: e.COMMUNITY_LOTS_CITY,
+      socrataBaseUrl: e.SOCRATA_BASE_URL,
+      assessmentDatasetId: e.SOCRATA_DATASET_ID,
+      boundariesDatasetId: e.COMMUNITY_LOTS_BOUNDARIES_DATASET_ID,
+      establishedClasses: e.COMMUNITY_LOTS_ESTABLISHED_CLASSES,
+      establishedStructures: e.COMMUNITY_LOTS_ESTABLISHED_STRUCTURES,
+      minLotSqft: e.COMMUNITY_LOTS_MIN_LOT_SQFT,
+      allowedDistrictPrefixes: e.COMMUNITY_LOTS_ALLOWED_DISTRICT_PREFIXES,
+      pageSize: e.COMMUNITY_LOTS_PAGE_SIZE,
+      requestDelayMs: e.COMMUNITY_LOTS_REQUEST_DELAY_MS,
+      districtConcurrency: e.COMMUNITY_LOTS_DISTRICT_CONCURRENCY,
+      httpTimeoutMs: e.COMMUNITY_LOTS_HTTP_TIMEOUT_MS,
+      maxAttempts: e.COMMUNITY_LOTS_MAX_ATTEMPTS,
+      staleAfterDays: e.COMMUNITY_LOTS_STALE_AFTER_DAYS,
+      alertAfterConsecutiveFailures: e.COMMUNITY_LOTS_ALERT_AFTER_FAILURES,
+      defaultLimit: e.COMMUNITY_LOTS_DEFAULT_LIMIT,
+      maxLimit: e.COMMUNITY_LOTS_MAX_LIMIT,
+      cacheMaxAgeSeconds: e.COMMUNITY_LOTS_CACHE_MAX_AGE_S,
     },
     neighbourhoodData: {
       providers: {

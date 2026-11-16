@@ -72,6 +72,15 @@ Builder partner disclosure (issue #888, API half of #847):
   `AdminBuilderPartnerListResponse` / `BuilderPartnerCreateBody` /
   `BuilderPartnerUpdateBody` for `/api/v1/admin/partners`.
 
+## Unreleased — 2026-11-16 (additive) — community lots
+
+Community lot inventory, phase 1 (issue #691):
+
+- **Added** `CommunityLot`, `CommunityLotsResponse`, `CommunityLotKind`,
+  `CommunityLotDistrictSource`, `CommunityLotSort` (served by
+  `GET /api/v1/communities/{slug}/lots`). The only money value is the
+  City-assessed value, passed through verbatim.
+
 ## Unreleased — 2026-11-16 (additive)
 
 Project-type steer by home age (issue #755):

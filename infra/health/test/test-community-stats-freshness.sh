@@ -30,6 +30,8 @@ fi
 sql="${*: -1}"
 case "$sql" in
   "SELECT 1;") echo 1 ;;
+  *"to_regclass('public.community_lot_refreshes')"*) echo "${LOTS_TABLE:-missing}" ;;
+  *"FROM community_lot_refreshes"*) echo "${LOTS_RESULT:-0|0|}" ;;
   *"refreshed_at < now()"*) echo "${STALE_RESULT:-0|}" ;;
   *"SELECT count(*) FROM community_stats;"*) echo 98 ;;
 esac

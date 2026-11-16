@@ -537,6 +537,148 @@ exports[`OpenAPI drift > generated spec matches the snapshot 1`] = `
         ],
         "type": "object",
       },
+      "CommunityLot": {
+        "additionalProperties": false,
+        "properties": {
+          "address": {
+            "description": "Street address as published by the City",
+            "minLength": 1,
+            "type": "string",
+          },
+          "assessedValue": {
+            "description": "City-assessed value, whole CAD (not market value, not a Feasly estimate)",
+            "type": "integer",
+          },
+          "district": {
+            "description": "Current land-use district, e.g. R-CG",
+            "type": [
+              "string",
+              "null",
+            ],
+          },
+          "districtSource": {
+            "enum": [
+              "land-use-districts",
+              "assessment-roll",
+            ],
+            "type": "string",
+          },
+          "firstSeenAt": {
+            "description": "When Feasly first listed the lot",
+            "format": "date-time",
+            "type": "string",
+          },
+          "kind": {
+            "enum": [
+              "vacant",
+              "candidate",
+            ],
+            "type": "string",
+          },
+          "latitude": {
+            "type": [
+              "number",
+              "null",
+            ],
+          },
+          "longitude": {
+            "type": [
+              "number",
+              "null",
+            ],
+          },
+          "lotSqft": {
+            "description": "Lot area in square feet; null when unknown",
+            "type": [
+              "integer",
+              "null",
+            ],
+          },
+          "rollNumber": {
+            "description": "City assessment roll number",
+            "minLength": 1,
+            "type": "string",
+          },
+          "rollYear": {
+            "description": "Assessment roll year of the value",
+            "type": "string",
+          },
+        },
+        "required": [
+          "rollNumber",
+          "address",
+          "lotSqft",
+          "assessedValue",
+          "rollYear",
+          "district",
+          "districtSource",
+          "kind",
+          "latitude",
+          "longitude",
+          "firstSeenAt",
+        ],
+        "type": "object",
+      },
+      "CommunityLotsResponse": {
+        "additionalProperties": false,
+        "properties": {
+          "city": {
+            "type": "string",
+          },
+          "community": {
+            "additionalProperties": false,
+            "properties": {
+              "name": {
+                "type": "string",
+              },
+              "slug": {
+                "type": "string",
+              },
+            },
+            "required": [
+              "slug",
+              "name",
+            ],
+            "type": "object",
+          },
+          "lots": {
+            "items": {
+              "$ref": "#/components/schemas/CommunityLot",
+            },
+            "type": "array",
+          },
+          "nextCursor": {
+            "description": "Opaque cursor for the next page; null on the last",
+            "type": [
+              "string",
+              "null",
+            ],
+          },
+          "refreshedAt": {
+            "format": "date-time",
+            "type": "string",
+          },
+          "stale": {
+            "description": "True when the refresh is older than the configured threshold",
+            "type": "boolean",
+          },
+          "total": {
+            "description": "Lots matching the filters, across all pages",
+            "minimum": 0,
+            "type": "integer",
+          },
+        },
+        "required": [
+          "community",
+          "city",
+          "refreshedAt",
+          "stale",
+          "total",
+          "lots",
+          "nextCursor",
+        ],
+        "type": "object",
+      },
       "CommunityStatsResponse": {
         "properties": {
           "avgAssessedValue": {
@@ -3300,6 +3442,207 @@ URL versioning (\`/v1/\`). Breaking changes ship as \`/v2/\` with 6 months notic
         },
         "security": [],
         "summary": "Get City assessment dataset freshness",
+      },
+    },
+    "/v1/communities/{slug}/lots": {
+      "get": {
+        "description": "Vacant residential lots in an established infill community, derived weekly from City of Calgary open data (assessment roll + current Land Use Districts map). Each lot carries its address, lot area, City-assessed value (not market value) and roll year, and current district. Cursor-paginated; \`stale\` is true when the last refresh is older than the configured threshold. Unknown or non-infill communities return 404. Public by design; cached (Cache-Control public).",
+        "parameters": [
+          {
+            "description": "Community slug (kebab-case)",
+            "in": "path",
+            "name": "slug",
+            "required": true,
+            "schema": {
+              "description": "Community slug (kebab-case)",
+              "type": "string",
+            },
+          },
+          {
+            "in": "query",
+            "name": "kind",
+            "required": false,
+            "schema": {
+              "enum": [
+                "vacant",
+                "candidate",
+              ],
+              "type": "string",
+            },
+          },
+          {
+            "description": "Exact current district code, e.g. R-CG",
+            "in": "query",
+            "name": "district",
+            "required": false,
+            "schema": {
+              "description": "Exact current district code, e.g. R-CG",
+              "type": "string",
+            },
+          },
+          {
+            "description": "Minimum lot area (sq ft)",
+            "in": "query",
+            "name": "minLotSqft",
+            "required": false,
+            "schema": {
+              "description": "Minimum lot area (sq ft)",
+              "pattern": "^\\d+$",
+              "type": "string",
+            },
+          },
+          {
+            "description": "Maximum lot area (sq ft)",
+            "in": "query",
+            "name": "maxLotSqft",
+            "required": false,
+            "schema": {
+              "description": "Maximum lot area (sq ft)",
+              "pattern": "^\\d+$",
+              "type": "string",
+            },
+          },
+          {
+            "in": "query",
+            "name": "sort",
+            "required": false,
+            "schema": {
+              "enum": [
+                "address",
+                "lot-size-asc",
+                "lot-size-desc",
+              ],
+              "type": "string",
+            },
+          },
+          {
+            "description": "Page size (capped by config)",
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "description": "Page size (capped by config)",
+              "pattern": "^\\d+$",
+              "type": "string",
+            },
+          },
+          {
+            "description": "nextCursor from the previous page",
+            "in": "query",
+            "name": "cursor",
+            "required": false,
+            "schema": {
+              "description": "nextCursor from the previous page",
+              "type": "string",
+            },
+          },
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CommunityLotsResponse",
+                },
+              },
+            },
+            "description": "One page of the community's lots",
+          },
+          "400": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails",
+                },
+              },
+            },
+            "description": "Bad request — validation failed",
+          },
+          "429": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails",
+                },
+              },
+            },
+            "description": "Rate limit exceeded — per-key sliding window (60s) or per-IP fixed window (code RATE_LIMITED, X-RateLimit-* headers), or the key's daily/monthly quota (code QUOTA_EXCEEDED, X-Quota-Period / -Limit / -Remaining / -Reset headers). Body is RFC 7807 problem+json; Retry-After says when to try again.",
+            "headers": {
+              "X-Quota-Limit": {
+                "description": "QUOTA_EXCEEDED only: requests allowed per period for this API key.",
+                "required": false,
+                "schema": {
+                  "description": "QUOTA_EXCEEDED only: requests allowed per period for this API key.",
+                  "type": "integer",
+                },
+              },
+              "X-Quota-Period": {
+                "description": "QUOTA_EXCEEDED only: which quota ran out (UTC calendar day or month).",
+                "required": false,
+                "schema": {
+                  "description": "QUOTA_EXCEEDED only: which quota ran out (UTC calendar day or month).",
+                  "enum": [
+                    "day",
+                    "month",
+                  ],
+                  "type": "string",
+                },
+              },
+              "X-Quota-Remaining": {
+                "description": "QUOTA_EXCEEDED only: requests remaining in the period (0).",
+                "required": false,
+                "schema": {
+                  "description": "QUOTA_EXCEEDED only: requests remaining in the period (0).",
+                  "type": "integer",
+                },
+              },
+              "X-Quota-Reset": {
+                "description": "QUOTA_EXCEEDED only: Unix epoch seconds when the period resets.",
+                "required": false,
+                "schema": {
+                  "description": "QUOTA_EXCEEDED only: Unix epoch seconds when the period resets.",
+                  "type": "integer",
+                },
+              },
+              "X-RateLimit-Limit": {
+                "description": "Requests allowed per 60-second window for this API key.",
+                "required": true,
+                "schema": {
+                  "description": "Requests allowed per 60-second window for this API key.",
+                  "type": "integer",
+                },
+              },
+              "X-RateLimit-Remaining": {
+                "description": "Requests remaining in the current window.",
+                "required": true,
+                "schema": {
+                  "description": "Requests remaining in the current window.",
+                  "type": "integer",
+                },
+              },
+              "X-RateLimit-Reset": {
+                "description": "Unix epoch seconds when the current window slides past the oldest request.",
+                "required": true,
+                "schema": {
+                  "description": "Unix epoch seconds when the current window slides past the oldest request.",
+                  "type": "integer",
+                },
+              },
+            },
+          },
+          "500": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails",
+                },
+              },
+            },
+            "description": "Internal server error",
+          },
+        },
+        "security": [],
+        "summary": "List lots in a community",
       },
     },
     "/v1/communities/{slug}/stats": {

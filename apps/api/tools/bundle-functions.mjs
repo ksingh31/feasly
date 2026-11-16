@@ -76,6 +76,10 @@ const targets = [
     out: 'communities-stats/index.js',
   },
   {
+    entry: 'src/functions/communities-lots.ts',
+    out: 'communities-lots/index.js',
+  },
+  {
     entry: 'src/functions/communities-living.ts',
     out: 'communities-living/index.js',
   },
@@ -543,6 +547,10 @@ const targets = [
   {
     entry: 'src/functions/community-stats-refresh-timer.ts',
     out: 'community-stats-refresh-timer/index.js',
+  },
+  {
+    entry: 'src/functions/community-lots-refresh-timer.ts',
+    out: 'community-lots-refresh-timer/index.js',
   },
   {
     entry: 'src/functions/sheets-sync-timer.ts',

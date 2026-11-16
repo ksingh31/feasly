@@ -37,6 +37,7 @@ import {
   ZoningDistrictsResponseSchema,
   BuilderPartnerListResponseSchema,
   CommunityStatsResponseSchema,
+  CommunityLotsResponseSchema,
   CostRangeSchema,
   EmbedPublicConfigSchema,
   EstimateRequestSchema,
@@ -159,6 +160,7 @@ export function buildOpenApiSpec(options: OpenApiSpecOptions) {
   registry.register('AnalyticsIngestResponse', AnalyticsIngestResponseSchema);
   registry.register('EmbedPublicConfig', EmbedPublicConfigSchema);
   registry.register('CommunityStatsResponse', CommunityStatsResponseSchema);
+  registry.register('CommunityLotsResponse', CommunityLotsResponseSchema);
   registry.register('CityDataFreshnessResponse', CityDataFreshnessResponseSchema);
   registry.register('ZoningDistrictsResponse', ZoningDistrictsResponseSchema);
   registry.register('BuilderPartnerListResponse', BuilderPartnerListResponseSchema);
@@ -651,6 +653,45 @@ export function buildOpenApiSpec(options: OpenApiSpecOptions) {
         description: 'Community stats',
         content: {
           'application/json': { schema: CommunityStatsResponseSchema },
+        },
+      },
+      ...errorResponses(),
+    },
+  });
+
+  // GET /v1/communities/{slug}/lots (#691)
+  registry.registerPath({
+    method: 'get',
+    path: '/v1/communities/{slug}/lots',
+    summary: 'List lots in a community',
+    description:
+      'Vacant residential lots in an established infill community, derived ' +
+      'weekly from City of Calgary open data (assessment roll + current ' +
+      'Land Use Districts map). Each lot carries its address, lot area, ' +
+      'City-assessed value (not market value) and roll year, and current ' +
+      'district. Cursor-paginated; `stale` is true when the last refresh is ' +
+      'older than the configured threshold. Unknown or non-infill ' +
+      'communities return 404. Public by design; cached (Cache-Control public).',
+    security: [],
+    request: {
+      params: z.object({
+        slug: z.string().describe('Community slug (kebab-case)'),
+      }),
+      query: z.object({
+        kind: z.enum(['vacant', 'candidate']).optional(),
+        district: z.string().optional().describe('Exact current district code, e.g. R-CG'),
+        minLotSqft: z.string().regex(/^\d+$/).optional().describe('Minimum lot area (sq ft)'),
+        maxLotSqft: z.string().regex(/^\d+$/).optional().describe('Maximum lot area (sq ft)'),
+        sort: z.enum(['address', 'lot-size-asc', 'lot-size-desc']).optional(),
+        limit: z.string().regex(/^\d+$/).optional().describe('Page size (capped by config)'),
+        cursor: z.string().optional().describe('nextCursor from the previous page'),
+      }),
+    },
+    responses: {
+      '200': {
+        description: 'One page of the community\'s lots',
+        content: {
+          'application/json': { schema: CommunityLotsResponseSchema },
         },
       },
       ...errorResponses(),

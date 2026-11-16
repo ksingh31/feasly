@@ -30,6 +30,8 @@ import type {
   PropertyRecord,
   ReportSnapshot,
   TierRevisionRequest,
+  CommunityLot,
+  CommunityLotsResponse,
   ZoningDistrict,
   ZoningDistrictsResponse,
   ZoningRulesVersion,
@@ -248,6 +250,18 @@ const publicForm = zoningRes.districts[0]!.forms[0]!;
 // @ts-expect-error — the wire shape never carries a verified flag
 void publicForm.verified;
 assertType<number>(BUILDING_FORMS.length);
+
+// --- community lots (issue #691): no per-sqft figure, no owner name ---
+declare const lotsRes: CommunityLotsResponse;
+assertType<readonly CommunityLot[]>(lotsRes.lots);
+assertType<string | null>(lotsRes.nextCursor);
+declare const lot: CommunityLot;
+assertType<number>(lot.assessedValue);
+assertType<number | null>(lot.lotSqft);
+// @ts-expect-error — the wire shape never carries an owner name
+void lot.ownerName;
+// @ts-expect-error — the wire shape never carries a per-square-foot figure
+void lot.valuePerSqft;
 
 // --- registry covers every contract module ---
 const names = CONTRACT_NAMES;

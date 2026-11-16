@@ -497,6 +497,23 @@ import {
 } from './services/property.service';
 import { createLandUseProvider } from './services/land-use.service';
 import {
+  createDrizzleCommunityLotsStore,
+  type CommunityLotsStore,
+} from './services/community-lots.store';
+import {
+  createCommunityLotsService,
+  type CommunityLotsService,
+} from './services/community-lots.service';
+import {
+  createCommunityLotsRefreshService,
+  createSocrataCommunityLotsSource,
+  type CommunityLotsRefreshService,
+} from './services/community-lots-refresh.service';
+import {
+  createCommunityLotsRoute,
+  type CommunityLotsRoute,
+} from './routes/community-lots.route';
+import {
   createPropertyRoute,
   type PropertyRoute,
 } from './routes/property.route';
@@ -891,6 +908,11 @@ export interface AppComposition {
   /** #687: zoning rules catalogue (pure data; no I/O). */
   readonly zoningService: ZoningService;
   readonly zoningRoute: ZoningRoute;
+  /** #691: community lot inventory — store, public list, weekly refresh timer. */
+  readonly communityLotsStore: CommunityLotsStore;
+  readonly communityLotsService: CommunityLotsService;
+  readonly communityLotsRoute: CommunityLotsRoute;
+  readonly communityLotsRefreshService: CommunityLotsRefreshService;
   /** #757: daily City-source watch + catalogue freshness. */
   readonly zoningWatchService: ZoningWatchService;
   /** Monthly refresh timer + manual admin trigger (neighbourhood/05). */
@@ -2191,6 +2213,31 @@ export function createComposition(
   const propertyRoute: PropertyRoute = createPropertyRoute({
     property: propertyService,
   });
+  // #691: community lot inventory. The weekly timer derives vacant
+  // residential lots in established infill communities from City open data
+  // (current district via the same land-use provider); the public list is
+  // cache-first. A failed refresh fires the community_lots_failed ops alert.
+  const communityLotsStore: CommunityLotsStore = createDrizzleCommunityLotsStore({ db: db.db });
+  const communityLotsService: CommunityLotsService = createCommunityLotsService({
+    store: communityLotsStore,
+    config: config.communityLots,
+  });
+  const communityLotsRoute: CommunityLotsRoute = createCommunityLotsRoute({
+    communityLots: communityLotsService,
+  });
+  const communityLotsRefreshService: CommunityLotsRefreshService =
+    createCommunityLotsRefreshService({
+      store: communityLotsStore,
+      source: createSocrataCommunityLotsSource(config.communityLots),
+      ...(landUseProvider ? { landUse: landUseProvider } : {}),
+      config: config.communityLots,
+      onRefreshFailing: ({ consecutiveFailures, firstFailureAt }) =>
+        opsAlertsService.notifyFailure('community_lots_failed', {
+          consecutiveFailures,
+          firstFailureAt,
+        }),
+      onRefreshRecovered: () => opsAlertsService.notifyRecovered('community_lots_failed'),
+    });
 
   // #757: daily zoning source watch. Refreshes cached districts when the
   // City's Land Use Districts dataset changes, files one "catalogue may be
@@ -2772,6 +2819,10 @@ export function createComposition(
     cityDataFreshnessRoute,
     zoningService,
     zoningRoute,
+    communityLotsStore,
+    communityLotsService,
+    communityLotsRoute,
+    communityLotsRefreshService,
     zoningWatchService,
     communityStatsRefreshService,
     communityStatsRefreshRoute,

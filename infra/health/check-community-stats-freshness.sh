@@ -29,6 +29,14 @@
 #   PG_SECRET_NAME      default: feasly-dev-postgres-admin
 #   PGDATABASE          default: feasly
 #   STALE_AFTER_DAYS    default: 45 (must match the API route constant)
+#   LOTS_STALE_AFTER_DAYS default: 14 (must match COMMUNITY_LOTS_STALE_AFTER_DAYS
+#                       in apps/api/src/config.ts — the lots API's `stale` flag)
+#
+# Community lots (#691): also fails when any community_lot_refreshes row is
+# older than LOTS_STALE_AFTER_DAYS (the weekly lots refresh stopped). The
+# lots check is skipped (with a note) until the table exists and the first
+# refresh has run, so a fresh deploy does not fail before the timer fires.
+#
 #   PGCONNECT_TIMEOUT   default: 15 (seconds per connection attempt)
 #   PG_TEMP_FIREWALL    auto (default) | 1 | 0 — see "Runner reachability"
 #
@@ -50,6 +58,7 @@ set -euo pipefail
 
 RG="${PG_RESOURCE_GROUP:-rg-feasly-dev}"
 STALE_AFTER_DAYS="${STALE_AFTER_DAYS:-45}"
+LOTS_STALE_AFTER_DAYS="${LOTS_STALE_AFTER_DAYS:-14}"
 
 if ! command -v psql >/dev/null 2>&1; then
   echo "psql not found — installing postgresql-client..." >&2
@@ -240,6 +249,33 @@ fi
 if [[ "$stale_rows" =~ ^[0-9]+$ ]] && (( stale_rows > 0 )); then
   echo "FAIL: ${stale_rows} community_stats row(s) have refreshed_at older than ${STALE_AFTER_DAYS} days (oldest stale: ${latest_stale}) — the monthly refresh timer may have stopped running" >&2
   failures=1
+fi
+
+# Community lots (#691). to_regclass() is NULL until migration 0070_community_lots runs.
+lots_table="$(q "SELECT coalesce(to_regclass('public.community_lot_refreshes')::text, 'missing');" || echo "")"
+if [[ -z "$lots_table" ]]; then
+  echo "FAIL: could not query for community_lot_refreshes (see psql error above)" >&2
+  failures=1
+elif [[ "$lots_table" == "missing" ]]; then
+  echo "NOTE: community_lot_refreshes not created yet — lots freshness check skipped"
+else
+  lots="$(q "SELECT count(*), \
+     count(*) FILTER (WHERE refreshed_at < now() - interval '${LOTS_STALE_AFTER_DAYS} days'), \
+     coalesce(min(refreshed_at)::text, '') FROM community_lot_refreshes;" || true)"
+  if [[ -z "$lots" ]]; then
+    echo "FAIL: could not query community_lot_refreshes (see psql error above)" >&2
+    failures=1
+  else
+    IFS='|' read -r lots_total lots_stale lots_oldest <<<"$lots"
+    if [[ "$lots_total" == "0" ]]; then
+      echo "NOTE: community lots not refreshed yet — lots freshness check skipped"
+    elif [[ "$lots_stale" =~ ^[0-9]+$ ]] && (( lots_stale > 0 )); then
+      echo "FAIL: ${lots_stale} community lot inventory row(s) older than ${LOTS_STALE_AFTER_DAYS} days (oldest: ${lots_oldest}) — the weekly community-lots refresh timer may have stopped running" >&2
+      failures=1
+    else
+      echo "OK: community lots fresh (${lots_total} communities, none older than ${LOTS_STALE_AFTER_DAYS} days)"
+    fi
+  fi
 fi
 
 if (( failures == 0 )); then
