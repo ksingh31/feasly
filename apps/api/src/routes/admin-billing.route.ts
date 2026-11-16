@@ -318,6 +318,8 @@ export function createAdminBillingRoute(
         commissionCents: invoice.commissionCents,
         taxCents: invoice.taxCents,
         totalCents: invoice.totalCents,
+        taxRatePercent: invoice.taxRatePercent,
+        taxLabel: invoice.taxLabel,
         currency: invoice.currency,
         reviewDueAt: invoice.reviewDueAt?.toISOString() ?? null,
       };
