@@ -112,6 +112,35 @@ describe('commission-payment-failed template (BILL-04)', () => {
     }
     expect(rendered.html).toContain('https://app.feasly.example/builder/billing');
   });
+
+  it('#977: with no automatic retry scheduled, the chargeback_lost variant asks for Pay now', () => {
+    const rendered = renderCommissionPaymentFailedEmail(CTX, {
+      invoiceRef: 'INV-2026-001',
+      commissionCents: 500_000,
+      currency: 'CAD',
+      updateWithinDays: 7,
+      nextRetryAt: null,
+      reason: 'chargeback_lost',
+    });
+    for (const body of [rendered.html, rendered.text]) {
+      expect(body).toContain('still owed');
+      expect(body).toContain('Pay now');
+      expect(body).not.toMatch(/collect the payment again/i);
+    }
+  });
+
+  it('#977: with an automatic retry scheduled, the chargeback_lost variant says it will collect again', () => {
+    const rendered = renderCommissionPaymentFailedEmail(CTX, {
+      invoiceRef: 'INV-2026-001',
+      commissionCents: 500_000,
+      currency: 'CAD',
+      updateWithinDays: 7,
+      nextRetryAt: new Date('2026-11-20T17:00:00Z'),
+      reason: 'chargeback_lost',
+    });
+    expect(rendered.text).toContain("We'll collect the payment again");
+    expect(rendered.text).not.toContain('Pay now');
+  });
 });
 
 describe('commission-payment-failed dunning copy (#718)', () => {

@@ -796,7 +796,14 @@ export function renderCommissionPaymentFailedEmail(
   // #714: the declined amount is what we tried to charge (incl. tax).
   const commission = formatMoney(input.tax?.totalCents ?? input.commissionCents);
   if (input.reason === 'chargeback_lost') {
-    return renderChargebackLostEmail(ctx, input.invoiceRef, commission, input.currency, cardUrl);
+    return renderChargebackLostEmail(
+      ctx,
+      input.invoiceRef,
+      commission,
+      input.currency,
+      cardUrl,
+      input.nextRetryAt,
+    );
   }
   const subject =
     input.finalNotice === true
@@ -859,7 +866,9 @@ ${fallbackLink(invoicesUrl)}`;
  * #873: Stripe closed a bank chargeback as lost — the builder's bank took
  * the commission payment back, but the commission is still owed (owner
  * decision 2026-11-15), so the invoice is unpaid again and goes through
- * normal collection.
+ * normal collection. `nextRetryAt === null` = no automatic retry is
+ * scheduled (e.g. every allowed retry is used up, #977), so the copy asks
+ * the builder to choose Pay now instead of promising another attempt.
  */
 function renderChargebackLostEmail(
   ctx: TemplateContext,
@@ -867,18 +876,24 @@ function renderChargebackLostEmail(
   commission: string,
   currency: string,
   billingUrl: string,
+  nextRetryAt: Date | null | undefined,
 ): RenderedEmail {
   const subject = `Your bank reversed a payment — invoice ${invoiceRef} is unpaid again`;
+  const payNow = nextRetryAt === null;
+  const nextStep = payNow
+    ? 'Please check that your card on file is up to date, then choose Pay now on your billing page to settle the invoice.'
+    : "Please check that your card on file is up to date. We'll collect the payment again from it.";
+  const cta = payNow ? 'Pay now' : 'Review invoice';
   const body = `<p>Hi there,</p>
 <p>Your bank reversed your card payment for commission invoice <strong>${esc(invoiceRef)}</strong> ($${commission} ${esc(currency)}) after a chargeback. The commission is still owed, so the invoice is now unpaid.</p>
-<p>Please check that your card on file is up to date. We&apos;ll collect the payment again from it.</p>
-${ctaButton(billingUrl, 'Review invoice')}
+<p>${esc(nextStep)}</p>
+${ctaButton(billingUrl, cta)}
 ${fallbackLink(billingUrl)}`;
   const text =
     `Hi there,\n\nYour bank reversed your card payment for commission invoice ${invoiceRef} ` +
     `($${commission} ${currency}) after a chargeback. The commission is still owed, so the invoice is now unpaid.\n\n` +
-    `Please check that your card on file is up to date. We'll collect the payment again from it.\n\n` +
-    `Review invoice: ${billingUrl}\n\n— ${ctx.brandName}\nDeterministic cost math · not a contractor quote · cost data currently uncalibrated.`;
+    `${nextStep}\n\n` +
+    `${cta}: ${billingUrl}\n\n— ${ctx.brandName}\nDeterministic cost math · not a contractor quote · cost data currently uncalibrated.`;
   return { subject, html: layout(ctx, 'Payment reversed', body), text };
 }
 
