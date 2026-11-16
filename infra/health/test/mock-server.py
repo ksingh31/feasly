@@ -1,8 +1,11 @@
 #!/usr/bin/env python3
 """Tiny mock for checks.sh tests (HRD-06).
 
-Usage: mock-server.py <port> <mode>
+Usage: mock-server.py <port> <mode> [port-file]
   mode: healthy | degraded-db | no-checks | http500
+  port 0 lets the OS pick a free port (#897: parallel test runs must not
+  share a fixed port). When port-file is given, the bound port is written
+  there (atomically) once the server is listening.
 
 Serves:
   /           -> 200 "ok"
@@ -11,6 +14,7 @@ Serves:
 Everything else -> 404.
 """
 import json
+import os
 import sys
 from http.server import BaseHTTPRequestHandler, HTTPServer
 
@@ -53,6 +57,13 @@ class Handler(BaseHTTPRequestHandler):
 
 if __name__ == "__main__":
     port, mode = int(sys.argv[1]), sys.argv[2]
+    port_file = sys.argv[3] if len(sys.argv) > 3 else None
     assert mode in MODES or mode == "http500", f"unknown mode {mode}"
     Handler.mode = mode
-    HTTPServer(("127.0.0.1", port), Handler).serve_forever()
+    server = HTTPServer(("127.0.0.1", port), Handler)
+    if port_file:
+        tmp = f"{port_file}.tmp"
+        with open(tmp, "w") as f:
+            f.write(str(server.server_address[1]))
+        os.replace(tmp, port_file)
+    server.serve_forever()
