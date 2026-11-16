@@ -18,7 +18,8 @@
  * remains the backstop for the probe). A throw anywhere else is logged as
  * `CYCLE FAILED` and rethrown so the host records the invocation failure.
  *
- * No PII is logged — only aggregates (retention days, stale hours).
+ * No PII is logged — only aggregates (retention days, restore-point and
+ * newest-backup ages in hours).
  *
  * Bundled by `npm run bundle:functions` into `backup-check-timer/index.js`
  * (self-contained — the Function App has no node_modules).
@@ -34,6 +35,14 @@ export interface TimerFunctionContext {
 }
 
 let cached: AppComposition | undefined;
+
+/**
+ * Log suffix when the newest-backup rule could not run (backup list call
+ * failed) and the check relied on the earliest-restore rule alone.
+ */
+function backupListNote(error: string | null): string {
+  return error ? ` backupList=unavailable (${error})` : '';
+}
 
 function getApp(): AppComposition {
   if (!cached) cached = createComposition();
@@ -82,7 +91,9 @@ export async function runBackupCheckTimer(
     context.log(
       `backup-check-timer: backup chain healthy ` +
         `(retentionDays=${freshness.retentionDays} ` +
-        `staleHours=${freshness.staleHours?.toFixed(1) ?? 'n/a'})`,
+        `staleHours=${freshness.staleHours?.toFixed(1) ?? 'n/a'} ` +
+        `newestBackupHours=${freshness.newestBackupHours?.toFixed(1) ?? 'n/a'}` +
+        `${backupListNote(freshness.newestBackupError)})`,
     );
     return;
   }
@@ -94,7 +105,9 @@ export async function runBackupCheckTimer(
   context.log(
     `backup-check-timer: BACKUP STALE (${freshness.reason}; ` +
       `retentionDays=${freshness.retentionDays ?? 'n/a'} ` +
-      `staleHours=${freshness.staleHours?.toFixed(1) ?? 'n/a'})`,
+      `staleHours=${freshness.staleHours?.toFixed(1) ?? 'n/a'} ` +
+      `newestBackupHours=${freshness.newestBackupHours?.toFixed(1) ?? 'n/a'}` +
+      `${backupListNote(freshness.newestBackupError)})`,
   );
 }
 

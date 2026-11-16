@@ -24,10 +24,25 @@ window, which is what gives the RPO below.
 **Continuous verification:** the daily `backup-check-timer` Function (06:00 UTC)
 queries this server's backup config through ARM with the Function App's
 managed identity and fires the `backup_missed` ops alert (one email per 24h,
-all-clear on recovery) when retention drops below 7 days or the earliest
-restore point goes stale (> 48h old). CI's `backup-config` job
-(`infra/health/check-postgres-backup.sh`, same thresholds) remains as a
-push-time backstop.
+all-clear on recovery) when any of these holds:
+
+- retention drops below 7 days;
+- the **newest completed backup** (ARM `.../flexibleServers/{name}/backups`
+  list) is older than 48h (`BACKUP_CHECK_MAX_STALE_HOURS`), which catches a
+  stopped chain within about 2 days;
+- the **earliest restore point** is older than the whole retention window
+  plus grace (`retentionDays*24 + 48h` = 216h at 7d). This is the same rule as
+  CI's `backup-config` job (`infra/health/check-postgres-backup.sh`), which
+  stays as a push-time backstop.
+
+The earliest restore point is the *oldest* point in the PITR window. On a
+healthy server it keeps getting older until it reaches the retention window
+(168h at 7d) and then stays there, so its age on its own does not mean
+anything is stale. (2026-11-16, #991: the timer compared that age to a flat
+48h and sent a false `BACKUP STALE` once the server was more than 48h old.) If
+the backup list call fails, the timer falls back to the earliest-restore rule
+and adds `backupList=unavailable (…)` to its log line. That is not a probe
+failure.
 
 Token path: the probe acquires its ARM token from the platform-injected
 `IDENTITY_ENDPOINT` / `IDENTITY_HEADER` (the documented managed-identity

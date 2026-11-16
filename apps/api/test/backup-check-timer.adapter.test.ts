@@ -60,6 +60,9 @@ describe('backup-check-timer adapter', () => {
       retentionDays: 7,
       earliestRestore: new Date('2026-09-25T23:00:00Z'),
       staleHours: 1,
+      newestBackup: new Date('2026-09-25T23:30:00Z'),
+      newestBackupHours: 0.5,
+      newestBackupError: null,
       staleSince: null,
       reason: null,
     });
@@ -70,6 +73,34 @@ describe('backup-check-timer adapter', () => {
     expect(notifyRecovered).toHaveBeenCalledWith('backup_missed');
     expect(notifyFailure).not.toHaveBeenCalled();
     expect(String(logs[0]?.[0])).toContain('retentionDays=7');
+    expect(String(logs[0]?.[0])).toContain('newestBackupHours=0.5');
+    expect(String(logs[0]?.[0])).not.toContain('backupList=unavailable');
+  });
+
+  it('notes in the healthy line when the backup list was unavailable', async () => {
+    checkBackupFreshness.mockResolvedValue({
+      healthy: true,
+      probeError: false,
+      server: 'feasly-dev-pg-4fhkep',
+      retentionDays: 7,
+      earliestRestore: new Date('2026-09-19T00:00:00Z'),
+      staleHours: 168,
+      newestBackup: null,
+      newestBackupHours: null,
+      newestBackupError: 'ARM backup list query failed (status 403)',
+      staleSince: null,
+      reason: null,
+    });
+    const logs: unknown[][] = [];
+    await backupCheckTimerHandler({
+      log: (...args: unknown[]) => void logs.push(args),
+    });
+    expect(notifyRecovered).toHaveBeenCalledWith('backup_missed');
+    expect(notifyFailure).not.toHaveBeenCalled();
+    const line = String(logs[0]?.[0]);
+    expect(line).toMatch(/backup chain healthy/);
+    expect(line).toContain('newestBackupHours=n/a');
+    expect(line).toContain('backupList=unavailable (ARM backup list query failed (status 403))');
   });
 
   it('fires the backup_missed alert when the chain is stale', async () => {
@@ -80,6 +111,9 @@ describe('backup-check-timer adapter', () => {
       retentionDays: 7,
       earliestRestore: new Date('2026-09-23T22:00:00Z'),
       staleHours: 50,
+      newestBackup: new Date('2026-09-23T22:00:00Z'),
+      newestBackupHours: 50,
+      newestBackupError: null,
       staleSince: STALE_SINCE,
       reason: 'earliest restore point is 50.0h old',
     });
@@ -106,6 +140,9 @@ describe('backup-check-timer adapter', () => {
       retentionDays: null,
       earliestRestore: null,
       staleHours: null,
+      newestBackup: null,
+      newestBackupHours: null,
+      newestBackupError: null,
       staleSince: null,
       reason: 'could not acquire managed-identity token: boom',
     });
