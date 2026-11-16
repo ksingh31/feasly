@@ -1723,3 +1723,38 @@ export const cityDataCache = pgTable(
   },
   (t) => [index('city_data_cache_expires_at_idx').on(t.expiresAt)],
 );
+
+/**
+ * Builder partners (#888, partner disclosure from #847).
+ *
+ * The builder companies that receive leads from Feasly's own site. The
+ * public disclosure (`GET /api/v1/partners`) lists active rows in
+ * `display_order` (ties by name), so adding a partner later is an admin
+ * action, not a code or copy change. Company names only — no individuals,
+ * no contact details. `builder_id` optionally links the `builders` row that
+ * receives the leads (routing itself is unchanged by this table).
+ */
+export const builderPartners = pgTable(
+  'builder_partners',
+  {
+    /** App-generated UUID (node:crypto). */
+    id: uuid('id').primaryKey(),
+    builderId: uuid('builder_id').references(() => builders.id, {
+      onDelete: 'set null',
+    }),
+    name: text('name').notNull(),
+    logoUrl: text('logo_url'),
+    websiteUrl: text('website_url'),
+    /** Short description / community focus. */
+    description: text('description'),
+    displayOrder: integer('display_order').notNull().default(0),
+    active: boolean('active').notNull().default(true),
+    createdAt: timestamp('created_at', { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+    updatedAt: timestamp('updated_at', { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (t) => [index('builder_partners_active_order_idx').on(t.active, t.displayOrder)],
+);
