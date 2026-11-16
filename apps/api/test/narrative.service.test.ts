@@ -1,17 +1,21 @@
 /**
- * Narrative worker tests (consumer/06).
+ * Report narrative read path (consumer/06, reworked for #759) + the
+ * narrative provider adapters.
  *
- * Covers: happy path, cached result (no second provider call), invented
- * dollar rejection, retry behavior, cross-user 403, invalid/expired bearer,
- * rate limit, provider no-network log mode, Meta provider parsing/error
- * redaction, and store persistence.
+ * Read path: legacy per-estimate narrative → stored community narrative +
+ * deterministic estimate sentence → static guide; auth/ownership; and zero
+ * LLM calls however many reports are viewed (AC2). The provider tests cover
+ * the adapters the monthly community-narrative job uses.
  */
 import { describe, expect, it, vi, beforeEach } from 'vitest';
 import {
   NARRATIVE_FOOTER,
+  validateNarrative,
   type NarrativePrompt,
 } from '@feasly/cost-engine';
 import { createNarrativeService } from '../src/services/narrative.service';
+import { createCommunityNarrativeService } from '../src/services/community-narrative.service';
+import type { CommunityNarrativeStore } from '../src/services/community-narrative.store';
 import { createLogNarrativeProvider } from '../src/services/narrative/providers/log.provider';
 import { createOpenAiCompatibleNarrativeProvider, chatCompletionsUrl } from '../src/services/narrative/providers/openai-compatible.provider';
 import { buildStaticGuideNarrative } from '../src/services/narrative/static-guide';
@@ -26,6 +30,8 @@ import type {
 } from '../src/services/estimate.store';
 import type { MagicLinkStore } from '../src/services/magic-link.store';
 import type { LeadStore } from '../src/services/lead.store';
+
+const COMMUNITY_TEXT = `Beltline is a walkable inner-city neighbourhood. Homes average $750,000 (City-assessed value). ${NARRATIVE_FOOTER}`;
 
 const ESTIMATE_ID = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa';
 const LEAD_ID = 'lead-1';
@@ -130,22 +136,21 @@ function makeStores(estimateOverrides: Partial<EstimateRecord> = {}) {
     getProperty: vi.fn(async () => ({ community: 'Beltline' })),
   } as unknown as import('../src/services/property.service').PropertyService;
 
-  const communityStats = {
-    getBySlug: vi.fn(async (slug: string) =>
+  // Stored monthly community narratives (#759): Beltline has one.
+  const communityNarratives = {
+    findServable: vi.fn(async (slug: string) =>
       slug === 'beltline'
         ? {
-            slug: 'beltline',
-            name: 'Beltline',
-            avgAssessedValue: 750000,
-            assessmentCount: 1234,
-            avgLotSqft: 5000,
-            refreshedAt: new Date('2026-09-01T00:00:00Z'),
+            communitySlug: 'beltline',
+            period: '2026-09',
+            narrative: COMMUNITY_TEXT,
+            generatedAt: new Date('2026-08-31T09:00:00Z'),
           }
         : null,
     ),
-  } as unknown as import('../src/services/community-stats.service').CommunityStatsService;
+  };
 
-  return { estimates, magicLinks, leads, opsAlerts, records, properties, communityStats };
+  return { estimates, magicLinks, leads, opsAlerts, records, properties, communityNarratives };
 }
 
 function makeProvider(text: string): NarrativeProvider & { calls: number } {
@@ -160,280 +165,194 @@ function makeProvider(text: string): NarrativeProvider & { calls: number } {
   return p;
 }
 
-// Valid narrative: no invented dollars, includes the verbatim footer.
-const VALID_TEXT = `This is a valid narrative about the estimate. ${NARRATIVE_FOOTER}`;
 
-describe('narrative service', () => {
+const SENTENCE =
+  'For this 2,200 sq ft new home with a standard finish, our cost model puts the build ' +
+  'cost between $400,000 and $500,000, with a typical figure of $450,000.';
+
+function makeService(estimateOverrides: Partial<EstimateRecord> = {}) {
+  const stores = makeStores(estimateOverrides);
+  const service = createNarrativeService({
+    magicLinks: stores.magicLinks,
+    leads: stores.leads,
+    estimates: stores.estimates,
+    properties: stores.properties,
+    communityNarratives: stores.communityNarratives,
+    clock: () => NOW,
+  });
+  return { service, ...stores };
+}
+
+const SIZED_INPUTS = { sqft: 2200, tier: 'standard', garage: 'none', basement: 'unfinished' };
+
+describe('narrative read path (#759)', () => {
   beforeEach(() => {
     vi.clearAllMocks();
   });
 
-  it('generates and persists narrative on happy path', async () => {
-    const { estimates, magicLinks, leads, opsAlerts, records, properties, communityStats } = makeStores();
-    const provider = makeProvider(VALID_TEXT);
-    const service = createNarrativeService({
-      magicLinks,
-      leads,
-      estimates,
-      provider,
-      opsAlerts,
-      properties,
-      communityStats,
-    });
-
+  it('serves the stored community narrative with the deterministic estimate sentence', async () => {
+    const { service, records } = makeService({ inputs: SIZED_INPUTS });
     const result = await service.generateNarrative(TOKEN, ESTIMATE_ID);
-
-    expect(result.estimateId).toBe(ESTIMATE_ID);
-    expect(result.narrative).toBe(VALID_TEXT);
-    expect(result.cached).toBe(false);
+    expect(result.narrative).toBe(`${SENTENCE}\n\n${COMMUNITY_TEXT}`);
     expect(result.narrativeSource).toBe('ai');
-    expect(provider.calls).toBe(1);
-
-    // Persisted
-    const stored = records.get(ESTIMATE_ID);
-    expect(stored?.narrative).toBe(VALID_TEXT);
-    expect(stored?.narrativeGeneratedAt).toBeInstanceOf(Date);
+    expect(result.cached).toBe(true);
+    expect(result.narrativeGeneratedAt).toBe('2026-08-31T09:00:00.000Z');
+    // Every figure is an engine figure or the community average.
+    const est = records.get(ESTIMATE_ID)!;
+    expect(est.narrative).toBeNull(); // nothing persisted on the estimate
   });
 
-  it('returns cached narrative without calling provider', async () => {
-    const cachedText = `Cached narrative text. ${NARRATIVE_FOOTER}`;
-    const { estimates, magicLinks, leads, opsAlerts, properties, communityStats } = makeStores({
-      narrative: cachedText,
+  it('every $-figure in the served text is from the engine or community stats', async () => {
+    const { service } = makeService({ inputs: SIZED_INPUTS });
+    const result = await service.generateNarrative(TOKEN, ESTIMATE_ID);
+    const figures = result.narrative.match(/\$\s?\d{1,3}(?:,\d{3})*/g) ?? [];
+    expect(new Set(figures)).toEqual(new Set(['$400,000', '$500,000', '$450,000', '$750,000']));
+  });
+
+  it('keeps serving a legacy per-estimate narrative for old reports', async () => {
+    const legacy = `Old narrative. ${NARRATIVE_FOOTER}`;
+    const { service, communityNarratives } = makeService({
+      narrative: legacy,
+      narrativeGeneratedAt: new Date('2026-09-01T00:00:00Z'),
+    });
+    const result = await service.generateNarrative(TOKEN, ESTIMATE_ID);
+    expect(result.narrative).toBe(legacy);
+    expect(result.narrativeSource).toBe('ai');
+    expect(communityNarratives.findServable).not.toHaveBeenCalled();
+  });
+
+  it('never serves a pre-guard synthetic placeholder row', async () => {
+    const { service } = makeService({
+      narrative: 'This is a synthetic narrative placeholder (log provider).',
       narrativeGeneratedAt: NOW,
     });
-    const provider = makeProvider('New narrative that should not be used.');
-    const service = createNarrativeService({
-      magicLinks,
-      leads,
-      estimates,
-      provider,
-      opsAlerts,
-      properties,
-      communityStats,
-    });
-
     const result = await service.generateNarrative(TOKEN, ESTIMATE_ID);
-
-    expect(result.narrative).toBe(cachedText);
-    expect(result.cached).toBe(true);
-    // Cached rows always predate the static guide (never persisted).
-    expect(result.narrativeSource).toBe('ai');
-    expect(provider.calls).toBe(0);
+    expect(result.narrative).toContain(COMMUNITY_TEXT);
   });
 
-  it('rejects invented dollar amounts — then serves the static guide (BE-9)', async () => {
-    const { estimates, magicLinks, leads, opsAlerts, properties, communityStats } = makeStores();
-    // Provider returns text with a dollar amount not in the figures
-    const provider = makeProvider(
-      `This will cost $999,999 which is invented. ${NARRATIVE_FOOTER}`,
-    );
-    const service = createNarrativeService({
-      magicLinks,
-      leads,
-      estimates,
-      provider,
-      opsAlerts,
-      properties,
-      communityStats,
-    });
-
-    // validateNarrative rejects the invented figures on both the initial
-    // attempt and the repair retry — the invented text never reaches the
-    // user. The service then serves the static guide (not a 502).
+  it('serves the static guide for a community with no stored narrative', async () => {
+    const { service, properties } = makeService({ inputs: SIZED_INPUTS });
+    vi.mocked(properties.getProperty).mockResolvedValueOnce({ community: 'Brand New Place' } as never);
     const result = await service.generateNarrative(TOKEN, ESTIMATE_ID);
-    expect(provider.calls).toBe(2); // initial + one repair retry
-    expect(result.narrative).toBe(buildStaticGuideNarrative());
-    expect(result.narrative).not.toContain('$999,999');
+    expect(result.narrative).toBe(`${SENTENCE}\n\n${buildStaticGuideNarrative()}`);
     expect(result.narrativeSource).toBe('static-guide');
-    expect(opsAlerts.notifyFailure).toHaveBeenCalled();
   });
 
-  it('serves the static guide (never persisting) when the provider reports a truncated completion', async () => {
-    const { estimates, magicLinks, leads, opsAlerts, records, properties, communityStats } = makeStores();
-    // Regression: a token-truncated completion (finish_reason=length)
-    // used to flow through with the deterministic footer appended, so
-    // the DB held a cut-off summary that looked complete. The provider
-    // now throws a fatal error instead — the service serves the honest
-    // static guide and never persists the truncated text.
-    const provider: NarrativeProvider = {
-      synthetic: false,
-      generate: async () => {
-        throw new NarrativeProviderError(
-          'LLM API returned a truncated completion (finish_reason=length) for model test-model even at 1600 tokens — refusing to store or serve it',
-          { fatal: true },
-        );
-      },
-    };
-    const service = createNarrativeService({
-      magicLinks,
-      leads,
-      estimates,
-      provider,
-      opsAlerts,
-      properties,
-      communityStats,
-    });
-
+  it('serves the static guide when the community is unknown or the lookup fails', async () => {
+    const { service, properties } = makeService();
+    vi.mocked(properties.getProperty).mockRejectedValueOnce(new Error('City down'));
     const result = await service.generateNarrative(TOKEN, ESTIMATE_ID);
-
-    expect(result.narrative).toBe(buildStaticGuideNarrative());
     expect(result.narrativeSource).toBe('static-guide');
-    expect(opsAlerts.notifyFailure).toHaveBeenCalled();
-    // Never persisted: the next visit retries the AI chain instead of
-    // serving a truncated-looking row from cache.
-    expect(records.get(ESTIMATE_ID)?.narrative).toBeNull();
+    expect(result.narrative).toContain(buildStaticGuideNarrative());
   });
 
-  it('retries once after invalid output then succeeds', async () => {
-    const { estimates, magicLinks, leads, opsAlerts, properties, communityStats } = makeStores();
-    let calls = 0;
-    const provider: NarrativeProvider = {
-      synthetic: false,
-      generate: async (_prompt: NarrativePrompt) => {
-        calls++;
-        if (calls === 1) return { text: 'Bad $123 output.', model: 'test' };
-        return { text: VALID_TEXT, model: 'test' };
+  it('serves the static guide when the stored-narrative read fails', async () => {
+    const { service, communityNarratives } = makeService();
+    communityNarratives.findServable.mockRejectedValueOnce(new Error('db down'));
+    const result = await service.generateNarrative(TOKEN, ESTIMATE_ID);
+    expect(result.narrativeSource).toBe('static-guide');
+  });
+
+  it('describes renovations from the reno total', async () => {
+    const { service } = makeService({
+      projectType: 'renovation',
+      figures: {
+        build: { low: 0, base: 0, high: 0 },
+        total: { low: 184000, base: 230000, high: 288000 },
+        land: { value: 0 },
       },
-    };
-    const service = createNarrativeService({
-      magicLinks,
-      leads,
-      estimates,
-      provider,
-      opsAlerts,
-      properties,
-      communityStats,
     });
-
     const result = await service.generateNarrative(TOKEN, ESTIMATE_ID);
-
-    expect(result.narrative).toBe(VALID_TEXT);
-    expect(calls).toBe(2);
+    expect(result.narrative.startsWith('For this renovation, our cost model puts the cost between $184,000 and $288,000')).toBe(true);
   });
 
-  it('appends the footer deterministically when the model omits it (no 502)', async () => {
-    const { estimates, magicLinks, leads, opsAlerts, properties, communityStats } = makeStores();
-    // Regression: a model upgrade once dropped the verbatim footer and the
-    // worker 502'd on an otherwise good narrative. The footer is now
-    // appended deterministically instead of required from the model.
-    const provider = makeProvider('This is a valid narrative about the estimate.');
-    const service = createNarrativeService({
-      magicLinks,
-      leads,
-      estimates,
-      provider,
-      opsAlerts,
-      properties,
-      communityStats,
-    });
-
+  it('omits the sentence (no crash) for records without a single range', async () => {
+    const { service } = makeService({ projectType: 'comparison' as never, figures: { rowSets: [] } });
     const result = await service.generateNarrative(TOKEN, ESTIMATE_ID);
-
-    expect(result.narrative).toBe(
-      `This is a valid narrative about the estimate.\n\n${NARRATIVE_FOOTER}`,
-    );
-    expect(opsAlerts.notifyFailure).not.toHaveBeenCalled();
+    expect(result.narrative).toBe(COMMUNITY_TEXT);
   });
 
   it('rejects cross-user access with 403', async () => {
-    const { estimates, magicLinks, leads, opsAlerts, properties, communityStats } = makeStores();
-    const provider = makeProvider(VALID_TEXT);
-    const service = createNarrativeService({
-      magicLinks,
-      leads,
-      estimates,
-      provider,
-      opsAlerts,
-      properties,
-      communityStats,
-    });
-
-    // OTHER_TOKEN belongs to OTHER_LEAD_ID which owns a different estimate
-    const error = await service
-      .generateNarrative(OTHER_TOKEN, ESTIMATE_ID)
-      .catch((e) => e);
-    expect(error.status).toBe(403);
-    expect(provider.calls).toBe(0);
+    const { service } = makeService();
+    await expect(service.generateNarrative(OTHER_TOKEN, ESTIMATE_ID)).rejects.toMatchObject({ status: 403 });
   });
 
   it('rejects invalid bearer token with 401', async () => {
-    const { estimates, magicLinks, leads, opsAlerts, properties, communityStats } = makeStores();
-    const provider = makeProvider(VALID_TEXT);
-    const service = createNarrativeService({
-      magicLinks,
-      leads,
-      estimates,
-      provider,
-      opsAlerts,
-      properties,
-      communityStats,
-    });
-
-    const error = await service
-      .generateNarrative('invalid-token', ESTIMATE_ID)
-      .catch((e) => e);
-    expect(error.status).toBe(401);
-    expect(provider.calls).toBe(0);
+    const { service } = makeService();
+    await expect(service.generateNarrative(undefined, ESTIMATE_ID)).rejects.toMatchObject({ status: 401 });
+    await expect(service.generateNarrative('nope', ESTIMATE_ID)).rejects.toMatchObject({ status: 401 });
   });
 
-  it('enforces 5/day rate limit per estimate', async () => {
-    const { estimates, magicLinks, leads, opsAlerts, records, properties, communityStats } = makeStores();
-    const provider = makeProvider(VALID_TEXT);
-    const service = createNarrativeService({
-      magicLinks,
-      leads,
-      estimates,
-      provider,
-      opsAlerts,
-      properties,
-      communityStats,
-    });
-
-    // First 5 should succeed (clear narrative each time to avoid cache)
-    for (let i = 0; i < 5; i++) {
-      const est = records.get(ESTIMATE_ID);
-      if (est) {
-        records.set(ESTIMATE_ID, {
-          ...est,
-          narrative: null,
-          narrativeGeneratedAt: null,
-        });
-      }
-      await service.generateNarrative(TOKEN, ESTIMATE_ID);
-    }
-
-    // 6th should fail
-    const est = records.get(ESTIMATE_ID);
-    if (est) {
-      records.set(ESTIMATE_ID, {
-        ...est,
-        narrative: null,
-        narrativeGeneratedAt: null,
-      });
-    }
-    const error = await service
-      .generateNarrative(TOKEN, ESTIMATE_ID)
-      .catch((e) => e);
-    expect(error.status).toBe(429);
+  it('returns 404 for an unknown or malformed estimate id', async () => {
+    const { service } = makeService();
+    await expect(
+      service.generateNarrative(TOKEN, 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb'),
+    ).rejects.toMatchObject({ status: 404 });
+    await expect(service.generateNarrative(TOKEN, 'not-a-uuid')).rejects.toMatchObject({ status: 404 });
+    await expect(service.generateNarrativeForAdmin('not-a-uuid')).rejects.toMatchObject({ status: 404 });
   });
 
-  it('returns 404 for unknown estimate', async () => {
-    const { estimates, magicLinks, leads, opsAlerts, properties, communityStats } = makeStores();
-    const provider = makeProvider(VALID_TEXT);
-    const service = createNarrativeService({
-      magicLinks,
-      leads,
-      estimates,
-      provider,
-      opsAlerts,
-      properties,
-      communityStats,
-    });
+  it('admin variant uses the same read path without a token', async () => {
+    const { service } = makeService({ inputs: SIZED_INPUTS });
+    const result = await service.generateNarrativeForAdmin(ESTIMATE_ID);
+    expect(result.narrative).toBe(`${SENTENCE}\n\n${COMMUNITY_TEXT}`);
+  });
 
-    const error = await service
-      .generateNarrative(TOKEN, '00000000-0000-4000-8000-000000000000')
-      .catch((e) => e);
-    expect(error.status).toBe(404);
+  it('AC2: viewing 100 reports in one community makes zero LLM calls', async () => {
+    const provider = makeProvider(COMMUNITY_TEXT);
+    const spy = vi.spyOn(provider, 'generate');
+    const stored = {
+      communitySlug: 'beltline',
+      period: '2026-09',
+      narrative: COMMUNITY_TEXT,
+      model: 'm',
+      promptVersion: 'community-v1',
+      status: 'succeeded' as const,
+      attempts: 1,
+      lastError: null,
+      generatedAt: new Date('2026-08-31T09:00:00Z'),
+      updatedAt: new Date('2026-08-31T09:00:00Z'),
+    };
+    const store = { findServable: vi.fn(async () => stored) } as unknown as CommunityNarrativeStore;
+    const communityNarratives = createCommunityNarrativeService({
+      store,
+      provider,
+      opsAlerts: { notifyFailure: vi.fn() },
+      config: {
+        enabled: true,
+        runDay: 'last',
+        retryDays: 3,
+        promptVersion: 'community-v1',
+        maxPerRun: 400,
+        adminBudgetMs: 1000,
+        tickBudgetMs: 1_200_000,
+      },
+      logEvent: () => {},
+    });
+    const stores = makeStores({ inputs: SIZED_INPUTS });
+    const service = createNarrativeService({
+      magicLinks: stores.magicLinks,
+      leads: stores.leads,
+      estimates: stores.estimates,
+      properties: stores.properties,
+      communityNarratives,
+    });
+    for (let i = 0; i < 100; i++) {
+      const result = await service.generateNarrativeForAdmin(ESTIMATE_ID);
+      expect(result.narrative).toContain(COMMUNITY_TEXT);
+    }
+    expect(spy).not.toHaveBeenCalled();
+    expect(store.findServable).toHaveBeenCalledTimes(100);
+  });
+
+  it('the static guide has no dollar figures and the footer exactly once', () => {
+    const guide = buildStaticGuideNarrative();
+    expect(guide).not.toMatch(/\$/);
+    expect(guide.split(NARRATIVE_FOOTER).length - 1).toBe(1);
+    expect(validateNarrative(guide, {
+      costDataVersion: 'v', calibrated: false, rows: [],
+      total: { low: 1, base: 1, high: 1 }, assumptions: [],
+    }).ok).toBe(true);
   });
 });
 
@@ -698,187 +617,6 @@ describe('chatCompletionsUrl', () => {
   });
 });
 
-describe('synthetic placeholder guard (goal_aec0b247775d)', () => {
-  it('serves the static Calgary guide instead of the log provider placeholder (BE-9)', async () => {
-    const { estimates, magicLinks, leads, opsAlerts, records, properties, communityStats } =
-      makeStores();
-    const provider = createLogNarrativeProvider();
-    const service = createNarrativeService({
-      magicLinks,
-      leads,
-      estimates,
-      provider,
-      opsAlerts,
-      properties,
-      communityStats,
-    });
-
-    const result = await service.generateNarrative(TOKEN, ESTIMATE_ID);
-
-    expect(result.estimateId).toBe(ESTIMATE_ID);
-    expect(result.narrative).toBe(buildStaticGuideNarrative());
-    expect(result.narrative).not.toContain('synthetic narrative placeholder');
-    expect(result.narrativeSource).toBe('static-guide');
-    expect(result.cached).toBe(false);
-    // Never persisted: the next read retries the AI chain, it never
-    // serves the guide from the row.
-    expect(records.get(ESTIMATE_ID)?.narrative).toBeNull();
-    expect(opsAlerts.notifyFailure).not.toHaveBeenCalled();
-  });
-
-  it('does not serve a pre-guard placeholder from cache', async () => {
-    // Simulate a row persisted before the guard existed: the literal text
-    // the log provider produces (built by the real provider, so the test
-    // breaks if the placeholder wording ever changes).
-    const placeholder = await createLogNarrativeProvider().generate({
-      system: 's',
-      user: 'u',
-    });
-    const { estimates, magicLinks, leads, opsAlerts, properties, communityStats } =
-      makeStores({
-        narrative: placeholder.text,
-        narrativeGeneratedAt: NOW,
-      });
-    const provider = createLogNarrativeProvider();
-    const service = createNarrativeService({
-      magicLinks,
-      leads,
-      estimates,
-      provider,
-      opsAlerts,
-      properties,
-      communityStats,
-    });
-
-    const result = await service.generateNarrative(TOKEN, ESTIMATE_ID);
-
-    expect(result.narrative).toBe(buildStaticGuideNarrative());
-    expect(result.narrative).not.toContain('synthetic narrative placeholder');
-    expect(result.narrativeSource).toBe('static-guide');
-  });
-
-  it('still serves a real cached narrative (no over-filtering)', async () => {
-    const realText = `A genuine AI summary of the estimate. ${NARRATIVE_FOOTER}`;
-    const { estimates, magicLinks, leads, opsAlerts, properties, communityStats } =
-      makeStores({
-        narrative: realText,
-        narrativeGeneratedAt: NOW,
-      });
-    const provider = createLogNarrativeProvider();
-    const service = createNarrativeService({
-      magicLinks,
-      leads,
-      estimates,
-      provider,
-      opsAlerts,
-      properties,
-      communityStats,
-    });
-
-    const result = await service.generateNarrative(TOKEN, ESTIMATE_ID);
-
-    expect(result.narrative).toBe(realText);
-    expect(result.cached).toBe(true);
-  });
-
-  it('filters synthetic text even when the provider flag is missing (backstop)', async () => {
-    // A provider that forgot `synthetic: true` but emits the marker text
-    // must still have its output dropped. (`synthetic` is required by the
-    // type, so the omission is forced through a cast — a JS caller could
-    // still do this at runtime.)
-    const { estimates, magicLinks, leads, opsAlerts, properties, communityStats } =
-      makeStores();
-    const provider = {
-      generate: async () => ({
-        text: `Oops, a synthetic narrative placeholder leaked. ${NARRATIVE_FOOTER}`,
-        model: 'forgetful-provider',
-      }),
-    } as unknown as NarrativeProvider;
-    const service = createNarrativeService({
-      magicLinks,
-      leads,
-      estimates,
-      provider,
-      opsAlerts,
-      properties,
-      communityStats,
-    });
-
-    const result = await service.generateNarrative(TOKEN, ESTIMATE_ID);
-
-    expect(result.narrative).toBe(buildStaticGuideNarrative());
-    expect(result.narrativeSource).toBe('static-guide');
-  });
-});
-
-describe('narrative prompt community enrichment', () => {
-  it('includes the neighbourhood section in the prompt', async () => {
-    const { estimates, magicLinks, leads, opsAlerts, properties, communityStats } =
-      makeStores();
-    let seen: NarrativePrompt | undefined;
-    const provider: NarrativeProvider = {
-      synthetic: false,
-      generate: async (prompt: NarrativePrompt) => {
-        seen = prompt;
-        return { text: VALID_TEXT, model: 'test-model' };
-      },
-    };
-    const service = createNarrativeService({
-      magicLinks,
-      leads,
-      estimates,
-      provider,
-      opsAlerts,
-      properties,
-      communityStats,
-    });
-
-    await service.generateNarrative(TOKEN, ESTIMATE_ID);
-
-    expect(seen?.user).toContain('Project: New home build in Beltline, Calgary');
-    expect(seen?.user).toContain(
-      'Neighbourhood: Beltline (City of Calgary assessment data, refreshed September 2026)',
-    );
-    expect(seen?.user).toContain(
-      'Average single-family home assessed value: $750,000 (City-assessed value, not market value)',
-    );
-    expect(seen?.system).toContain('Neighbourhood — write for a homebuyer');
-    expect(seen?.system).toContain('Never invent school names or ratings.');
-  });
-
-  it('degrades to city-only facts when community lookups fail', async () => {
-    const { estimates, magicLinks, leads, opsAlerts, communityStats } =
-      makeStores();
-    const failingProperties = {
-      getProperty: async () => {
-        throw new Error('city API down');
-      },
-    } as unknown as import('../src/services/property.service').PropertyService;
-    let seen: NarrativePrompt | undefined;
-    const provider: NarrativeProvider = {
-      synthetic: false,
-      generate: async (prompt: NarrativePrompt) => {
-        seen = prompt;
-        return { text: VALID_TEXT, model: 'test-model' };
-      },
-    };
-    const service = createNarrativeService({
-      magicLinks,
-      leads,
-      estimates,
-      provider,
-      opsAlerts,
-      properties: failingProperties,
-      communityStats,
-    });
-
-    const result = await service.generateNarrative(TOKEN, ESTIMATE_ID);
-
-    expect(result.narrative).toBe(VALID_TEXT);
-    expect(seen?.user).toContain('Project: New home build in Calgary');
-    expect(seen?.user).not.toContain('Neighbourhood:');
-  });
-});
 
 describe('narrative model chain (BE-9)', () => {
   const ENDPOINT = 'https://example.com/v1/chat/completions';
@@ -1101,136 +839,3 @@ describe('narrative model chain (BE-9)', () => {
   });
 });
 
-describe('narrative static-guide fallback (BE-9)', () => {
-  function makeService(provider: NarrativeProvider) {
-    const {
-      estimates,
-      magicLinks,
-      leads,
-      opsAlerts,
-      records,
-      properties,
-      communityStats,
-    } = makeStores();
-    const service = createNarrativeService({
-      magicLinks,
-      leads,
-      estimates,
-      provider,
-      opsAlerts,
-      properties,
-      communityStats,
-    });
-    return { service, opsAlerts, records };
-  }
-
-  it('serves the static guide — not a 502 — when every model fails', async () => {
-    const failing: NarrativeProvider = {
-      synthetic: false,
-      generate: async () => {
-        throw new NarrativeProviderError(
-          'LLM API returned HTTP 503 for model backup-model',
-        );
-      },
-    };
-    const { service, opsAlerts, records } = makeService(failing);
-
-    const result = await service.generateNarrative(TOKEN, ESTIMATE_ID);
-
-    expect(result.narrative).toBe(buildStaticGuideNarrative());
-    expect(result.narrativeSource).toBe('static-guide');
-    expect(result.cached).toBe(false);
-    // Never persisted — the next visit retries the AI chain.
-    expect(records.get(ESTIMATE_ID)?.narrative).toBeNull();
-    // Ops still alerted — the outage stays visible.
-    expect(opsAlerts.notifyFailure).toHaveBeenCalledWith(
-      'narrative_worker_failed',
-      expect.objectContaining({ consecutiveFailures: 1 }),
-    );
-  });
-
-  it('serves the static guide when validation fails after the repair retry', async () => {
-    const { service } = makeService(makeProvider('Bad $123 output.'));
-
-    const result = await service.generateNarrative(TOKEN, ESTIMATE_ID);
-
-    expect(result.narrative).toBe(buildStaticGuideNarrative());
-    expect(result.narrativeSource).toBe('static-guide');
-  });
-
-  it('the static guide has no dollar figures and the footer exactly once', () => {
-    const guide = buildStaticGuideNarrative();
-    expect(guide).not.toMatch(/\$/);
-    expect(guide.split(NARRATIVE_FOOTER).length - 1).toBe(1);
-  });
-
-  it('counts a full model chain as ONE generation against the 5/day budget', async () => {
-    // A chain provider: the primary 503s, the backup succeeds — two HTTP
-    // calls inside a single service request.
-    let calls = 0;
-    const provider = createOpenAiCompatibleNarrativeProvider({
-      targets: [{ label: 'test', apiKey: 'test-key', models: ['primary-model', 'backup-model'], endpoint: 'https://example.com/v1/chat/completions' }],
-      fetchImpl: (async () => {
-        calls++;
-        return calls % 2 === 1
-          ? new Response(JSON.stringify({ error: { message: 'overloaded' } }), {
-              status: 503,
-              headers: { 'content-type': 'application/json' },
-            })
-          : new Response(
-              JSON.stringify({
-                choices: [{ message: { content: VALID_TEXT } }],
-              }),
-              { status: 200, headers: { 'content-type': 'application/json' } },
-            );
-      }) as typeof fetch,
-    });
-    const {
-      estimates,
-      magicLinks,
-      leads,
-      opsAlerts,
-      records,
-      properties,
-      communityStats,
-    } = makeStores();
-    const service = createNarrativeService({
-      magicLinks,
-      leads,
-      estimates,
-      provider,
-      opsAlerts,
-      properties,
-      communityStats,
-    });
-
-    for (let i = 0; i < 5; i++) {
-      const est = records.get(ESTIMATE_ID);
-      if (est) {
-        records.set(ESTIMATE_ID, {
-          ...est,
-          narrative: null,
-          narrativeGeneratedAt: null,
-        });
-      }
-      const result = await service.generateNarrative(TOKEN, ESTIMATE_ID);
-      expect(result.narrativeSource).toBe('ai');
-      expect(result.narrative).toBe(VALID_TEXT);
-    }
-    expect(calls).toBe(10); // 5 service calls × 2 model attempts
-
-    // The 6th service call hits the budget — proving each chain cost one.
-    const est = records.get(ESTIMATE_ID);
-    if (est) {
-      records.set(ESTIMATE_ID, {
-        ...est,
-        narrative: null,
-        narrativeGeneratedAt: null,
-      });
-    }
-    const error = await service
-      .generateNarrative(TOKEN, ESTIMATE_ID)
-      .catch((e) => e);
-    expect(error.status).toBe(429);
-  });
-});

@@ -18,7 +18,11 @@ const EMPTY_REPORT: FunnelReport = {
   from: null,
   to: null,
   tenant: 'all',
+  utmSource: null,
+  utmCampaign: null,
   steps: [],
+  bySource: [],
+  bySourceTruncated: false,
 };
 
 const getFunnel = vi.hoisted(() => vi.fn());

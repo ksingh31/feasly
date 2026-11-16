@@ -5,13 +5,14 @@ import type { AbstractControl } from '@angular/forms';
 import { ActivatedRoute, Router, RouterLink } from '@angular/router';
 import { Store } from '@ngxs/store';
 import { map, of, switchMap, tap } from 'rxjs';
-import type { TimelineOption } from '@feasly/contracts';
+import type { AnalyticsSource, TimelineOption } from '@feasly/contracts';
 import { API_SERVICE } from '../../core/api/api.service';
 import { buildNewBuildRequest } from '../../core/api/build-estimate-request';
 import { cachedPreviewFor, previewRequestKey } from '../../core/api/preview-cache';
 import { ConfigService } from '../../core/config/config.service';
 import { SeoService } from '../../core/seo/seo.service';
-import { BuilderMatchingExplainerComponent, SiteFooterComponent, SiteNavComponent, WizardBackComponent, WizardStepsComponent } from '../../shared/components';
+import { LoadPartners, PartnersState } from '../../core/partners';
+import { BuilderMatchingExplainerComponent, PartnerDisclosureComponent, SiteFooterComponent, SiteNavComponent, WizardBackComponent, WizardStepsComponent } from '../../shared/components';
 import { EmbedState } from '../embed/embed.state';
 import { StoreLeadResult, StorePreviewEstimate, WizardState } from '../wizard';
 import type { WizardStep } from './wizard.actions';
@@ -48,6 +49,7 @@ type GateStatus = 'idle' | 'sending' | 'error';
     ReactiveFormsModule,
     RouterLink,
     BuilderMatchingExplainerComponent,
+    PartnerDisclosureComponent,
     SiteFooterComponent,
     SiteNavComponent,
     WizardBackComponent,
@@ -104,6 +106,19 @@ export class GatePageComponent implements OnInit {
 
   protected status: GateStatus = 'idle';
 
+  /**
+   * #788 minimum time-to-submit: when the form was rendered (monotonic
+   * clock). Each submit sends the elapsed ms; the API quarantines too-fast
+   * submissions against its own configured threshold. The threshold is
+   * never in the client.
+   */
+  private readonly renderedAt = performance.now();
+
+  /** Whole ms since the form was rendered (#788). */
+  private elapsedMs(): number {
+    return Math.max(0, Math.round(performance.now() - this.renderedAt));
+  }
+
   /** EMB-03: embed context from the session-scoped EmbedState. */
   protected readonly embedStatus = this.store.selectSignal(EmbedState.status);
   protected readonly embedConfig = this.store.selectSignal(EmbedState.config);
@@ -119,6 +134,18 @@ export class GatePageComponent implements OnInit {
     return this.embedConfig()?.display_name ?? '';
   }
 
+  /**
+   * #918: Feasly's own site (no embed tenant) — the lead goes to Feasly's
+   * builder partner(s), so the gate shows the partner disclosure. In an
+   * embed the lead goes to that builder (the EMB-03 consent line says so).
+   */
+  protected get isOwnSite(): boolean {
+    return this.embedTenantKey() === null;
+  }
+
+  /** #918: active partners for the disclosure (one request per session). */
+  protected readonly partners = this.store.selectSignal(PartnersState.partners);
+
   /** EMB-03 fail-closed: config failed to load → gate does not render. */
   protected get embedUnavailable(): boolean {
     return this.embedTenantKey() !== null && this.embedStatus() === 'error';
@@ -126,6 +153,9 @@ export class GatePageComponent implements OnInit {
 
   ngOnInit(): void {
     this.seo.setForRoute('estimate/gate');
+    if (this.isOwnSite) {
+      this.store.dispatch(new LoadPartners());
+    }
   }
 
   /**
@@ -175,6 +205,9 @@ export class GatePageComponent implements OnInit {
       this.form.markAllAsTouched();
       return;
     }
+    // #835 funnel: a valid submit (view → submit → convert). Consent-gated
+    // inside AnalyticsService; a retry after an error counts again.
+    this.analytics.track('gate_submit');
     // Comparison mode (NBH-03): the estimateId was already minted by the
     // comparison pipeline — submit the lead against it and unlock.
     if (this.isComparisonFlow) {
@@ -190,6 +223,8 @@ export class GatePageComponent implements OnInit {
       return;
     }
     const values = this.form.getRawValue();
+    // #788: measured at submit time, before any preview round-trip.
+    const elapsedMs = this.elapsedMs();
     // EMB-03: in embed context, the tenant key flows through to the backend
     // for server-side attribution. The backend validates the key against
     // the tenants table — it is never trusted blindly.
@@ -225,7 +260,10 @@ export class GatePageComponent implements OnInit {
               marketingConsent: values.consent,
               // HRD-03 honeypot — empty for humans, filled by bots.
               website: values.website,
+              elapsedMs,
               tenantKey,
+              // #815: campaign attribution, only with analytics consent.
+              ...this.leadSourceField(),
             })
             .pipe(map((lead) => ({ lead, email: values.email.trim(), preview }))),
         ),
@@ -271,6 +309,15 @@ export class GatePageComponent implements OnInit {
   }
 
   /**
+   * #815: the session's campaign attribution for the lead row. Empty unless
+   * analytics consent was granted (#814 decision Q2) and a source exists.
+   */
+  private leadSourceField(): { source?: AnalyticsSource } {
+    const source = this.analytics.leadSource();
+    return source ? { source } : {};
+  }
+
+  /**
    * Comparison lead submit (NBH-03): the comparison estimateId already
    * exists, so the lead attaches directly to it. Success marks the
    * comparison unlocked and returns to /estimate/compare — no analyzing
@@ -297,6 +344,9 @@ export class GatePageComponent implements OnInit {
         marketingConsent: values.consent,
         // HRD-03 honeypot — empty for humans, filled by bots.
         website: values.website,
+        // #788 minimum time-to-submit.
+        elapsedMs: this.elapsedMs(),
+        ...this.leadSourceField(),
       })
       .pipe(takeUntilDestroyed(this.destroyRef))
       .subscribe({

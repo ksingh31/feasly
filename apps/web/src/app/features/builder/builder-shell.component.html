@@ -24,6 +24,11 @@
           ariaCurrentWhenActive="page"
         >{{ copy.teamNavLabel }}</a>
       }
+      <a
+        routerLink="/builder/settings"
+        routerLinkActive="active"
+        ariaCurrentWhenActive="page"
+      >{{ copy.settings.navLabel }}</a>
     </nav>
 
     <div class="builder-shell__account" #accountRoot>
@@ -96,7 +101,12 @@
   }
 
   <main class="builder-shell__main">
-    <router-outlet />
+    @if (accountPaused(); as paused) {
+      <app-builder-paused [message]="paused.message" [isAdmin]="isBuilderAdmin()" />
+    }
+    <div class="builder-shell__page" [hidden]="accountPaused() !== null">
+      <router-outlet />
+    </div>
   </main>
 
   <nav class="builder-shell__tabs" [attr.aria-label]="copy.shellTabsLabel">
@@ -131,5 +141,12 @@
         <span>{{ copy.teamNavLabel }}</span>
       </a>
     }
+    <a routerLink="/builder/settings" routerLinkActive="active" ariaCurrentWhenActive="page">
+      <svg width="22" height="22" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+        <circle cx="12" cy="12" r="3" stroke="currentColor" stroke-width="1.8" />
+        <path d="M12 3v2.5M12 18.5V21M3 12h2.5M18.5 12H21M5.6 5.6l1.8 1.8M16.6 16.6l1.8 1.8M5.6 18.4l1.8-1.8M16.6 7.4l1.8-1.8" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" />
+      </svg>
+      <span>{{ copy.settings.navLabel }}</span>
+    </a>
   </nav>
 </div>

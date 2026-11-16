@@ -215,6 +215,45 @@ describe('SheetsSyncService', () => {
     });
   });
 
+  it('#814: exports campaign attribution columns (empty when absent)', async () => {
+    const tagged = makeLead({
+      id: 'lead-tagged',
+      attribution: {
+        utmSource: 'google',
+        utmMedium: 'cpc',
+        utmCampaign: 'spring-infill',
+        utmTerm: null,
+        utmContent: null,
+        clickIdType: 'gclid',
+      },
+    });
+    const untagged = makeLead({ id: 'lead-untagged' });
+    const { deps, leads, sheets } = makeDeps();
+    vi.mocked(leads.findSheetsSyncCandidates).mockResolvedValue([tagged, untagged]);
+    vi.mocked(leads.findById).mockImplementation(async (id: string) =>
+      id === 'lead-tagged' ? tagged : untagged,
+    );
+
+    const service = createSheetsSyncService(deps);
+    await service.runSyncCycle();
+
+    const rows: readonly SheetLeadRow[] = vi.mocked(sheets.upsertRows).mock
+      .calls[0][0];
+    expect(rows.find((r) => r.leadId === 'lead-tagged')).toMatchObject({
+      utmSource: 'google',
+      utmMedium: 'cpc',
+      utmCampaign: 'spring-infill',
+      utmTerm: '',
+      utmContent: '',
+      clickIdType: 'gclid',
+    });
+    expect(rows.find((r) => r.leadId === 'lead-untagged')).toMatchObject({
+      utmSource: '',
+      utmCampaign: '',
+      clickIdType: '',
+    });
+  });
+
   it('flags opted-out leads in the Sheet payload (never excludes them)', async () => {
     const lead = makeLead({
       contactOptOutAt: new Date('2026-09-26T00:00:00Z'),

@@ -16,6 +16,9 @@ import { createDrizzleMagicLinkStore } from '../src/services/magic-link.store';
 import { createDrizzlePrivacyStore } from '../src/services/privacy.store';
 import { isProblemDetails } from '../src/middleware/errors';
 import { createTestDb, type TestDb } from './pglite-db';
+import { eq } from 'drizzle-orm';
+import { leads } from '../src/db/schema';
+import { API_LEAD_CONSENT_VERSION } from '../src/lib/legal-copy';
 import { createUnsubscribeService } from '../src/services/unsubscribe.service';
 
 const TEST_ENV = {
@@ -119,6 +122,7 @@ describe('lead route', () => {
         sendContractNeedsRecording: async () => ({ sent: true as const, provider: 'log' as const }),
         sendBuilderNewLead: async () => ({ sent: true as const, provider: 'log' as const }),
         sendBuilderNeedsYouDigest: async () => ({ sent: true as const, provider: 'log' as const }),
+        sendErasureConfirmation: async () => ({ sent: true as const, provider: 'log' as const }),
       },
       unsubscribe: createUnsubscribeService({
         leads: leadStore,
@@ -199,6 +203,51 @@ describe('leads through the lead pipeline (PGlite-backed stores)', () => {
     // consumer/02: capture emails the magic link (log provider in tests).
     expect(outcome.magicLinkSent).toBe(true);
     expect(outcome.expiresInDays).toBe(7); // 7-day magic-link TTL (Karan decision 2026-09-24)
+  });
+
+  it('API-key lead (#738): stores the consent attestation and lands in quarantine', async () => {
+    const keyId = '0b6f2b0e-5b7a-4c1e-9d8a-3f1c2e4d5a6b';
+    const outcome = await app.leadPipeline.run(
+      { headers: {}, clientIp: '10.0.7.38' },
+      () =>
+        app.leadRoute.handle(
+          {
+            ...validBody(),
+            email: 'agent-lead@example.com',
+            consent: true,
+            consentVersion: API_LEAD_CONSENT_VERSION,
+          },
+          { keyId, sandbox: false },
+        ),
+    );
+    if (isProblemDetails(outcome)) throw new Error(`unexpected problem: ${outcome.title}`);
+    expect(outcome.magicLinkSent).toBe(false);
+    expect(outcome.reportToken).toBeUndefined();
+    const rows = await testDb.db.select().from(leads).where(eq(leads.id, outcome.leadId));
+    expect(rows).toHaveLength(1);
+    expect(rows[0]!.quarantined).toBe(true);
+    expect(rows[0]!.source).toBe('api');
+    expect(rows[0]!.consentVersion).toBe(API_LEAD_CONSENT_VERSION);
+    expect(rows[0]!.consentAttestedByApiKeyId).toBe(keyId);
+    expect(rows[0]!.consentAttestedAt).toBeInstanceOf(Date);
+  });
+
+  it('API-key lead without an attestation (#738) → 400 CONSENT_REQUIRED, nothing stored', async () => {
+    const outcome = await app.leadPipeline.run(
+      { headers: {}, clientIp: '10.0.7.39' },
+      () =>
+        app.leadRoute.handle(
+          { ...validBody(), email: 'no-attestation@example.com' },
+          { keyId: '0b6f2b0e-5b7a-4c1e-9d8a-3f1c2e4d5a6c', sandbox: false },
+        ),
+    );
+    expect(isProblemDetails(outcome) && outcome.status).toBe(400);
+    expect(isProblemDetails(outcome) && outcome.code).toBe('CONSENT_REQUIRED');
+    const rows = await testDb.db
+      .select()
+      .from(leads)
+      .where(eq(leads.email, 'no-attestation@example.com'));
+    expect(rows).toHaveLength(0);
   });
 
   it('dedups a repeat POST inside the window (same lead id)', async () => {

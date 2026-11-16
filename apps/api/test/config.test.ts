@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from 'vitest';
 import { version as packageVersion } from '../package.json';
 import { loadConfig, parseNarrativeModels, SEED_ADMIN_EMAIL } from '../src/config';
-import { WAITLIST_CONSENT_VERSION } from '../src/lib/legal-copy';
+import { API_LEAD_CONSENT_VERSION, WAITLIST_CONSENT_VERSION } from '../src/lib/legal-copy';
 
 const VALID_ENV = {
   NODE_ENV: 'test',
@@ -24,6 +24,17 @@ describe('loadConfig', () => {
         dedupWindowDays: 90,
         needsYouStaleDays: 7,
         needsYouScanLimit: 500,
+        minSubmitMs: 2_000,
+        callbackDateWindowDays: 14,
+      },
+      botChallenge: {
+        enabled: false,
+        siteKey: '',
+        secretKey: '',
+        verifyUrl: 'https://challenges.cloudflare.com/turnstile/v0/siteverify',
+        verifyTimeoutMs: 5_000,
+        windowMs: 86_400_000,
+        verifyRateLimit: { windowMs: 3_600_000, maxRequests: 10 },
       },
       estimate: {
         rateLimit: { windowMs: 3_600_000, maxRequests: 20 },
@@ -31,6 +42,11 @@ describe('loadConfig', () => {
       },
       analytics: {
         rateLimit: { windowMs: 60_000, maxRequests: 300 },
+        funnelSourceGroupLimit: 25,
+      },
+      webTelemetry: {
+        rateLimit: { windowMs: 60_000, maxRequests: 10 },
+        maxTracesPerMinute: 60,
       },
       adminSearch: {
         ipRateLimit: { windowMs: 60_000, maxRequests: 300 },
@@ -47,6 +63,8 @@ describe('loadConfig', () => {
         magicLinkReissueCooldownMs: 60_000,
         // P1-6: max magic-link sends per email per hour (default 5).
         magicLinkMaxSendsPerHour: 5,
+        // #806: erase-confirmation link lifetime (default 24 h).
+        eraseConfirmLinkTtlSeconds: 86_400,
         adminApiKey: undefined,
         adminSessionTtlSeconds: 43_200,
         adminSessionIdleTimeoutSeconds: 3_600,
@@ -152,7 +170,23 @@ describe('loadConfig', () => {
         httpTimeoutMs: 3_000,
       },
       // #687: zoning rules catalogue city + public cache lifetime.
-      zoning: { city: 'calgary', cacheMaxAgeSeconds: 3_600 },
+      zoning: {
+        city: 'calgary',
+        cacheMaxAgeSeconds: 3_600,
+        // #757: daily City-source watcher (no token = detect, file no issue).
+        freshnessCacheTtlMs: 300_000,
+        watch: {
+          enabled: true,
+          socrataBaseUrl: 'https://data.calgary.ca',
+          landUseDatasetId: 'qe6k-p9nh',
+          bylawPageUrl:
+            'https://www.calgary.ca/pda/pd/calgary-land-use-bylaw-1p2007/calgary-land-use-bylaw-1p2007.html',
+          httpTimeoutMs: 15_000,
+          githubRepo: 'ksingh31/feasly',
+          githubToken: '',
+          githubApiUrl: 'https://api.github.com',
+        },
+      },
       // #888: builder partner list caches (in-memory TTL + HTTP max-age).
       partners: { cacheTtlMs: 300_000, cacheMaxAgeSeconds: 300 },
       // trust-strip/01: landing "Refreshed <Month Year>" from the Socrata
@@ -208,6 +242,21 @@ describe('loadConfig', () => {
         enabled: false,
         delayHours: 72,
       },
+      jobQueue: {
+        batchSize: 50,
+        maxAttempts: 5,
+        backoffBaseSeconds: 300,
+        backoffMaxSeconds: 21_600,
+        lockTimeoutSeconds: 900,
+      },
+      reminders: {
+        unfinishedDelayHours: 24,
+        maxPerRun: 500,
+      },
+      shareLink: {
+        ttlSeconds: 604_800,
+        maxActive: 5,
+      },
       builderNotifications: {
         enabled: true,
         maxAttempts: 5,
@@ -216,10 +265,53 @@ describe('loadConfig', () => {
         digestLocalHour: 7,
         digestTimeZone: 'America/Edmonton',
       },
+      builderSettings: {
+        supportEmail: SEED_ADMIN_EMAIL,
+        supportResponseTime: 'within 1 business day',
+        embedLiveWindowDays: 7,
+        embedLoaderUrl: 'https://feasly.example/embed/v1/loader.js',
+      },
       communityStatsRefresh: {
         minAssessmentCount: 10,
         alertAfterConsecutiveFailures: 2,
         pruneMinRows: 100,
+      },
+      neighbourhoodData: {
+        providers: {
+          schoolDirectory: 'calgary-open-data',
+          schoolDesignation: 'none',
+          schoolRatings: 'none',
+          reviews: 'none',
+          amenities: 'calgary-open-data',
+          commute: 'straight-line',
+        },
+        socrataBaseUrl: 'https://data.calgary.ca',
+        schoolsDatasetId: 'fd9t-tdn2',
+        amenityCategories: [
+          expect.objectContaining({ key: 'parks', datasetId: 'kami-qbfh' }),
+          expect.objectContaining({ key: 'playgrounds', datasetId: 'bdu9-amk8' }),
+          expect.objectContaining({ key: 'pathways', datasetId: 'qndb-27qm' }),
+          expect.objectContaining({ key: 'rec-centres', datasetId: 'hxfu-6d96' }),
+          expect.objectContaining({ key: 'pools', datasetId: 'hxfu-6d96' }),
+          expect.objectContaining({ key: 'libraries', datasetId: 'x34e-bcjz', where: "type='Library'" }),
+          expect.objectContaining({ key: 'off-leash', datasetId: 'enr4-crti' }),
+        ],
+        publicTreesDatasetId: 'tfs4-3wwa',
+        communityBoundariesDatasetId: 'surr-xmvs',
+        treeCoverThresholds: [11, 16],
+        amenitySearchRadiusM: 3_000,
+        amenityCountRadiiM: [500, 1_000],
+        communityMetricsTtlMs: 86_400_000,
+        communityPointsDatasetId: 'j9ps-fyst',
+        communityClass: 'Residential',
+        communityStructures: ['INNER CITY', '1950s', '1960s/1970s'],
+        commuteDestination: { name: 'Downtown', lat: 51.0453, lng: -114.0581 },
+        httpTimeoutMs: 15_000,
+        maxRows: 50_000,
+        refreshDayOfMonth: 1,
+        alertAfterFailureDays: 3,
+        lotRadiusM: 1_000,
+        lotMetricsTtlMs: 2_592_000_000,
       },
       backupCheck: {
         enabled: false,
@@ -256,6 +348,17 @@ describe('loadConfig', () => {
           models: ['openai/gpt-oss-120b'],
         },
       },
+      communityNarratives: {
+        enabled: true,
+        schedule: '0 0 9 * * *',
+        runDay: 'last',
+        retryDays: 3,
+        models: ['gemini-3.8-flash'],
+        promptVersion: 'community-v1',
+        maxPerRun: 400,
+        adminBudgetMs: 60_000,
+        tickBudgetMs: 1_200_000,
+      },
       embed: {
         relayCodeTtlSeconds: 600,
         relayResendCooldownSeconds: 60,
@@ -264,12 +367,60 @@ describe('loadConfig', () => {
       waitlist: {
         consentVersion: WAITLIST_CONSENT_VERSION,
       },
+      apiAccess: {
+        dailyQuota: 100,
+        monthlyQuota: 2_000,
+        leadConsentVersion: API_LEAD_CONSENT_VERSION,
+        quarantineLeads: true,
+      },
+    });
+  });
+
+  it('reads the agent API quotas, consent version and quarantine flag (#738)', () => {
+    const config = loadConfig({
+      ...VALID_ENV,
+      API_KEY_DAILY_QUOTA: '5',
+      API_KEY_MONTHLY_QUOTA: '50',
+      API_LEAD_CONSENT_VERSION: ' api-lead-2027-01-01 ',
+      API_KEY_LEADS_QUARANTINE: 'false',
+    });
+    expect(config.apiAccess).toEqual({
+      dailyQuota: 5,
+      monthlyQuota: 50,
+      leadConsentVersion: 'api-lead-2027-01-01',
+      quarantineLeads: false,
     });
   });
 
   it('reads the waitlist consent version from WAITLIST_CONSENT_VERSION (#740)', () => {
     const config = loadConfig({ ...VALID_ENV, WAITLIST_CONSENT_VERSION: ' waitlist-2027-01-01 ' });
     expect(config.waitlist.consentVersion).toBe('waitlist-2027-01-01');
+  });
+
+  it('reads LEAD_MIN_SUBMIT_MS (#788), allows 0 and rejects negatives', () => {
+    expect(loadConfig({ ...VALID_ENV, LEAD_MIN_SUBMIT_MS: '4500' }).lead.minSubmitMs).toBe(4_500);
+    expect(loadConfig({ ...VALID_ENV, LEAD_MIN_SUBMIT_MS: '0' }).lead.minSubmitMs).toBe(0);
+    expect(() => loadConfig({ ...VALID_ENV, LEAD_MIN_SUBMIT_MS: '-1' })).toThrow(/LEAD_MIN_SUBMIT_MS/);
+  });
+
+  it('enables the bot challenge (#788) only when both the Turnstile site key and secret are set', () => {
+    expect(loadConfig({ ...VALID_ENV, TURNSTILE_SITE_KEY: 'site' }).botChallenge.enabled).toBe(false);
+    expect(loadConfig({ ...VALID_ENV, TURNSTILE_SECRET_KEY: 'secret' }).botChallenge.enabled).toBe(false);
+    const config = loadConfig({
+      ...VALID_ENV,
+      TURNSTILE_SITE_KEY: 'site',
+      TURNSTILE_SECRET_KEY: 'secret',
+      BOT_CHALLENGE_WINDOW_MS: '3600000',
+      BOT_CHALLENGE_VERIFY_MAX_ATTEMPTS: '5',
+      BOT_CHALLENGE_VERIFY_WINDOW_MS: '600000',
+    });
+    expect(config.botChallenge).toMatchObject({
+      enabled: true,
+      siteKey: 'site',
+      secretKey: 'secret',
+      windowMs: 3_600_000,
+      verifyRateLimit: { windowMs: 600_000, maxRequests: 5 },
+    });
   });
 
   it('reads the reno draft-data flag from COST_ENGINE_ALLOW_DRAFT', () => {
@@ -408,6 +559,33 @@ describe('loadConfig', () => {
     expect(() =>
       loadConfig({ ...VALID_ENV, BUILDER_DIGEST_TIMEZONE: 'America/Edmonon' }),
     ).toThrow(/BUILDER_DIGEST_TIMEZONE/);
+  });
+
+  it('reads the builder settings keys (#870)', () => {
+    const cfg = loadConfig({
+      ...VALID_ENV,
+      BUILDER_SUPPORT_EMAIL: 'help@builder-support.example',
+      BUILDER_SUPPORT_RESPONSE_TIME: 'within 2 business days',
+      BUILDER_EMBED_LIVE_WINDOW_DAYS: '14',
+      APP_BASE_URL: 'https://app.example.com/',
+    }).builderSettings;
+    expect(cfg).toEqual({
+      supportEmail: 'help@builder-support.example',
+      supportResponseTime: 'within 2 business days',
+      embedLiveWindowDays: 14,
+      embedLoaderUrl: 'https://app.example.com/embed/v1/loader.js',
+    });
+    // Unset support address falls back to the (deliverable) team inbox.
+    expect(
+      loadConfig({ ...VALID_ENV, OPS_INBOX_EMAIL: 'team@ops.example' })
+        .builderSettings.supportEmail,
+    ).toBe('team@ops.example');
+    expect(() =>
+      loadConfig({ ...VALID_ENV, BUILDER_SUPPORT_EMAIL: 'not-an-email' }),
+    ).toThrow(/BUILDER_SUPPORT_EMAIL/);
+    expect(() =>
+      loadConfig({ ...VALID_ENV, BUILDER_EMBED_LIVE_WINDOW_DAYS: '0' }),
+    ).toThrow(/BUILDER_EMBED_LIVE_WINDOW_DAYS/);
   });
 
   it('reads BILLING_STATEMENT_DESCRIPTOR (#716) and enforces Stripe descriptor rules', () => {
@@ -721,6 +899,26 @@ describe('parseNarrativeModels (BE-9)', () => {
   it('throws on an empty list so a misconfigured deployment fails fast', () => {
     expect(() => parseNarrativeModels('')).toThrow(/NARRATIVE_MODELS/);
     expect(() => parseNarrativeModels(' , ')).toThrow(/NARRATIVE_MODELS/);
+  });
+
+  it('reads the community-narrative overrides (#759)', () => {
+    const config = loadConfig({
+      ...VALID_ENV,
+      NARRATIVE_MODELS: 'm1',
+      COMMUNITY_NARRATIVE_MODELS: 'c1, c2',
+      COMMUNITY_NARRATIVE_RUN_DAY: '25',
+      COMMUNITY_NARRATIVE_PROMPT_VERSION: 'community-v2',
+      COMMUNITY_NARRATIVE_ENABLED: 'false',
+    });
+    expect(config.communityNarratives).toMatchObject({
+      enabled: false,
+      runDay: 25,
+      models: ['c1', 'c2'],
+      promptVersion: 'community-v2',
+    });
+    // Empty override falls back to NARRATIVE_MODELS.
+    expect(loadConfig({ ...VALID_ENV, NARRATIVE_MODELS: 'm1' }).communityNarratives.models).toEqual(['m1']);
+    expect(() => loadConfig({ ...VALID_ENV, COMMUNITY_NARRATIVE_RUN_DAY: '31' })).toThrow();
   });
 
   it('reads a custom NARRATIVE_MODELS and NARRATIVE_TIMEOUT_MS from env', () => {

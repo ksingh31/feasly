@@ -20,6 +20,13 @@
  *     trust footer noting deterministic math + uncalibrated cost data.
  */
 
+import {
+  PRESALE_TIMELINE_NOTE,
+  formatPhaseRange,
+  formatTimelineTotal,
+  type BuildTimeline,
+} from '../../lib/build-timeline';
+
 export interface TemplateContext {
   /** Where magic links / resume links point (config APP_BASE_URL). */
   readonly appBaseUrl: string;
@@ -31,6 +38,12 @@ export interface TemplateContext {
    */
   readonly unsubscribeBaseUrl: string;
   readonly brandName: string;
+  /**
+   * #823: typical build timeline for the served city. When present, the
+   * consumer report email for a NEW-BUILD estimate carries a compact
+   * timeline block (see `MagicLinkTemplateInput.projectType`).
+   */
+  readonly buildTimeline?: BuildTimeline;
 }
 
 export interface RenderedEmail {
@@ -128,10 +141,51 @@ export interface MagicLinkTemplateInput {
    * (America/Edmonton); falls back to `expiresInDays` when absent.
    */
   readonly expiresOn?: Date;
+  /**
+   * #823 (consumer only): the estimate's project type. The typical
+   * new-build timeline renders only for `'new_build'` — renovation reports
+   * hide the timeline section on the web, so their email must too. Absent
+   * (unknown) → no timeline block.
+   */
+  readonly projectType?: string;
 }
 
 const TRUST_LINE_TEXT =
   'Deterministic cost math · not a contractor quote · cost data currently uncalibrated.';
+
+const TIMELINE_TITLE = 'Typical new-build timeline';
+
+/**
+ * #823: compact "typical" timeline block for the consumer report email —
+ * total, phases, the pre-sale note. Typical ranges, never a promise; no
+ * dollar figures. Empty strings when no timeline is configured.
+ */
+function renderTimelineBlock(timeline: BuildTimeline | undefined): {
+  html: string;
+  text: string;
+} {
+  if (!timeline || timeline.phases.length === 0) {
+    return { html: '', text: '' };
+  }
+  const total = formatTimelineTotal(timeline);
+  const rows = timeline.phases
+    .map(
+      (p) =>
+        `<tr><td style="padding:4px 12px 4px 0;">${esc(p.label)}</td><td style="padding:4px 0;color:#5c574f;white-space:nowrap;">${esc(formatPhaseRange(p))}</td></tr>`,
+    )
+    .join('\n');
+  const html = `<h2 style="font-size:16px;margin:20px 0 4px;color:#232323;">${esc(TIMELINE_TITLE)}</h2>
+<p style="margin:0 0 8px;font-weight:600;">${esc(total)}</p>
+<table role="presentation" cellpadding="0" cellspacing="0" style="font-size:14px;margin:0 0 8px;">
+${rows}
+</table>
+<p style="font-size:14px;color:#5c574f;margin:0 0 12px;">${esc(PRESALE_TIMELINE_NOTE)}</p>`;
+  const text =
+    `${TIMELINE_TITLE}\n${total}\n` +
+    timeline.phases.map((p) => `- ${p.label}: ${formatPhaseRange(p)}`).join('\n') +
+    `\n${PRESALE_TIMELINE_NOTE}`;
+  return { html, text };
+}
 
 /**
  * Consumer report email (#703). Names the property, lists what the report
@@ -168,6 +222,9 @@ function renderConsumerReportEmail(
   const linkRules = `This link works ${until}. You can open it as often as you like, on any device.`;
   const freshLink =
     'After that, open the same link and enter your email address — we will send you a fresh one.';
+  const timeline = renderTimelineBlock(
+    input.projectType === 'new_build' ? ctx.buildTimeline : undefined,
+  );
   const body = `<p>${greetingHtml}</p>
 <p>${introHtml}</p>
 <p style="margin:0 0 4px;">Your report includes:</p>
@@ -177,12 +234,14 @@ ${contents.map((c) => `<li>${esc(c)}</li>`).join('\n')}
 ${ctaButton(input.magicLinkUrl, ctaLabel)}
 <p>${esc(linkRules)}</p>
 <p style="font-size:14px;color:#5c574f;">${esc(freshLink)}</p>
-${fallbackLink(input.magicLinkUrl)}`;
+${timeline.html}${fallbackLink(input.magicLinkUrl)}`;
   const footerUrl = input.unsubscribeUrl;
   const text =
     `${greetingText}\n\n${introText}\n\nYour report includes:\n` +
     contents.map((c) => `- ${c}`).join('\n') +
-    `\n\n${ctaLabel}: ${input.magicLinkUrl}\n\n${linkRules}\n${freshLink}\n\n— ${ctx.brandName}\n${TRUST_LINE_TEXT}` +
+    `\n\n${ctaLabel}: ${input.magicLinkUrl}\n\n${linkRules}\n${freshLink}` +
+    (timeline.text ? `\n\n${timeline.text}` : '') +
+    `\n\n— ${ctx.brandName}\n${TRUST_LINE_TEXT}` +
     (footerUrl ? `\n\n${leadEmailFooterText(footerUrl)}` : '');
   return {
     subject,
@@ -320,6 +379,41 @@ ${fallbackLink(input.shareUrl)}
 <p style="font-size:13px;color:#8a8378;">This link is personal to you. Please don't forward it — ask the sender for a fresh one if someone else needs access.</p>`;
   const text = `${input.partnerName ? `Hi ${input.partnerName},` : 'Hi there,'}\n\n${input.ownerName ? `${input.ownerName} shared` : 'Someone shared'} their ${ctx.brandName} build estimate with you.\n${input.note ? `\n"${input.note}"\n` : ''}\nView the shared estimate (private link, expires in ${input.expiresInDays} days): ${input.shareUrl}\n\nThis link is personal to you — please don't forward it.\n\n— ${ctx.brandName}\nDeterministic cost math · not a contractor quote · cost data currently uncalibrated.`;
   return { subject, html: layout(ctx, 'An estimate was shared with you', body), text };
+}
+
+export interface ErasureConfirmationTemplateInput {
+  readonly name?: string;
+  /**
+   * `${appBaseUrl}/privacy/confirm/${requestId}#token=${token}` — minted by
+   * the privacy service. The token rides in the fragment so it never
+   * reaches a server log.
+   */
+  readonly confirmUrl: string;
+  /** Hours until the confirm link expires — from config, never hardcoded. */
+  readonly expiresInHours: number;
+}
+
+/**
+ * #806: step 2 of self-service erasure (owner decision on #706: deletion
+ * with email confirmation). Transactional — the person asked for it — so
+ * no unsubscribe footer. Nothing is deleted until the link is clicked and
+ * the landing page's button is pressed.
+ */
+export function renderErasureConfirmationEmail(
+  ctx: TemplateContext,
+  input: ErasureConfirmationTemplateInput,
+): RenderedEmail {
+  const greeting = input.name ? `Hi ${esc(input.name)},` : 'Hi there,';
+  const hours = `${input.expiresInHours} hour${input.expiresInHours === 1 ? '' : 's'}`;
+  const subject = `Confirm you want to delete your ${ctx.brandName} data`;
+  const body = `<p>${greeting}</p>
+<p>We got a request to delete the data ${esc(ctx.brandName)} holds about you. Nothing has been deleted yet.</p>
+<p>To go ahead, open this link and confirm. The link expires in ${hours}.</p>
+${ctaButton(input.confirmUrl, 'Review and confirm deletion')}
+${fallbackLink(input.confirmUrl)}
+<p style="font-size:13px;color:#8a8378;">Didn't ask for this? Ignore this email and your data stays as it is.</p>`;
+  const text = `${input.name ? `Hi ${input.name},` : 'Hi there,'}\n\nWe got a request to delete the data ${ctx.brandName} holds about you. Nothing has been deleted yet.\n\nTo go ahead, open this link and confirm (the link expires in ${hours}):\n${input.confirmUrl}\n\nDidn't ask for this? Ignore this email and your data stays as it is.\n\n— ${ctx.brandName}`;
+  return { subject, html: layout(ctx, 'Confirm your data deletion', body), text };
 }
 
 export interface CallbackTeamTemplateInput {
@@ -658,6 +752,8 @@ export interface CommissionPaymentFailedTemplateInput {
    * the copy never claims the failed attempt itself was automatic.
    */
   readonly finalNotice?: boolean;
+  /** 'chargeback_lost' renders the #873 "payment reversed" variant. */
+  readonly reason?: 'declined' | 'chargeback_lost';
   readonly tax?: CommissionEmailTax;
 }
 
@@ -699,6 +795,9 @@ export function renderCommissionPaymentFailedEmail(
   const cardUrl = `${ctx.appBaseUrl}/builder/billing`;
   // #714: the declined amount is what we tried to charge (incl. tax).
   const commission = formatMoney(input.tax?.totalCents ?? input.commissionCents);
+  if (input.reason === 'chargeback_lost') {
+    return renderChargebackLostEmail(ctx, input.invoiceRef, commission, input.currency, cardUrl);
+  }
   const subject =
     input.finalNotice === true
       ? `Final notice: invoice ${input.invoiceRef} is unpaid`
@@ -754,6 +853,33 @@ ${fallbackLink(invoicesUrl)}`;
     `or open your billing page to switch this invoice to your card on file.\n\n` +
     `View invoice: ${invoicesUrl}\n\n— ${ctx.brandName}\nDeterministic cost math · not a contractor quote · cost data currently uncalibrated.`;
   return { subject, html: layout(ctx, 'Payment past due', body), text };
+}
+
+/**
+ * #873: Stripe closed a bank chargeback as lost — the builder's bank took
+ * the commission payment back, but the commission is still owed (owner
+ * decision 2026-11-15), so the invoice is unpaid again and goes through
+ * normal collection.
+ */
+function renderChargebackLostEmail(
+  ctx: TemplateContext,
+  invoiceRef: string,
+  commission: string,
+  currency: string,
+  billingUrl: string,
+): RenderedEmail {
+  const subject = `Your bank reversed a payment — invoice ${invoiceRef} is unpaid again`;
+  const body = `<p>Hi there,</p>
+<p>Your bank reversed your card payment for commission invoice <strong>${esc(invoiceRef)}</strong> ($${commission} ${esc(currency)}) after a chargeback. The commission is still owed, so the invoice is now unpaid.</p>
+<p>Please check that your card on file is up to date. We&apos;ll collect the payment again from it.</p>
+${ctaButton(billingUrl, 'Review invoice')}
+${fallbackLink(billingUrl)}`;
+  const text =
+    `Hi there,\n\nYour bank reversed your card payment for commission invoice ${invoiceRef} ` +
+    `($${commission} ${currency}) after a chargeback. The commission is still owed, so the invoice is now unpaid.\n\n` +
+    `Please check that your card on file is up to date. We'll collect the payment again from it.\n\n` +
+    `Review invoice: ${billingUrl}\n\n— ${ctx.brandName}\nDeterministic cost math · not a contractor quote · cost data currently uncalibrated.`;
+  return { subject, html: layout(ctx, 'Payment reversed', body), text };
 }
 
 /* ── #712: the bank wants the builder to confirm the charge (3DS / SCA) ──

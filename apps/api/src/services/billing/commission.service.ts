@@ -33,11 +33,11 @@
  * Only services and composition.ts may import from src/db/ — enforced by
  * test/boundaries.test.ts.
  */
-import { and, desc, eq, ilike, inArray, isNotNull, isNull, lt, lte, ne, sql } from 'drizzle-orm';
+import { and, desc, eq, ilike, inArray, isNotNull, isNull, lt, lte, ne, notExists, sql } from 'drizzle-orm';
 import { randomUUID } from 'node:crypto';
 import type { BillingConfig } from '../../config';
 import type { AppDb } from '../../db/client';
-import { builderAllowlist, builders, commissionInvoices, leads, tenants } from '../../db/schema';
+import { billingEvents, builderAllowlist, builders, commissionInvoices, leads, tenants } from '../../db/schema';
 import { HttpError, ErrorCodes } from '../../middleware/errors';
 import {
   computeCommissionCents,
@@ -78,6 +78,7 @@ import { ensureOpsAlertDelivered } from '../ops-alerts.service';
 import type { ManualPaymentMethod } from '@feasly/contracts';
 import type { BuilderPaymentMethod } from '@feasly/contracts';
 import type { ChargeOutcome, ConfirmInvoicePaymentResponse } from '@feasly/contracts';
+import type { ChargebackStatus } from '@feasly/contracts';
 
 export type CommissionInvoiceStatus =
   | 'draft'
@@ -184,6 +185,12 @@ export interface CommissionInvoiceRecord {
   readonly dueAt: Date | null;
   /** Whole days past `dueAt`; 0 when not overdue. */
   readonly overdueDays: number;
+   * Bank chargeback state (#719): null = none; 'open' while Stripe's
+   * dispute is live (retryCharge refuses); then won | lost | warning_closed.
+   */
+  readonly chargebackStatus: ChargebackStatus | null;
+  /** Cumulative amount refunded on the charge, integer cents (#719). */
+  readonly refundedCents: number;
   readonly createdAt: Date;
   readonly updatedAt: Date;
 }
@@ -397,6 +404,22 @@ export interface CommissionService {
     options?: SettlementOptions,
   ): Promise<CommissionInvoiceRecord>;
   /**
+   * #873 (owner decision 2026-11-15): Stripe closed a bank chargeback as
+   * LOST, so the money went back to the builder but the commission is still
+   * owed. `paid → failed` (the dunning queue + admin retry / builder pay
+   * flow collect it again), one `invoice.charge_failed` audit row with
+   * `source: 'chargeback_lost'`, and the builder's "payment reversed"
+   * email. Only this path may move a paid invoice to failed.
+   *
+   * Idempotent and repairable per dispute: a redelivery that finds the
+   * invoice already failed with no audit row for this dispute finishes the
+   * audit + email; one that finds the audit row does nothing. Any other
+   * status (void, disputed, …) is left alone → `reopened: false`.
+   */
+  reopenAfterLostChargeback(
+    input: LostChargebackReopenInput,
+  ): Promise<{ readonly reopened: boolean }>;
+  /**
    * #712 webhook: payment_intent.requires_action — the bank wants the
    * builder to confirm the charge. `finalized → action_required` + the
    * "confirm this payment" email, exactly once. No-op when the invoice is
@@ -505,6 +528,15 @@ export interface CommissionService {
       status?: string[];
     },
   ): Promise<CommissionInvoiceRecord[]>;
+}
+
+/** #873: what reopenAfterLostChargeback needs to key and audit the move. */
+export interface LostChargebackReopenInput {
+  readonly invoiceId: string;
+  /** billing_disputes.id of the lost chargeback (idempotency key). */
+  readonly disputeId: string;
+  readonly stripeDisputeId: string | null;
+  readonly stripeEventId: string;
 }
 
 export interface CommissionServiceDeps {
@@ -713,6 +745,8 @@ function toRecord(
     collectionsAt: row.collectionsAt,
     dueAt,
     overdueDays: dueAt === null ? 0 : daysOverdue(dueAt, dunning.now),
+    chargebackStatus: row.chargebackStatus as ChargebackStatus | null,
+    refundedCents: row.refundedCents,
     createdAt: row.createdAt,
     updatedAt: row.updatedAt,
   };
@@ -976,7 +1010,8 @@ export function createCommissionService(
     | 'payment_received'
     | 'payment_failed'
     | 'payment_action_required'
-    | 'invoice_overdue';
+    | 'invoice_overdue'
+    | 'chargeback_lost';
 
   /**
    * BILL-04: send a builder billing notification. Never throws — a failed
@@ -1082,6 +1117,8 @@ export function createCommissionService(
         updateWithinDays: invoice.retryGraceDays,
         nextRetryAt: invoice.nextRetryAt,
         finalNotice: options.finalNotice === true,
+        // #873: a lost chargeback reuses the dunning email with its own copy.
+        ...(kind === 'chargeback_lost' ? { reason: 'chargeback_lost' as const } : {}),
         ...emailTax(invoice),
       });
     }
@@ -1674,6 +1711,14 @@ export function createCommissionService(
           `Invoice "${invoiceId}" is disputed — disputed invoices can never be retried`,
         );
       }
+      if (row.chargebackStatus === 'open') {
+        // #719: no further charge attempts while a bank chargeback is live.
+        throw new HttpError(
+          409,
+          ErrorCodes.CONFLICT,
+          `Invoice "${invoiceId}" has an open chargeback — charges are paused until Stripe closes it`,
+        );
+      }
       if (row.status !== 'failed') {
         throw new HttpError(
           409,
@@ -2212,6 +2257,81 @@ export function createCommissionService(
         },
       });
       return record;
+    },
+
+    async reopenAfterLostChargeback(input): Promise<{ readonly reopened: boolean }> {
+      // Not model-gated: a chargeback can close on an invoice issued before
+      // a model switch, and the webhook must still settle it.
+      const at = now();
+      // One reopen per dispute, ever: if this dispute already wrote its
+      // reopen audit row, a redelivery must not move the invoice again —
+      // even when it has since been collected and is `paid` (#967 review).
+      const alreadyReopened = () => db
+        .select({ id: billingEvents.id })
+        .from(billingEvents)
+        .where(
+          and(
+            eq(billingEvents.eventType, 'invoice.charge_failed'),
+            eq(billingEvents.entityType, 'commission_invoice'),
+            eq(billingEvents.entityId, input.invoiceId),
+            sql`${billingEvents.payload}->>'disputeId' = ${input.disputeId}`,
+          ),
+        );
+      const [moved] = await db
+        .update(commissionInvoices)
+        .set({ status: 'failed', paidAt: null, updatedAt: at })
+        .where(
+          and(
+            eq(commissionInvoices.id, input.invoiceId),
+            eq(commissionInvoices.status, 'paid'),
+            notExists(alreadyReopened()),
+          ),
+        )
+        .returning();
+      let row = moved;
+      if (row === undefined) {
+        // Repair path: an earlier delivery moved the invoice but failed
+        // before the audit row / email. Only a failed invoice whose lost
+        // chargeback has no reopen audit row yet is finished here.
+        const current = await db.query.commissionInvoices.findFirst({
+          where: eq(commissionInvoices.id, input.invoiceId),
+        });
+        if (
+          current === undefined ||
+          current.status !== 'failed' ||
+          current.chargebackStatus !== 'lost'
+        ) {
+          return { reopened: false };
+        }
+        const [already] = await alreadyReopened().limit(1);
+        if (already !== undefined) return { reopened: false };
+        row = current;
+      }
+      const record = toRecord(row, await leadNameFor(db, row.leadId), billing.commissionRate, taxLabel);
+      // Same event type as a card decline so the dunning queue (BILL-03)
+      // lists it with "past due since" = now and this reason.
+      await audit.append({
+        tenantKey: record.tenantKey,
+        eventType: 'invoice.charge_failed',
+        entityType: 'commission_invoice',
+        entityId: record.id,
+        payload: {
+          status: 'failed',
+          previousStatus: 'paid',
+          commissionCents: record.commissionCents,
+          ...(record.taxCents > 0
+            ? { taxCents: record.taxCents, totalCents: record.totalCents }
+            : {}),
+          source: 'chargeback_lost',
+          failureReason: 'Bank chargeback lost — payment reversed',
+          paymentIntentId: record.stripePaymentIntentId,
+          disputeId: input.disputeId,
+          stripeDisputeId: input.stripeDisputeId,
+          stripeEventId: input.stripeEventId,
+        },
+      });
+      await notifyBuilder(record, 'chargeback_lost');
+      return { reopened: true };
     },
 
     async markFailedByPaymentIntent(

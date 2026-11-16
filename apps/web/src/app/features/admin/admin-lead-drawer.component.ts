@@ -13,8 +13,8 @@ import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { FormControl, ReactiveFormsModule, Validators } from '@angular/forms';
 import { RouterLink } from '@angular/router';
 import { Store } from '@ngxs/store';
-import { type Observable, concat, defer } from 'rxjs';
-import type { AdminLeadDetail, AdminLeadStatus } from '@feasly/contracts';
+import { type Observable, concat, defer, filter } from 'rxjs';
+import type { AdminLeadDetail, AdminLeadReassignmentEntry, AdminLeadStatus } from '@feasly/contracts';
 import { ConfigService } from '@app/core/config/config.service';
 import {
   KeyValueListComponent,
@@ -22,6 +22,7 @@ import {
   KitDateTimePipe,
   StatusChipComponent,
   UiButtonComponent,
+  UiConfirmService,
   UiDrawerComponent,
   UiDrawerRef,
   UiSelectComponent,
@@ -32,6 +33,7 @@ import {
 } from '@app/shared/ui';
 import { formatCentsRangeToCad, formatCentsToCad } from '@app/shared/utils/money';
 import { formatEdmontonDateTime } from '@app/shared/utils/edmonton';
+import { formatCallbackDay } from '@app/shared/utils/callback-day';
 import {
   AddAdminLeadNote,
   ClearSelectedAdminLead,
@@ -95,11 +97,13 @@ export class AdminLeadDrawerComponent {
   private readonly store = inject(Store);
   private readonly destroyRef = inject(DestroyRef);
   private readonly toasts = inject(UiToastService);
+  private readonly confirms = inject(UiConfirmService);
   private readonly data = inject<AdminLeadDrawerData>(DIALOG_DATA);
   protected readonly ref = inject(UiDrawerRef);
 
   protected readonly pageCopy = inject(ConfigService).get('copy').admin.leads;
   protected readonly copy = this.pageCopy.drawer;
+  private readonly callbackWindows = inject(ConfigService).get('copy').report.callbackWindows;
 
   protected readonly detail = this.store.selectSignal(AdminLeadsState.detail);
   protected readonly detailStatus = this.store.selectSignal(AdminLeadsState.detailStatus);
@@ -150,6 +154,21 @@ export class AdminLeadDrawerComponent {
 
   protected readonly dirty = computed(() => this.statusChanged() || this.builderChanged());
 
+  /**
+   * #721/#803: builder moves of this lead, newest first, with builder ids
+   * resolved to display names (null = unassigned).
+   */
+  protected readonly reassignments = computed(() => {
+    const entries: readonly AdminLeadReassignmentEntry[] = this.lead()?.reassignments ?? [];
+    return [...entries].reverse().map((entry) => ({
+      key: `${entry.changedAt}|${entry.fromBuilderId ?? ''}|${entry.toBuilderId ?? ''}`,
+      from: this.builderName(entry.fromBuilderId),
+      to: this.builderName(entry.toBuilderId),
+      changedBy: entry.changedBy,
+      changedAt: entry.changedAt,
+    }));
+  });
+
   protected readonly noteControl = new FormControl('', {
     nonNullable: true,
     validators: [Validators.required, Validators.maxLength(5000)],
@@ -168,6 +187,42 @@ export class AdminLeadDrawerComponent {
       { label: l.contactConsent, value: lead.contactConsent === 'in' ? this.copy.yes : this.copy.no },
       { label: l.marketingConsent, value: lead.marketingConsent ? this.copy.yes : this.copy.no },
     ];
+  });
+
+  /**
+   * #815: campaign attribution captured with the lead submit (leads.source_*).
+   * Only the set fields are listed; empty = render the no-attribution note.
+   */
+  protected readonly attributionItems = computed<readonly KeyValueItem[]>(() => {
+    const source = this.lead()?.attribution;
+    if (!source) return [];
+    const l = this.copy.labels;
+    const rows: KeyValueItem[] = [
+      { label: l.utmSource, value: source.utm_source ?? null },
+      { label: l.utmMedium, value: source.utm_medium ?? null },
+      { label: l.utmCampaign, value: source.utm_campaign ?? null },
+      { label: l.utmTerm, value: source.utm_term ?? null },
+      { label: l.utmContent, value: source.utm_content ?? null },
+      { label: l.clickIdType, value: source.click_id_type ?? null },
+    ];
+    return rows.filter((row) => row.value !== null);
+  });
+
+  /** #836: callback requests (newest first), each as a key/value block. */
+  protected readonly callbackRequests = computed(() => {
+    const requests = this.lead()?.callbacks ?? [];
+    const l = this.copy.callbackLabels;
+    return requests.map((request) => {
+      const w = this.callbackWindows.find((option) => option.id === request.window);
+      const items: KeyValueItem[] = [
+        { label: l.day, value: formatCallbackDay(request.preferredDate) ?? this.copy.callbackAnyDay },
+        { label: l.window, value: w ? `${w.label} (${w.range})` : request.window },
+        { label: l.phone, value: request.phone, href: `tel:${request.phone}` },
+        { label: l.notes, value: request.notes },
+        { label: l.requested, value: formatEdmontonDateTime(request.createdAt) },
+      ];
+      return { id: request.id, items: items.filter((item) => item.value !== null) };
+    });
   });
 
   protected readonly propertyItems = computed<readonly KeyValueItem[]>(() => {
@@ -254,6 +309,34 @@ export class AdminLeadDrawerComponent {
   protected save(): void {
     const lead = this.lead();
     if (!lead || !this.dirty() || this.saving()) return;
+    // Moving a lead away from a builder closes that builder's attribution
+    // (#721) — confirm the consequences first. A first assignment doesn't.
+    if (this.builderChanged() && lead.builderId) {
+      const c = this.copy.reassignConfirm;
+      const values = {
+        lead: lead.name,
+        from: this.builderName(lead.builderId),
+        to: this.builderName(this.builderPick()),
+      };
+      const unassign = this.builderPick() === null;
+      this.confirms
+        .confirm({
+          title: fill(unassign ? c.unassignTitle : c.title, values),
+          body: fill(unassign ? c.unassignBody : c.body, values),
+          verb: unassign ? c.unassignVerb : c.verb,
+          cancelLabel: c.cancel,
+          tone: 'danger',
+        })
+        .pipe(filter(Boolean), takeUntilDestroyed(this.destroyRef))
+        .subscribe(() => this.commit());
+      return;
+    }
+    this.commit();
+  }
+
+  private commit(): void {
+    const lead = this.lead();
+    if (!lead || !this.dirty() || this.saving()) return;
     const id = lead.id;
     const status = this.statusPick();
     const builderId = this.builderPick();
@@ -302,6 +385,12 @@ export class AdminLeadDrawerComponent {
 
   protected statusLabel(status: AdminLeadStatus | null): string {
     return status ? statusPresentation('lead', status).label : '—';
+  }
+
+  /** Builder display name for an id; null reads as "Unassigned". */
+  protected builderName(id: string | null): string {
+    if (id === null) return this.copy.unassigned;
+    return this.builders().find((b) => b.id === id)?.displayName ?? this.copy.unknownBuilder;
   }
 
   private clearPipelineFeedback(): void {

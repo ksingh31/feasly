@@ -92,7 +92,7 @@ describe('CommunityPageComponent', () => {
       { q: 'Q1?', a: 'A1.' },
       { q: 'Q2?', a: 'A2.' },
       { q: 'Q3?', a: 'A3.' },
-      { q: 'Q4?', a: 'A4.' },
+      { q: 'Q4?', a: 'Covers {includes}. Excludes {notIncluded}.' },
       { q: 'Q5?', a: 'A5.' },
     ],
     ctaTitle: 'Building in {name}?',
@@ -118,6 +118,8 @@ describe('CommunityPageComponent', () => {
     // #783: the nav search reads these.
     features: DEFAULT_APP_CONFIG.features,
     timings: DEFAULT_APP_CONFIG.timings,
+    // #824: FAQ answers fill {includes}/{notIncluded} from these.
+    estimateScope: DEFAULT_APP_CONFIG.estimateScope,
   };
 
   /**
@@ -340,6 +342,36 @@ describe('CommunityPageComponent', () => {
     await setup('mahogany');
     const items = fixture.nativeElement.querySelectorAll('.faq details');
     expect(items.length).toBe(5);
+  });
+
+  it('fills FAQ scope lists from the engine line items, in the DOM and FAQPage JSON-LD (#824)', async () => {
+    await setup('mahogany');
+    const answer = fixture.nativeElement.querySelectorAll('.faq details')[3]?.textContent ?? '';
+    expect(answer).not.toContain('{includes}');
+    expect(answer).not.toContain('{notIncluded}');
+    for (const item of DEFAULT_APP_CONFIG.estimateScope.includes) {
+      expect(answer.toLowerCase()).toContain(item.label.toLowerCase());
+    }
+    expect(answer).toContain('GST');
+    const ld = [...document.head.querySelectorAll('script[type="application/ld+json"]')]
+      .map((el) => el.textContent ?? '')
+      .find((t) => t.includes('FAQPage'));
+    expect(ld).toContain('Covers envelope (roof, siding, windows);');
+    expect(ld).not.toContain('{includes}');
+  });
+
+  it('default community FAQ copy never hand-writes the scope lists (#824)', () => {
+    const labels = [
+      ...DEFAULT_APP_CONFIG.estimateScope.includes,
+      ...DEFAULT_APP_CONFIG.estimateScope.notIncluded,
+    ].map((i) => i.label.toLowerCase());
+    const scopeAnswer = DEFAULT_APP_CONFIG.copy.communities.faqItems.find((i) =>
+      i.a.includes('{includes}'),
+    );
+    expect(scopeAnswer?.a).toContain('{notIncluded}');
+    for (const item of DEFAULT_APP_CONFIG.copy.communities.faqItems) {
+      for (const label of labels) expect(item.a.toLowerCase()).not.toContain(label);
+    }
   });
 
   it('links the CTA to the homepage address step', async () => {

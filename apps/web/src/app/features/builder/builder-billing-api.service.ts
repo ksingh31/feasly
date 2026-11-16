@@ -100,6 +100,20 @@ export class BuilderBillingApiService {
   }
 
   /**
+   * DELETE /api/v1/billing/card (#716): a builder admin removes the card on
+   * file. Resolves `{ hasCard: false }`. 409 CONFLICT (ApiError `message`
+   * names the blocking invoice) while an unpaid invoice is set to be
+   * charged to the card; 403 for builder members.
+   */
+  removeCard(): Observable<CardOnFileStatus> {
+    return this.call(
+      this.http.delete<CardOnFileStatus>(`${this.billingBase}/card`, {
+        withCredentials: true,
+      }),
+    );
+  }
+
+  /**
    * Create a SetupIntent for the Stripe Elements card form. Idempotent:
    * the backend ensures the tenant's Stripe customer first. Returns the
    * client secret for `stripe.confirmCardSetup`.

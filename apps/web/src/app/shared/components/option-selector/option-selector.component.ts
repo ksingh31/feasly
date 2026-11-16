@@ -1,5 +1,6 @@
 import { Component, input, output } from '@angular/core';
 import type { FinishTier } from '@feasly/contracts';
+import { handleRadioGroupKeydown, radioTabIndex } from '../../../core/utils/radio-group';
 
 /**
  * Generic option-card shape. The `id` union must match the relevant contract
@@ -57,16 +58,17 @@ export class OptionSelectorComponent<TId extends string = string> {
     this.selectedChange.emit(id);
   }
 
+  /** Roving tabindex (#937): the checked card (or the first) is the group's one Tab stop. */
+  tabIndexFor(id: TId): 0 | -1 {
+    return radioTabIndex(this.ids(), this.selected(), id);
+  }
+
+  /** Radio-group keys: arrows/Home/End move focus and selection within the group. */
   onKeydown(event: KeyboardEvent): void {
-    const forward = event.key === 'ArrowRight' || event.key === 'ArrowDown';
-    const backward = event.key === 'ArrowLeft' || event.key === 'ArrowUp';
-    if (!forward && !backward) {
-      return;
-    }
-    event.preventDefault();
-    const ids = this.options().map((o) => o.id);
-    const current = ids.indexOf(this.selected() as TId);
-    const next = (current + (forward ? 1 : -1) + ids.length) % ids.length;
-    this.choose(ids[next]);
+    handleRadioGroupKeydown(event, this.ids(), this.selected(), (id) => this.choose(id));
+  }
+
+  private ids(): TId[] {
+    return this.options().map((o) => o.id);
   }
 }

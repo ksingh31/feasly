@@ -20,6 +20,13 @@ apps/web/src/app/features/builder/builder-copy.defaults.ts
 # kept out of the initial bundle so the resource-summary budget stays green.
 apps/web/src/app/features/communities/community-profile-copy.defaults.ts
 
+# Help page copy defaults (#834/Lighthouse): the lazy-loaded compiled
+# fallback for /help copy, provided as HELP_COPY by HelpPageComponent and
+# merged with deploy overrides (copy.marketing.help). Same rationale as
+# builder-copy.defaults.ts: kept out of the initial bundle so the
+# resource-summary budget stays green.
+apps/web/src/app/features/marketing/help-copy.defaults.ts
+
 # Canned fake data for the mock API harness (FE0-003): fixture figures and
 # copy are inherently literal — the conformance specs pin every value.
 apps/web/src/app/core/api/mock-data.ts
@@ -372,3 +379,21 @@ apps/web/src/app/features/communities/community-profile-page.component.html
 # (wire-param assertions on page/pageSize).
 apps/web/src/app/features/admin/admin-invoices.actions.ts
 apps/web/src/app/features/admin/admin-invoices.state.ts
+# #827: generated from the cost engine by packages/cost-engine/tools/gen-web-scope.ts
+# (never hand-edited). The worked-example figures are engine output, pinned by
+# packages/cost-engine/test/web-scope-agreement.test.ts; read via config.howWeEstimate.
+apps/web/src/app/core/config/estimate-scope.generated.ts
+# #827: generated from the zoning catalogue by packages/zoning/tools/gen-web-eligibility.ts
+# (never hand-edited): the catalogue's effective date and City bylaw source URL,
+# pinned by packages/zoning/test/eligibility-agreement.test.ts; read via config.
+apps/web/src/app/core/config/zoning-eligibility.generated.ts
+# Builder lifecycle copy (#861): the Suspend / Reactivate / Start / Complete
+# offboarding confirm titles, consequence text and toasts, the offboarding
+# blocker labels, the export filename, and the lifecycle error fallback are
+# pinned story copy — the admin console has no copy config. "12 months" is
+# the owner-decided commission tail stated in copy; the 3–1000 reason bound
+# mirrors the API's zod schema (contract, not a tunable). Copy-pinned by
+# admin-builder-drawer.component.spec.ts.
+apps/web/src/app/features/admin/admin-builders-view.ts
+apps/web/src/app/features/admin/admin-builder-lifecycle-modal.component.ts
+apps/web/src/app/features/admin/admin-builders.state.ts

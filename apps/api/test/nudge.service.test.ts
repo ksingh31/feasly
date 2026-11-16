@@ -109,6 +109,8 @@ function makeService(
     onWarn?: (message: string) => void;
     /** Override the delivery result returned by sendNudge. */
     nudgeDelivery?: EmailDelivery;
+    /** #838: enqueue instead of sending inline. */
+    queue?: { enqueue: (input: { type: string; leadId?: string | null; dedupeKey?: string | null }) => Promise<{ enqueued: boolean }> };
   },
 ) {
   const leads: LeadStore = {
@@ -220,6 +222,7 @@ function makeService(
     clock: () => NOW,
     onLeadError: opts?.onLeadError,
     onWarn: opts?.onWarn ?? (() => {}),
+    ...(opts?.queue ? { queue: opts.queue } : {}),
   });
   return { service, world };
 }
@@ -511,5 +514,86 @@ describe('nudge service (email/02)', () => {
 
     expect(result).toEqual({ nudged: 0, skipped: 1 });
     expect(errors).toHaveLength(1);
+  });
+
+  it('#838: a lead without marketing consent gets no reminder (CASL)', async () => {
+    const world = makeWorld();
+    world.leads.set('lead-1', leadFixture({ marketingConsent: false }));
+    world.links.push(linkRecord());
+    const { service } = makeService(world);
+
+    const result = await service.runNudgeCycle();
+
+    expect(result).toEqual({ nudged: 0, skipped: 1 });
+    expect(world.nudges).toHaveLength(0);
+    expect(world.revoked).toHaveLength(0);
+  });
+});
+
+describe('unfinished-estimate reminder through the job queue (#838)', () => {
+  function fakeQueue() {
+    const keys = new Set<string>();
+    const enqueued: { type: string; leadId?: string | null; dedupeKey?: string | null }[] = [];
+    return {
+      enqueued,
+      enqueue: async (input: { type: string; leadId?: string | null; dedupeKey?: string | null }) => {
+        if (input.dedupeKey && keys.has(input.dedupeKey)) return { enqueued: false };
+        if (input.dedupeKey) keys.add(input.dedupeKey);
+        enqueued.push(input);
+        return { enqueued: true };
+      },
+    };
+  }
+
+  it('the cycle enqueues one deduped job per consenting lead and sends nothing inline', async () => {
+    const world = makeWorld();
+    world.leads.set('lead-1', leadFixture());
+    world.leads.set('no-consent', leadFixture({ id: 'no-consent', marketingConsent: false }));
+    world.links.push(linkRecord());
+    const queue = fakeQueue();
+    const { service } = makeService(world, { queue });
+
+    expect(await service.runNudgeCycle()).toEqual({ nudged: 1, skipped: 1 });
+    expect(await service.runNudgeCycle()).toEqual({ nudged: 0, skipped: 2 });
+    expect(queue.enqueued).toEqual([
+      {
+        type: 'reminder.unfinished-estimate',
+        leadId: 'lead-1',
+        dedupeKey: 'reminder.unfinished-estimate:lead-1',
+      },
+    ]);
+    expect(world.nudges).toHaveLength(0);
+    expect(world.revoked).toHaveLength(0);
+  });
+
+  it('sendReminder sends once with a fresh link + unsubscribe URL, then is a no-op', async () => {
+    const world = makeWorld();
+    world.leads.set('lead-1', leadFixture());
+    world.links.push(linkRecord());
+    const { service } = makeService(world);
+
+    expect(await service.sendReminder('lead-1')).toBe(true);
+    expect(await service.sendReminder('lead-1')).toBe(false);
+    expect(world.nudges).toHaveLength(1);
+    expect(world.nudges[0]!.unsubscribeUrl).toContain('/unsubscribe/lead-1');
+  });
+
+  it('sendReminder throws on a failed send (queue retries) without stamping', async () => {
+    const world = makeWorld();
+    world.leads.set('lead-1', leadFixture());
+    const { service } = makeService(world, {
+      nudgeDelivery: { sent: false, provider: 'log', failureReason: 'down', emailError: 'delivery-failed' },
+    });
+    await expect(service.sendReminder('lead-1')).rejects.toThrow(/Nudge email failed/);
+    expect(world.leads.get('lead-1')!.nudgeSentAt).toBeNull();
+  });
+
+  it('sendReminder re-checks unsubscribe at send time', async () => {
+    const world = makeWorld();
+    world.leads.set('lead-1', leadFixture());
+    world.unsubscribed.add('lead-1');
+    const { service } = makeService(world);
+    expect(await service.sendReminder('lead-1')).toBe(false);
+    expect(world.nudges).toHaveLength(0);
   });
 });

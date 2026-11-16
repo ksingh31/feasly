@@ -202,6 +202,24 @@ export const LeadRequestSchema = z
       .string()
       .optional()
       .describe('Honeypot anti-spam field — leave empty'),
+    elapsedMs: z
+      .number()
+      .optional()
+      .describe(
+        'Milliseconds the form was on screen before submit (browser clients). Optional for API callers.',
+      ),
+    consent: z
+      .literal(true)
+      .optional()
+      .describe(
+        'Required with an API key: true attests the person asked to be contacted about their estimate',
+      ),
+    consentVersion: z
+      .string()
+      .optional()
+      .describe(
+        'Required with an API key: the current attestation wording version (docs/api/developers.md)',
+      ),
   })
   .openapi('LeadRequest');
 
@@ -365,6 +383,7 @@ export const AnalyticsEventNameSchema = z
   .enum([
     'step_view',
     'gate_view',
+    'gate_submit',
     'gate_convert',
     'report_open',
     'tier_toggle',
@@ -565,8 +584,31 @@ const zoningVersionShape = {
   sourceUrl: z.string().url().describe("The City's bylaw page — where to confirm the rules."),
 };
 
+/** Catalogue freshness against the City's sources (#757). */
+export const ZoningCatalogueFreshnessSchema = z
+  .object({
+    rulesAsOf: z
+      .string()
+      .regex(/^\d{4}-\d{2}-\d{2}$/)
+      .describe("ISO date the catalogue's rules are as of (its effectiveDate)."),
+    stale: z
+      .boolean()
+      .describe('True when the City changed its rules or districts after rulesAsOf — confirm with the City.'),
+    latestChangeDetectedOn: z
+      .string()
+      .regex(/^\d{4}-\d{2}-\d{2}$/)
+      .nullable()
+      .describe('ISO date of the latest City change detected; null when none.'),
+  })
+  .strict()
+  .openapi('ZoningCatalogueFreshness');
+
 export const ZoningDistrictsResponseSchema = z
-  .object({ ...zoningVersionShape, districts: z.array(ZoningDistrictSchema) })
+  .object({
+    ...zoningVersionShape,
+    districts: z.array(ZoningDistrictSchema),
+    freshness: ZoningCatalogueFreshnessSchema.optional(),
+  })
   .strict()
   .openapi('ZoningDistrictsResponse');
 
@@ -721,6 +763,14 @@ export const CallbackRequestSchema = z
     name: z.string().min(1).max(120),
     phone: z.string().min(7).max(32),
     window: CallbackWindowSchema,
+    preferredDate: z
+      .string()
+      .regex(/^\d{4}-\d{2}-\d{2}$/)
+      .optional()
+      .describe(
+        'Preferred call day (YYYY-MM-DD, America/Edmonton): a weekday from tomorrow through the next 14 days',
+      ),
+    notes: z.string().max(500).optional(),
   })
   .openapi('CallbackRequest');
 
@@ -728,6 +778,7 @@ export const CallbackResponseSchema = z
   .object({
     ok: z.literal(true),
     window: CallbackWindowSchema,
+    preferredDate: z.string().nullable().optional(),
   })
   .openapi('CallbackResponse');
 

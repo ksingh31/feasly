@@ -19,6 +19,7 @@ import type {
 } from './email.types';
 import { EmailProviderError, type EmailFailureCode } from './email.types';
 import { sanitizeErrorMessage } from '../../lib/sanitize-error';
+import type { BuildTimeline } from '../../lib/build-timeline';
 import {
   renderCallbackTeamEmail,
   renderCommissionInvoiceOverdueEmail,
@@ -29,6 +30,7 @@ import {
   renderBuilderNeedsYouDigestEmail,
   renderBuilderNewLeadEmail,
   renderContractNeedsRecordingEmail,
+  renderErasureConfirmationEmail,
   renderFollowUpEmail,
   renderInvitationEmail,
   renderMagicLinkEmail,
@@ -58,6 +60,11 @@ export interface MagicLinkEmailInput {
   readonly address?: string;
   /** #703 (consumer only): the issued token's `expires_at`. */
   readonly expiresOn?: Date;
+  /**
+   * #823 (consumer only): the estimate's project type — the typical
+   * new-build timeline renders only for `'new_build'`.
+   */
+  readonly projectType?: string;
 }
 
 export interface PartnerShareEmailInput {
@@ -178,6 +185,12 @@ export interface CommissionPaymentFailedEmailInput {
   readonly nextRetryAt?: Date | null;
   /** #718: the last automatic attempt failed — final notice copy. */
   readonly finalNotice?: boolean;
+  /**
+   * Why the invoice is unpaid. Absent / 'declined' = the card was declined
+   * (BILL-04). 'chargeback_lost' = the bank reversed a paid charge after a
+   * lost chargeback and the commission is due again (#873).
+   */
+  readonly reason?: 'declined' | 'chargeback_lost';
   readonly tax?: CommissionEmailTax;
 }
 
@@ -236,6 +249,16 @@ export interface BuilderNeedsYouDigestEmailInput {
   readonly maxPerGroup: number;
 }
 
+/** #806: the erase-confirmation link (privacy self-service step 2). */
+export interface ErasureConfirmationEmailInput {
+  readonly to: string;
+  readonly name?: string;
+  /** `${appBaseUrl}/privacy/confirm/${requestId}#token=${token}`. */
+  readonly confirmUrl: string;
+  /** Hours until the link expires — rendered from config. */
+  readonly expiresInHours: number;
+}
+
 export interface EmailService {
   sendMagicLink(input: MagicLinkEmailInput): Promise<EmailDelivery>;
   sendInvitation(input: InvitationEmailInput): Promise<EmailDelivery>;
@@ -277,6 +300,10 @@ export interface EmailService {
   sendBuilderNeedsYouDigest(
     input: BuilderNeedsYouDigestEmailInput,
   ): Promise<EmailDelivery>;
+  /** #806: "confirm you want to delete your data" link (transactional). */
+  sendErasureConfirmation(
+    input: ErasureConfirmationEmailInput,
+  ): Promise<EmailDelivery>;
 }
 
 export interface EmailServiceDeps {
@@ -294,6 +321,8 @@ export interface EmailServiceDeps {
   readonly maxAttempts?: number;
   /** Backoff between attempts, ms. Default 1000. */
   readonly retryBackoffMs?: number;
+  /** #823: typical build timeline rendered in the consumer report email. */
+  readonly buildTimeline?: BuildTimeline;
 }
 
 /**
@@ -345,6 +374,7 @@ export function createEmailService(deps: EmailServiceDeps): EmailService {
     appBaseUrl: deps.appBaseUrl,
     unsubscribeBaseUrl: deps.unsubscribeBaseUrl,
     brandName: 'Feasly',
+    ...(deps.buildTimeline ? { buildTimeline: deps.buildTimeline } : {}),
   };
 
   /**
@@ -522,6 +552,7 @@ export function createEmailService(deps: EmailServiceDeps): EmailService {
         updateWithinDays: input.updateWithinDays,
         ...(input.nextRetryAt !== undefined ? { nextRetryAt: input.nextRetryAt } : {}),
         ...(input.finalNotice === true ? { finalNotice: true } : {}),
+        ...(input.reason ? { reason: input.reason } : {}),
         ...(input.tax ? { tax: input.tax } : {}),
       });
       return deliver({ ...rendered, to: input.to });
@@ -589,6 +620,17 @@ export function createEmailService(deps: EmailServiceDeps): EmailService {
         wonWithoutContract: input.wonWithoutContract,
         staleAfterDays: input.staleAfterDays,
         maxPerGroup: input.maxPerGroup,
+      });
+      return deliver({ ...rendered, to: input.to });
+    },
+
+    async sendErasureConfirmation(
+      input: ErasureConfirmationEmailInput,
+    ): Promise<EmailDelivery> {
+      const rendered = renderErasureConfirmationEmail(ctx, {
+        name: input.name,
+        confirmUrl: input.confirmUrl,
+        expiresInHours: input.expiresInHours,
       });
       return deliver({ ...rendered, to: input.to });
     },

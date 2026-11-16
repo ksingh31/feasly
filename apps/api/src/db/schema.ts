@@ -20,6 +20,7 @@
  */
 import {
   boolean,
+  date,
   doublePrecision,
   index,
   integer,
@@ -179,6 +180,28 @@ export const leads = pgTable(
      * Sandbox rows auto-purge after 30 days (sandbox-purge timer).
      */
     sandbox: boolean('sandbox').notNull().default(false),
+    /**
+     * #814: campaign attribution from the lead submit (UTM parameters +
+     * which ad click-id parameter was present). Stored once at creation,
+     * never on dedupe updates. Nullable (expand migration 0063); validated
+     * by `lib/campaign-source.ts` — invalid values are stored as NULL.
+     * Distinct from `source` (the capture surface).
+     */
+    sourceUtmSource: text('source_utm_source'),
+    sourceUtmMedium: text('source_utm_medium'),
+    sourceUtmCampaign: text('source_utm_campaign'),
+    sourceUtmTerm: text('source_utm_term'),
+    sourceUtmContent: text('source_utm_content'),
+    sourceClickIdType: text('source_click_id_type'),
+    /**
+     * #738: agent-API consent attestation. Set only for leads submitted
+     * with an API key: the attested wording version, the attesting key
+     * (no FK — the audit trail outlives key deletion) and when. NULL for
+     * web/embed leads, whose consent is the gate checkbox (`consent_ts`).
+     */
+    consentVersion: text('consent_version'),
+    consentAttestedByApiKeyId: uuid('consent_attested_by_api_key_id'),
+    consentAttestedAt: timestamp('consent_attested_at', { withTimezone: true }),
     /**
      * admin/04: Sheets sync watermark. NULL = never synced; otherwise the
      * timestamp of the last successful upsert to the Google Sheet.
@@ -517,8 +540,18 @@ export const builders = pgTable('builders', {
     .default([]),
   /** 'flat' | 'commission' | null (undecided). */
   plan: text('plan'),
-  /** 'active' | 'inactive' — inactive builders can't bill or embed. */
+  /**
+   * #860 lifecycle: 'active' | 'suspended' | 'offboarding' | 'offboarded'.
+   * What each allows is lib/builder-status-policy.ts. Legacy 'inactive'
+   * rows were migrated to 'suspended' (migration 0067).
+   */
   status: text('status').notNull().default('active'),
+  /** #860: why the status last changed (admin-entered). Null = never changed. */
+  statusReason: text('status_reason'),
+  /** #860: when the status last changed. */
+  statusChangedAt: timestamp('status_changed_at', { withTimezone: true }),
+  /** #860: admin email that last changed the status. */
+  statusChangedBy: text('status_changed_by'),
   /**
    * Negotiated commission rate, in PERCENT (e.g. 1.5 = 1.5%). Defaults to
    * 1 (Karan 2026-09-24 decision); editable in the admin portal
@@ -633,11 +666,36 @@ export const analyticsEvents = pgTable(
      * traffic. Set by embed clients; the funnel dashboard filters on it.
      */
     tenantKey: text('tenant_key'),
+    /**
+     * #814: campaign attribution carried on the event (`source` in the
+     * contract). NULL = no attribution. The funnel dashboard filters and
+     * groups on utm_source / utm_campaign.
+     */
+    utmSource: text('utm_source'),
+    utmMedium: text('utm_medium'),
+    utmCampaign: text('utm_campaign'),
+    utmTerm: text('utm_term'),
+    utmContent: text('utm_content'),
+    clickIdType: text('click_id_type'),
+    /**
+     * #870: host page origin on `embed_loaded` (e.g.
+     * `https://www.builder.com`). NULL for every other event. Backs the
+     * builder portal's per-origin install check.
+     */
+    embedOrigin: text('embed_origin'),
     createdAt: timestamp('created_at', { withTimezone: true })
       .notNull()
       .defaultNow(),
   },
   (t) => [
+    index('analytics_events_embed_origin_idx')
+      .on(t.tenantKey, t.embedOrigin, t.createdAt)
+      .where(sql`${t.event} = 'embed_loaded'`),
+    index('analytics_events_source_created_idx').on(
+      t.utmSource,
+      t.utmCampaign,
+      t.createdAt,
+    ),
     index('analytics_events_event_created_idx').on(t.event, t.createdAt),
     index('analytics_events_tenant_created_idx').on(t.tenantKey, t.createdAt),
   ],
@@ -689,6 +747,8 @@ export const attributionEvents = pgTable(
      * expired: window lapsed with no reported contract.
      * excluded_prior_relationship: builder proved a pre-existing
      *   relationship (proof burden on the builder — Karan 2026-09-24).
+     * reassigned: an admin moved the lead away from this builder (#721);
+     *   nothing is billable to them (owner decision 2026-11-15).
      */
     status: text('status').notNull().default('introduced'),
     createdAt: timestamp('created_at', { withTimezone: true })
@@ -712,6 +772,40 @@ export const attributionEvents = pgTable(
     uniqueIndex('attribution_events_open_intro_unique')
       .on(t.leadId, t.tenantKey)
       .where(sql`${t.status} = 'introduced'`),
+  ],
+);
+
+/**
+ * Lead reassignments (#721). One row each time an admin moves a lead away
+ * from a builder (to another builder or to unassigned). Insert-only.
+ *
+ * The builder portal reads `from_builder_id` to show the old builder the
+ * lead marked "Reassigned by Feasly" (no reason, no contact details). The
+ * actor email is staff, never homeowner PII. ON DELETE SET NULL on both
+ * builder FKs keeps the history when a builder is deleted.
+ */
+export const leadReassignments = pgTable(
+  'lead_reassignments',
+  {
+    /** App-generated UUID (node:crypto). */
+    id: uuid('id').primaryKey(),
+    leadId: uuid('lead_id')
+      .notNull()
+      .references(() => leads.id),
+    fromBuilderId: uuid('from_builder_id').references(() => builders.id, {
+      onDelete: 'set null',
+    }),
+    toBuilderId: uuid('to_builder_id').references(() => builders.id, {
+      onDelete: 'set null',
+    }),
+    actorEmail: text('actor_email').notNull(),
+    reassignedAt: timestamp('reassigned_at', { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (t) => [
+    index('lead_reassignments_from_builder_idx').on(t.fromBuilderId, t.reassignedAt),
+    index('lead_reassignments_lead_idx').on(t.leadId),
   ],
 );
 
@@ -942,6 +1036,20 @@ export const commissionInvoices = pgTable(
     collectionsAt: timestamp('collections_at', { withTimezone: true }),
     /** Set once when the overdue reminder for a manual-method invoice was sent. */
     overdueRemindedAt: timestamp('overdue_reminded_at', { withTimezone: true }),
+    /**
+     * Bank chargeback state (#719, migration 0055): null = never disputed
+     * with the bank; 'open' while Stripe's dispute is live (no further
+     * charge attempts); then 'won' | 'lost' | 'warning_closed' from
+     * `charge.dispute.closed`. A lost chargeback does NOT change `status`
+     * — collecting or writing off the commission is a manual ops decision.
+     */
+    chargebackStatus: text('chargeback_status'),
+    /**
+     * Cumulative amount refunded on the invoice's charge, integer cents
+     * (#719): mirrors Stripe's `charge.amount_refunded`, so a refund issued
+     * from the Stripe dashboard shows in Feasly. 0 = nothing refunded.
+     */
+    refundedCents: integer('refunded_cents').notNull().default(0),
     createdAt: timestamp('created_at', { withTimezone: true })
       .notNull()
       .defaultNow(),
@@ -1061,6 +1169,25 @@ export const billingDisputes = pgTable(
     resolvedBy: text('resolved_by'),
     /** Admin's resolution note. */
     resolutionNote: text('resolution_note'),
+    /**
+     * Who raised it (#719): 'builder' = an invoice dispute in the portal;
+     * 'chargeback' = a bank dispute reported by Stripe (charge.dispute.*).
+     */
+    source: text('source').notNull().default('builder'),
+    /** Stripe dispute id (`dp_…`) — chargebacks only. Unique. */
+    stripeDisputeId: text('stripe_dispute_id'),
+    /** Stripe's dispute reason code (e.g. 'fraudulent') — chargebacks only. */
+    stripeReason: text('stripe_reason'),
+    /** Stripe's raw dispute status (needs_response, under_review, won, lost, …). */
+    stripeStatus: text('stripe_status'),
+    /** Disputed amount, integer cents — chargebacks only. */
+    amountCents: integer('amount_cents'),
+    /** Stripe's evidence deadline — chargebacks only (also the SLA). */
+    evidenceDueAt: timestamp('evidence_due_at', { withTimezone: true }),
+    /** won | lost | warning_closed once Stripe closes the chargeback. */
+    outcome: text('outcome'),
+    /** True when the dispute is a Stripe live-mode object. */
+    livemode: boolean('livemode'),
     createdAt: timestamp('created_at', { withTimezone: true })
       .notNull()
       .defaultNow(),
@@ -1071,6 +1198,7 @@ export const billingDisputes = pgTable(
   (t) => [
     index('billing_disputes_status_opened_idx').on(t.status, t.openedAt),
     index('billing_disputes_invoice_idx').on(t.invoiceId),
+    uniqueIndex('billing_disputes_stripe_dispute_id_idx').on(t.stripeDisputeId),
   ],
 );
 
@@ -1472,6 +1600,13 @@ export const callbackRequests = pgTable(
     phone: text('phone').notNull(),
     /** 'morning' | 'afternoon' | 'evening' (contracts CallbackWindow). */
     window: text('window').notNull(),
+    /**
+     * #836: preferred call day (America/Edmonton calendar). Nullable —
+     * expand-only; rows from before #836 carry no preferred day.
+     */
+    preferredDate: date('preferred_date', { mode: 'string' }),
+    /** #836: optional free-text notes from the homeowner. */
+    notes: text('notes'),
     /** 'pending' → 'done' — worked by the team inbox flow (future). */
     status: text('status').notNull().default('pending'),
     createdAt: timestamp('created_at', { withTimezone: true })
@@ -1501,7 +1636,13 @@ export const partnerShares = pgTable(
     magicLinkId: uuid('magic_link_id').references(() => magicLinks.id, {
       onDelete: 'set null',
     }),
-    partnerEmail: text('partner_email').notNull(),
+    /**
+     * Recipient of an emailed share. NULL for a link-only share (#838 —
+     * the owner copied a read-only link; nobody was emailed).
+     */
+    partnerEmail: text('partner_email'),
+    /** 'email' (emailed to a partner) | 'link' (copy-link share, #838). */
+    kind: text('kind').notNull().default('email'),
     /** True when the email provider accepted the message. */
     sent: boolean('sent').notNull().default(false),
     createdAt: timestamp('created_at', { withTimezone: true })
@@ -1856,4 +1997,302 @@ export const builderPartners = pgTable(
       .defaultNow(),
   },
   (t) => [index('builder_partners_active_order_idx').on(t.active, t.displayOrder)],
+);
+
+/**
+ * Zoning source watch state (#757): one row per city. The daily watcher
+ * records what it last saw of the City's Land Use Districts dataset and
+ * Land Use Bylaw page, which district codes the catalogue doesn't know,
+ * and the signature of the last "Zoning catalogue may be out of date"
+ * issue it filed (deduplication). Public City metadata only.
+ */
+export const zoningSourceWatch = pgTable('zoning_source_watch', {
+  city: text('city').primaryKey(),
+  datasetRowsUpdatedAt: timestamp('dataset_rows_updated_at', { withTimezone: true }),
+  bylawPageHash: text('bylaw_page_hash'),
+  bylawChangedAt: timestamp('bylaw_changed_at', { withTimezone: true }),
+  unknownDistrictCodes: jsonb('unknown_district_codes').notNull().default([]),
+  issueSignature: text('issue_signature'),
+  issueUrl: text('issue_url'),
+  checkedAt: timestamp('checked_at', { withTimezone: true }).notNull().defaultNow(),
+});
+
+// ── Neighbourhood data (#773) ───────────────────────────────────────────
+//
+// Outside neighbourhood sources (schools, designations, ratings, reviews,
+// amenities, commute) are fetched by provider interfaces on the monthly
+// refresh job and stored here; request paths read these tables only and
+// never call a provider. Every provider-fed table shares the same base
+// columns so one generic snapshot writer serves them all:
+// - `id` = `${source}:${external_id}` — the implementation that produced
+//   the row is part of the key, so switching a provider (free → paid) by
+//   config replaces rows on its next successful refresh.
+// - `provider` = which provider interface owns the row (prune scope).
+// - `content_hash` lets an idempotent re-run count only real changes.
+// Public open data only — no personal data.
+
+/** Base columns shared by every provider-fed neighbourhood table. */
+function neighbourhoodBaseColumns() {
+  return {
+    id: text('id').primaryKey(),
+    provider: text('provider').notNull(),
+    source: text('source').notNull(),
+    externalId: text('external_id').notNull(),
+    /** City community code (e.g. 'CAP') when the source carries one. */
+    communityCode: text('community_code'),
+    lat: doublePrecision('lat'),
+    lng: doublePrecision('lng'),
+    /** Remaining source fields (public data only). */
+    data: jsonb('data').notNull(),
+    contentHash: text('content_hash').notNull(),
+    /** When the refresh that last wrote (or confirmed) this row ran. */
+    refreshedAt: timestamp('refreshed_at', { withTimezone: true }).notNull(),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+  };
+}
+
+/** School directory (SchoolDirectoryProvider). */
+export const schools = pgTable(
+  'schools',
+  {
+    ...neighbourhoodBaseColumns(),
+    name: text('name').notNull(),
+    board: text('board'),
+    grades: text('grades'),
+  },
+  (t) => [
+    index('schools_provider_idx').on(t.provider),
+    index('schools_community_idx').on(t.communityCode),
+  ],
+);
+
+/** Typical school designations (SchoolDesignationProvider). */
+export const schoolDesignations = pgTable(
+  'school_designations',
+  {
+    ...neighbourhoodBaseColumns(),
+    /** Logical reference to `schools.id` (no FK: providers swap independently). */
+    schoolId: text('school_id'),
+    gradeBand: text('grade_band'),
+  },
+  (t) => [
+    index('school_designations_provider_idx').on(t.provider),
+    index('school_designations_community_idx').on(t.communityCode),
+  ],
+);
+
+/** School ratings (SchoolRatingsProvider). */
+export const schoolRatings = pgTable(
+  'school_ratings',
+  {
+    ...neighbourhoodBaseColumns(),
+    /** Logical reference to `schools.id`. */
+    schoolId: text('school_id'),
+    rating: real('rating'),
+    period: text('period'),
+  },
+  (t) => [index('school_ratings_provider_idx').on(t.provider)],
+);
+
+/** Nearby amenities (AmenitiesProvider). */
+export const amenities = pgTable(
+  'amenities',
+  {
+    ...neighbourhoodBaseColumns(),
+    category: text('category').notNull(),
+    name: text('name').notNull(),
+  },
+  (t) => [
+    index('amenities_provider_idx').on(t.provider),
+    index('amenities_community_idx').on(t.communityCode),
+  ],
+);
+
+/**
+ * Per-community living metrics (CommuteProvider, ReviewsProvider). One row
+ * per (source, community, metric); `metric` names the kind ('commute',
+ * 'reviews').
+ */
+export const communityLivingMetrics = pgTable(
+  'community_living_metrics',
+  {
+    ...neighbourhoodBaseColumns(),
+    metric: text('metric').notNull(),
+  },
+  (t) => [
+    index('community_living_metrics_provider_idx').on(t.provider),
+    index('community_living_metrics_community_idx').on(t.communityCode, t.metric),
+  ],
+);
+
+/**
+ * Per-address living metrics, computed on demand from the tables above (never
+ * from a provider) and cached until `expires_at`.
+ */
+export const lotLivingMetrics = pgTable(
+  'lot_living_metrics',
+  {
+    addressKey: text('address_key').primaryKey(),
+    data: jsonb('data').notNull(),
+    computedAt: timestamp('computed_at', { withTimezone: true }).notNull().defaultNow(),
+    expiresAt: timestamp('expires_at', { withTimezone: true }).notNull(),
+  },
+  (t) => [index('lot_living_metrics_expires_at_idx').on(t.expiresAt)],
+);
+
+/**
+ * Per-provider refresh state (#773): drives the monthly schedule, resume
+ * after a partial run, and the "3 days of failures" ops alert across cold
+ * starts. One row per provider interface.
+ */
+export const neighbourhoodRefreshState = pgTable('neighbourhood_refresh_state', {
+  provider: text('provider').primaryKey(),
+  /** Implementation that ran last (e.g. 'calgary-open-data'). */
+  implementation: text('implementation').notNull(),
+  lastRunAt: timestamp('last_run_at', { withTimezone: true }),
+  lastSuccessAt: timestamp('last_success_at', { withTimezone: true }),
+  lastFailureAt: timestamp('last_failure_at', { withTimezone: true }),
+  /** Start of the current failure streak; null when healthy. */
+  firstFailureAt: timestamp('first_failure_at', { withTimezone: true }),
+  consecutiveFailures: integer('consecutive_failures').notNull().default(0),
+  /** When the ops alert fired for the current streak; null when not fired. */
+  alertedAt: timestamp('alerted_at', { withTimezone: true }),
+  lastRowsChanged: integer('last_rows_changed').notNull().default(0),
+  /** Error class name of the last failure (never a message with data). */
+  lastError: text('last_error'),
+  updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+});
+
+/**
+ * Monthly community narratives (#759, owner decision 2026-11-15).
+ *
+ * One LLM-written neighbourhood narrative per community per `period`
+ * (YYYY-MM — the month the narrative is served for), generated by the
+ * monthly timer and reused by every report in that community. `narrative`
+ * holds the last SUCCESSFUL text for the period and is kept when a later
+ * attempt fails (`status` reflects the latest attempt). Reports read the
+ * newest row with a narrative, so a failed month keeps serving last month's.
+ *
+ * `status`: 'succeeded' | 'failed' | 'stale' (admin asked to regenerate —
+ * the next attempt replaces the text). No PII: community stats only.
+ */
+export const communityNarratives = pgTable(
+  'community_narratives',
+  {
+    communitySlug: text('community_slug').notNull(),
+    period: text('period').notNull(),
+    narrative: text('narrative'),
+    model: text('model'),
+    promptVersion: text('prompt_version').notNull(),
+    status: text('status').notNull(),
+    attempts: integer('attempts').notNull().default(0),
+    lastError: text('last_error'),
+    generatedAt: timestamp('generated_at', { withTimezone: true }),
+    updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [
+    primaryKey({
+      name: 'community_narratives_slug_period_pk',
+      columns: [t.communitySlug, t.period],
+    }),
+    index('community_narratives_status_idx').on(t.status),
+  ],
+);
+
+/**
+ * Postgres-backed job queue (#838).
+ *
+ * One row per unit of deferred work (reminder emails today; reusable by
+ * other senders). The job-queue timer claims due rows with
+ * `FOR UPDATE SKIP LOCKED`, so concurrent workers never double-process.
+ *
+ * Lifecycle: pending → running → done | (pending again with a backed-off
+ * run_at) → dead after max_attempts. `cancelled` = withdrawn before it ran
+ * (e.g. the homeowner unsubscribed). `dedupe_key` (unique) makes enqueue
+ * idempotent. `lead_id` cascades so privacy erasure / sandbox purge
+ * remove a lead's jobs with the lead. `payload` and `last_error` never hold
+ * tokens, emails or names.
+ */
+export const jobs = pgTable(
+  'jobs',
+  {
+    /** App-generated UUID (node:crypto). */
+    id: uuid('id').primaryKey(),
+    /** Handler key, e.g. 'reminder.unfinished-estimate'. */
+    type: text('type').notNull(),
+    payload: jsonb('payload').notNull().default({}),
+    leadId: uuid('lead_id').references(() => leads.id, { onDelete: 'cascade' }),
+    dedupeKey: text('dedupe_key'),
+    /** 'pending' | 'running' | 'done' | 'dead' | 'cancelled'. */
+    status: text('status').notNull().default('pending'),
+    attempts: integer('attempts').notNull().default(0),
+    maxAttempts: integer('max_attempts').notNull(),
+    runAt: timestamp('run_at', { withTimezone: true }).notNull(),
+    lockedAt: timestamp('locked_at', { withTimezone: true }),
+    /** Sanitized failure message of the last attempt. */
+    lastError: text('last_error'),
+    completedAt: timestamp('completed_at', { withTimezone: true }),
+    createdAt: timestamp('created_at', { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+    updatedAt: timestamp('updated_at', { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (t) => [
+    uniqueIndex('jobs_dedupe_key_idx').on(t.dedupeKey),
+    index('jobs_status_run_at_idx').on(t.status, t.runAt),
+    index('jobs_lead_id_idx').on(t.leadId),
+  ],
+);
+
+/**
+ * Builder change requests (#870) — admin tasks a builder files from the
+ * portal's Settings. Today one kind: `embed_origins` (allowed embed origins
+ * stay staff-controlled for the pilot, owner decision 2026-11-15, #724).
+ *
+ * `payload` = `{ add: string[], remove: string[] }` for `embed_origins`.
+ * `dedupe_key` is derived from the normalized payload; the partial unique
+ * index makes a repeated identical open request create no second task.
+ * Status: 'open' → 'done' | 'dismissed' (resolved by Feasly staff).
+ */
+export const builderChangeRequests = pgTable(
+  'builder_change_requests',
+  {
+    /** App-generated UUID (node:crypto). */
+    id: uuid('id').primaryKey(),
+    builderId: uuid('builder_id')
+      .notNull()
+      .references(() => builders.id, { onDelete: 'cascade' }),
+    /** 'embed_origins'. */
+    kind: text('kind').notNull(),
+    /** 'open' | 'done' | 'dismissed'. */
+    status: text('status').notNull().default('open'),
+    payload: jsonb('payload')
+      .$type<Record<string, unknown>>()
+      .notNull()
+      .default({}),
+    note: text('note'),
+    dedupeKey: text('dedupe_key').notNull(),
+    requestedByUserId: uuid('requested_by_user_id').references(() => users.id, {
+      onDelete: 'set null',
+    }),
+    /** The acting builder user's email (audit trail; never logged). */
+    requestedByEmail: text('requested_by_email').notNull(),
+    resolvedAt: timestamp('resolved_at', { withTimezone: true }),
+    resolvedByEmail: text('resolved_by_email'),
+    createdAt: timestamp('created_at', { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+    updatedAt: timestamp('updated_at', { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (t) => [
+    uniqueIndex('builder_change_requests_open_dedupe_idx')
+      .on(t.builderId, t.dedupeKey)
+      .where(sql`${t.status} = 'open'`),
+    index('builder_change_requests_status_created_idx').on(t.status, t.createdAt),
+  ],
 );

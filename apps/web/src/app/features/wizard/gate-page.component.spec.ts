@@ -18,6 +18,7 @@ import { previewRequestKey } from '../../core/api/preview-cache';
 import { ReportState } from '../report/report.state';
 import { AnalyticsService } from '../consent';
 import { EmbedState } from '../embed/embed.state';
+import { PartnersState } from '../../core/partners';
 import { EmbedConfigLoaded, EmbedConfigFailed, LoadEmbedConfig } from '../embed/embed.actions';
 import { GatePageComponent } from './gate-page.component';
 
@@ -88,7 +89,11 @@ describe('GatePageComponent', () => {
     fixture.detectChanges();
   }
 
-  async function setup(apiProvider: unknown = provideApi(), extraProviders: unknown[] = []): Promise<void> {
+  async function setup(
+    apiProvider: unknown = provideApi(),
+    extraProviders: unknown[] = [],
+    beforeCreate?: () => void,
+  ): Promise<void> {
     TestBed.resetTestingModule();
     TestBed.configureTestingModule({
       imports: [GatePageComponent, BlankComponent],
@@ -104,10 +109,10 @@ describe('GatePageComponent', () => {
           { path: 'estimate/compare', component: BlankComponent },
           { path: 'estimate/analyzing', component: BlankComponent },
         ]),
-        provideStore([WizardState, LeadState, EmbedState, ReportState]),
+        provideStore([WizardState, LeadState, EmbedState, ReportState, PartnersState]),
         // The gate fires a consent-gated analytics event on success; the
         // gate spec owns gate behavior, not analytics internals.
-        { provide: AnalyticsService, useValue: { track: vi.fn() } },
+        { provide: AnalyticsService, useValue: { track: vi.fn(), leadSource: vi.fn(() => undefined) } },
         ...(extraProviders as never[]),
       ],
     });
@@ -124,6 +129,7 @@ describe('GatePageComponent', () => {
     store = TestBed.inject(Store);
     router = TestBed.inject(Router);
     store.dispatch([new SelectProperty(fakeProperty), new GoToStep(3)]);
+    beforeCreate?.();
     fixture = TestBed.createComponent(GatePageComponent);
     fixture.detectChanges();
   }
@@ -171,6 +177,21 @@ describe('GatePageComponent', () => {
       expect(fixture.nativeElement.querySelector('#gate-name-error')).not.toBeNull();
       expect(fixture.nativeElement.querySelector('#gate-email-error')).not.toBeNull();
       expect(router.url).not.toBe('/estimate/analyzing');
+      // #835: an invalid form is not a submit — no funnel event.
+      expect(TestBed.inject(AnalyticsService).track).not.toHaveBeenCalledWith('gate_submit');
+    });
+
+    it('#835: says exactly what the free report adds, from config copy', () => {
+      const config = TestBed.inject(ConfigService).get('copy').gate;
+      const section = fixture.nativeElement.querySelector('.gate-unlocks') as HTMLElement;
+      expect(section.querySelector('h2')?.textContent?.trim()).toBe(config.unlocksHeading);
+      const items = Array.from(section.querySelectorAll('li'), (li) => li.textContent?.trim());
+      expect(items).toEqual(config.unlocksItems);
+      expect(items.length).toBe(4);
+      expect(items.join(' ')).toMatch(/itemized cost breakdown/);
+      expect(items.join(' ')).toMatch(/finish levels/);
+      expect(items.join(' ')).toMatch(/PDF.*emailed copy/);
+      expect(items.join(' ')).toMatch(/builder-ready summary/);
     });
 
     it('rejects a malformed email', () => {
@@ -239,8 +260,39 @@ describe('GatePageComponent', () => {
       expect(store.selectSnapshot(LeadState.leadId)).toMatch(/^lead-mock-/);
       expect(store.selectSnapshot(LeadState.email)).toBe('jane@example.com');
       // The gate conversion is reported to analytics (consent-gated inside
-      // the real service; mocked here).
-      expect(TestBed.inject(AnalyticsService).track).toHaveBeenCalledWith('gate_convert');
+      // the real service; mocked here). #835: submit fires before convert.
+      const track = vi.mocked(TestBed.inject(AnalyticsService).track);
+      expect(track.mock.calls.map((c) => c[0])).toEqual(['gate_submit', 'gate_convert']);
+    });
+
+    it('sends the consented campaign source with the lead (#815)', async () => {
+      const mockApi = TestBed.inject(MockApiService);
+      const submitSpy = vi.spyOn(mockApi, 'submitLead');
+      const analytics = TestBed.inject(AnalyticsService);
+      vi.mocked(analytics.leadSource).mockReturnValue({ utm_source: 'google', utm_campaign: 'test' });
+      setInput('#gate-name', 'Jane Doe');
+      setInput('#gate-email', 'jane@example.com');
+      setInput('#gate-phone', '');
+      setSelect('3-6mo');
+      (fixture.nativeElement.querySelector('.consent input') as HTMLInputElement).click();
+      fixture.detectChanges();
+      submit();
+      await pollUrl('/estimate/analyzing');
+      expect(submitSpy.mock.calls[0][0].source).toEqual({ utm_source: 'google', utm_campaign: 'test' });
+    });
+
+    it('omits source from the lead when there is none or no consent (#815)', async () => {
+      const mockApi = TestBed.inject(MockApiService);
+      const submitSpy = vi.spyOn(mockApi, 'submitLead');
+      setInput('#gate-name', 'Jane Doe');
+      setInput('#gate-email', 'jane@example.com');
+      setInput('#gate-phone', '');
+      setSelect('3-6mo');
+      (fixture.nativeElement.querySelector('.consent input') as HTMLInputElement).click();
+      fixture.detectChanges();
+      submit();
+      await pollUrl('/estimate/analyzing');
+      expect(submitSpy.mock.calls[0][0]).not.toHaveProperty('source');
     });
 
     it('blocks submit when the timeline is unchosen — timeline is required (Karan 2026-09-27)', async () => {
@@ -287,6 +339,20 @@ describe('GatePageComponent', () => {
       await pollUrl('/estimate/analyzing');
       expect(submitSpy).toHaveBeenCalledOnce();
       expect(submitSpy.mock.calls[0][0].website).toBe('');
+    });
+
+    it('#788: sends the elapsed form time so the API can quarantine too-fast submissions', async () => {
+      const mockApi = TestBed.inject(MockApiService);
+      const submitSpy = vi.spyOn(mockApi, 'submitLead');
+      fillValidForm();
+      submit();
+      await pollUrl('/estimate/analyzing');
+      expect(submitSpy).toHaveBeenCalledOnce();
+      const elapsedMs = submitSpy.mock.calls[0][0].elapsedMs;
+      // A whole, non-negative ms count. The threshold lives in API config,
+      // so the client only reports the measurement.
+      expect(Number.isInteger(elapsedMs)).toBe(true);
+      expect(elapsedMs).toBeGreaterThanOrEqual(0);
     });
 
     it('HRD-03: forwards a filled honeypot value for the backend to quarantine', async () => {
@@ -386,6 +452,44 @@ describe('GatePageComponent', () => {
       expect(button.textContent).not.toContain('Sending');
       expect(fixture.nativeElement.querySelector('.form-error .retry')).not.toBeNull();
       expect(router.url).not.toBe('/estimate/analyzing');
+    });
+  });
+
+  describe('#918: partner disclosure', () => {
+    async function pollFor(predicate: () => boolean, what: string): Promise<void> {
+      const deadline = Date.now() + 5000;
+      for (;;) {
+        fixture.detectChanges();
+        if (predicate()) return;
+        if (Date.now() > deadline) throw new Error(`timed out waiting for ${what}`);
+        await new Promise((r) => setTimeout(r, 25));
+      }
+    }
+
+    it('own site: names the builder partner(s) the lead goes to', async () => {
+      await setup();
+      const el = fixture.nativeElement as HTMLElement;
+      expect(el.querySelector('form app-partner-disclosure')).not.toBeNull();
+      expect(el.querySelector('form app-builder-matching-explainer')).not.toBeNull();
+      await pollFor(
+        () => store.selectSnapshot(PartnersState.status) === 'ready',
+        'partners load',
+      );
+      const text = el.querySelector('app-partner-disclosure')?.textContent ?? '';
+      expect(text).toContain('Leads from Feasly’s site go to our builder partner(s):');
+      expect(text).toContain('Elite Craft Builders');
+    });
+
+    it('embed: no partner disclosure and no partners request (the lead goes to that builder)', async () => {
+      let getPartners: ReturnType<typeof vi.spyOn> | undefined;
+      await setup(provideApi(), [], () => {
+        getPartners = vi.spyOn(TestBed.inject(API_SERVICE), 'getPartners');
+        store.dispatch(new LoadEmbedConfig('acme-builders'));
+      });
+      const el = fixture.nativeElement as HTMLElement;
+      expect(el.querySelector('app-partner-disclosure')).toBeNull();
+      expect(el.querySelector('app-builder-matching-explainer')).toBeNull();
+      expect(getPartners).not.toHaveBeenCalled();
     });
   });
 

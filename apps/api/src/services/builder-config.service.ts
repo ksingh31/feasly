@@ -24,6 +24,7 @@ import {
   validateBuilderConfigs,
   type BuilderConfigFile,
 } from './builder-config/builder-config.schema';
+import { builderStatusAllows } from '../lib/builder-status-policy';
 
 export interface BuilderConfigService {
   /** Resolve the public embed config for a tenant key. */
@@ -55,7 +56,8 @@ function toPublicConfig(file: BuilderConfigFile): EmbedPublicConfig {
 }
 
 function toPublicConfigFromRow(row: typeof builders.$inferSelect): EmbedPublicConfig {
-  if (row.status !== 'active') {
+  // #860 policy: only statuses that allow `embed` serve the config.
+  if (!builderStatusAllows(row.status, 'embed')) {
     throw new HttpError(
       404,
       ErrorCodes.UNKNOWN_TENANT,

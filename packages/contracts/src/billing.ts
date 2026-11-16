@@ -166,6 +166,23 @@ export interface CommissionInvoice {
   readonly dueAt?: string | null;
   /** Whole days past `dueAt`; 0 when not overdue. */
   readonly overdueDays?: number;
+   * Bank chargebacks + dashboard refunds (#719). The API always sends
+   * these; optional only so fixtures written before #719 keep compiling.
+   */
+  /**
+   * Bank chargeback state: null/absent = never disputed with the bank;
+   * 'open' while Stripe's dispute is live (no further charge attempts).
+   * A lost chargeback (#873): the commission is still owed, so a fully
+   * charged-back invoice moves `paid → failed` and is collected again
+   * through dunning; a partial chargeback or partly refunded invoice keeps
+   * its status for ops to settle by hand. Writing it off = an admin void.
+   */
+  readonly chargebackStatus?: ChargebackStatus | null;
+  /**
+   * Cumulative amount refunded on this invoice's charge, integer cents —
+   * includes refunds issued from the Stripe dashboard. 0 = none.
+   */
+  readonly refundedCents?: number;
   readonly createdAt: string;
   readonly updatedAt: string;
 }
@@ -199,6 +216,13 @@ export interface UpdateInvoiceDunningResponse {
   /** ISO 8601; null when no automatic retry is scheduled. */
   readonly nextRetryAt: string | null;
 }
+ * Bank chargeback state on an invoice (#719): 'open' while Stripe's
+ * dispute is live, then the outcome Stripe reported on close.
+ */
+export type ChargebackStatus = 'open' | ChargebackOutcome;
+
+/** How Stripe closed a chargeback (`charge.dispute.closed`). */
+export type ChargebackOutcome = 'won' | 'lost' | 'warning_closed';
 
 /**
  * Manual (off-Stripe) payment methods an admin can record when marking a
@@ -392,8 +416,18 @@ export interface SetupIntentResponse {
  * never the live invoice row, so the evidence can't change under review.
  */
 
-/** Dispute lifecycle: open → accepted | rejected. */
-export type DisputeStatus = 'open' | 'accepted' | 'rejected';
+/**
+ * Dispute lifecycle. Builder disputes: open → accepted | rejected (an admin
+ * decides). Chargebacks (#719): open → closed when Stripe reports the
+ * outcome — they are resolved in the Stripe dashboard, never in Feasly.
+ */
+export type DisputeStatus = 'open' | 'accepted' | 'rejected' | 'closed';
+
+/**
+ * Who raised a dispute (#719): 'builder' = an invoice dispute raised in the
+ * portal; 'chargeback' = a bank dispute of the card charge, from Stripe.
+ */
+export type DisputeSource = 'builder' | 'chargeback';
 
 /** Immutable invoice state captured at dispute-open time. */
 export interface DisputeEvidenceSnapshot {
@@ -407,7 +441,11 @@ export interface DisputeEvidenceSnapshot {
   readonly commissionCents: number;
   readonly currency: string;
   readonly stripePaymentIntentId: string | null;
-  readonly status: 'disputed';
+  /**
+   * Invoice status when the dispute opened: 'disputed' for builder
+   * disputes; usually 'paid' for chargebacks (#719).
+   */
+  readonly status: CommissionInvoiceStatus;
   readonly reviewDueAt: string | null;
   readonly disputeReason: string;
   readonly invoiceCreatedAt: string;
@@ -440,6 +478,31 @@ export interface DisputeListItem {
   readonly businessDaysRemaining: number;
   /** True when now is past slaDueAt. */
   readonly breached: boolean;
+  /*
+   * Chargebacks (#719). The API always sends these; optional only so
+   * fixtures written before #719 keep compiling. Absent = 'builder'.
+   * For a chargeback, slaDueAt is Stripe's evidence deadline.
+   */
+  readonly source?: DisputeSource;
+  /** Stripe dispute id (`dp_…`) — chargebacks only, null otherwise. */
+  readonly stripeDisputeId?: string | null;
+  /** Stripe reason code (e.g. 'fraudulent') — chargebacks only. */
+  readonly stripeReason?: string | null;
+  /** Stripe's raw dispute status (needs_response, under_review, won, …). */
+  readonly stripeStatus?: string | null;
+  /** Disputed amount, integer cents — chargebacks only. */
+  readonly amountCents?: number | null;
+  /** Stripe's evidence deadline (ISO) — chargebacks only. */
+  readonly evidenceDueAt?: string | null;
+  /** Whole calendar days until evidenceDueAt (negative when past). */
+  readonly evidenceDaysRemaining?: number | null;
+  /** Outcome once Stripe closes the chargeback; null while open. */
+  readonly outcome?: ChargebackOutcome | null;
+  /**
+   * True for a Stripe live-mode dispute, false for test mode, null for a
+   * builder dispute. The "View in Stripe" link picks the dashboard from it.
+   */
+  readonly livemode?: boolean | null;
 }
 
 /** GET /api/v1/admin/disputes — open disputes, oldest first. */

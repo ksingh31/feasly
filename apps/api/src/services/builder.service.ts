@@ -13,18 +13,24 @@
  * or audit details — only ids and tenant keys.
  */
 import { randomUUID } from 'node:crypto';
-import { eq } from 'drizzle-orm';
+import { count, eq } from 'drizzle-orm';
 import type {
   Builder,
   BuilderCreateBody,
   BuilderUpdateBody,
+  LeadAssignBuilderResponse,
 } from '@feasly/contracts';
 import type { AppDb } from '../db/client';
-import { builders, leads, tenants } from '../db/schema';
+import { builders, commissionInvoices, tenants } from '../db/schema';
 import { ErrorCodes, HttpError } from '../middleware/errors';
 import { isUniqueViolation } from './pg-errors';
 import { readDefaultPaymentMethod } from '../lib/payment-method';
 import type { AdminAuditStore } from './admin-audit.store';
+import { normalizeBuilderStatus } from '../lib/builder-status-policy';
+import {
+  createLeadAssignmentService,
+  type LeadAssignmentService,
+} from './lead-assignment.service';
 
 export interface BuilderService {
   /** All builders, newest first. Admin-only callers. */
@@ -42,24 +48,50 @@ export interface BuilderService {
     adminEmail: string,
   ): Promise<Builder>;
   /**
+   * #870: a builder org owner edits their own profile/branding — the
+   * owner-editable subset only (never rate, plan, status, origins).
+   * Already-validated input; omitted = unchanged, null clears. Throws 404
+   * when missing. Audit-logged under the acting user with the changed
+   * field names (never the values).
+   */
+  updateProfile(
+    id: string,
+    input: BuilderProfilePatch,
+    actorEmail: string,
+  ): Promise<Builder>;
+  /**
    * Assign (or unassign with null) a lead to a builder. Null builderId is
    * the normal state — the lead flow never depends on it. Throws 404 when
-   * the lead (or builder) doesn't exist. Audit-logged.
+   * the lead (or builder) doesn't exist. Moving a lead away from a builder
+   * follows the #721 rules (see lead-assignment.service.ts): 409
+   * LEAD_HAS_INVOICE while a non-void invoice exists, otherwise the old
+   * attribution closes and the new builder is introduced. Audit-logged.
    */
   assignLead(
     leadId: string,
     builderId: string | null,
     adminEmail: string,
-  ): Promise<{ readonly ok: true }>;
+  ): Promise<LeadAssignBuilderResponse>;
   // FUTURE (builder onboarding story): portal-access management hooks in
   // here — list/grant/revoke builder_allowlist emails per builder. The
   // builder_allowlist table and the /builder/login magic-link flow already
   // exist; this is where the admin API will manage them.
 }
 
+/** #870: the builder-owner-editable profile fields (validated upstream). */
+export interface BuilderProfilePatch {
+  readonly displayName?: string;
+  readonly email?: string | null;
+  readonly phone?: string | null;
+  readonly logoUrl?: string | null;
+  readonly accentColor?: string | null;
+}
+
 export interface BuilderServiceDeps {
   readonly db: AppDb;
   readonly audit: AdminAuditStore;
+  /** #721 reassignment rules. Defaults to one built from db + audit. */
+  readonly leadAssignment?: LeadAssignmentService;
   /**
    * #725: called after an admin assigns a lead to a (different) builder —
    * composition wires the builder-notifications service. Must not throw.
@@ -74,13 +106,36 @@ export interface BuilderServiceDeps {
    * is logged and never fails the admin's update.
    */
   readonly onBillingProfileChanged?: (builder: Builder) => Promise<void>;
+  /**
+   * #870: called after an admin update that changed allowed origins, so
+   * builder origin-change requests the update satisfied are closed.
+   * Best-effort: a failure is logged and never fails the update.
+   */
+  readonly onAllowedOriginsChanged?: (args: {
+    readonly builderId: string;
+    readonly allowedOrigins: readonly string[];
+    readonly actorEmail: string;
+  }) => Promise<void>;
   /** Warning sink for the best-effort hook. Defaults to console.warn. */
   readonly logWarning?: (message: string) => void;
 }
 
 type BuilderRow = typeof builders.$inferSelect;
 
-const BUILDER_STATUS_RE = /^(active|inactive)$/;
+/**
+ * #860: status changes go through the lifecycle endpoint
+ * (`POST /api/v1/admin/builders/{id}/status`, reason required, audited).
+ * Create/update only accept the status the builder already has (a new
+ * builder is always 'active').
+ */
+function statusChangeRefused(): HttpError {
+  return new HttpError(
+    400,
+    ErrorCodes.VALIDATION_FAILED,
+    'Builder status changes need a reason: use POST /api/v1/admin/builders/{id}/status.',
+    false,
+  );
+}
 
 /** The default commission rate (percent) — Karan 2026-09-24: 1%. */
 const DEFAULT_COMMISSION_RATE_PERCENT = 1;
@@ -112,7 +167,7 @@ function parseCommissionRatePercent(value: unknown): number | undefined {
   return value;
 }
 
-function toContract(row: BuilderRow): Builder {
+export function toBuilderContract(row: BuilderRow): Builder {
   return {
     id: row.id,
     tenantKey: row.tenantKey,
@@ -124,7 +179,11 @@ function toContract(row: BuilderRow): Builder {
     accentColor: row.accentColor,
     allowedOrigins: [...row.allowedOrigins],
     plan: row.plan,
-    status: row.status === 'inactive' ? 'inactive' : 'active',
+    // Unknown values fail closed (read as suspended).
+    status: normalizeBuilderStatus(row.status) ?? 'suspended',
+    statusReason: row.statusReason ?? null,
+    statusChangedAt: row.statusChangedAt ? row.statusChangedAt.toISOString() : null,
+    statusChangedBy: row.statusChangedBy ?? null,
     settings: { ...row.settings },
     commissionRatePercent: row.commissionRatePercent,
     createdAt: row.createdAt.toISOString(),
@@ -166,6 +225,12 @@ async function syncTenantRow(
     .onConflictDoUpdate({ target: tenants.tenantKey, set: shared });
 }
 
+function sameOrigins(a: readonly string[], b: readonly string[]): boolean {
+  if (a.length !== b.length) return false;
+  const set = new Set(a);
+  return b.every((o) => set.has(o));
+}
+
 function normalizeOrigins(origins: readonly string[] | undefined): string[] {
   if (origins === undefined) return [];
   return origins.map((o) => o.trim()).filter((o) => o.length > 0);
@@ -173,6 +238,55 @@ function normalizeOrigins(origins: readonly string[] | undefined): string[] {
 
 export function createBuilderService(deps: BuilderServiceDeps): BuilderService {
   const { db, audit } = deps;
+  const leadAssignment =
+    deps.leadAssignment ?? createLeadAssignmentService({ db, audit });
+
+  const warn = (m: string): void =>
+    (deps.logWarning ?? ((msg: string) => console.warn(msg)))(m);
+
+  /** Update the row and mirror it into `tenants` in one transaction. */
+  async function persistPatch(
+    current: BuilderRow,
+    patch: Partial<BuilderRow>,
+  ): Promise<BuilderRow> {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    return db.transaction(async (tx: any) => {
+      const [updated] = await tx
+        .update(builders)
+        .set(patch)
+        .where(eq(builders.id, current.id))
+        .returning();
+      if (!updated) {
+        throw new HttpError(404, ErrorCodes.NOT_FOUND, 'Builder not found.', false);
+      }
+      // Keep the shared tenants fields in sync (and create the row for a
+      // builder that predates #710 and has not been backfilled yet).
+      await syncTenantRow(tx, updated as BuilderRow);
+      return updated as BuilderRow;
+    });
+  }
+
+  /** #716: keep the Stripe customer in sync — best-effort, never throws. */
+  async function syncBillingProfile(
+    current: BuilderRow,
+    row: BuilderRow,
+    builder: Builder,
+  ): Promise<void> {
+    if (
+      !deps.onBillingProfileChanged ||
+      (row.businessName === current.businessName && row.email === current.email)
+    ) {
+      return;
+    }
+    try {
+      await deps.onBillingProfileChanged(builder);
+    } catch (error) {
+      warn(
+        `builder-service: Stripe customer sync failed for builderId=${row.id} ` +
+          `(${error instanceof Error ? error.message : 'unknown error'})`,
+      );
+    }
+  }
 
   async function getRowById(id: string): Promise<BuilderRow> {
     const row = await db.query.builders.findFirst({
@@ -189,18 +303,28 @@ export function createBuilderService(deps: BuilderServiceDeps): BuilderService {
       const rows = await db.query.builders.findMany({
         orderBy: (t, { desc }) => [desc(t.createdAt)],
       });
-      return rows.map(toContract);
+      // #873: flag builders with a live bank chargeback (one grouped query).
+      const open = await db
+        .select({ tenantKey: commissionInvoices.tenantKey, n: count() })
+        .from(commissionInvoices)
+        .where(eq(commissionInvoices.chargebackStatus, 'open'))
+        .groupBy(commissionInvoices.tenantKey);
+      const openByTenant = new Map(open.map((r) => [r.tenantKey, Number(r.n)]));
+      return rows.map((row) => ({
+        ...toBuilderContract(row),
+        openChargebacks: openByTenant.get(row.tenantKey) ?? 0,
+      }));
     },
 
     async getBuilder(id: string): Promise<Builder> {
-      return toContract(await getRowById(id));
+      return toBuilderContract(await getRowById(id));
     },
 
     async getByTenantKey(tenantKey: string): Promise<Builder | null> {
       const row = await db.query.builders.findFirst({
         where: eq(builders.tenantKey, tenantKey),
       });
-      return row === undefined ? null : toContract(row);
+      return row === undefined ? null : toBuilderContract(row);
     },
 
     async createBuilder(
@@ -219,14 +343,7 @@ export function createBuilderService(deps: BuilderServiceDeps): BuilderService {
         );
       }
       const status = input.status ?? 'active';
-      if (!BUILDER_STATUS_RE.test(status)) {
-        throw new HttpError(
-          400,
-          ErrorCodes.VALIDATION_FAILED,
-          'status must be "active" or "inactive".',
-          false,
-        );
-      }
+      if (status !== 'active') throw statusChangeRefused();
       // Check-then-insert race: the pre-check above catches the common
       // case, but two concurrent creates can both pass it. Map the
       // insert-time unique violation to the same 409 as the pre-check
@@ -279,7 +396,7 @@ export function createBuilderService(deps: BuilderServiceDeps): BuilderService {
         action: 'admin_builder_created',
         detail: `builderId=${row.id} tenantKey=${row.tenantKey} commissionRatePercent=${row.commissionRatePercent}`,
       });
-      return toContract(row);
+      return toBuilderContract(row);
     },
 
     async updateBuilder(
@@ -302,16 +419,11 @@ export function createBuilderService(deps: BuilderServiceDeps): BuilderService {
       if (input.allowedOrigins !== undefined)
         patch.allowedOrigins = normalizeOrigins(input.allowedOrigins);
       if (input.plan !== undefined) patch.plan = input.plan?.trim() || null;
-      if (input.status !== undefined) {
-        if (!BUILDER_STATUS_RE.test(input.status)) {
-          throw new HttpError(
-            400,
-            ErrorCodes.VALIDATION_FAILED,
-            'status must be "active" or "inactive".',
-            false,
-          );
-        }
-        patch.status = input.status;
+      if (
+        input.status !== undefined &&
+        input.status !== normalizeBuilderStatus(current.status)
+      ) {
+        throw statusChangeRefused();
       }
       if (input.settings !== undefined) patch.settings = { ...input.settings };
       const newRatePercent = parseCommissionRatePercent(
@@ -335,21 +447,7 @@ export function createBuilderService(deps: BuilderServiceDeps): BuilderService {
           defaultPaymentMethod: input.defaultPaymentMethod,
         };
       }
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const row: BuilderRow = await db.transaction(async (tx: any) => {
-        const [updated] = await tx
-          .update(builders)
-          .set(patch)
-          .where(eq(builders.id, current.id))
-          .returning();
-        if (!updated) {
-          throw new HttpError(404, ErrorCodes.NOT_FOUND, 'Builder not found.', false);
-        }
-        // Keep the shared tenants fields in sync (and create the row for a
-        // builder that predates #710 and has not been backfilled yet).
-        await syncTenantRow(tx, updated as BuilderRow);
-        return updated as BuilderRow;
-      });
+      const row = await persistPatch(current, patch);
       await audit.log({
         actorEmail: adminEmail,
         action: 'admin_builder_updated',
@@ -373,17 +471,22 @@ export function createBuilderService(deps: BuilderServiceDeps): BuilderService {
             `from=${fromDefaultMethod} to=${input.defaultPaymentMethod}`,
         });
       }
-      const builder = toContract(row);
+      const builder = toBuilderContract(row);
+      await syncBillingProfile(current, row, builder);
       if (
-        deps.onBillingProfileChanged &&
-        (row.businessName !== current.businessName ||
-          row.email !== current.email)
+        deps.onAllowedOriginsChanged &&
+        input.allowedOrigins !== undefined &&
+        !sameOrigins(current.allowedOrigins, row.allowedOrigins)
       ) {
         try {
-          await deps.onBillingProfileChanged(builder);
+          await deps.onAllowedOriginsChanged({
+            builderId: row.id,
+            allowedOrigins: [...row.allowedOrigins],
+            actorEmail: adminEmail,
+          });
         } catch (error) {
-          (deps.logWarning ?? ((m: string) => console.warn(m)))(
-            `builder-service: Stripe customer sync failed for builderId=${row.id} ` +
+          warn(
+            `builder-service: origin-request sync failed for builderId=${row.id} ` +
               `(${error instanceof Error ? error.message : 'unknown error'})`,
           );
         }
@@ -391,39 +494,52 @@ export function createBuilderService(deps: BuilderServiceDeps): BuilderService {
       return builder;
     },
 
+    async updateProfile(
+      id: string,
+      input: BuilderProfilePatch,
+      actorEmail: string,
+    ): Promise<Builder> {
+      const current = await getRowById(id);
+      const patch: Partial<BuilderRow> = { updatedAt: new Date() };
+      const changed: string[] = [];
+      const set = <K extends keyof BuilderProfilePatch & keyof BuilderRow>(
+        key: K,
+        value: BuilderRow[K],
+      ): void => {
+        if (value !== current[key]) changed.push(key);
+        (patch as Record<string, unknown>)[key] = value;
+      };
+      if (input.displayName !== undefined) set('displayName', input.displayName);
+      if (input.email !== undefined) set('email', input.email);
+      if (input.phone !== undefined) set('phone', input.phone);
+      if (input.logoUrl !== undefined) set('logoUrl', input.logoUrl);
+      if (input.accentColor !== undefined) set('accentColor', input.accentColor);
+      const row = await persistPatch(current, patch);
+      await audit.log({
+        actorEmail,
+        action: 'builder_profile_updated',
+        detail:
+          `builderId=${row.id} tenantKey=${row.tenantKey} ` +
+          `fields=${changed.length > 0 ? changed.join(',') : 'none'}`,
+      });
+      const builder = toBuilderContract(row);
+      await syncBillingProfile(current, row, builder);
+      return builder;
+    },
+
     async assignLead(
       leadId: string,
       builderId: string | null,
       adminEmail: string,
-    ): Promise<{ readonly ok: true }> {
-      const lead = await db.query.leads.findFirst({
-        where: eq(leads.id, leadId),
-      });
-      if (lead === undefined) {
-        throw new HttpError(404, ErrorCodes.NOT_FOUND, 'Lead not found.', false);
-      }
-      if (builderId !== null) {
-        await getRowById(builderId);
-      }
-      await db
-        .update(leads)
-        .set({ builderId })
-        .where(eq(leads.id, leadId));
+    ): Promise<LeadAssignBuilderResponse> {
+      const result = await leadAssignment.assignLead(leadId, builderId, adminEmail);
       // #725: a lead newly assigned to a builder notifies that builder's
       // team once (the outbox dedupes per lead + builder + member). The
       // hook never throws.
-      if (builderId !== null && lead.builderId !== builderId && deps.onLeadAssigned) {
+      if (builderId !== null && result.changed && deps.onLeadAssigned) {
         await deps.onLeadAssigned({ leadId, builderId });
       }
-      await audit.log({
-        actorEmail: adminEmail,
-        action:
-          builderId === null
-            ? 'admin_lead_builder_unassigned'
-            : 'admin_lead_builder_assigned',
-        detail: `leadId=${leadId} builderId=${builderId ?? 'null'}`,
-      });
-      return { ok: true as const };
+      return result;
     },
   };
 }

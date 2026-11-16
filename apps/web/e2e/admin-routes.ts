@@ -76,6 +76,8 @@ export const ADMIN_E2E_OVERLAYS: readonly AdminE2eOverlay[] = [
   { name: 'user-drawer', url: '/admin/users?open=u-2' },
   { name: 'invoice-drawer', url: '/admin/billing/invoices?open=00000000-0000-4000-8000-000000000001' },
   { name: 'dispute-drawer', url: '/admin/disputes?open=dispute-1' },
+  // #872: a Stripe chargeback — chip, evidence deadline, View in Stripe.
+  { name: 'chargeback-drawer', url: '/admin/disputes?open=chargeback-1' },
   { name: 'api-key-drawer', url: '/admin/api-keys?open=key-1' },
   { name: 'add-builder-modal', url: '/admin/builders', trigger: 'Add builder' },
   { name: 'invite-user-modal', url: '/admin/users', trigger: 'Invite user' },

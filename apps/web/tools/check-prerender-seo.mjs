@@ -145,6 +145,41 @@ for (const route of [...INDEXABLE, '/404']) {
 // redirect to / during prerender (no wizard state), so prerendering them
 // would only bake the redirect placeholder. Covered by unit tests instead. ---
 
+// --- #824: How it works prerenders the estimate's includes / not-included
+// lists (static: generated from the engine line items + config). ---
+{
+  const html = htmlFor('/how-it-works');
+  if (html !== null) {
+    mustContain(html, '/how-it-works', 'What this estimate includes', 'estimate includes list');
+    mustContain(html, '/how-it-works', 'Not included', 'estimate not-included list');
+    // #827: transparency sections ship in the prerendered HTML.
+    mustContain(html, '/how-it-works', 'The formula behind every estimate', 'formula section');
+    mustContain(html, '/how-it-works', 'Where the data comes from', 'data sources section');
+    mustContain(html, '/how-it-works', 'A worked example', 'worked example section');
+    mustContain(html, '/how-it-works', 'class="example-table"', 'worked example table');
+    mustContain(html, '/how-it-works', 'What happens after your estimate', 'next steps section');
+  }
+}
+
+// --- #834: Help prerenders every topic group, the contact card, and a
+// WebPage JSON-LD whose name is the visible h1. ---
+{
+  const html = htmlFor('/help');
+  if (html !== null) {
+    for (const topic of ['Estimates', 'Zoning', 'Assessed value', 'Privacy', 'Builders']) {
+      mustContain(html, '/help', `>${topic}</h2>`, `help topic "${topic}"`);
+    }
+    mustContain(html, '/help', 'Request a callback', 'callback card');
+    mustContain(html, '/help', 'href="/how-it-works"', 'How we estimate link');
+    const data = jsonLdBlocks(html)[0];
+    if (!data || data['@type'] !== 'WebPage') {
+      failures.push('"/help" ld+json must be a valid WebPage');
+    } else if (!data.name || !html.includes(`>${data.name}</h1>`)) {
+      failures.push(`"/help" ld+json WebPage name not the visible h1: "${String(data.name).slice(0, 60)}"`);
+    }
+  }
+}
+
 // --- 404 brand copy + noindex. ---
 {
   const html = htmlFor('/404');

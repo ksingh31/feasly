@@ -4,8 +4,10 @@
  * Covers: no-Bearer passthrough, limit breach → 429 with headers,
  * per-key isolation, and no usage writes on 429s.
  */
-import { describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import { createApiKeyRateLimitMiddleware } from '../src/middleware/api-key-rate-limit';
+import { mcpHandler } from '../src/functions/mcp';
+import { hasMultipleToolCalls, isMeteredMcpBody } from '../src/middleware/mcp-metering';
 import {
   HttpError,
   ErrorCodes,
@@ -96,12 +98,15 @@ function createInMemoryUsageStore(): UsageStore & { rows: unknown[] } {
   };
 }
 
+/** Quotas far above anything these tests send — per-minute tests only. */
+const NO_QUOTA = { daily: 1_000_000, monthly: 1_000_000 };
+
 describe('per-key rate limit middleware (api-mcp/07)', () => {
   it('no Bearer token → passthrough, no usage recorded', async () => {
     const usageStore = createInMemoryUsageStore();
     const usage = createUsageService({ store: usageStore });
     const apiKeys = createFakeApiKeys({});
-    const withLimit = createApiKeyRateLimitMiddleware({ apiKeys, usage });
+    const withLimit = createApiKeyRateLimitMiddleware({ apiKeys, usage, quota: NO_QUOTA });
 
     let handlerRan = false;
     const result = await withLimit(
@@ -123,7 +128,7 @@ describe('per-key rate limit middleware (api-mcp/07)', () => {
     const usage = createUsageService({ store: usageStore });
     const keyRecord = createKeyRecord({ id: 'key-1', rateLimitPerMin: 5 });
     const apiKeys = createFakeApiKeys({ 'valid-token': keyRecord });
-    const withLimit = createApiKeyRateLimitMiddleware({ apiKeys, usage });
+    const withLimit = createApiKeyRateLimitMiddleware({ apiKeys, usage, quota: NO_QUOTA });
     const headers = { authorization: 'Bearer valid-token' };
 
     // 5 succeed
@@ -163,7 +168,7 @@ describe('per-key rate limit middleware (api-mcp/07)', () => {
     const keyA = createKeyRecord({ id: 'key-a', rateLimitPerMin: 2 });
     const keyB = createKeyRecord({ id: 'key-b', rateLimitPerMin: 2 });
     const apiKeys = createFakeApiKeys({ 'token-a': keyA, 'token-b': keyB });
-    const withLimit = createApiKeyRateLimitMiddleware({ apiKeys, usage });
+    const withLimit = createApiKeyRateLimitMiddleware({ apiKeys, usage, quota: NO_QUOTA });
 
     // Exhaust key-A
     for (let i = 0; i < 2; i++) {
@@ -182,7 +187,7 @@ describe('per-key rate limit middleware (api-mcp/07)', () => {
     const usage = createUsageService({ store: usageStore });
     const keyRecord = createKeyRecord({ id: 'key-1', rateLimitPerMin: 100 });
     const apiKeys = createFakeApiKeys({ 'valid-token': keyRecord });
-    const withLimit = createApiKeyRateLimitMiddleware({ apiKeys, usage });
+    const withLimit = createApiKeyRateLimitMiddleware({ apiKeys, usage, quota: NO_QUOTA });
 
     const result = await withLimit(
       { authorization: 'Bearer valid-token' },
@@ -203,7 +208,7 @@ describe('per-key rate limit middleware (api-mcp/07)', () => {
     const usageStore = createInMemoryUsageStore();
     const usage = createUsageService({ store: usageStore });
     const apiKeys = createFakeApiKeys({});
-    const withLimit = createApiKeyRateLimitMiddleware({ apiKeys, usage });
+    const withLimit = createApiKeyRateLimitMiddleware({ apiKeys, usage, quota: NO_QUOTA });
 
     await expect(
       withLimit(
@@ -221,7 +226,7 @@ describe('per-key rate limit middleware (api-mcp/07)', () => {
       const usage = createUsageService({ store: usageStore });
       const keyRecord = createKeyRecord({ scopes: ['property:read'] });
       const apiKeys = createFakeApiKeys({ 'read-only': keyRecord });
-      const withLimit = createApiKeyRateLimitMiddleware({ apiKeys, usage });
+      const withLimit = createApiKeyRateLimitMiddleware({ apiKeys, usage, quota: NO_QUOTA });
 
       let handlerRan = false;
       await expect(
@@ -244,7 +249,7 @@ describe('per-key rate limit middleware (api-mcp/07)', () => {
       const usage = createUsageService({ store: usageStore });
       const keyRecord = createKeyRecord({ scopes: ['property:read'], rateLimitPerMin: 1 });
       const apiKeys = createFakeApiKeys({ 'read-only': keyRecord });
-      const withLimit = createApiKeyRateLimitMiddleware({ apiKeys, usage });
+      const withLimit = createApiKeyRateLimitMiddleware({ apiKeys, usage, quota: NO_QUOTA });
       const headers = { authorization: 'Bearer read-only' };
       const lookup = { endpoint: '/api/v1/properties/lookup', requiredScope: 'property:read' } as const;
 
@@ -262,7 +267,7 @@ describe('per-key rate limit middleware (api-mcp/07)', () => {
       const usage = createUsageService({ store: usageStore });
       const keyRecord = createKeyRecord({ scopes: ['property:read', 'lead'] });
       const apiKeys = createFakeApiKeys({ multi: keyRecord });
-      const withLimit = createApiKeyRateLimitMiddleware({ apiKeys, usage });
+      const withLimit = createApiKeyRateLimitMiddleware({ apiKeys, usage, quota: NO_QUOTA });
 
       const result = await withLimit(
         { authorization: 'Bearer multi' },
@@ -276,7 +281,7 @@ describe('per-key rate limit middleware (api-mcp/07)', () => {
 
     it('no Bearer key → passthrough regardless of required scope (first-party traffic)', async () => {
       const usage = createUsageService({ store: createInMemoryUsageStore() });
-      const withLimit = createApiKeyRateLimitMiddleware({ apiKeys: createFakeApiKeys({}), usage });
+      const withLimit = createApiKeyRateLimitMiddleware({ apiKeys: createFakeApiKeys({}), usage, quota: NO_QUOTA });
       const result = await withLimit(
         {},
         'corr-1',
@@ -285,5 +290,197 @@ describe('per-key rate limit middleware (api-mcp/07)', () => {
       );
       expect(result).toEqual({ ok: true });
     });
+  });
+});
+
+describe('per-key daily / monthly quota (#738)', () => {
+  const headers = { authorization: 'Bearer valid-token' };
+  const call = (
+    withLimit: ReturnType<typeof createApiKeyRateLimitMiddleware>,
+    h: Record<string, string> = headers,
+  ) => withLimit(h, 'corr-q', { endpoint: '/api/v1/estimate', requiredScope: 'estimate' }, async () => ({ ok: true }));
+
+  it('AC2: the call past the daily quota → 429 QUOTA_EXCEEDED with Retry-After and quota headers, no usage row', async () => {
+    const usageStore = createInMemoryUsageStore();
+    const usage = createUsageService({ store: usageStore });
+    const apiKeys = createFakeApiKeys({ 'valid-token': createKeyRecord({ rateLimitPerMin: 100 }) });
+    const withLimit = createApiKeyRateLimitMiddleware({
+      apiKeys,
+      usage,
+      quota: { daily: 3, monthly: 2_000 },
+    });
+
+    for (let i = 0; i < 3; i++) {
+      expect(isProblemDetails(await call(withLimit))).toBe(false);
+    }
+    const denied = await call(withLimit);
+    expect(isProblemDetails(denied)).toBe(true);
+    if (!isProblemDetails(denied)) return;
+    expect(denied.status).toBe(429);
+    expect(denied.code).toBe(ErrorCodes.QUOTA_EXCEEDED);
+    expect(denied.message).toMatch(/daily request quota/);
+    const h = problemResponseHeaders(denied);
+    const now = new Date();
+    const nextMidnight = Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate() + 1) / 1000;
+    expect(h['X-Quota-Period']).toBe('day');
+    expect(h['X-Quota-Limit']).toBe('3');
+    expect(h['X-Quota-Remaining']).toBe('0');
+    expect(Number(h['X-Quota-Reset'])).toBe(nextMidnight);
+    const retryAfter = Number(h['Retry-After']);
+    expect(retryAfter).toBeGreaterThanOrEqual(1);
+    expect(retryAfter).toBeLessThanOrEqual(86_400);
+    expect(Math.abs(retryAfter - (nextMidnight - Date.now() / 1000))).toBeLessThanOrEqual(2);
+    // The rejected call consumed nothing.
+    expect(usageStore.rows.length).toBe(3);
+  });
+
+  it('AC2: the quota holds across two instances sharing the usage table', async () => {
+    // Two Function App instances = two middleware + service stacks over
+    // the same api_usage table (here one shared store).
+    const sharedStore = createInMemoryUsageStore();
+    const apiKeys = createFakeApiKeys({ 'valid-token': createKeyRecord({ rateLimitPerMin: 100 }) });
+    const quota = { daily: 4, monthly: 2_000 };
+    const instanceA = createApiKeyRateLimitMiddleware({
+      apiKeys,
+      usage: createUsageService({ store: sharedStore }),
+      quota,
+    });
+    const instanceB = createApiKeyRateLimitMiddleware({
+      apiKeys,
+      usage: createUsageService({ store: sharedStore }),
+      quota,
+    });
+
+    const results = [];
+    for (let i = 0; i < 8; i++) {
+      results.push(await call(i % 2 === 0 ? instanceA : instanceB));
+    }
+    const accepted = results.filter((r) => !isProblemDetails(r));
+    const denied = results.filter((r) => isProblemDetails(r));
+    expect(accepted).toHaveLength(4);
+    expect(denied).toHaveLength(4);
+    for (const d of denied) {
+      expect(isProblemDetails(d) && d.code).toBe(ErrorCodes.QUOTA_EXCEEDED);
+    }
+    expect(sharedStore.rows.length).toBe(4);
+  });
+
+  it('quotas are per key: one exhausted key does not block another', async () => {
+    const usageStore = createInMemoryUsageStore();
+    const usage = createUsageService({ store: usageStore });
+    const apiKeys = createFakeApiKeys({
+      'token-a': createKeyRecord({ id: 'key-a', rateLimitPerMin: 100 }),
+      'token-b': createKeyRecord({ id: 'key-b', rateLimitPerMin: 100 }),
+    });
+    const withLimit = createApiKeyRateLimitMiddleware({ apiKeys, usage, quota: { daily: 1, monthly: 10 } });
+    expect(isProblemDetails(await call(withLimit, { authorization: 'Bearer token-a' }))).toBe(false);
+    expect(isProblemDetails(await call(withLimit, { authorization: 'Bearer token-a' }))).toBe(true);
+    expect(isProblemDetails(await call(withLimit, { authorization: 'Bearer token-b' }))).toBe(false);
+  });
+
+  it('first-party traffic without a Bearer key is never quota-checked', async () => {
+    const usageStore = createInMemoryUsageStore();
+    const usage = createUsageService({ store: usageStore });
+    const withLimit = createApiKeyRateLimitMiddleware({
+      apiKeys: createFakeApiKeys({}),
+      usage,
+      quota: { daily: 1, monthly: 1 },
+    });
+    for (let i = 0; i < 3; i++) {
+      expect(isProblemDetails(await call(withLimit, {}))).toBe(false);
+    }
+  });
+});
+
+describe('unmetered calls and route-gated scopes (#738 review)', () => {
+  it('metered: false → handler runs, no quota check, no usage row (even at quota)', async () => {
+    const usageStore = createInMemoryUsageStore();
+    const usage = createUsageService({ store: usageStore });
+    const apiKeys = createFakeApiKeys({ 'valid-token': createKeyRecord({ rateLimitPerMin: 100 }) });
+    const withLimit = createApiKeyRateLimitMiddleware({
+      apiKeys,
+      usage,
+      quota: { daily: 1, monthly: 1 },
+    });
+    const headers = { authorization: 'Bearer valid-token' };
+    const metered = { endpoint: '/api/mcp/v1', requiredScope: null, metered: true } as const;
+    const housekeeping = { endpoint: '/api/mcp/v1', requiredScope: null, metered: false } as const;
+
+    expect(isProblemDetails(await withLimit(headers, 'c', metered, async () => ({})))).toBe(false);
+    expect(usageStore.rows.length).toBe(1);
+    // Quota now exhausted — housekeeping still goes through, unrecorded.
+    for (let i = 0; i < 3; i++) {
+      expect(await withLimit(headers, 'c', housekeeping, async () => ({ ok: true }))).toEqual({ ok: true });
+    }
+    expect(usageStore.rows.length).toBe(1);
+    const denied = await withLimit(headers, 'c', metered, async () => ({}));
+    expect(isProblemDetails(denied) && denied.code).toBe(ErrorCodes.QUOTA_EXCEEDED);
+  });
+
+  it('requiredScope: null skips the middleware scope gate (the route checks per operation)', async () => {
+    const usage = createUsageService({ store: createInMemoryUsageStore() });
+    const apiKeys = createFakeApiKeys({ ro: createKeyRecord({ scopes: ['property:read'] }) });
+    const withLimit = createApiKeyRateLimitMiddleware({ apiKeys, usage, quota: NO_QUOTA });
+    const result = await withLimit(
+      { authorization: 'Bearer ro' },
+      'c',
+      { endpoint: '/api/mcp/v1', requiredScope: null },
+      async () => ({ ok: true }),
+    );
+    expect(result).toEqual({ ok: true });
+  });
+});
+
+describe('isMeteredMcpBody (#738 review)', () => {
+  it('meters tools/call, single or in a batch, parsed or raw', () => {
+    const call = { jsonrpc: '2.0', id: 1, method: 'tools/call', params: { name: 'estimate' } };
+    expect(isMeteredMcpBody(call)).toBe(true);
+    expect(isMeteredMcpBody(JSON.stringify(call))).toBe(true);
+    expect(isMeteredMcpBody([{ jsonrpc: '2.0', method: 'notifications/initialized' }, call])).toBe(true);
+  });
+
+  it('does not meter protocol housekeeping', () => {
+    for (const method of ['initialize', 'tools/list', 'notifications/initialized', 'ping']) {
+      expect(isMeteredMcpBody({ jsonrpc: '2.0', id: 1, method })).toBe(false);
+    }
+    expect(isMeteredMcpBody(JSON.stringify({ jsonrpc: '2.0', id: 1, method: 'tools/list' }))).toBe(false);
+  });
+
+  it('meters anything unrecognisable (cautious default)', () => {
+    expect(isMeteredMcpBody('not json')).toBe(true);
+    expect(isMeteredMcpBody([])).toBe(true);
+    expect(isMeteredMcpBody(null)).toBe(true);
+    expect(isMeteredMcpBody(42)).toBe(true);
+  });
+});
+
+describe('hasMultipleToolCalls (#738 review: batches cannot multiply the quota)', () => {
+  const call = { jsonrpc: '2.0', id: 1, method: 'tools/call', params: { name: 'estimate_project' } };
+  it('flags a batch with more than one tools/call, parsed or as a string', () => {
+    expect(hasMultipleToolCalls([call, { ...call, id: 2 }])).toBe(true);
+    expect(hasMultipleToolCalls(JSON.stringify([call, call, call]))).toBe(true);
+  });
+  it('allows single calls, housekeeping batches and a batch with one call', () => {
+    expect(hasMultipleToolCalls(call)).toBe(false);
+    expect(hasMultipleToolCalls([call])).toBe(false);
+    expect(hasMultipleToolCalls([{ jsonrpc: '2.0', method: 'notifications/initialized' }, call])).toBe(false);
+    expect(hasMultipleToolCalls('not json')).toBe(false);
+    expect(hasMultipleToolCalls(null)).toBe(false);
+  });
+});
+
+describe('mcpHandler rejects tool-call batches before metering (#738 review)', () => {
+  afterEach(() => vi.unstubAllEnvs());
+  it('answers 400 with JSON-RPC -32600 and never loads the composition', async () => {
+    // loadConfig() needs a database URL to be set; nothing connects to it.
+    vi.stubEnv('DATABASE_URL', 'postgres://localhost:5432/unused');
+    const call = { jsonrpc: '2.0', id: 1, method: 'tools/call', params: { name: 'submit_lead' } };
+    const context = {} as { res?: { status: number; body: { error: { code: number } } } };
+    await mcpHandler(
+      context as never,
+      { method: 'POST', headers: {}, body: [call, { ...call, id: 2 }] } as never,
+    );
+    expect(context.res?.status).toBe(400);
+    expect(context.res?.body.error.code).toBe(-32600);
   });
 });

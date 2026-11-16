@@ -10,6 +10,12 @@
  * - `POST /api/v1/admin/builders` — create a builder.
  * - `GET /api/v1/admin/builders/{id}` — one builder.
  * - `PATCH /api/v1/admin/builders/{id}` — update a builder.
+ * - `POST /api/v1/admin/builders/{id}/status` — lifecycle action (#860):
+ *   suspend / reactivate / start or complete offboarding, reason required.
+ * - `GET /api/v1/admin/builders/{id}/offboarding-blockers` — what blocks
+ *   "complete offboarding" right now (#861 checklist).
+ * - `GET /api/v1/admin/builders/{id}/export.csv?kind=leads|invoices` —
+ *   the builder's data for hand-over on exit (#860).
  *
  * Hard rules (enforced by test/boundaries.test.ts):
  * - a route NEVER imports from src/db/
@@ -17,19 +23,31 @@
  * - a route depends on the service *interface*, never the implementation
  */
 import { z } from 'zod';
-import type {
-  Builder,
-  BuilderCreateBody,
-  BuilderListResponse,
-  BuilderUpdateBody,
+import {
+  BUILDER_STATUSES,
+  type Builder,
+  type BuilderCreateBody,
+  type BuilderLifecycleResponse,
+  type BuilderListResponse,
+  type BuilderOffboardingBlockersResponse,
+  type BuilderStatus,
+  type BuilderUpdateBody,
 } from '@feasly/contracts';
 import { ErrorCodes, HttpError } from '../middleware/errors';
 import type { AdminGuard } from '../middleware/admin-guard';
 import type { BuilderService } from '../services/builder.service';
+import type { BuilderLifecycleService } from '../services/builder-lifecycle.service';
+import {
+  BUILDER_LIFECYCLE_ACTIONS,
+  MAX_STATUS_REASON,
+  MIN_STATUS_REASON,
+} from '../lib/builder-status-policy';
 
 export interface AdminBuildersRouteDeps {
   readonly builders: BuilderService;
   readonly adminGuard: AdminGuard;
+  /** #860 lifecycle actions + export. */
+  readonly lifecycle: BuilderLifecycleService;
 }
 
 export interface AdminBuildersRoute {
@@ -53,6 +71,23 @@ export interface AdminBuildersRoute {
     id: unknown,
     body: unknown,
   ): Promise<Builder>;
+  /** POST /api/v1/admin/builders/{id}/status (#860) */
+  changeStatus(
+    headers: Record<string, string | string[] | undefined>,
+    id: unknown,
+    body: unknown,
+  ): Promise<BuilderLifecycleResponse>;
+  /** GET /api/v1/admin/builders/{id}/offboarding-blockers (#861) */
+  offboardingBlockers(
+    headers: Record<string, string | string[] | undefined>,
+    id: unknown,
+  ): Promise<BuilderOffboardingBlockersResponse>;
+  /** GET /api/v1/admin/builders/{id}/export.csv (#860) */
+  exportCsv(
+    headers: Record<string, string | string[] | undefined>,
+    id: unknown,
+    query: unknown,
+  ): Promise<{ readonly csv: string; readonly filename: string }>;
 }
 
 const builderIdParamSchema = z.string().trim().uuid();
@@ -60,7 +95,20 @@ const builderIdParamSchema = z.string().trim().uuid();
 const TENANT_KEY_RE = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
 const HEX_COLOR_RE = /^#[0-9a-fA-F]{6}$/;
 
-const builderStatusSchema = z.enum(['active', 'inactive']);
+const builderStatusSchema = z.enum(
+  BUILDER_STATUSES as unknown as [BuilderStatus, ...BuilderStatus[]],
+);
+
+const lifecycleBodySchema = z.object({
+  action: z.enum(
+    BUILDER_LIFECYCLE_ACTIONS as unknown as [string, ...string[]],
+  ),
+  reason: z.string().trim().min(MIN_STATUS_REASON).max(MAX_STATUS_REASON),
+});
+
+const exportQuerySchema = z.object({
+  kind: z.enum(['leads', 'invoices']),
+});
 
 const builderCreateSchema = z.object({
   tenantKey: z
@@ -164,7 +212,7 @@ async function requireAdminEmail(
 export function createAdminBuildersRoute(
   deps: AdminBuildersRouteDeps,
 ): AdminBuildersRoute {
-  const { builders, adminGuard } = deps;
+  const { builders, adminGuard, lifecycle } = deps;
 
   const toCreateBody = (data: z.infer<typeof builderCreateSchema>): BuilderCreateBody => ({
     tenantKey: data.tenantKey,
@@ -236,6 +284,48 @@ export function createAdminBuildersRoute(
       const adminEmail = await requireAdminEmail(adminGuard, headers);
       const data = parseBody(builderUpdateSchema, body, 'builder');
       return builders.updateBuilder(parseBuilderId(id), toUpdateBody(data), adminEmail);
+    },
+
+    async changeStatus(headers, id, body): Promise<BuilderLifecycleResponse> {
+      const adminEmail = await requireAdminEmail(adminGuard, headers);
+      const builderId = parseBuilderId(id);
+      const parsed = lifecycleBodySchema.safeParse(body);
+      if (!parsed.success) {
+        throw new HttpError(
+          400,
+          ErrorCodes.VALIDATION_FAILED,
+          `Invalid status body: action must be one of ${BUILDER_LIFECYCLE_ACTIONS.join(', ')} ` +
+            `and a reason of ${MIN_STATUS_REASON}–${MAX_STATUS_REASON} characters is required.`,
+          false,
+        );
+      }
+      return lifecycle.changeStatus(
+        builderId,
+        parsed.data.action as (typeof BUILDER_LIFECYCLE_ACTIONS)[number],
+        parsed.data.reason,
+        adminEmail,
+      );
+    },
+
+    async offboardingBlockers(headers, id): Promise<BuilderOffboardingBlockersResponse> {
+      await requireAdminEmail(adminGuard, headers);
+      const blockers = await lifecycle.offboardingBlockers(parseBuilderId(id));
+      return { blockers: [...blockers] };
+    },
+
+    async exportCsv(headers, id, query) {
+      const adminEmail = await requireAdminEmail(adminGuard, headers);
+      const builderId = parseBuilderId(id);
+      const parsed = exportQuerySchema.safeParse(query);
+      if (!parsed.success) {
+        throw new HttpError(
+          400,
+          ErrorCodes.VALIDATION_FAILED,
+          'kind must be "leads" or "invoices".',
+          false,
+        );
+      }
+      return lifecycle.exportCsv(builderId, parsed.data.kind, adminEmail);
     },
   };
 }

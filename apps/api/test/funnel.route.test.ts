@@ -53,7 +53,11 @@ const EMPTY_REPORT: FunnelReport = {
   from: null,
   to: null,
   tenant: 'all',
+  utmSource: null,
+  utmCampaign: null,
   steps: [],
+  bySource: [],
+  bySourceTruncated: false,
 };
 
 describe('funnel route', () => {
@@ -113,6 +117,44 @@ describe('funnel route', () => {
     expect(funnel.lastQuery?.tenant).toEqual({
       kind: 'tenant',
       tenantKey: 'acme-builders',
+    });
+  });
+
+  it('passes utm_source / utm_campaign filters to the service (#814)', async () => {
+    const funnel = createFakeFunnel(EMPTY_REPORT);
+    const route = createFunnelRoute({
+      funnel,
+      adminGuard: sessionGuard(),
+    });
+    await route.getFunnel(adminHeaders, {
+      utm_source: 'google',
+      utm_campaign: 'spring-infill',
+    });
+    expect(funnel.lastQuery?.utmSource).toBe('google');
+    expect(funnel.lastQuery?.utmCampaign).toBe('spring-infill');
+  });
+
+  it('omits the utm filters when not supplied', async () => {
+    const funnel = createFakeFunnel(EMPTY_REPORT);
+    const route = createFunnelRoute({
+      funnel,
+      adminGuard: sessionGuard(),
+    });
+    await route.getFunnel(adminHeaders, {});
+    expect(funnel.lastQuery).not.toHaveProperty('utmSource');
+    expect(funnel.lastQuery).not.toHaveProperty('utmCampaign');
+  });
+
+  it('400s on an over-long utm_campaign', async () => {
+    const route = createFunnelRoute({
+      funnel: createFakeFunnel(EMPTY_REPORT),
+      adminGuard: sessionGuard(),
+    });
+    await expect(
+      route.getFunnel(adminHeaders, { utm_campaign: 'x'.repeat(101) }),
+    ).rejects.toMatchObject({
+      status: 400,
+      code: ErrorCodes.VALIDATION_FAILED,
     });
   });
 

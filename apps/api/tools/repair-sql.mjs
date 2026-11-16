@@ -59,6 +59,9 @@ ALTER TABLE "leads" ADD COLUMN IF NOT EXISTS "consent_updated_at" timestamp with
 ALTER TABLE "leads" ADD COLUMN IF NOT EXISTS "nudge_sent_at" timestamp with time zone;
 ALTER TABLE "leads" ADD COLUMN IF NOT EXISTS "report_opened_at" timestamp with time zone;
 ALTER TABLE "leads" ADD COLUMN IF NOT EXISTS "follow_up_sent_at" timestamp with time zone;
+ALTER TABLE "leads" ADD COLUMN IF NOT EXISTS "consent_version" text;
+ALTER TABLE "leads" ADD COLUMN IF NOT EXISTS "consent_attested_by_api_key_id" uuid;
+ALTER TABLE "leads" ADD COLUMN IF NOT EXISTS "consent_attested_at" timestamp with time zone;
 ALTER TABLE "leads" ADD COLUMN IF NOT EXISTS "sandbox" boolean DEFAULT false NOT NULL;
 ALTER TABLE "leads" ADD COLUMN IF NOT EXISTS "sheets_synced_at" timestamp with time zone;
 ALTER TABLE "leads" ADD COLUMN IF NOT EXISTS "updated_at" timestamp with time zone DEFAULT now() NOT NULL;
@@ -487,6 +490,9 @@ ALTER TABLE "commission_invoices" ADD COLUMN IF NOT EXISTS "tax_inclusive" boole
 ALTER TABLE "commission_invoices" ADD COLUMN IF NOT EXISTS "tax_cents" integer DEFAULT 0 NOT NULL;
 ALTER TABLE "commission_invoices" ADD COLUMN IF NOT EXISTS "total_cents" integer;
 UPDATE "commission_invoices" SET "total_cents" = "commission_cents" + "tax_cents" WHERE "total_cents" IS NULL;
+-- #719 chargeback flag + cumulative refunded amount.
+ALTER TABLE "commission_invoices" ADD COLUMN IF NOT EXISTS "chargeback_status" text;
+ALTER TABLE "commission_invoices" ADD COLUMN IF NOT EXISTS "refunded_cents" integer DEFAULT 0 NOT NULL;
 -- billing/12 safety net: rows created while migration 0046 was missing get
 -- human-readable invoice numbers (INV-0001… in created_at order), then the
 -- sequence advances past every assigned number — never backwards, so a
@@ -637,6 +643,16 @@ ALTER TABLE "billing_disputes" ADD COLUMN IF NOT EXISTS "resolved_by" text;
 ALTER TABLE "billing_disputes" ADD COLUMN IF NOT EXISTS "resolution_note" text;
 ALTER TABLE "billing_disputes" ADD COLUMN IF NOT EXISTS "created_at" timestamp with time zone DEFAULT now() NOT NULL;
 ALTER TABLE "billing_disputes" ADD COLUMN IF NOT EXISTS "updated_at" timestamp with time zone DEFAULT now() NOT NULL;
+-- #719 Stripe chargebacks share the disputes queue.
+ALTER TABLE "billing_disputes" ADD COLUMN IF NOT EXISTS "source" text DEFAULT 'builder' NOT NULL;
+ALTER TABLE "billing_disputes" ADD COLUMN IF NOT EXISTS "stripe_dispute_id" text;
+ALTER TABLE "billing_disputes" ADD COLUMN IF NOT EXISTS "stripe_reason" text;
+ALTER TABLE "billing_disputes" ADD COLUMN IF NOT EXISTS "stripe_status" text;
+ALTER TABLE "billing_disputes" ADD COLUMN IF NOT EXISTS "amount_cents" integer;
+ALTER TABLE "billing_disputes" ADD COLUMN IF NOT EXISTS "evidence_due_at" timestamp with time zone;
+ALTER TABLE "billing_disputes" ADD COLUMN IF NOT EXISTS "outcome" text;
+ALTER TABLE "billing_disputes" ADD COLUMN IF NOT EXISTS "livemode" boolean;
+CREATE UNIQUE INDEX IF NOT EXISTS "billing_disputes_stripe_dispute_id_idx" ON "billing_disputes" USING btree ("stripe_dispute_id");
 CREATE TABLE IF NOT EXISTS "admin_allowlist" (
 
 	"email" text PRIMARY KEY NOT NULL,

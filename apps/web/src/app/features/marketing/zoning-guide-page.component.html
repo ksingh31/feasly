@@ -15,6 +15,7 @@
   <section aria-labelledby="zoning-table">
     <h2 class="guide-h2" id="zoning-table">{{ copy.tableTitle }}</h2>
     <p class="guide-body">{{ copy.tableIntro }}</p>
+    <div class="table-scroll" role="region" aria-labelledby="zoning-table" tabindex="0">
     <table class="guide-table">
       <caption class="sr-only">{{ copy.tableTitle }}</caption>
       <thead>
@@ -36,6 +37,7 @@
         }
       </tbody>
     </table>
+    </div>
   </section>
 
   <aside class="math-note" aria-label="{{ copy.recentTitle }}">

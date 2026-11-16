@@ -92,6 +92,10 @@ describe('#733 host.json trims trace volume without losing signal', () => {
     }
   });
 
+  it('keeps the real-user monitoring traces (#830 — console.info per beacon item)', () => {
+    expect(levels['Function.telemetry.User']).toBe('Information');
+  });
+
   it('never samples requests, exceptions or traces (alerts count them)', () => {
     const s = host.logging.applicationInsights.samplingSettings;
     expect(s.isEnabled).toBe(true);

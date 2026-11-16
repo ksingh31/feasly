@@ -56,6 +56,8 @@ function invoice(over: Partial<CommissionInvoiceRecord> = {}): CommissionInvoice
     collectionsAt: null,
     dueAt: null,
     overdueDays: 0,
+    chargebackStatus: null,
+    refundedCents: 0,
     createdAt: new Date('2026-11-13T18:00:00Z'),
     updatedAt: new Date('2026-11-13T18:00:00Z'),
     ...over,

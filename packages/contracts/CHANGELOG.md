@@ -12,6 +12,56 @@ real backend. Changing them has a cost, so:
 - **Never** widen a type to `any` to "unblock" something — the no-`any` lint exists
   precisely to stop that.
 
+## Unreleased — 2026-11-16 (additive) — builder settings (#870)
+
+- **Added** builder Settings contracts: `BuilderProfile`,
+  `BuilderSupportContact`, `BuilderProfileResponse`,
+  `BuilderProfileUpdateBody`, `BuilderEmbedOriginStatus`,
+  `BuilderOriginRequestStatus`, `BuilderOriginRequest`,
+  `BuilderEmbedResponse`, `BuilderOriginRequestBody`,
+  `BuilderOriginRequestResponse`.
+- **Added** optional `AnalyticsEvent.embed_origin` (host page origin on
+  `embed_loaded`) for the embed install check.
+
+## Unreleased — 2026-11-16 — job queue, link-only shares (#838)
+
+- **Added** link-only report share contracts: `ShareLinkCreateRequest`,
+  `ShareLinkCreateResponse`, `ShareLinkStatus`, `ShareLinkSummary`,
+  `ShareLinkListRequest`, `ShareLinkListResponse`, `ShareLinkRevokeRequest`,
+  `ShareLinkRevokeResponse`.
+- **Added** `QueueJobStatus`, `AdminJobSummary`, `AdminJobsResponse` (admin
+  view of failed queue jobs).
+- **Changed** `PartnerShareVerifySuccess.partnerEmail` to optional — a
+  link-only share has no recipient. Migration: no consumer reads the field
+  today (the web report page never did); treat it as `string | undefined`.
+
+## Unreleased — 2026-11-16 (additive) — funnel tracking + campaign source
+
+Issue #814 (API half of #702):
+
+- **Added** `AnalyticsEventName` values `landing_view`, `address_search`,
+  `address_selected`, `address_no_results`, `out_of_coverage`,
+  `property_unsupported`, `preview_view` (replaces the preview `step_view`),
+  `estimate_error`, `magic_link_open`, `assessment_view`,
+  `assessment_to_estimate`.
+- **Added** `AnalyticsSource` (closed: `utm_source`, `utm_medium`,
+  `utm_campaign`, `utm_term`, `utm_content`, `click_id_type`), `ClickIdType`
+  and `ANALYTICS_SOURCE_FIELD_MAX_LENGTH` (100).
+- **Added** optional `AnalyticsEvent.source`, `LeadRequest.source`, and
+  `AdminLeadDetail.attribution` (`AnalyticsSource | null`).
+
+## Unreleased — 2026-11-16 (additive) — invisible bot protection
+
+Issue #788 (follow-up to #750):
+
+- **Added** optional `LeadRequest.elapsedMs`. This is how long, in ms, the gate
+  form was on screen before submit. The API quarantines submissions faster than
+  `LEAD_MIN_SUBMIT_MS`, the same way it handles the honeypot.
+- **Added** `ChallengeRequiredError` (`error.ts`). This is the 403 sent when an
+  IP that tripped a shared rate limit must pass Cloudflare Turnstile. It carries
+  `challenge.provider` and the public `challenge.siteKey`. The client sends the
+  token it gets back in the `X-Turnstile-Token` header (`BOT_CHALLENGE_HEADER`).
+
 ## Unreleased — 2026-11-16 (additive) — builder partners
 
 Builder partner disclosure (issue #888, API half of #847):

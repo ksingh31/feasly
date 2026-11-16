@@ -1,6 +1,10 @@
     @if (property(); as p) {
       <article class="pcard" aria-label="Selected property">
-        <h2 class="pcard-address">{{ p.address }}</h2>
+        @if (addressAsHeading()) {
+          <h2 class="pcard-address">{{ p.address }}</h2>
+        } @else {
+          <p class="pcard-address">{{ p.address }}</p>
+        }
         <p class="pcard-community">{{ p.community }} · Calgary</p>
         <dl class="pcard-facts">
           <div>
@@ -25,6 +29,9 @@
             <dd>{{ p.yearBuilt ?? '—' }}</dd>
           </div>
         </dl>
+        @if (needsApproval()) {
+          <p class="pcard-zoning-note">{{ discretionaryZoningNote }}</p>
+        }
         @if (showLandNote()) {
           <p class="pcard-land-note">{{ landHouseNote }}</p>
         }

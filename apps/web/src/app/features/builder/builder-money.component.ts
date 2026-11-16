@@ -32,6 +32,9 @@ import { LoadInvoices } from './builder-invoices.actions';
 import { BuilderInvoicesState } from './builder-invoices.state';
 import type { BuilderCommissionInvoice } from './builder-invoices-api.service';
 import { injectCardModal } from './builder-card-modal.component';
+import { cardExpiry, cardLifecycleNotice } from './builder-card-lifecycle';
+import { BuilderCardLifecycleComponent } from './builder-card-lifecycle.component';
+import { BuilderState } from './builder.state';
 
 /** One KPI tile, display-ready (all figures formatted from API cents). */
 export interface MoneyKpi {
@@ -54,15 +57,8 @@ export interface MoneyCardPanel {
   readonly action: string | null;
 }
 
-/** "08/28" from month 8 / year 2028; null when either part is missing. */
-export function cardExpiry(card: CardOnFileStatus | null | undefined): string | null {
-  if (!card?.expMonth || !card.expYear) {
-    return null;
-  }
-  const mm = String(card.expMonth).padStart(2, '0');
-  const yy = String(card.expYear).slice(-2);
-  return `${mm}/${yy}`;
-}
+/** Re-exported for existing callers; lives with the #879 lifecycle helpers. */
+export { cardExpiry };
 
 /**
  * Builder Money page (#532, artboard "Builder · Money"): `/builder/money`.
@@ -95,6 +91,7 @@ export function cardExpiry(card: CardOnFileStatus | null | undefined): string | 
     StepperComponent,
     UiButtonComponent,
     UiCellDirective,
+    BuilderCardLifecycleComponent,
   ],
   templateUrl: './builder-money.component.html',
   styleUrl: './builder-money.component.scss',
@@ -113,6 +110,15 @@ export class BuilderMoneyComponent implements OnInit {
   protected readonly overviewStatus = this.store.selectSignal(BuilderBillingState.overviewStatus);
   protected readonly invoices = this.store.selectSignal(BuilderInvoicesState.invoices);
   protected readonly listStatus = this.store.selectSignal(BuilderInvoicesState.listStatus);
+
+  /** #879: only builder admins may remove the card (the API 403s members). */
+  protected readonly isAdmin = this.store.selectSignal(BuilderState.isBuilderAdmin);
+
+  /** #879: the saved card, when the panel shows one (commission plan only). */
+  protected readonly savedCard = computed<CardOnFileStatus | null>(() => {
+    const card = this.overview()?.card;
+    return this.overview()?.planType !== 'flat' && card?.hasCard ? card : null;
+  });
 
   /** Deploy-configured "Question an invoice" destination; '' hides the link. */
   protected readonly questionHref = this.config.get('billing').questionInvoiceHref;
@@ -134,11 +140,13 @@ export class BuilderMoneyComponent implements OnInit {
       return { title: null, expiry: null, body: this.copy.moneyCardNone, action: this.copy.moneyCardAdd };
     }
     const exp = cardExpiry(o.card);
+    // #879: an expiry notice carries its own "Replace card" — no second button.
+    const notice = cardLifecycleNotice(o.card, this.copy.cardLifecycle);
     return {
       title: [enumLabel(o.card.brand), '••••', o.card.last4 ?? '—'].join(' '),
       expiry: exp ? this.copy.moneyCardExpires.replace('{exp}', exp) : null,
       body: null,
-      action: this.copy.moneyCardManage,
+      action: notice ? null : this.copy.moneyCardManage,
     };
   });
 

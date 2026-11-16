@@ -45,9 +45,38 @@ export const SHEET_HEADERS = [
   'tenant',
   'source',
   'created_at',
+  // #814: campaign attribution — appended so earlier columns never move.
+  'utm_source',
+  'utm_medium',
+  'utm_campaign',
+  'utm_term',
+  'utm_content',
+  'click_id_type',
 ] as const;
 
-function rowToValues(row: SheetLeadRow): string[] {
+/**
+ * Spreadsheet column letter for a 1-based column index (1 → A, 27 → AA).
+ * Exported for tests.
+ */
+export function columnLetter(index: number): string {
+  let n = index;
+  let out = '';
+  while (n > 0) {
+    const rem = (n - 1) % 26;
+    out = String.fromCharCode(65 + rem) + out;
+    n = Math.floor((n - 1) / 26);
+  }
+  return out;
+}
+
+/**
+ * Last column of the lead rows, derived from the header so adding a column
+ * can never leave the write range short of the row width (#927).
+ */
+export const LAST_COLUMN = columnLetter(SHEET_HEADERS.length);
+
+/** Row → cell values in SHEET_HEADERS order. Exported for tests. */
+export function rowToValues(row: SheetLeadRow): string[] {
   return [
     row.leadId,
     row.name,
@@ -69,6 +98,12 @@ function rowToValues(row: SheetLeadRow): string[] {
     row.tenant,
     row.source,
     row.createdAt,
+    row.utmSource,
+    row.utmMedium,
+    row.utmCampaign,
+    row.utmTerm,
+    row.utmContent,
+    row.clickIdType,
   ];
 }
 
@@ -126,9 +161,9 @@ export function createGoogleSheetsClient(
         const values = rowToValues(row);
         const existingRow = existingIds.get(row.leadId);
         if (existingRow !== undefined) {
-          // Replace the entire row (A:R for 18 columns).
+          // Replace the entire row (A through the last header column).
           updates.push({
-            range: `A${existingRow}:R${existingRow}`,
+            range: `A${existingRow}:${LAST_COLUMN}${existingRow}`,
             values: [values],
           });
         } else {
@@ -151,7 +186,7 @@ export function createGoogleSheetsClient(
       if (appends.length > 0) {
         await sheets.spreadsheets.values.append({
           spreadsheetId: sheetId,
-          range: 'A2:R',
+          range: `A2:${LAST_COLUMN}`,
           valueInputOption: 'RAW',
           insertDataOption: 'INSERT_ROWS',
           requestBody: { values: appends },

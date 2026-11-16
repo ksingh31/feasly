@@ -38,6 +38,7 @@
         [communities]="true"
         (selected)="onSelected($event)"
         (submitted)="onSubmit()"
+        (searchOutcome)="onSearchOutcome($event)"
       />
       <button class="hero-cta" type="submit">{{ searchCopy.submitLabel }}</button>
     </form>

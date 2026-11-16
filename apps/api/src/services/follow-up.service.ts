@@ -19,7 +19,16 @@
  *
  * The email carries a FRESH owner link (the original may be near expiry);
  * existing links are left live — the homeowner already uses them.
+ *
+ * #838 — the "finished but no builder contact requested" nudge:
+ *   - skipped when the lead already asked for a callback;
+ *   - with a `queue`, the cycle only ENQUEUES one job per candidate (dedupe
+ *     key per lead) and the job-queue worker sends via `sendReminder`; a
+ *     failed send is retried with backoff (the stamp keeps it exactly-once)
+ *     and dead-letters after max attempts. Unsubscribe cancels the pending
+ *     job; the handler re-checks consent and callbacks at send time.
  */
+import type { JobQueue } from './job-queue.service';
 import { formatDisplayAddress } from '../lib/display-address';
 import type { EmailService } from './email/email.service';
 import { EmailProviderError } from './email';
@@ -52,10 +61,21 @@ export interface FollowUpServiceDeps {
   /** Sanitized warnings (accepted-but-unconfirmed sends). */
   readonly onWarn?: (message: string) => void;
   readonly clock?: () => Date;
+  /** #838: enqueue reminders instead of sending inline. */
+  readonly queue?: Pick<JobQueue, 'enqueue'>;
 }
+
+/** #838: job type of the "no builder contact requested" reminder. */
+export const NO_BUILDER_CONTACT_REMINDER_JOB = 'reminder.no-builder-contact';
 
 export interface FollowUpService {
   runFollowUpCycle(): Promise<{ readonly sent: number; readonly skipped: number }>;
+  /**
+   * #838 queue handler: send the follow-up for one lead. Resolves true when
+   * sent, false when excluded; throws on delivery failure (queue retries).
+   * Honors the enabled flag — disabled = never sends.
+   */
+  sendReminder(leadId: string): Promise<boolean>;
 }
 
 export function createFollowUpService(deps: FollowUpServiceDeps): FollowUpService {
@@ -74,6 +94,7 @@ export function createFollowUpService(deps: FollowUpServiceDeps): FollowUpServic
     onLeadError = () => {},
     onWarn = (message: string) => console.warn(message),
     clock = () => new Date(),
+    queue,
   } = deps;
 
   return {
@@ -90,6 +111,22 @@ export function createFollowUpService(deps: FollowUpServiceDeps): FollowUpServic
       let sent = 0;
       let skipped = 0;
       for (const leadId of candidates) {
+        if (queue) {
+          // #838: enqueue only — the job-queue worker sends (with retries).
+          try {
+            const { enqueued } = await queue.enqueue({
+              type: NO_BUILDER_CONTACT_REMINDER_JOB,
+              leadId,
+              dedupeKey: `${NO_BUILDER_CONTACT_REMINDER_JOB}:${leadId}`,
+            });
+            if (enqueued) sent++;
+            else skipped++;
+          } catch (error) {
+            onLeadError(error);
+            skipped++;
+          }
+          continue;
+        }
         try {
           if (await maybeFollowUp(leadId)) sent++;
           else skipped++;
@@ -101,6 +138,10 @@ export function createFollowUpService(deps: FollowUpServiceDeps): FollowUpServic
         }
       }
       return { sent, skipped };
+    },
+    async sendReminder(leadId: string) {
+      if (!enabled) return false;
+      return maybeFollowUp(leadId);
     },
   };
 
@@ -118,6 +159,9 @@ export function createFollowUpService(deps: FollowUpServiceDeps): FollowUpServic
     if (lead.unsubscribedAt !== null || lead.contactOptOutAt !== null) return false;
     if (await unsubscribe.isUnsubscribed(lead.id)) return false;
     if (await unsubscribe.isContactOptedOut(lead.id)) return false;
+    // #838: the nudge is for homeowners who have NOT asked a builder to
+    // contact them yet.
+    if (await followUps.hasCallbackRequest(lead.id)) return false;
 
     // CASL: the unsubscribe URL is mandatory on marketing mail. If the HMAC
     // secret isn't configured, fail safe — skip without stamping.

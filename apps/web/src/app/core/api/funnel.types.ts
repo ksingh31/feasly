@@ -19,13 +19,31 @@ export interface FunnelStep {
   readonly conversionFromPrevious: number | null;
 }
 
+/**
+ * #814/#815: the funnel for one (utm_source, utm_campaign) pair. null =
+ * events without that field (direct traffic or untagged campaigns).
+ */
+export interface FunnelSourceGroup {
+  readonly utmSource: string | null;
+  readonly utmCampaign: string | null;
+  readonly steps: readonly FunnelStep[];
+}
+
 /** Full funnel report for a date range + tenant filter. */
 export interface FunnelReport {
   readonly from: string | null;
   readonly to: string | null;
   /** 'all' | 'direct' | the tenant key that was queried. */
   readonly tenant: string;
+  /** #814: echo of the utm_source filter (null = not filtered). Optional for pre-#814 backends. */
+  readonly utmSource?: string | null;
+  /** #814: echo of the utm_campaign filter (null = not filtered). */
+  readonly utmCampaign?: string | null;
   readonly steps: readonly FunnelStep[];
+  /** #814: the same funnel per (source, campaign), largest first, capped. */
+  readonly bySource?: readonly FunnelSourceGroup[];
+  /** True when more groups existed than the backend's cap. */
+  readonly bySourceTruncated?: boolean;
 }
 
 /** Tenant filter for the funnel query. */
@@ -39,4 +57,8 @@ export interface FunnelQuery {
   readonly to?: string;
   /** 'all' = every tenant, 'direct' = Feasly-direct only, else one tenant key. */
   readonly tenant: FunnelTenantFilter;
+  /** #815: exact utm_source filter. Omitted = any. */
+  readonly utmSource?: string;
+  /** #815: exact utm_campaign filter. Omitted = any. */
+  readonly utmCampaign?: string;
 }

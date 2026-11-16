@@ -271,6 +271,7 @@ describe('composition — every pipeline enforces the csrf check (#794)', () => 
     'leadPipeline',
     'estimatePipeline',
     'analyticsPipeline',
+    'webTelemetryPipeline',
     'entraCallbackPipeline',
     'builderEntraCallbackPipeline',
     'adminSearchPipeline',

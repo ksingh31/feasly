@@ -10,9 +10,9 @@
  * `LeadStatusChangeStore`): a separate interface keeps every existing
  * LeadStore fake unchanged.
  */
-import { and, eq, gte, isNull, lt } from 'drizzle-orm';
+import { and, eq, gte, isNull, lt, notExists } from 'drizzle-orm';
 import type { AppDb } from '../db/client';
-import { leads } from '../db/schema';
+import { callbackRequests, leads } from '../db/schema';
 
 export interface LeadFollowUpState {
   readonly reportOpenedAt: Date | null;
@@ -29,7 +29,8 @@ export interface LeadFollowUpStore {
    * Lead ids whose report was first opened in `[openedAfter, openedBefore)`
    * and that are eligible for the follow-up at the SQL level: marketing
    * consent, not yet followed up, not unsubscribed / contact-opted-out,
-   * not quarantined, not sandbox. The service re-checks before sending.
+   * not quarantined, not sandbox, and (#838) no builder contact requested
+   * (no callback request). The service re-checks before sending.
    */
   findCandidates(args: {
     readonly openedAfter: Date;
@@ -38,6 +39,8 @@ export interface LeadFollowUpStore {
   }): Promise<readonly string[]>;
   /** Follow-up columns for one lead; null when the lead does not exist. */
   findState(leadId: string): Promise<LeadFollowUpState | null>;
+  /** #838: true when the lead asked for a builder callback. */
+  hasCallbackRequest(leadId: string): Promise<boolean>;
   /** Record the follow-up send (exactly-once guard). */
   setFollowUpSentAt(args: { readonly leadId: string; readonly at: Date }): Promise<void>;
 }
@@ -68,6 +71,12 @@ export function createDrizzleLeadFollowUpStore(deps: {
             isNull(leads.contactOptOutAt),
             eq(leads.quarantined, false),
             eq(leads.sandbox, false),
+            notExists(
+              db
+                .select({ id: callbackRequests.id })
+                .from(callbackRequests)
+                .where(eq(callbackRequests.leadId, leads.id)),
+            ),
           ),
         )
         .orderBy(leads.reportOpenedAt)
@@ -85,6 +94,15 @@ export function createDrizzleLeadFollowUpStore(deps: {
         .where(eq(leads.id, leadId))
         .limit(1);
       return rows[0] ?? null;
+    },
+
+    async hasCallbackRequest(leadId) {
+      const rows = await db
+        .select({ id: callbackRequests.id })
+        .from(callbackRequests)
+        .where(eq(callbackRequests.leadId, leadId))
+        .limit(1);
+      return rows.length > 0;
     },
 
     async setFollowUpSentAt(args) {
