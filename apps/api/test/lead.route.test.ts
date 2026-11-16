@@ -118,6 +118,7 @@ describe('lead route', () => {
         sendContractNeedsRecording: async () => ({ sent: true as const, provider: 'log' as const }),
         sendBuilderNewLead: async () => ({ sent: true as const, provider: 'log' as const }),
         sendBuilderNeedsYouDigest: async () => ({ sent: true as const, provider: 'log' as const }),
+        sendErasureConfirmation: async () => ({ sent: true as const, provider: 'log' as const }),
       },
       unsubscribe: createUnsubscribeService({
         leads: leadStore,

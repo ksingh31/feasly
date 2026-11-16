@@ -38,6 +38,7 @@ function fakeEmail(): EmailService & { sent: unknown[] } {
     sendContractNeedsRecording: async (input) => { sent.push(input); return ok; },
     sendBuilderNewLead: async () => ok,
     sendBuilderNeedsYouDigest: async () => ok,
+    sendErasureConfirmation: async () => ok,
   };
 }
 

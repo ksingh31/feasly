@@ -257,6 +257,10 @@ const EnvSchema = z.object({
   // an email-bombing vector against any known address. This caps actual
   // magic-link *sends* per normalized email per rolling hour on both paths.
   MAGIC_LINK_MAX_SENDS_PER_HOUR: z.coerce.number().int().positive().default(5),
+  // #806: lifetime of the owner link minted for the erase-confirmation email
+  // (POST /privacy/erase-requests). Short on purpose — it only has to survive
+  // the trip to the inbox and one click. Default 24 h.
+  PRIVACY_ERASE_CONFIRM_LINK_TTL_SECONDS: z.coerce.number().int().positive().default(86_400),
   // EMB-06: relay-code lifetime (10 minutes per story) and the session-token
   // lifetime it exchanges into (12 hours per story). Both from env so tests
   // and staging can shorten them without code changes.
@@ -769,6 +773,11 @@ export interface AuthConfig {
    * never a 429 — so the budget can't become a send oracle.
    */
   readonly magicLinkMaxSendsPerHour: number;
+  /**
+   * #806: lifetime of the fresh owner link emailed for erase confirmation
+   * (from PRIVACY_ERASE_CONFIRM_LINK_TTL_SECONDS, default 24 h).
+   */
+  readonly eraseConfirmLinkTtlSeconds: number;
   /**
    * INTERIM (api-mcp/01): pre-shared key for the admin endpoints, from
    * ADMIN_API_KEY. admin/01 replaces this with session auth. Undefined =
@@ -1818,6 +1827,7 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): ApiConfig {
       magicLinkTtlSeconds: e.MAGIC_LINK_TTL_SECONDS,
       magicLinkReissueCooldownMs: e.MAGIC_LINK_REISSUE_COOLDOWN_MS,
       magicLinkMaxSendsPerHour: e.MAGIC_LINK_MAX_SENDS_PER_HOUR,
+      eraseConfirmLinkTtlSeconds: e.PRIVACY_ERASE_CONFIRM_LINK_TTL_SECONDS,
       adminApiKey: e.ADMIN_API_KEY,
       adminSessionTtlSeconds: e.ADMIN_SESSION_TTL_SECONDS,
       adminSessionIdleTimeoutSeconds: e.ADMIN_SESSION_IDLE_TIMEOUT_SECONDS,

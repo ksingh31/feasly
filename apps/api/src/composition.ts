@@ -1769,6 +1769,23 @@ export function createComposition(
     waitlist: waitlistStore,
     callbacks: callbackRequestStore,
     blockers: createNoopBlockerChecker(),
+    // #806: email the erase-confirmation link; reuses the magic-link
+    // reissue cooldown setting and SHARES the per-address hourly send
+    // budget ('magic-link:send') with the reissue path.
+    email: emailService,
+    appBaseUrl: config.email.appBaseUrl,
+    confirmLinkTtlSeconds: config.auth.eraseConfirmLinkTtlSeconds,
+    resendCooldownMs: config.auth.magicLinkReissueCooldownMs,
+    maxSendsPerHour: config.auth.magicLinkMaxSendsPerHour,
+    resendCooldown: createSharedCooldown({
+      store: rateLimitStore,
+      scope: 'privacy:erase-confirm:cooldown',
+      cooldownMs: config.auth.magicLinkReissueCooldownMs,
+    }),
+    sendBudget: sharedLimiter('magic-link:send', {
+      windowMs: MAGIC_LINK_SEND_BUDGET_WINDOW_MS,
+      maxRequests: config.auth.magicLinkMaxSendsPerHour,
+    }),
   });
   const privacyRoute: PrivacyRoute = createPrivacyRoute({
     privacy: privacyService,
