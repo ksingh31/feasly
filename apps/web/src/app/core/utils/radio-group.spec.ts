@@ -1,7 +1,16 @@
-import { describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it } from 'vitest';
 import { handleRadioGroupKeydown, radioTabIndex } from './radio-group';
 
 const IDS = ['a', 'b', 'c'] as const;
+
+/** Groups attached to document.body, removed after each test (#946). */
+const attached: HTMLElement[] = [];
+
+// Vitest shares the DOM across spec files in a worker: leaving focused radios
+// behind broke focus assertions in other specs (route-focus.service.spec).
+afterEach(() => {
+  attached.splice(0).forEach((el) => el.remove());
+});
 
 /** A radiogroup with one button per id, attached so focus() works. */
 function group(): { el: HTMLElement; radios: HTMLButtonElement[] } {
@@ -15,6 +24,7 @@ function group(): { el: HTMLElement; radios: HTMLButtonElement[] } {
     return b;
   });
   document.body.appendChild(el);
+  attached.push(el);
   return { el, radios };
 }
 
