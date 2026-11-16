@@ -69,10 +69,12 @@ const CASES: ReadonlyArray<{ name: string; handler: Handler; query: Record<strin
 
 describe('property GET adapters — HTTP caching (#756)', () => {
   for (const c of CASES) {
-    it(`${c.name}: 200 carries ETag + public Cache-Control from config`, async () => {
+    it(`${c.name}: 200 carries ETag + private Cache-Control from config + Vary: Origin`, async () => {
       const res = await call(c.handler, { query: c.query, headers: {} });
       expect(res.status).toBe(200);
-      expect(res.headers['Cache-Control']).toBe('public, max-age=900');
+      expect(res.headers['Cache-Control']).toBe('private, max-age=900');
+      // Always present — even without an allowlisted Origin (no CORS headers).
+      expect(res.headers['Vary']).toBe('Origin');
       expect(res.headers['ETag']).toMatch(/^W\/"/);
       expect(res.body).toBeDefined();
     });
@@ -86,7 +88,7 @@ describe('property GET adapters — HTTP caching (#756)', () => {
       expect(res.status).toBe(304);
       expect(res.body).toBeUndefined();
       expect(res.headers['ETag']).toBe(first.headers['ETag']);
-      expect(res.headers['Cache-Control']).toBe('public, max-age=900');
+      expect(res.headers['Cache-Control']).toBe('private, max-age=900');
     });
 
     it(`${c.name}: stale If-None-Match → 200 with the body`, async () => {

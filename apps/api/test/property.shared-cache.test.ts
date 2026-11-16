@@ -13,6 +13,7 @@
  */
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import {
+  CITY_CACHE_PAYLOAD_VERSION,
   createPropertyService,
   type PropertyDataEvent,
   type PropertyServiceDeps,
@@ -74,6 +75,8 @@ function gatedFetch(body: unknown) {
   vi.stubGlobal('fetch', fetchMock);
   return { fetchMock, release };
 }
+
+const V = CITY_CACHE_PAYLOAD_VERSION;
 
 function memoryStore(): CityDataCacheStore & { readonly entries: Map<string, unknown> } {
   const entries = new Map<string, { payload: unknown; expiresAt: Date }>();
@@ -167,8 +170,8 @@ describe('property service — shared City-data cache (#756)', () => {
     vi.stubGlobal('fetch', vi.fn(async () => ({ ok: true, json: async () => [ROW] })));
     const first = createPropertyService(CONFIG, { cache: store, landUse: landUse({ resolve }) });
     const fromCity = await first.getProperty(KEY);
-    expect(store.entries.has(`4bsw-nn7w:${KEY}`)).toBe(true);
-    expect(store.entries.has(`qe6k-p9nh:${KEY}`)).toBe(true);
+    expect(store.entries.has(`4bsw-nn7w:${V}:${KEY}`)).toBe(true);
+    expect(store.entries.has(`qe6k-p9nh:${V}:${KEY}`)).toBe(true);
 
     const fetchMock = vi.fn();
     vi.stubGlobal('fetch', fetchMock);
@@ -197,13 +200,28 @@ describe('property service — shared City-data cache (#756)', () => {
 
   it('ignores a malformed durable payload and refetches', async () => {
     const store = memoryStore();
-    await store.put('4bsw-nn7w', KEY, { nonsense: true }, new Date(Date.now() + 60_000));
+    await store.put('4bsw-nn7w', `${V}:${KEY}`, { nonsense: true }, new Date(Date.now() + 60_000));
     const fetchMock = vi.fn(async () => ({ ok: true, json: async () => [ROW] }));
     vi.stubGlobal('fetch', fetchMock);
     const service = createPropertyService(CONFIG, { cache: store });
     const record = await service.getProperty(KEY);
     expect(fetchMock).toHaveBeenCalledTimes(1);
     expect(record.addressKey).toBe(KEY);
+  });
+
+  it('rows written under another payload version are misses (schema-versioned keys)', async () => {
+    const store = memoryStore();
+    // A well-formed row from an older (unversioned) payload schema.
+    const stale = { record: { addressKey: KEY, assessedValue: 1 }, point: null };
+    await store.put('4bsw-nn7w', KEY, stale, new Date(Date.now() + 60_000));
+    await store.put('4bsw-nn7w', `v0:${KEY}`, stale, new Date(Date.now() + 60_000));
+    const fetchMock = vi.fn(async () => ({ ok: true, json: async () => [ROW] }));
+    vi.stubGlobal('fetch', fetchMock);
+    const service = createPropertyService(CONFIG, { cache: store });
+    const record = await service.getProperty(KEY);
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(record.assessedValue).toBe(840_500);
+    expect(store.entries.has(`4bsw-nn7w:${V}:${KEY}`)).toBe(true);
   });
 
   it('a failing store never fails the lookup', async () => {

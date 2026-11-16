@@ -3237,7 +3237,7 @@ URL versioning (\`/v1/\`). Breaking changes ship as \`/v2/\` with 6 months notic
             "description": "Address suggestions",
           },
           "304": {
-            "description": "Not modified: If-None-Match names the current ETag; reuse the cached copy (#756). 200 responses carry ETag and Cache-Control: public, max-age=<PROPERTY_HTTP_CACHE_MAX_AGE_S>.",
+            "description": "Not modified: If-None-Match names the current ETag; reuse the cached copy (#756). 200 responses carry ETag and Cache-Control: private, max-age=<PROPERTY_HTTP_CACHE_MAX_AGE_S> and Vary: Origin.",
           },
           "400": {
             "content": {
@@ -3349,7 +3349,7 @@ URL versioning (\`/v1/\`). Breaking changes ship as \`/v2/\` with 6 months notic
             "description": "Property record",
           },
           "304": {
-            "description": "Not modified: If-None-Match names the current ETag; reuse the cached copy (#756). 200 responses carry ETag and Cache-Control: public, max-age=<PROPERTY_HTTP_CACHE_MAX_AGE_S>.",
+            "description": "Not modified: If-None-Match names the current ETag; reuse the cached copy (#756). 200 responses carry ETag and Cache-Control: private, max-age=<PROPERTY_HTTP_CACHE_MAX_AGE_S> and Vary: Origin.",
           },
           "400": {
             "content": {

@@ -5,7 +5,7 @@ import { describe, expect, it } from 'vitest';
 import {
   cacheableResponse,
   ifNoneMatchHits,
-  publicCacheControl,
+  privateCacheControl,
   weakEtag,
 } from '../src/lib/http-cache';
 
@@ -34,8 +34,9 @@ describe('http-cache (#756)', () => {
     const first = cacheableResponse(body, undefined, 3600);
     expect(first.status).toBe(200);
     expect(first.body).toBe(body);
-    expect(first.headers['Cache-Control']).toBe(publicCacheControl(3600));
-    expect(first.headers['Cache-Control']).toBe('public, max-age=3600');
+    expect(first.headers['Cache-Control']).toBe(privateCacheControl(3600));
+    expect(first.headers['Cache-Control']).toBe('private, max-age=3600');
+    expect(first.headers.Vary).toBe('Origin');
 
     const again = cacheableResponse(body, first.headers.ETag, 3600);
     expect(again.status).toBe(304);

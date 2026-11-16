@@ -498,7 +498,7 @@ export function buildOpenApiSpec(options: OpenApiSpecOptions) {
         description:
           'Not modified: If-None-Match names the current ETag; reuse the ' +
           'cached copy (#756). 200 responses carry ETag and ' +
-          'Cache-Control: public, max-age=<PROPERTY_HTTP_CACHE_MAX_AGE_S>.',
+          'Cache-Control: private, max-age=<PROPERTY_HTTP_CACHE_MAX_AGE_S> and Vary: Origin.',
       },
       '404': {
         description:
@@ -554,7 +554,7 @@ export function buildOpenApiSpec(options: OpenApiSpecOptions) {
         description:
           'Not modified: If-None-Match names the current ETag; reuse the ' +
           'cached copy (#756). 200 responses carry ETag and ' +
-          'Cache-Control: public, max-age=<PROPERTY_HTTP_CACHE_MAX_AGE_S>.',
+          'Cache-Control: private, max-age=<PROPERTY_HTTP_CACHE_MAX_AGE_S> and Vary: Origin.',
       },
       '404': {
         description:

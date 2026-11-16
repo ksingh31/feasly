@@ -338,6 +338,14 @@ interface DistrictCheck {
   readonly checkedOn: string;
 }
 
+/**
+ * Durable-cache payload schema version (#756). Prefixed onto every
+ * `city_data_cache` key, so changing the cached `RollEntry` / `DistrictCheck`
+ * shape (bump this) turns old rows into misses instead of serving
+ * stale-shaped payloads until their TTL runs out.
+ */
+export const CITY_CACHE_PAYLOAD_VERSION = 'v1';
+
 /** Shape check for a durable-cache roll payload (#756) — anything else is a miss. */
 function isRollEntry(value: unknown): value is RollEntry {
   if (typeof value !== 'object' || value === null) return false;
@@ -517,11 +525,12 @@ export function createPropertyService(
     readonly fetch: () => Promise<T>;
   }): Promise<T> {
     const { op, dataset, key } = args;
+    const storeKey = `${CITY_CACHE_PAYLOAD_VERSION}:${key}`;
     const { promise, joined } = args.flights.run(key, async () => {
       const store = deps.cache;
       if (store && args.ttlMs !== undefined) {
         try {
-          const hit = await withStoreTimeout(store.get(dataset, key, new Date()));
+          const hit = await withStoreTimeout(store.get(dataset, storeKey, new Date()));
           if (args.isPayload(hit)) {
             emit({ event: 'lookup', op, dataset, source: 'db' });
             return hit;
@@ -535,7 +544,7 @@ export function createPropertyService(
       if (store && args.ttlMs !== undefined) {
         try {
           await withStoreTimeout(
-            store.put(dataset, key, value, new Date(Date.now() + args.ttlMs)),
+            store.put(dataset, storeKey, value, new Date(Date.now() + args.ttlMs)),
           );
         } catch (error) {
           logWarning(`[property] city-data cache write failed (${errorClass(error)}).`);
