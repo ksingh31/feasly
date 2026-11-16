@@ -17,14 +17,16 @@
  *   then the outcome. A WON chargeback leaves the invoice 'paid'. A LOST
  *   chargeback (owner decision #873, 2026-11-15): the builder still owes
  *   the commission, so the invoice moves `paid → failed` and is collected
- *   again through the dunning queue (admin retry or manual mark-paid), and
- *   the builder is emailed (commission.reopenAfterLostChargeback). Never
+ *   again through the dunning queue (automatic / admin retry), builder
+ *   Pay now, or a manual mark-paid, and the builder is emailed
+ *   (commission.reopenAfterLostChargeback). An invoice that already used
+ *   every allowed charge retry is still re-opened, with no automatic retry
+ *   scheduled: retryCharge would refuse it, so the builder email asks for
+ *   Pay now (not capped) and the ops alert says so (#977). Never
  *   auto-voided — a write-off is an admin's manual void. When re-charging
  *   the full invoice would over-collect (a partial chargeback, or the
  *   invoice was already partly refunded) or the invoice is no longer
- *   'paid', or it already used every allowed charge retry (retryCharge
- *   would refuse it), the status is left alone and ops is alerted to
- *   collect it by hand.
+ *   'paid', the status is left alone and ops is alerted to handle it.
  * - An open chargeback pauses nothing but charge retries on that invoice
  *   (#873): no automatic embed / lead-flow pause. The builder shows the
  *   open-chargeback flag in the admin builders list, and an admin can
@@ -63,6 +65,7 @@ import {
   DISPUTE_SLA_TIMEZONE,
   addBusinessDays,
 } from '../../lib/business-days';
+import { retriesExhausted as hasNoRetriesLeft } from '../../lib/dunning-schedule';
 import type { EmailService } from '../email/email.service';
 import { ensureOpsAlertDelivered } from '../ops-alerts.service';
 import type { BillingAuditService } from './billing-audit.service';
@@ -129,7 +132,7 @@ export interface ChargebackServiceDeps {
   readonly db: AppDb;
   readonly audit: BillingAuditService;
   /** #873: a lost chargeback re-opens the invoice for collection. */
-  readonly commission: Pick<CommissionService, 'reopenAfterLostChargeback'>;
+  readonly commission: Pick<CommissionService, 'reopenAfterLostChargeback' | 'getById'>;
   readonly email: Pick<EmailService, 'sendOpsAlert'>;
   readonly opsInbox: string;
   /** Defaults to () => new Date(); tests inject a fixed clock. */
@@ -520,19 +523,19 @@ export function createChargebackService(
     let recollecting = false;
     let retriesExhausted = false;
     if (finalOutcome === 'lost' && canRecollectInFull(invoice, closed.amountCents)) {
-      const reopenResult = await commission.reopenAfterLostChargeback({
+      const { reopened } = await commission.reopenAfterLostChargeback({
         invoiceId: invoice.id,
         disputeId: row.id,
         stripeDisputeId: row.stripeDisputeId,
         stripeEventId,
       });
-      if (reopenResult.reopened) changed = true;
-      retriesExhausted = reopenResult.retriesExhausted === true;
-      const fresh = await db.query.commissionInvoices.findFirst({
-        columns: { status: true },
-        where: eq(commissionInvoices.id, invoice.id),
-      });
-      recollecting = fresh?.status === 'failed';
+      if (reopened) changed = true;
+      const fresh = await commission.getById(invoice.id);
+      recollecting = fresh.status === 'failed';
+      // #977: no retry left — retryCharge refuses it; only builder Pay now
+      // (not capped), a manual mark-paid or a void can settle it.
+      retriesExhausted =
+        recollecting && hasNoRetriesLeft(fresh.retryCount, fresh.maxChargeRetries);
     }
 
     // The invoice timeline row + ops alert are keyed on this dispute, not on
@@ -549,7 +552,18 @@ export function createChargebackService(
     const amount = formatCents(closed.amountCents, invoice.currency);
     // Alert before the audit row: if the audit write fails, the redelivery
     // alerts again (at-least-once) rather than never.
-    if (finalOutcome === 'lost' && recollecting) {
+    if (finalOutcome === 'lost' && recollecting && retriesExhausted) {
+      await alertOps(
+        `Chargeback lost on ${invoice.invoiceNumber} — commission due again, no retries left`,
+        `Stripe closed chargeback ${row.stripeDisputeId} on invoice ` +
+          `${invoice.invoiceNumber} as LOST (${amount}). The builder still ` +
+          `owes the commission: the invoice is now 'failed' and in the ` +
+          `dunning queue, but it has already used every allowed charge retry, ` +
+          `so no automatic retry is scheduled and an admin retry would be ` +
+          `refused. The builder has been emailed to use Pay now. Otherwise ` +
+          `mark it paid once collected, or void the invoice by hand to write it off.`,
+      );
+    } else if (finalOutcome === 'lost' && recollecting) {
       await alertOps(
         `Chargeback lost on ${invoice.invoiceNumber} — commission due again`,
         `Stripe closed chargeback ${row.stripeDisputeId} on invoice ` +
@@ -557,19 +571,6 @@ export function createChargebackService(
           `owes the commission: the invoice is now 'failed' and in the ` +
           `dunning queue, and the builder has been emailed. Retry the charge ` +
           `from the dunning queue, or void the invoice by hand to write it off.`,
-      );
-    } else if (finalOutcome === 'lost' && retriesExhausted) {
-      // #967 review: paid on its last allowed retry — retryCharge would
-      // refuse it, so the dunning queue cannot re-collect it.
-      await alertOps(
-        `Chargeback lost on ${invoice.invoiceNumber} — manual collection needed`,
-        `Stripe closed chargeback ${row.stripeDisputeId} on invoice ` +
-          `${invoice.invoiceNumber} as LOST (${amount}). The builder still ` +
-          `owes the commission, but the invoice has already used its ` +
-          `${invoice.retryCount} charge retries (the limit), so a retry from ` +
-          `the dunning queue would be refused. It was left 'paid' and the ` +
-          `builder was not emailed. Collect the commission manually, or void ` +
-          `the invoice by hand to write it off.`,
       );
     } else if (finalOutcome === 'lost') {
       await alertOps(
@@ -604,11 +605,8 @@ export function createChargebackService(
         stripeDisputeId: row.stripeDisputeId,
         ...(finalOutcome === 'lost'
           ? recollecting
-            ? { recollect: true }
-            : {
-                manualFollowUpRequired: true,
-                ...(retriesExhausted ? { reason: 'charge_retries_exhausted' } : {}),
-              }
+            ? { recollect: true, ...(retriesExhausted ? { retriesExhausted: true } : {}) }
+            : { manualFollowUpRequired: true }
           : {}),
         stripeEventId,
       },

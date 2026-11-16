@@ -87,7 +87,7 @@ function fakeStripe(): StripeService {
 
 const alerts: { title: string; summary: string }[] = [];
 /** Builder "payment failed" emails (#873 re-uses it with reason). */
-const failedEmails: { to: string; reason?: string }[] = [];
+const failedEmails: { to: string; reason?: string; nextRetryAt?: Date | null }[] = [];
 function fakeEmail(): EmailService {
   return new Proxy(
     {},
@@ -99,8 +99,14 @@ function fakeEmail(): EmailService {
               return { sent: true, provider: 'log' as const };
             }
           : prop === 'sendCommissionPaymentFailed'
-            ? async (input: { to: string; reason?: string }) => {
-                failedEmails.push({ to: input.to, ...(input.reason ? { reason: input.reason } : {}) });
+            ? async (input: { to: string; reason?: string; nextRetryAt?: Date | null }) => {
+                failedEmails.push({
+                  to: input.to,
+                  ...(input.reason ? { reason: input.reason } : {}),
+                  // Only recorded when no retry is scheduled (#977) so the
+                  // existing exact-match expectations stay unchanged.
+                  ...(input.nextRetryAt === null ? { nextRetryAt: null } : {}),
+                });
                 return { sent: true, provider: 'log' as const };
               }
             : async () => ({ sent: true, provider: 'log' as const }),
@@ -633,10 +639,10 @@ describe('Stripe chargebacks + dashboard refunds (#719)', () => {
     expect(failedEmails).toEqual([]);
   });
 
-  it('#873: a lost chargeback on an invoice paid on its last allowed retry goes to manual collection', async () => {
+  it('#977: a lost chargeback on an invoice paid on its last allowed retry re-opens with no auto-retry; builder Pay now collects it', async () => {
     const { invoiceId, piId } = await paidInvoice();
     // Paid on the final retry (default BILLING_MAX_CHARGE_RETRIES = 3):
-    // retryCharge would refuse it, so it must not be re-opened for dunning.
+    // retryCharge would refuse it, but builder Pay now is not capped.
     await testDb.db
       .update(commissionInvoices)
       .set({ retryCount: 3 })
@@ -645,19 +651,42 @@ describe('Stripe chargebacks + dashboard refunds (#719)', () => {
     await deliver(disputeEvent('charge.dispute.closed', piId, { status: 'lost' }));
 
     const invoice = await commission.getById(invoiceId);
-    expect(invoice).toMatchObject({ status: 'paid', chargebackStatus: 'lost' });
-    expect(failedEmails).toEqual([]);
+    expect(invoice).toMatchObject({
+      status: 'failed',
+      chargebackStatus: 'lost',
+      retryCount: 3,
+      nextRetryAt: null,
+    });
+    // The builder is emailed, and the email knows no retry is scheduled
+    // (it renders the Pay now copy).
+    expect(failedEmails).toEqual([
+      expect.objectContaining({ reason: 'chargeback_lost', nextRetryAt: null }),
+    ]);
     const rows = await invoiceAuditRows(invoiceId);
-    expect(rows.filter((r) => r.eventType === 'invoice.charge_failed')).toEqual([]);
+    expect(
+      rows.filter(
+        (r) =>
+          r.eventType === 'invoice.charge_failed' &&
+          (r.payload as Record<string, unknown>)['source'] === 'chargeback_lost',
+      ),
+    ).toHaveLength(1);
     const closedRow = rows.find((r) => r.eventType === 'invoice.chargeback_closed');
     expect(closedRow?.payload).toMatchObject({
-      status: 'paid',
-      manualFollowUpRequired: true,
-      reason: 'charge_retries_exhausted',
+      status: 'failed',
+      recollect: true,
+      retriesExhausted: true,
     });
-    const lostAlert = alerts.find((a) => a.title.includes('manual collection needed'));
-    expect(lostAlert?.summary).toContain('would be refused');
+    const lostAlert = alerts.find((a) => a.title.includes('no retries left'));
+    expect(lostAlert?.summary).toContain('admin retry would be refused');
+    expect(lostAlert?.summary).toContain('Pay now');
     expect(lostAlert?.summary).not.toContain('Retry the charge from the dunning queue');
+
+    // Admin retry is refused at the cap; builder Pay now charges the next
+    // :retry:{n} key and moves the invoice on.
+    await expect(commission.retryCharge(invoiceId)).rejects.toMatchObject({ status: 422 });
+    const paying = await commission.payNow(invoiceId);
+    expect(paying).toMatchObject({ status: 'finalized', retryCount: 4 });
+    expect(paying.stripePaymentIntentId).not.toBe(piId);
   });
 
   it('#873: reopenAfterLostChargeback finishes a partly applied move once, then no-ops', async () => {
