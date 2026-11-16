@@ -338,6 +338,28 @@ export const ROUTE_REGISTRY: readonly ApiRouteEntry[] = [
   },
   {
     method: 'GET',
+    path: '/api/v1/schools',
+    auth: 'none',
+    permissions: [] as const,
+    rateLimit: '100/min per IP',
+    status: 'live',
+    summary:
+      'Schools directory (#774): every Calgary K–12 school with type, board, ' +
+      'grades, programs, address, coordinates, website and tuition flag; ' +
+      'optional ?community= and ?type= filters. Per-field source attribution. ' +
+      'Served from our tables (monthly refresh) — never an outside call.',
+  },
+  {
+    method: 'GET',
+    path: '/api/v1/schools/{id}',
+    auth: 'none',
+    permissions: [] as const,
+    rateLimit: '100/min per IP',
+    status: 'live',
+    summary: 'One school from the schools directory (#774), with per-field source attribution; 404 when unknown.',
+  },
+  {
+    method: 'GET',
     path: '/api/v1/partners',
     auth: 'none',
     permissions: [] as const,

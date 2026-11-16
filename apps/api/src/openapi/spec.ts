@@ -35,6 +35,9 @@ import {
   CallbackWindowSchema,
   CityDataFreshnessResponseSchema,
   ZoningDistrictsResponseSchema,
+  SchoolsListResponseSchema,
+  SchoolResponseSchema,
+  SchoolTypeSchema,
   BuilderPartnerListResponseSchema,
   CommunityStatsResponseSchema,
   CostRangeSchema,
@@ -141,6 +144,8 @@ export function buildOpenApiSpec(options: OpenApiSpecOptions) {
   registry.register('CommunityStatsResponse', CommunityStatsResponseSchema);
   registry.register('CityDataFreshnessResponse', CityDataFreshnessResponseSchema);
   registry.register('ZoningDistrictsResponse', ZoningDistrictsResponseSchema);
+  registry.register('SchoolsListResponse', SchoolsListResponseSchema);
+  registry.register('SchoolResponse', SchoolResponseSchema);
   registry.register('BuilderPartnerListResponse', BuilderPartnerListResponseSchema);
   registry.register('MagicLinkVerifyResponse', MagicLinkVerifyResponseSchema);
   registry.register('ReportSnapshot', ReportSnapshotSchema);
@@ -679,6 +684,52 @@ export function buildOpenApiSpec(options: OpenApiSpecOptions) {
         content: {
           'application/json': { schema: ZoningDistrictsResponseSchema },
         },
+      },
+      ...errorResponses(),
+    },
+  });
+
+  // GET /v1/schools (#774)
+  registry.registerPath({
+    method: 'get',
+    path: '/v1/schools',
+    summary: 'List Calgary K–12 schools',
+    description:
+      'Every Calgary K–12 school with type, board, grades, programs, address, ' +
+      'coordinates, website and tuition flag, built monthly from free public ' +
+      'sources (City of Calgary, Alberta school authority list, OpenStreetMap). ' +
+      'Each field names its source. Optional community and type filters. ' +
+      'School details change — confirm with the school or board. Public by design.',
+    security: [],
+    request: {
+      query: z.object({
+        community: z.string().regex(/^[A-Za-z0-9]{2,5}$/).optional().describe('City community code, e.g. ALT.'),
+        type: SchoolTypeSchema.optional(),
+      }),
+    },
+    responses: {
+      '200': {
+        description: 'Schools, name order',
+        content: { 'application/json': { schema: SchoolsListResponseSchema } },
+      },
+      ...errorResponses(),
+    },
+  });
+
+  // GET /v1/schools/{id} (#774)
+  registry.registerPath({
+    method: 'get',
+    path: '/v1/schools/{id}',
+    summary: 'Get one school',
+    description: 'One school from the schools directory, with per-field source attribution. Public by design.',
+    security: [],
+    request: {
+      params: z.object({ id: z.string().describe('Directory id, e.g. city-<guid> or osm-way-<id>.') }),
+    },
+    responses: {
+      '200': {
+        description: 'The school',
+        content: { 'application/json': { schema: SchoolResponseSchema } },
       },
       ...errorResponses(),
     },

@@ -596,6 +596,110 @@ export const ZoningRulesVersionSchema = z
   })
   .strict();
 
+// ── Schools directory (#774) ────────────────────────────────────────────
+
+export const SchoolTypeSchema = z
+  .enum(['public_cbe', 'catholic_ccsd', 'francophone', 'charter', 'private', 'alternative'])
+  .openapi('SchoolType');
+
+export const SchoolProgramSchema = z
+  .enum([
+    'french-immersion',
+    'international-baccalaureate',
+    'advanced-placement',
+    'arts',
+    'spanish-bilingual',
+    'german-bilingual',
+    'mandarin-bilingual',
+    'montessori',
+    'waldorf',
+    'stem',
+    'sports',
+    'indigenous-focus',
+    'traditional-learning',
+    'dual-credit',
+    'outreach',
+    'online',
+  ])
+  .openapi('SchoolProgram');
+
+export const SchoolSourceIdSchema = z
+  .enum(['calgary-open-data', 'alberta-authority-list', 'openstreetmap'])
+  .openapi('SchoolSourceId');
+
+export const SchoolSourceAttributionSchema = z
+  .object({
+    id: SchoolSourceIdSchema,
+    label: z.string().min(1),
+    licence: z.string().min(1),
+    url: z.string().url(),
+  })
+  .strict()
+  .openapi('SchoolSourceAttribution');
+
+const schoolAttributedFields = [
+  'name',
+  'type',
+  'board',
+  'authority',
+  'grades',
+  'programs',
+  'address',
+  'coordinates',
+  'website',
+  'tuition',
+  'community',
+] as const;
+
+export const SchoolSchema = z
+  .object({
+    id: z.string().min(1).describe('Directory id (path parameter of GET /v1/schools/{id}).'),
+    name: z.string().min(1),
+    type: SchoolTypeSchema,
+    board: z.string().nullable(),
+    authority: z.string().nullable().describe('Legal school authority as listed by the source.'),
+    grades: z.string().nullable().describe('Grades as the source states them.'),
+    programs: z.array(SchoolProgramSchema),
+    address: z.string().nullable(),
+    postalCode: z.string().nullable(),
+    lat: z.number().nullable(),
+    lng: z.number().nullable(),
+    website: z.string().url().nullable(),
+    tuition: z.boolean().describe('True when the school charges tuition (private schools). Never an amount.'),
+    communityCode: z.string().nullable(),
+    communityName: z.string().nullable(),
+    sources: z
+      .object(
+        Object.fromEntries(schoolAttributedFields.map((f) => [f, SchoolSourceIdSchema.optional()])) as Record<
+          (typeof schoolAttributedFields)[number],
+          z.ZodOptional<typeof SchoolSourceIdSchema>
+        >,
+      )
+      .strict()
+      .describe('Field → the source its value came from.'),
+    refreshedAt: z.string().datetime(),
+  })
+  .strict()
+  .openapi('School');
+
+export const SchoolsListResponseSchema = z
+  .object({
+    schools: z.array(SchoolSchema),
+    attributions: z.array(SchoolSourceAttributionSchema),
+    disclaimer: z.string().min(1),
+  })
+  .strict()
+  .openapi('SchoolsListResponse');
+
+export const SchoolResponseSchema = z
+  .object({
+    school: SchoolSchema,
+    attributions: z.array(SchoolSourceAttributionSchema),
+    disclaimer: z.string().min(1),
+  })
+  .strict()
+  .openapi('SchoolResponse');
+
 // ── Magic link ──────────────────────────────────────────────────────────
 
 export const MagicLinkVerifyResponseSchema = z

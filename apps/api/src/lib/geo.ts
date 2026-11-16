@@ -151,3 +151,27 @@ export function haversineMeters(a: LonLat, b: LonLat): number {
     Math.cos(toRad(a.lat)) * Math.cos(toRad(b.lat)) * Math.sin(dLon / 2) ** 2;
   return 2 * EARTH_RADIUS_M * Math.asin(Math.min(1, Math.sqrt(h)));
 }
+
+/**
+ * True when the point lies inside a GeoJSON Polygon or MultiPolygon (#774):
+ * inside some polygon's outer ring and in none of that polygon's holes.
+ * False for missing or malformed geometry.
+ */
+export function pointInGeometry(point: LonLat, geometry: unknown): boolean {
+  if (typeof geometry !== 'object' || geometry === null) return false;
+  const { type, coordinates } = geometry as { type?: unknown; coordinates?: unknown };
+  if (!Array.isArray(coordinates)) return false;
+  const polygons: unknown[] =
+    type === 'MultiPolygon' ? coordinates : type === 'Polygon' ? [coordinates] : [];
+  for (const polygon of polygons) {
+    if (!Array.isArray(polygon)) continue;
+    const outer = toRing(polygon[0]);
+    if (!outer || !pointInRing(point, outer)) continue;
+    const inHole = polygon.slice(1).some((hole) => {
+      const ring = toRing(hole);
+      return ring !== null && pointInRing(point, ring);
+    });
+    if (!inHole) return true;
+  }
+  return false;
+}

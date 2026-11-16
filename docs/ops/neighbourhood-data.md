@@ -8,7 +8,7 @@ request paths read our tables only and never call a provider.
 
 | Provider (admin path segment) | Config key | Implementations (default first) | Writes to |
 |---|---|---|---|
-| `school-directory` | `NEIGHBOURHOOD_SCHOOL_DIRECTORY_PROVIDER` | `calgary-open-data` (City "Schools", `fd9t-tdn2`), `none` | `schools` |
+| `school-directory` | `NEIGHBOURHOOD_SCHOOL_DIRECTORY_PROVIDER` | `free-public` (#774: City "Schools" `fd9t-tdn2` + Alberta school authority list + OpenStreetMap; see [Schools directory](#schools-directory-774)), `calgary-open-data` (City + authority list, no OSM call), `none` | `schools` |
 | `school-designation` | `NEIGHBOURHOOD_SCHOOL_DESIGNATION_PROVIDER` | `none` | `school_designations` |
 | `school-ratings` | `NEIGHBOURHOOD_SCHOOL_RATINGS_PROVIDER` | `none` | `school_ratings` |
 | `reviews` | `NEIGHBOURHOOD_REVIEWS_PROVIDER` | `none` | `community_living_metrics` (`metric='reviews'`) |
@@ -69,3 +69,33 @@ traces
 `NEIGHBOURHOOD_LOT_RADIUS_M`, amenity counts by category). They are computed
 from the tables above when first requested and reused for
 `NEIGHBOURHOOD_LOT_METRICS_TTL_MS`. Distances are straight-line, not travel times.
+
+## Schools directory (#774)
+
+`GET /api/v1/schools?community=&type=` and `GET /api/v1/schools/{id}` serve
+the `schools` table (public, free, ungated; never an outside call). The
+`free-public` provider builds one list of Calgary K–12 schools
+(`school-directory.ts`, pure):
+
+1. **City "Schools"** is the base list. Post-secondary rows are dropped.
+2. **Alberta school authority list** (`ALBERTA_AUTHORITIES`) gives the type:
+   `public_cbe`, `catholic_ccsd`, `francophone`, `charter`, `alternative`
+   (a public division based outside Calgary running a program here). Any
+   other authority is a private (independent) school operator → `private`,
+   so every school has a type. Update the list if Alberta adds a charter
+   school or renames an authority.
+3. **OpenStreetMap** (Overpass, `NEIGHBOURHOOD_OSM_OVERPASS_URL` +
+   `NEIGHBOURHOOD_OSM_BBOX`) fills website, programs, grades and tuition on
+   matching City schools, and adds private schools the City list lacks.
+   Same school = matching normalized name within
+   `NEIGHBOURHOOD_SCHOOL_DEDUPE_RADIUS_M` (default 300 m). OSM-only schools
+   are kept only when OSM marks them private.
+4. **Community code** = point-in-polygon against City "Community District
+   Boundaries" (`NEIGHBOURHOOD_COMMUNITY_BOUNDARIES_DATASET_ID`).
+
+Every field keeps its source in `data.sources`; responses return it per
+field plus the notices for each source used (City OGL, Alberta OGL,
+© OpenStreetMap contributors / ODbL). Phone numbers and emails are never
+stored. If any source fails (Overpass is often slow — it has its own
+`NEIGHBOURHOOD_OSM_HTTP_TIMEOUT_MS`), the refresh fails, the previous
+directory stays, and the next daily tick retries.

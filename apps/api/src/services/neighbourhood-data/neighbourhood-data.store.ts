@@ -12,7 +12,7 @@
  * the db directly).
  */
 import { createHash } from 'node:crypto';
-import { and, eq, getTableColumns, gt, gte, lte, sql } from 'drizzle-orm';
+import { and, asc, eq, getTableColumns, gt, gte, lte, sql } from 'drizzle-orm';
 import {
   amenities,
   communityLivingMetrics,
@@ -73,6 +73,26 @@ export interface StoredSchool {
   readonly lng: number;
 }
 
+/** #774: one directory school row, as stored. */
+export interface StoredDirectorySchool {
+  readonly externalId: string;
+  readonly name: string;
+  readonly board: string | null;
+  readonly grades: string | null;
+  readonly schoolType: string | null;
+  readonly communityCode: string | null;
+  readonly lat: number | null;
+  readonly lng: number | null;
+  readonly data: unknown;
+  readonly refreshedAt: Date;
+}
+
+/** #774: directory filters (both optional, combined with AND). */
+export interface SchoolDirectoryFilter {
+  readonly communityCode?: string;
+  readonly schoolType?: string;
+}
+
 export interface StoredAmenity {
   readonly id: string;
   readonly category: string;
@@ -107,6 +127,10 @@ export interface NeighbourhoodDataStore {
   listStates(): Promise<readonly NeighbourhoodRefreshState[]>;
   saveState(state: NeighbourhoodRefreshState): Promise<void>;
   schoolsIn(box: BoundingBox): Promise<readonly StoredSchool[]>;
+  /** #774: directory schools, name order. */
+  listSchools(filter: SchoolDirectoryFilter): Promise<readonly StoredDirectorySchool[]>;
+  /** #774: one directory school by its external id. */
+  getSchool(externalId: string): Promise<StoredDirectorySchool | null>;
   amenitiesIn(box: BoundingBox): Promise<readonly StoredAmenity[]>;
   communityMetrics(communityCode: string): Promise<readonly StoredCommunityMetric[]>;
   getLotMetrics(addressKey: string, now: Date): Promise<unknown>;
@@ -165,7 +189,7 @@ const TARGETS: {
 } = {
   'school-directory': {
     table: schools,
-    typed: (r) => ({ name: r.name, board: r.board, grades: r.grades }),
+    typed: (r) => ({ name: r.name, board: r.board, grades: r.grades, schoolType: r.schoolType }),
   },
   'school-designation': {
     table: schoolDesignations,
@@ -195,6 +219,22 @@ function toState(row: typeof neighbourhoodRefreshState.$inferSelect): Neighbourh
     alertedAt: row.alertedAt,
     lastRowsChanged: row.lastRowsChanged,
     lastError: row.lastError,
+  };
+}
+
+function directoryColumns() {
+  const t = schools;
+  return {
+    externalId: t.externalId,
+    name: t.name,
+    board: t.board,
+    grades: t.grades,
+    schoolType: t.schoolType,
+    communityCode: t.communityCode,
+    lat: t.lat,
+    lng: t.lng,
+    data: t.data,
+    refreshedAt: t.refreshedAt,
   };
 }
 
@@ -293,6 +333,29 @@ export function createDrizzleNeighbourhoodDataStore(
         .where(
           and(gte(t.lat, box.minLat), lte(t.lat, box.maxLat), gte(t.lng, box.minLng), lte(t.lng, box.maxLng)),
         );
+    },
+
+    async listSchools(filter): Promise<readonly StoredDirectorySchool[]> {
+      const t = schools;
+      const conditions = [eq(t.provider, 'school-directory')];
+      if (filter.communityCode) conditions.push(eq(t.communityCode, filter.communityCode));
+      if (filter.schoolType) conditions.push(eq(t.schoolType, filter.schoolType));
+      return db
+        .select(directoryColumns())
+        .from(t)
+        .where(and(...conditions))
+        .orderBy(asc(t.name), asc(t.externalId));
+    },
+
+    async getSchool(externalId): Promise<StoredDirectorySchool | null> {
+      const t = schools;
+      const rows: StoredDirectorySchool[] = await db
+        .select(directoryColumns())
+        .from(t)
+        .where(and(eq(t.provider, 'school-directory'), eq(t.externalId, externalId)))
+        .orderBy(asc(t.source))
+        .limit(1);
+      return rows[0] ?? null;
     },
 
     async amenitiesIn(box): Promise<readonly StoredAmenity[]> {
