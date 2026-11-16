@@ -35,6 +35,14 @@ export class PropertyCardComponent implements OnInit {
    */
   readonly showLandNote = input(true);
 
+  /**
+   * Render the address as an `h2` (default). The scope steps place the card
+   * above their page `h1`, so they pass `false` and the address becomes a
+   * plain paragraph — the `h1` stays the first heading in `<main>` (#938,
+   * WCAG 1.3.1 / axe heading-order). Visual styling is identical.
+   */
+  readonly addressAsHeading = input(true);
+
   /** True while the mock property harness serves the data (never claim live data). */
   protected readonly isMockData = this.config.get('propertyData').source === 'mock';
 

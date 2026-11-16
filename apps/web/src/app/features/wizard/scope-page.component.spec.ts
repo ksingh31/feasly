@@ -150,6 +150,18 @@ describe('ScopePageComponent', () => {
     fixture.detectChanges();
   }
 
+  // #938 (WCAG 1.3.1, axe heading-order): the property card sits above the
+  // page title, so its address must not be a heading — the h1 comes first.
+  it('makes the page h1 the first heading in main (property card address is not a heading)', () => {
+    const main: HTMLElement = fixture.nativeElement.querySelector('main');
+    const firstHeading = main.querySelector('h1, h2, h3, h4, h5, h6');
+    expect(firstHeading?.tagName).toBe('H1');
+    expect(firstHeading?.classList.contains('scope-heading')).toBe(true);
+    const address = main.querySelector('app-property-card .pcard-address');
+    expect(address?.tagName).toBe('P');
+    expect(address?.textContent?.trim()).toBeTruthy();
+  });
+
   it('renders both project-type cards enabled, with no coming-soon badge', () => {
     const cards = fixture.nativeElement.querySelectorAll('.ptype-card');
     expect(cards.length).toBe(2);

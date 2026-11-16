@@ -3,7 +3,7 @@
       <app-wizard-back [label]="copy.renoScopeBackLabel" [link]="'/estimate/scope'" [step]="2" />
       <app-wizard-steps [current]="2" />
       @if (property(); as p) {
-        <app-property-card [property]="p" [showLandNote]="false" />
+        <app-property-card [property]="p" [showLandNote]="false" [addressAsHeading]="false" />
 
         <h1 class="scope-heading">{{ copy.renoScopeHeading }}</h1>
 
