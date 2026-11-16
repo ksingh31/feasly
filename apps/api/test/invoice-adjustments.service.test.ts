@@ -77,6 +77,7 @@ function fakeStripe() {
     testMode: true,
     createCustomer: async () => ({ id: 'cus_test_123' }),
     createSetupIntent: async () => ({ id: 'seti_1', clientSecret: 'seti_secret' }),
+    getPaymentIntentConfirmation: async (id: string) => ({ id, status: 'requires_action', clientSecret: `${id}_secret_test` }),
     listPaymentMethods: async () => [],
     updateCustomer: async () => undefined,
     getDefaultPaymentMethodId: async () => null,

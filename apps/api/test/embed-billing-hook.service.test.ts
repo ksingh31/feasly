@@ -105,6 +105,7 @@ function fakeStripe(): StripeService & { calls: unknown[] } {
       return { id: subscriptionId };
     },
     retrievePaymentIntent: async (id: string) => ({ id, status: 'processing' }),
+    getPaymentIntentConfirmation: async (id: string) => ({ id, status: 'requires_action', clientSecret: `${id}_secret_test` }),
     refundPaymentIntent: async (paymentIntentId, idempotencyKey) => {
       calls.push({ op: 'refundPaymentIntent', paymentIntentId, idempotencyKey });
       return { id: 're_test_1', status: 'succeeded' };

@@ -8,6 +8,11 @@
  * string or the DOM in any other way).
  */
 
+/** Query parameter carrying the deep-link address (part of the public URL contract). */
+export const DEEP_LINK_ADDRESS_PARAM = 'address';
+/** Query parameter carrying the deep-link attribution source. */
+export const DEEP_LINK_SOURCE_PARAM = 'src';
+
 /** Bounds for a deep-link address (config-owned: `deepLink`). */
 export interface DeepLinkAddressBounds {
   readonly minLength: number;

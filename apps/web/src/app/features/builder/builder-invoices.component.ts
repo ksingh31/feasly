@@ -238,6 +238,8 @@ export class BuilderInvoicesComponent implements OnInit {
         return this.copy.invoiceStatusInReview;
       case 'finalized':
         return this.copy.invoiceStatusFinalized;
+      case 'action_required':
+        return this.copy.invoiceStatusActionRequired;
       case 'paid':
         return this.copy.invoiceStatusPaid;
       case 'failed':
