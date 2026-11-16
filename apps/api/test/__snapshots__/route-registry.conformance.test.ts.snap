@@ -255,6 +255,14 @@ exports[`route registry > exhaustive role x route permission matrix (auth/04 acc
     "builder_member",
     "none",
   ],
+  "GET /api/v1/communities/{slug}/permits": [
+    "super_admin",
+    "admin",
+    "viewer",
+    "builder_admin",
+    "builder_member",
+    "none",
+  ],
   "GET /api/v1/communities/{slug}/stats": [
     "super_admin",
     "admin",
@@ -312,6 +320,14 @@ exports[`route registry > exhaustive role x route permission matrix (auth/04 acc
     "none",
   ],
   "GET /api/v1/properties/lookup": [
+    "super_admin",
+    "admin",
+    "viewer",
+    "builder_admin",
+    "builder_member",
+    "none",
+  ],
+  "GET /api/v1/properties/permits": [
     "super_admin",
     "admin",
     "viewer",

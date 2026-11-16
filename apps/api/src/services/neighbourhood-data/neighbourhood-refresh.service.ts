@@ -140,6 +140,8 @@ function providerFor(
       return providers.amenities;
     case 'commute':
       return providers.commute;
+    case 'permits':
+      return providers.permits;
   }
 }
 

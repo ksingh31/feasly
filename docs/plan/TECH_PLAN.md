@@ -1279,6 +1279,7 @@ absorbed by Flex Consumption scale-out, not by raising limits silently.
 | GET | `/api/v1/shares/verify` | magic-token | — | 100/min per IP | live | Verify a partner-share link token (?token=). Partner-share tokens only — owner tokens answer invalid here. Token IS the credential. |
 | GET | `/api/v1/properties/autocomplete` | none | — | 60/min per IP | live | Calgary address autocomplete (City of Calgary assessment roll). Free by design. |
 | GET | `/api/v1/properties/lookup` | none | — | 60/min per IP | live | Property record lookup (assessed value, lot, zoning). Deterministic multi-parcel selection. OUT_OF_COVERAGE for non-Calgary. |
+| GET | `/api/v1/properties/permits` | none | — | 60/min per IP | live | Recent residential new-build building + development permits near an address (#822): summary counts, typical DP-to-BP weeks and a short list. Served from monthly-refreshed City open data; never calls the City. |
 | POST | `/api/v1/events` | none | — | 300/min per IP (dedicated analytics limiter) | live | First-party analytics ingest (consent-gated funnel events). Payloads require a valid consent_ts. |
 | GET | `/api/v1/privacy/export` | magic-token | — | 100/min per IP | live | PIPEDA data export for the token holder. |
 | POST | `/api/v1/privacy/erase-requests` | magic-token | — | 10/min per IP | live | Request erasure; returns a requestId for confirmation. |
@@ -1288,6 +1289,7 @@ absorbed by Flex Consumption scale-out, not by raising limits silently.
 | POST | `/api/v1/unsubscribe/{token}` | magic-token | — | 10/min per IP | live | Record the opt-out (CASL). |
 | GET | `/api/v1/communities/{slug}/stats` | none | — | 100/min per IP | live | Prerendered community page statistics (SEO content engine). |
 | GET | `/api/v1/communities/{slug}/living` | none | — | 100/min per IP | live | Living nearby for an established community (#777): nearest + counts within 500 m / 1 km per amenity category, and public-tree cover. Served from monthly-refreshed City open data; never calls a provider. |
+| GET | `/api/v1/communities/{slug}/permits` | none | — | 100/min per IP | live | Residential new-build permits per year and median approval times for an established community (#822). Served from monthly-refreshed City open data; never calls the City. |
 | GET | `/api/v1/city-data/freshness` | none | — | 100/min per IP | live | City of Calgary assessment dataset freshness (landing trust strip): "Refreshed <Month Year>" from the Socrata dataset metadata (rowsUpdatedAt). 24h in-memory cache on successful fetches; Socrata failure answers 200 { refreshedMonth: null } (never 5xx). |
 | GET | `/api/v1/zoning/districts` | none | — | 100/min per IP | live | Zoning rules catalogue for the configured city (#687): district → typical building forms + key rules (height, coverage, density) with bylaw sections; verified values only. Cache-Control public. |
 | GET | `/api/v1/partners` | none | — | 100/min per IP | live | Builder partner disclosure (#888): active builder companies that receive leads from Feasly's own site, in display order (name, logo, website, description; no contact details). Cached; Cache-Control public. |

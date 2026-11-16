@@ -79,6 +79,14 @@ const targets = [
     out: 'communities-living/index.js',
   },
   {
+    entry: 'src/functions/communities-permits.ts',
+    out: 'communities-permits/index.js',
+  },
+  {
+    entry: 'src/functions/properties-permits.ts',
+    out: 'properties-permits/index.js',
+  },
+  {
     entry: 'src/functions/city-data-freshness.ts',
     out: 'city-data-freshness/index.js',
   },

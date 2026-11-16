@@ -1,7 +1,7 @@
 /**
  * Neighbourhood data providers (#773, Community Match epic).
  *
- * Every outside neighbourhood source sits behind one of six provider
+ * Every outside neighbourhood source sits behind one of seven provider
  * interfaces. Each has a free implementation today; `config.neighbourhoodData
  * .providers` picks which one runs, so a paid source can replace a free one
  * with a config change and no UI change.
@@ -28,6 +28,8 @@ import type {
   AmenitiesImpl,
   CommuteImpl,
   NeighbourhoodDataConfig,
+  PermitsConfig,
+  PermitsImpl,
   ReviewsImpl,
   SchoolDesignationImpl,
   SchoolDirectoryImpl,
@@ -50,6 +52,7 @@ export const NEIGHBOURHOOD_PROVIDER_NAMES = [
   'reviews',
   'amenities',
   'commute',
+  'permits',
 ] as const;
 
 export type NeighbourhoodProviderName = (typeof NEIGHBOURHOOD_PROVIDER_NAMES)[number];
@@ -100,6 +103,26 @@ export interface CommunityMetricRecord extends NeighbourhoodRecordBase {
 }
 
 /**
+ * #822: one residential new-build building permit (BP) or development
+ * permit (DP). Public permit data only: the applicant is never kept, and
+ * `builder` only when the City lists a company.
+ */
+export interface PermitRecord extends NeighbourhoodRecordBase {
+  readonly kind: 'building' | 'development';
+  readonly permitNumber: string;
+  readonly address: string | null;
+  /** BP permit class group / DP category. */
+  readonly permitType: string | null;
+  readonly status: string | null;
+  /** ISO YYYY-MM-DD. */
+  readonly appliedOn: string | null;
+  /** BP issued / DP decision date, ISO YYYY-MM-DD. */
+  readonly decidedOn: string | null;
+  readonly housingUnits: number | null;
+  readonly builder: string | null;
+}
+
+/**
  * A provider returns a full snapshot of its source. Throwing (or, for a real
  * source, returning nothing) is a failed refresh: the job keeps the data it
  * already has.
@@ -119,6 +142,7 @@ export type SchoolRatingsProvider = NeighbourhoodProvider<SchoolRatingRecord, Sc
 export type ReviewsProvider = NeighbourhoodProvider<CommunityMetricRecord, ReviewsImpl>;
 export type AmenitiesProvider = NeighbourhoodProvider<AmenityRecord, AmenitiesImpl>;
 export type CommuteProvider = NeighbourhoodProvider<CommunityMetricRecord, CommuteImpl>;
+export type PermitsProvider = NeighbourhoodProvider<PermitRecord, PermitsImpl>;
 
 export interface NeighbourhoodProviders {
   readonly schoolDirectory: SchoolDirectoryProvider;
@@ -127,6 +151,7 @@ export interface NeighbourhoodProviders {
   readonly reviews: ReviewsProvider;
   readonly amenities: AmenitiesProvider;
   readonly commute: CommuteProvider;
+  readonly permits: PermitsProvider;
 }
 
 /** Implementation name that means "no source chosen": skipped, no writes. */
@@ -482,13 +507,157 @@ export function createStraightLineCommuteProvider(deps: StraightLineCommuteDeps)
   };
 }
 
+// ── #822: building + development permits ─────────────────────────────────
+
+/** SoQL string literal ('O''Brien'). */
+function soql(value: string): string {
+  return `'${value.replace(/'/g, "''")}'`;
+}
+
+/** Socrata floating timestamp → ISO date, else null. */
+function isoDate(value: unknown): string | null {
+  const s = str(value);
+  return s && /^\d{4}-\d{2}-\d{2}/.test(s) ? s.slice(0, 10) : null;
+}
+
+/**
+ * The contractor name only when it reads as a company (one of the configured
+ * whole-word markers, e.g. HOMES, INC, BUILDERS). Anything else may be a
+ * person's name and is dropped.
+ */
+export function companyName(value: unknown, markers: readonly string[]): string | null {
+  const name = str(value);
+  if (!name) return null;
+  const words = name.toUpperCase().split(/[^A-Z0-9]+/).filter(Boolean);
+  const set = new Set(markers.map((m) => m.toUpperCase()));
+  return words.some((w) => set.has(w)) ? name.replace(/\s+/g, ' ') : null;
+}
+
+/** A dataset query hit the row cap — refuse a truncated snapshot (old rows kept). */
+export class TruncatedPermitsError extends Error {
+  constructor(datasetId: string, maxRows: number) {
+    super(`permits dataset ${datasetId} returned the ${maxRows}-row cap; raise NEIGHBOURHOOD_MAX_ROWS`);
+    this.name = 'TruncatedPermitsError';
+  }
+}
+
+export interface CalgaryPermitsDeps {
+  readonly fetchRows: SocrataRowsFetcher;
+  readonly permits: PermitsConfig;
+  readonly communityPointsDatasetId: string;
+  readonly communityClass: string;
+  readonly communityStructures: readonly string[];
+  readonly maxRows: number;
+  readonly clock?: () => Date;
+}
+
+/**
+ * City of Calgary open data → residential new-build permits (#822) for the
+ * established communities (#690 rule): building permits (work class 'New' in
+ * the configured class groups) and development permits (configured
+ * categories) applied for since 1 January, `historyYears` years back.
+ */
+export function createCalgaryPermitsProvider(deps: CalgaryPermitsDeps): PermitsProvider {
+  const cfg = deps.permits;
+  const structures = new Set(deps.communityStructures.map((s) => s.toUpperCase()));
+  const clock = deps.clock ?? (() => new Date());
+  return {
+    implementation: 'calgary-open-data',
+    async fetchAll() {
+      const points = await deps.fetchRows(deps.communityPointsDatasetId);
+      const communities = new Map<string, { name: string; slug: string }>();
+      for (const row of points) {
+        const code = str(row['comm_code'])?.toUpperCase();
+        const name = str(row['name']);
+        if (code && name && isEstablished(row, deps.communityClass, structures)) {
+          communities.set(code, { name, slug: toSlug(name) });
+        }
+      }
+      if (communities.size === 0) throw new Error('permits: no established communities');
+      const codes = [...communities.keys()].sort().map(soql).join(',');
+      const since = `${clock().getUTCFullYear() - cfg.historyYears}-01-01`;
+
+      const [bpRows, dpRows] = await Promise.all([
+        deps.fetchRows(cfg.buildingPermitsDatasetId, {
+          select:
+            'permitnum,statuscurrent,applieddate,issueddate,permitclassgroup,contractorname,' +
+            'housingunits,originaladdress,communitycode,latitude,longitude,point',
+          where:
+            `permitclassgroup in(${cfg.bpClassGroups.map(soql).join(',')}) AND workclassgroup='New'` +
+            ` AND applieddate >= '${since}' AND communitycode in(${codes})`,
+        }),
+        deps.fetchRows(cfg.developmentPermitsDatasetId, {
+          select:
+            'permitnum,address,category,statuscurrent,applieddate,decisiondate,communitycode,point',
+          where:
+            `category in(${cfg.dpCategories.map(soql).join(',')})` +
+            ` AND applieddate >= '${since}' AND communitycode in(${codes})`,
+        }),
+      ]);
+      if (bpRows.length >= deps.maxRows) throw new TruncatedPermitsError(cfg.buildingPermitsDatasetId, deps.maxRows);
+      if (dpRows.length >= deps.maxRows) throw new TruncatedPermitsError(cfg.developmentPermitsDatasetId, deps.maxRows);
+
+      const out: PermitRecord[] = [];
+      const seen = new Set<string>();
+      const push = (kind: PermitRecord['kind'], row: Record<string, unknown>, fields: {
+        address: string | null;
+        permitType: string | null;
+        decidedOn: string | null;
+        housingUnits: number | null;
+        builder: string | null;
+      }): void => {
+        const permitNumber = str(row['permitnum'])?.toUpperCase();
+        const code = str(row['communitycode'])?.toUpperCase();
+        const community = code ? communities.get(code) : undefined;
+        const point = pointOf(row);
+        if (!permitNumber || !code || !community || !point) return;
+        const externalId = `${kind}|${permitNumber}`.toLowerCase();
+        if (seen.has(externalId)) return;
+        seen.add(externalId);
+        out.push({
+          externalId,
+          kind,
+          permitNumber,
+          communityCode: code,
+          lat: point.lat,
+          lng: point.lng,
+          status: str(row['statuscurrent']),
+          appliedOn: isoDate(row['applieddate']),
+          ...fields,
+          data: { communityName: community.name, slug: community.slug },
+        });
+      };
+      for (const row of bpRows) {
+        const units = num(row['housingunits']);
+        push('building', row, {
+          address: str(row['originaladdress']),
+          permitType: str(row['permitclassgroup']),
+          decidedOn: isoDate(row['issueddate']),
+          housingUnits: units !== null && units >= 0 ? Math.round(units) : null,
+          builder: companyName(row['contractorname'], cfg.companyMarkers),
+        });
+      }
+      for (const row of dpRows) {
+        push('development', row, {
+          address: str(row['address']),
+          permitType: str(row['category']),
+          decidedOn: isoDate(row['decisiondate']),
+          housingUnits: null,
+          builder: null,
+        });
+      }
+      return out;
+    },
+  };
+}
+
 export interface NeighbourhoodProviderFactoryDeps {
   /** Injectable transport (tests); defaults to global fetch. */
   readonly fetchImpl?: FetchLike;
 }
 
 /**
- * Builds the six providers from config. The ONLY place an implementation is
+ * Builds the seven providers from config. The ONLY place an implementation is
  * chosen — switching one is a config change (test/neighbourhood-data
  * .providers.test.ts).
  */
@@ -531,6 +700,17 @@ export function createNeighbourhoodProviders(
             communityClass: config.communityClass,
             communityStructures: config.communityStructures,
             destination: config.commuteDestination,
+          })
+        : noneProvider(),
+    permits:
+      p.permits === 'calgary-open-data'
+        ? createCalgaryPermitsProvider({
+            fetchRows,
+            permits: config.permits,
+            communityPointsDatasetId: config.communityPointsDatasetId,
+            communityClass: config.communityClass,
+            communityStructures: config.communityStructures,
+            maxRows: config.maxRows,
           })
         : noneProvider(),
   };

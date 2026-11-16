@@ -87,6 +87,7 @@ describe('neighbourhood refresh job (#773)', () => {
       reviews: none(),
       amenities: amenitiesFake.provider,
       commute: none(),
+      permits: none(),
     } as unknown as NeighbourhoodProviders;
     return createNeighbourhoodRefreshService({
       providers,
@@ -161,6 +162,7 @@ describe('neighbourhood refresh job (#773)', () => {
       'reviews:skipped',
       'amenities:ok',
       'commute:skipped',
+      'permits:skipped',
     ]);
     // Later the same month → nothing due, no provider called.
     clockNow = new Date('2026-11-28T07:00:00Z');
@@ -238,7 +240,7 @@ describe('neighbourhood refresh job (#773)', () => {
       outcome: 'failed',
       consecutiveFailures: 1,
     });
-    expect(events.at(-1)).toEqual({ event: 'run', trigger: 'timer', ran: 6, ok: 1, failed: 1, skipped: 4 });
+    expect(events.at(-1)).toEqual({ event: 'run', trigger: 'timer', ran: 7, ok: 1, failed: 1, skipped: 5 });
   });
 });
 

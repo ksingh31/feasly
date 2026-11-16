@@ -427,6 +427,11 @@ import {
   type NeighbourhoodReadService,
 } from './services/neighbourhood-data/neighbourhood-read.service';
 import {
+  createPermitsReadService,
+  type PermitsReadService,
+} from './services/neighbourhood-data/permits-read.service';
+import { createPermitsRoute, type PermitsRoute } from './routes/permits.route';
+import {
   createEmbedConfigRoute,
   type EmbedConfigRoute,
 } from './routes/embed-config.route';
@@ -448,6 +453,7 @@ import {
 } from './services/embed-relay.service';
 import {
   createPropertyService,
+  type PropertyLocator,
   type PropertyService,
 } from './services/property.service';
 import { createLandUseProvider } from './services/land-use.service';
@@ -836,6 +842,9 @@ export interface AppComposition {
   readonly adminNeighbourhoodDataRoute: AdminNeighbourhoodDataRoute;
   /** #777: public community living-nearby metrics. */
   readonly communityLivingRoute: CommunityLivingRoute;
+  /** #822: nearby building + development permits (tables only, no providers). */
+  readonly permitsReadService: PermitsReadService;
+  readonly permitsRoute: PermitsRoute;
   /** Append-only admin audit log (neighbourhood/05; reused by later admin stories). */
   readonly adminAuditStore: AdminAuditStore;
   readonly builderConfigService: BuilderConfigService;
@@ -1977,7 +1986,7 @@ export function createComposition(
   // Telemetry: one JSON trace per resolution / City call, queryable in App
   // Insights as `traces | where message startswith '{"event":"property_data.'`
   // (docs/ops/property-data-cache.md).
-  const propertyService: PropertyService = createPropertyService(config.propertyData, {
+  const propertyService: PropertyService & PropertyLocator = createPropertyService(config.propertyData, {
     cache: cityDataCacheStore,
     onEvent: (event) =>
       console.info(JSON.stringify({ ...event, event: `property_data.${event.event}` })),
@@ -1995,6 +2004,24 @@ export function createComposition(
   const propertyRoute: PropertyRoute = createPropertyRoute({
     property: propertyService,
   });
+
+  // #822: nearby permits — the `permits` table (monthly refresh) plus the
+  // address's parcel point from the shared roll cache; never a provider.
+  const permitsConfig = config.neighbourhoodData.permits;
+  const permitsReadService: PermitsReadService = createPermitsReadService({
+    store: neighbourhoodDataStore,
+    locator: propertyService,
+    radiusM: permitsConfig.addressRadiusM,
+    lookbackYears: permitsConfig.addressLookbackYears,
+    historyYears: permitsConfig.historyYears,
+    listLimit: permitsConfig.listLimit,
+    minSample: permitsConfig.minSample,
+    dpBpMaxGapDays: permitsConfig.dpBpMaxGapDays,
+    recordUrlTemplate: permitsConfig.recordUrlTemplate,
+    cache: cityDataCacheStore,
+    summaryTtlMs: permitsConfig.summaryTtlMs,
+  });
+  const permitsRoute: PermitsRoute = createPermitsRoute({ permits: permitsReadService });
 
   // #757: daily zoning source watch. Refreshes cached districts when the
   // City's Land Use Districts dataset changes, files one "catalogue may be
@@ -2530,6 +2557,8 @@ export function createComposition(
     neighbourhoodReadService,
     adminNeighbourhoodDataRoute,
     communityLivingRoute,
+    permitsReadService,
+    permitsRoute,
     adminAuditStore,
     builderConfigService,
     embedConfigRoute,

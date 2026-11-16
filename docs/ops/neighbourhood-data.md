@@ -14,6 +14,7 @@ request paths read our tables only and never call a provider.
 | `reviews` | `NEIGHBOURHOOD_REVIEWS_PROVIDER` | `none` | `community_living_metrics` (`metric='reviews'`) |
 | `amenities` | `NEIGHBOURHOOD_AMENITIES_PROVIDER` | `calgary-open-data` (one City dataset per category in `NEIGHBOURHOOD_AMENITY_CATEGORIES`, plus per-community tree cover — see below), `none` | `amenities` |
 | `commute` | `NEIGHBOURHOOD_COMMUTE_PROVIDER` | `straight-line` (City "Community Points", `j9ps-fyst` → straight-line km to `NEIGHBOURHOOD_COMMUTE_DESTINATION_*`), `none` | `community_living_metrics` (`metric='commute'`) |
+| `permits` | `NEIGHBOURHOOD_PERMITS_PROVIDER` | `calgary-open-data` (City "Building Permits" `c2es-76ed` + "Development Permits" `6933-unw5` — see below), `none` | `permits` |
 
 `none` means no source has been chosen yet: the job skips it and leaves any
 existing rows alone. No free, open source exists today for designations,
@@ -67,6 +68,48 @@ from the community centre; plus tree cover. Computed from our tables only
 and reused from the shared `city_data_cache` (#756) for
 `NEIGHBOURHOOD_COMMUNITY_METRICS_TTL_MS` (default 1 day). Communities without
 a tree-cover row (non-established or unknown) answer 404.
+
+## Nearby permits (#822)
+
+The `permits` provider loads residential new-build permits for established
+communities (#690 rule, Community Points) applied for since 1 January,
+`NEIGHBOURHOOD_PERMITS_HISTORY_YEARS` (default 5) years back:
+
+| Kind | Dataset (config key) | Filter (config key) |
+|---|---|---|
+| Building (BP) | `c2es-76ed` (`NEIGHBOURHOOD_BUILDING_PERMITS_DATASET_ID`) | `workclassgroup='New'` and `permitclassgroup` in `NEIGHBOURHOOD_PERMITS_BP_CLASS_GROUPS` (Single Family, Two Family, Townhouse, Additional Dwelling) |
+| Development (DP) | `6933-unw5` (`NEIGHBOURHOOD_DEVELOPMENT_PERMITS_DATASET_ID`) | `category` in `NEIGHBOURHOOD_PERMITS_DP_CATEGORIES` (new single/semi/duplex, contextual dwelling, multi-family incl. minor/rowhouses) |
+
+**Privacy.** Applicant names are never requested or stored. A BP's
+contractor is kept as `builder` only when it reads as a company (a whole
+word from `NEIGHBOURHOOD_PERMITS_COMPANY_MARKERS`, e.g. HOMES, LTD,
+BUILDERS); anything else may be a person and is dropped. A query that hits
+`NEIGHBOURHOOD_MAX_ROWS` fails the refresh (no truncated snapshot).
+
+**APIs** (public, ungated, from our tables only — zero City calls per page
+view; 503 retryable until the first load has run):
+
+- `GET /api/v1/properties/permits?addressKey=…` — within
+  `NEIGHBOURHOOD_PERMITS_ADDRESS_RADIUS_M` (300 m) since 1 January,
+  `NEIGHBOURHOOD_PERMITS_ADDRESS_LOOKBACK_YEARS` (2) years back: BPs issued,
+  new homes (housing units on those BPs; a BP without a count is one),
+  DPs applied for, typical DP-to-BP weeks, and the most recent
+  `NEIGHBOURHOOD_PERMITS_LIST_LIMIT` (10) permits with a link built from
+  `NEIGHBOURHOOD_PERMITS_RECORD_URL_TEMPLATE` (City DMap). The address's
+  location is the parcel point from the shared property cache (#756), so a
+  page that already looked the address up makes no City call.
+- `GET /api/v1/communities/{slug}/permits` — BPs issued / new homes / DPs
+  decided per year over the history window, and median weeks (BP applied →
+  issued, DP applied → decision, DP applied → BP issued) for permits decided
+  in the lookback window.
+
+**Definitions.** DP-to-BP links a BP to the latest DP at the same address
+applied for at most `NEIGHBOURHOOD_PERMITS_DP_BP_MAX_GAP_DAYS` (1095) before
+the BP application. Medians need `NEIGHBOURHOOD_PERMITS_MIN_SAMPLE` (3)
+values, else null. Summaries are reused from `city_data_cache` for
+`NEIGHBOURHOOD_PERMITS_SUMMARY_TTL_MS` (1 day), keyed by the load they came
+from, so a new monthly load is picked up at once. `dataRefreshedAt` is the
+permits provider's last successful refresh (the page's as-of date).
 
 ## Schedule
 

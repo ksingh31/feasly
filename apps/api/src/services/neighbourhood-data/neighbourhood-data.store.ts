@@ -18,6 +18,7 @@ import {
   communityLivingMetrics,
   lotLivingMetrics,
   neighbourhoodRefreshState,
+  permits,
   schoolDesignations,
   schoolRatings,
   schools,
@@ -27,6 +28,7 @@ import type {
   CommunityMetricRecord,
   NeighbourhoodProviderName,
   NeighbourhoodRecordBase,
+  PermitRecord,
   SchoolDesignationRecord,
   SchoolRatingRecord,
   SchoolRecord,
@@ -41,6 +43,7 @@ export interface NeighbourhoodRecordMap {
   reviews: CommunityMetricRecord;
   amenities: AmenityRecord;
   commute: CommunityMetricRecord;
+  permits: PermitRecord;
 }
 
 export interface SnapshotWriteResult {
@@ -102,6 +105,23 @@ export interface StoredCommunityMetric {
   readonly refreshedAt: Date;
 }
 
+/** #822: a stored building / development permit. */
+export interface StoredPermit {
+  readonly kind: 'building' | 'development';
+  readonly permitNumber: string;
+  readonly address: string | null;
+  readonly permitType: string | null;
+  readonly status: string | null;
+  readonly appliedOn: string | null;
+  readonly decidedOn: string | null;
+  readonly housingUnits: number | null;
+  readonly builder: string | null;
+  readonly communityCode: string | null;
+  readonly lat: number | null;
+  readonly lng: number | null;
+  readonly data: unknown;
+}
+
 /** Bounding box (degrees) for the coarse SQL filter before exact distance. */
 export interface BoundingBox {
   readonly minLat: number;
@@ -126,6 +146,10 @@ export interface NeighbourhoodDataStore {
   /** #777: anchor by City community code (upper) or slug (lower); null when unknown. */
   communityAnchor(codeOrSlug: string): Promise<StoredCommunityAnchor | null>;
   communityMetrics(communityCode: string): Promise<readonly StoredCommunityMetric[]>;
+  /** #822: permits located in the box. */
+  permitsIn(box: BoundingBox): Promise<readonly StoredPermit[]>;
+  /** #822: permits of one community, by City code (upper) or slug (lower). */
+  communityPermits(codeOrSlug: string): Promise<readonly StoredPermit[]>;
   getLotMetrics(addressKey: string, now: Date): Promise<unknown>;
   putLotMetrics(addressKey: string, data: unknown, computedAt: Date, expiresAt: Date): Promise<void>;
 }
@@ -198,6 +222,36 @@ const TARGETS: {
     typed: (r) => ({ category: r.category, name: r.name }),
   },
   commute: { table: communityLivingMetrics, typed: () => ({ metric: 'commute' }) },
+  permits: {
+    table: permits,
+    typed: (r) => ({
+      kind: r.kind,
+      permitNumber: r.permitNumber,
+      address: r.address,
+      permitType: r.permitType,
+      status: r.status,
+      appliedOn: r.appliedOn,
+      decidedOn: r.decidedOn,
+      housingUnits: r.housingUnits,
+      builder: r.builder,
+    }),
+  },
+};
+
+const PERMIT_COLUMNS = {
+  kind: permits.kind,
+  permitNumber: permits.permitNumber,
+  address: permits.address,
+  permitType: permits.permitType,
+  status: permits.status,
+  appliedOn: permits.appliedOn,
+  decidedOn: permits.decidedOn,
+  housingUnits: permits.housingUnits,
+  builder: permits.builder,
+  communityCode: permits.communityCode,
+  lat: permits.lat,
+  lng: permits.lng,
+  data: permits.data,
 };
 
 function toState(row: typeof neighbourhoodRefreshState.$inferSelect): NeighbourhoodRefreshState {
@@ -373,6 +427,25 @@ export function createDrizzleNeighbourhoodDataStore(
         .select({ metric: t.metric, source: t.source, data: t.data, refreshedAt: t.refreshedAt })
         .from(t)
         .where(eq(t.communityCode, communityCode));
+    },
+
+    async permitsIn(box): Promise<readonly StoredPermit[]> {
+      const t = permits;
+      return db
+        .select(PERMIT_COLUMNS)
+        .from(t)
+        .where(
+          and(gte(t.lat, box.minLat), lte(t.lat, box.maxLat), gte(t.lng, box.minLng), lte(t.lng, box.maxLng)),
+        );
+    },
+
+    async communityPermits(codeOrSlug): Promise<readonly StoredPermit[]> {
+      const t = permits;
+      const key = codeOrSlug.trim();
+      return db
+        .select(PERMIT_COLUMNS)
+        .from(t)
+        .where(or(eq(t.communityCode, key.toUpperCase()), sql`${t.data}->>'slug' = ${key.toLowerCase()}`));
     },
 
     async getLotMetrics(addressKey, now): Promise<unknown> {
