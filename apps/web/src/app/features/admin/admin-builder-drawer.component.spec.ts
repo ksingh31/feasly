@@ -159,6 +159,7 @@ describe('AdminBuilderDrawerComponent (#541)', () => {
       'Identity',
       'Account status',
       'Contact',
+      'Billing address',
       'Branding',
       'Commercial',
       'Embed origins (2)',
@@ -222,6 +223,57 @@ describe('AdminBuilderDrawerComponent (#541)', () => {
     });
     expect(body).not.toHaveProperty('tenantKey');
     expect(toasts.show).toHaveBeenCalledWith({ message: 'Builder saved.' });
+  });
+
+  it('#881: prefills the saved billing address and sends an edit', async () => {
+    const { el, api, ref } = await setup({
+      builder: {
+        ...BUILDER,
+        billingAddress: {
+          line1: '100 8 Ave SW',
+          line2: null,
+          city: 'Calgary',
+          province: 'AB',
+          postalCode: 'T2P 1J9',
+          country: 'CA',
+        },
+      },
+    });
+    expect(control(el, 'billingLine1').value).toBe('100 8 Ave SW');
+    expect(control(el, 'billingProvince').value).toBe('AB');
+    expect(control(el, 'billingPostalCode').value).toBe('T2P 1J9');
+    type(el, 'billingLine2', 'Suite 400');
+    submit(el);
+    await until(() => ref.close.mock.calls.length === 1, 'drawer closes');
+    expect(api.updateBuilder.mock.calls[0][1].billingAddress).toEqual({
+      line1: '100 8 Ave SW',
+      line2: 'Suite 400',
+      city: 'Calgary',
+      province: 'AB',
+      postalCode: 'T2P 1J9',
+      country: 'CA',
+    });
+  });
+
+  it('#881: a blank address saves as null; a partial one or a bad postal code blocks the save', async () => {
+    const { el, api, ref } = await setup();
+    type(el, 'billingCity', 'Calgary');
+    submit(el);
+    expect(text(el)).toContain('This field is required.');
+    expect(api.updateBuilder).not.toHaveBeenCalled();
+
+    type(el, 'billingLine1', '100 8 Ave SW');
+    type(el, 'billingProvince', 'AB');
+    type(el, 'billingPostalCode', '90210');
+    submit(el);
+    expect(text(el)).toContain('Enter a Canadian postal code, like T2P 1J9.');
+    expect(api.updateBuilder).not.toHaveBeenCalled();
+
+    for (const name of ['billingLine1', 'billingCity', 'billingPostalCode']) type(el, name, '');
+    type(el, 'billingProvince', '');
+    submit(el);
+    await until(() => ref.close.mock.calls.length === 1, 'drawer closes');
+    expect(api.updateBuilder.mock.calls[0][1].billingAddress).toBeNull();
   });
 
   it('omits the rate when the field is cleared on edit (no change)', async () => {

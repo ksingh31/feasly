@@ -46,6 +46,13 @@ import {
   AdminBuilderLifecycleModalComponent,
   type AdminBuilderLifecycleData,
 } from './admin-builder-lifecycle-modal.component';
+import {
+  BILLING_ADDRESS_VALIDATORS,
+  CA_PROVINCE_OPTIONS,
+  billingAddressFields,
+  billingAddressInput,
+  watchBillingAddressValidity,
+} from '@app/shared/utils/billing-address';
 import { adminEntityTarget, type AdminEntityTarget } from './admin-entity-routes';
 import { AdminBuildersState } from './admin-builders.state';
 import { PLANNED_PAYMENT_METHOD_LABELS } from './admin-billing-api.service';
@@ -174,7 +181,15 @@ export class AdminBuilderDrawerComponent {
     defaultPaymentMethod: ['card' as string, [Validators.required]],
     allowedOrigins: [''],
     settings: ['', [jsonObjectValidator]],
+    /** #881: billing address on the Stripe customer — all blank = none. */
+    billingLine1: ['', BILLING_ADDRESS_VALIDATORS.billingLine1],
+    billingLine2: ['', BILLING_ADDRESS_VALIDATORS.billingLine2],
+    billingCity: ['', BILLING_ADDRESS_VALIDATORS.billingCity],
+    billingProvince: [null as string | null, BILLING_ADDRESS_VALIDATORS.billingProvince],
+    billingPostalCode: ['', BILLING_ADDRESS_VALIDATORS.billingPostalCode],
   });
+
+  protected readonly provinceOptions: readonly UiSelectOption[] = CA_PROVINCE_OPTIONS;
 
   /** Live form value as a signal (previews + before/after). */
   private readonly value = toSignal(this.form.valueChanges.pipe(startWith(this.form.getRawValue())), {
@@ -296,6 +311,7 @@ export class AdminBuilderDrawerComponent {
         defaultPaymentMethod: readBuilderDefaultPaymentMethod(b.settings),
         allowedOrigins: b.allowedOrigins.join('\n'),
         settings: settingsText(b.settings),
+        ...billingAddressFields(b.billingAddress),
       });
       // The sign-in key is the builder's identity everywhere (embeds,
       // sessions, billing) — it cannot change after creation.
@@ -305,6 +321,8 @@ export class AdminBuilderDrawerComponent {
     this.form.controls.logoUrl.valueChanges
       .pipe(takeUntilDestroyed(this.destroyRef))
       .subscribe(() => this.logoBroken.set(false));
+    // #881: "required once started" depends on the sibling address fields.
+    watchBillingAddressValidity(this.form, this.destroyRef);
   }
 
   protected heading(): string {
@@ -330,6 +348,7 @@ export class AdminBuilderDrawerComponent {
     if (errors['pattern']) {
       if (name === 'tenantKey') return 'Use lowercase letters, numbers, and dashes only (e.g. elite-craft).';
       if (name === 'accentColor') return 'Use a #rrggbb hex color (e.g. #C8A24B), or leave blank.';
+      if (name === 'billingPostalCode') return 'Enter a Canadian postal code, like T2P 1J9.';
       return 'The format is not valid.';
     }
     if (errors['jsonInvalid']) return 'Settings must be valid JSON (or leave blank).';
@@ -361,6 +380,8 @@ export class AdminBuilderDrawerComponent {
       // Blank = server default on create, unchanged on edit. 0 is a real rate.
       ...(rate !== null ? { commissionRatePercent: rate } : {}),
     };
+    // #881: all blank = no address (clears a saved one on edit).
+    const billingAddress = billingAddressInput(v);
 
     const builder = this.builder;
     const action = builder
@@ -369,12 +390,14 @@ export class AdminBuilderDrawerComponent {
           settings,
           // The dedicated field wins over a stale value inside the settings JSON.
           defaultPaymentMethod: method,
+          billingAddress,
         } satisfies BuilderUpdateBody)
       : new CreateBuilder({
           ...common,
           tenantKey: v.tenantKey.trim(),
           // The create endpoint has no dedicated field — it rides in settings.
           settings: { ...settings, defaultPaymentMethod: method },
+          ...(billingAddress ? { billingAddress } : {}),
         } satisfies BuilderCreateBody);
     const message = builder ? 'Builder saved.' : 'Builder added.';
 

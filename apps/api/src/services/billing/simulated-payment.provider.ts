@@ -28,6 +28,7 @@ import {
 import { ErrorCodes, HttpError } from '../../middleware/errors';
 import {
   normalizeStripeEvent,
+  toStripeAddress,
   type CardSummary,
   type NormalizedStripeEvent,
   type OffSessionChargeResult,
@@ -410,6 +411,7 @@ export function createSimulatedPaymentProvider(
         created: unix(),
         email: input.email ?? null,
         name: input.name ?? null,
+        address: input.address ? toStripeAddress(input.address) : null,
         invoice_settings: { default_payment_method: null },
         livemode: false,
         metadata: customerMetadata(input),
@@ -423,6 +425,7 @@ export function createSimulatedPaymentProvider(
         ...customer.data,
         ...(input.email ? { email: input.email } : {}),
         ...(input.name ? { name: input.name } : {}),
+        ...(input.address ? { address: toStripeAddress(input.address) } : {}),
         metadata: customerMetadata(input),
       };
       await store.update(customerId, { data });

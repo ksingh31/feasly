@@ -22,6 +22,7 @@ import { tenants } from '../../db/schema';
 import { HttpError, ErrorCodes } from '../../middleware/errors';
 import {
   normalizeStripeEvent,
+  toStripeAddress,
   type CardSummary,
   type CustomerDetails,
   type NormalizedStripeEvent,
@@ -223,6 +224,7 @@ export function createStripeSdkClient(secretKey: string): StripeClient {
         {
           email: input.email,
           ...(input.name ? { name: input.name } : {}),
+          ...(input.address ? { address: toStripeAddress(input.address) } : {}),
           metadata: customerMetadata(input),
         },
         { idempotencyKey },
@@ -233,6 +235,7 @@ export function createStripeSdkClient(secretKey: string): StripeClient {
       await stripe.customers.update(customerId, {
         ...(input.email ? { email: input.email } : {}),
         ...(input.name ? { name: input.name } : {}),
+        ...(input.address ? { address: toStripeAddress(input.address) } : {}),
         metadata: customerMetadata(input),
       });
     },

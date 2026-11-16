@@ -29,9 +29,18 @@ import {
   SkeletonComponent,
   UiButtonComponent,
   UiModalService,
+  UiSelectComponent,
+  type UiSelectOption,
   UiTextFieldComponent,
   UiToastService,
 } from '@app/shared/ui';
+import {
+  BILLING_ADDRESS_VALIDATORS,
+  CA_PROVINCE_OPTIONS,
+  billingAddressFields,
+  billingAddressInput,
+  watchBillingAddressValidity,
+} from '@app/shared/utils/billing-address';
 import { ConfigService } from '../../core/config/config.service';
 import { BUILDER_COPY } from './builder-copy';
 import { BuilderState } from './builder.state';
@@ -114,6 +123,7 @@ export function originInstallState(origin: BuilderEmbedOriginStatus): OriginInst
     PageLayoutComponent,
     SkeletonComponent,
     UiButtonComponent,
+    UiSelectComponent,
     UiTextFieldComponent,
   ],
   templateUrl: './builder-settings.component.html',
@@ -160,7 +170,15 @@ export class BuilderSettingsComponent {
     contactPhone: [''],
     logoUrl: ['', [httpsValidator, Validators.maxLength(this.limits.builderLogoUrlMaxLength)]],
     accentColor: ['', [Validators.pattern(HEX_COLOR_RE)]],
+    /** #881: billing address on the card processor's customer — all blank = none. */
+    billingLine1: ['', BILLING_ADDRESS_VALIDATORS.billingLine1],
+    billingLine2: ['', BILLING_ADDRESS_VALIDATORS.billingLine2],
+    billingCity: ['', BILLING_ADDRESS_VALIDATORS.billingCity],
+    billingProvince: [null as string | null, BILLING_ADDRESS_VALIDATORS.billingProvince],
+    billingPostalCode: ['', BILLING_ADDRESS_VALIDATORS.billingPostalCode],
   });
+
+  protected readonly provinceOptions: readonly UiSelectOption[] = CA_PROVINCE_OPTIONS;
 
   /** Live form value as a signal (drives the preview). */
   private readonly value = toSignal(
@@ -225,6 +243,7 @@ export class BuilderSettingsComponent {
     this.form.controls.logoUrl.valueChanges
       .pipe(takeUntilDestroyed(this.destroyRef))
       .subscribe(() => this.logoBroken.set(false));
+    watchBillingAddressValidity(this.form, this.destroyRef);
   }
 
   private initialTab(): BuilderSettingsTab {
@@ -293,7 +312,9 @@ export class BuilderSettingsComponent {
     }
     if (errors['email']) return this.copy.errorEmail;
     if (errors['https']) return this.copy.errorHttps;
-    if (errors['pattern']) return this.copy.errorHex;
+    if (errors['pattern']) {
+      return name === 'billingPostalCode' ? this.copy.errorPostalCode : this.copy.errorHex;
+    }
     return this.copy.errorRequired;
   }
 
@@ -310,6 +331,8 @@ export class BuilderSettingsComponent {
           contactPhone: nullIfBlank(v.contactPhone),
           logoUrl: nullIfBlank(v.logoUrl),
           accentColor: nullIfBlank(v.accentColor),
+          // #881: all blank = no address (clears a saved one).
+          billingAddress: billingAddressInput(v),
         }),
       )
       .pipe(takeUntilDestroyed(this.destroyRef))
@@ -334,6 +357,7 @@ export class BuilderSettingsComponent {
         contactPhone: profile.contactPhone ?? '',
         logoUrl: profile.logoUrl ?? '',
         accentColor: profile.accentColor ?? '',
+        ...billingAddressFields(profile.billingAddress),
       },
       { emitEvent: true },
     );

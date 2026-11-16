@@ -176,6 +176,88 @@ describe('admin-builders route', () => {
     expect(result.displayName).toBe('Updated Name');
   });
 
+  it('create + update validate and normalize a CA billing address (#881)', async () => {
+    const { route, builders, headers } = makeDeps();
+    await route.create(headers, {
+      tenantKey: 'new-builder',
+      businessName: 'New Builder Inc.',
+      displayName: 'New Builder',
+      billingAddress: {
+        line1: '100 8 Ave SW',
+        city: 'Calgary',
+        province: 'ab',
+        postalCode: 't2p-1j9',
+      },
+    });
+    const [created] = (builders.createBuilder as ReturnType<typeof vi.fn>).mock.calls[0] as [
+      Record<string, unknown>,
+    ];
+    expect(created['billingAddress']).toEqual({
+      line1: '100 8 Ave SW',
+      line2: null,
+      city: 'Calgary',
+      province: 'AB',
+      postalCode: 'T2P 1J9',
+      country: 'CA',
+    });
+
+    await route.update(headers, BUILDER_ID, { billingAddress: null });
+    const [, cleared] = (builders.updateBuilder as ReturnType<typeof vi.fn>).mock.calls[0] as [
+      string,
+      Record<string, unknown>,
+    ];
+    expect(cleared).toEqual({ billingAddress: null });
+
+    await route.update(headers, BUILDER_ID, { displayName: 'X' });
+    const [, untouched] = (builders.updateBuilder as ReturnType<typeof vi.fn>).mock.calls[1] as [
+      string,
+      Record<string, unknown>,
+    ];
+    expect(untouched).not.toHaveProperty('billingAddress');
+  });
+
+  it.each([
+    [{ postalCode: '90210' }, 'billingAddress.postalCode'],
+    [{ postalCode: 'D2P 1J9' }, 'billingAddress.postalCode'],
+    [{ province: 'Alberta' }, 'billingAddress.province'],
+    [{ line1: '' }, 'billingAddress.line1'],
+    [{ country: 'Canada' }, 'billingAddress.country'],
+  ])('update 400s a bad billing address %j (#881)', async (bad, field) => {
+    const { route, builders, headers } = makeDeps();
+    const e = await route
+      .update(headers, BUILDER_ID, {
+        billingAddress: {
+          line1: '100 8 Ave SW',
+          city: 'Calgary',
+          province: 'AB',
+          postalCode: 'T2P 1J9',
+          ...bad,
+        },
+      })
+      .then(() => null, (err: unknown) => err as HttpError);
+    expect(e).toMatchObject({ status: 400 });
+    expect(e?.message).toContain(field);
+    expect(builders.updateBuilder).not.toHaveBeenCalled();
+  });
+
+  it('accepts a non-CA address without CA postal rules (#881)', async () => {
+    const { route, builders, headers } = makeDeps();
+    await route.update(headers, BUILDER_ID, {
+      billingAddress: {
+        line1: '1 Main St',
+        city: 'Seattle',
+        province: 'WA',
+        postalCode: '98101',
+        country: 'us',
+      },
+    });
+    const [, body] = (builders.updateBuilder as ReturnType<typeof vi.fn>).mock.calls[0] as [
+      string,
+      Record<string, unknown>,
+    ];
+    expect(body['billingAddress']).toMatchObject({ country: 'US', postalCode: '98101' });
+  });
+
   it('update requires admin auth', async () => {
     const { route } = makeDeps();
     await expect(

@@ -397,3 +397,7 @@ apps/web/src/app/core/config/zoning-eligibility.generated.ts
 apps/web/src/app/features/admin/admin-builders-view.ts
 apps/web/src/app/features/admin/admin-builder-lifecycle-modal.component.ts
 apps/web/src/app/features/admin/admin-builders.state.ts
+# #881: builder billing-address form helpers. The line/city maxLength limits
+# and the CA postal-code shape mirror the backend zod schema
+# (apps/api/src/lib/billing-address.ts) — validation contract, not tuning.
+apps/web/src/app/shared/utils/billing-address.ts

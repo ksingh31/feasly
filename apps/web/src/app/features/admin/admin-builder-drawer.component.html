@@ -151,6 +151,45 @@
       </div>
     </section>
 
+    <section class="builder-drawer__section" aria-labelledby="builder-drawer-billing" data-testid="billing-address">
+      <h3 class="builder-drawer__heading" id="builder-drawer-billing">Billing address</h3>
+      <p class="builder-drawer__status-note">Shown on their card receipts. Leave every field blank if you don't have it yet.</p>
+      <div class="builder-drawer__grid">
+        <ui-text-field
+          label="Street address"
+          formControlName="billingLine1"
+          autocomplete="billing address-line1"
+          [error]="fieldError('billingLine1')"
+        />
+        <ui-text-field
+          label="Suite or unit (optional)"
+          formControlName="billingLine2"
+          autocomplete="billing address-line2"
+          [error]="fieldError('billingLine2')"
+        />
+        <ui-text-field
+          label="City"
+          formControlName="billingCity"
+          autocomplete="billing address-level2"
+          [error]="fieldError('billingCity')"
+        />
+        <ui-select
+          label="Province"
+          formControlName="billingProvince"
+          [options]="provinceOptions"
+          placeholder="Choose a province"
+          [error]="fieldError('billingProvince')"
+        />
+        <ui-text-field
+          label="Postal code"
+          formControlName="billingPostalCode"
+          autocomplete="billing postal-code"
+          placeholder="T2P 1J9"
+          [error]="fieldError('billingPostalCode')"
+        />
+      </div>
+    </section>
+
     <section class="builder-drawer__section" aria-labelledby="builder-drawer-branding">
       <h3 class="builder-drawer__heading" id="builder-drawer-branding">Branding</h3>
       <div class="builder-drawer__brand">

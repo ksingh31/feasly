@@ -229,6 +229,50 @@ describe('StripePaymentProvider (createStripeSdkClient)', () => {
     });
   });
 
+  it('sends the billing address to the Stripe customer on create and update (#881)', async () => {
+    mocks.customersCreate.mockResolvedValue({ id: 'cus_new' });
+    const client = createStripeSdkClient('sk_test_fake');
+    const address = {
+      line1: '100 8 Ave SW',
+      line2: null,
+      city: 'Calgary',
+      state: 'AB',
+      postalCode: 'T2P 1J9',
+      country: 'CA',
+    };
+    await client.createCustomer({ tenantKey: 'elite', name: 'Elite', address }, 'idem');
+    expect(mocks.customersCreate).toHaveBeenCalledWith(
+      {
+        email: undefined,
+        name: 'Elite',
+        address: {
+          line1: '100 8 Ave SW',
+          city: 'Calgary',
+          state: 'AB',
+          postal_code: 'T2P 1J9',
+          country: 'CA',
+        },
+        metadata: { feasly_tenant_key: 'elite' },
+      },
+      { idempotencyKey: 'idem' },
+    );
+    await client.updateCustomer('cus_new', {
+      tenantKey: 'elite',
+      address: { ...address, line2: 'Suite 400' },
+    });
+    expect(mocks.customersUpdate).toHaveBeenCalledWith('cus_new', {
+      address: {
+        line1: '100 8 Ave SW',
+        line2: 'Suite 400',
+        city: 'Calgary',
+        state: 'AB',
+        postal_code: 'T2P 1J9',
+        country: 'CA',
+      },
+      metadata: { feasly_tenant_key: 'elite' },
+    });
+  });
+
   it('refunds in full, or partially when an amount is given', async () => {
     mocks.refundsCreate.mockResolvedValue({ id: 're_1', status: 'succeeded' });
     const client = createStripeSdkClient('sk_test_fake');

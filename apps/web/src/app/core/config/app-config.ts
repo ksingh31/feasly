@@ -585,6 +585,16 @@ export interface BuilderSettingsCopy {
   accentColorLabel: string;
   accentColorHint: string;
   accentPickerLabel: string;
+  /** #881: billing address (sent to the card processor for receipts). */
+  billingHeading: string;
+  billingIntro: string;
+  billingLine1Label: string;
+  billingLine2Label: string;
+  billingCityLabel: string;
+  billingProvinceLabel: string;
+  billingProvincePlaceholder: string;
+  billingPostalCodeLabel: string;
+  errorPostalCode: string;
   previewHeading: string;
   previewLogoNone: string;
   previewLogoBroken: string;

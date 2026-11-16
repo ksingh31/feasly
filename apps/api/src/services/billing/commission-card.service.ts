@@ -26,7 +26,7 @@
  * Only services and composition.ts may import from src/db/ — enforced by
  * test/boundaries.test.ts. This service never touches db directly.
  */
-import type { Builder } from '@feasly/contracts';
+import type { Builder, BuilderBillingAddress } from '@feasly/contracts';
 import type { BillingConfig } from '../../config';
 import { ErrorCodes, HttpError } from '../../middleware/errors';
 import type { BillingAuditService } from './billing-audit.service';
@@ -36,6 +36,19 @@ import type {
   NormalizedStripeEvent,
   StripeService,
 } from './stripe.service';
+import type { CustomerAddress } from './payment-provider';
+
+/** #881: the builder's billing address in the provider's (Stripe) shape. */
+function toCustomerAddress(a: BuilderBillingAddress): CustomerAddress {
+  return {
+    line1: a.line1,
+    line2: a.line2,
+    city: a.city,
+    state: a.province,
+    postalCode: a.postalCode,
+    country: a.country,
+  };
+}
 
 export interface CommissionCardStatus {
   readonly hasCard: boolean;
@@ -252,6 +265,7 @@ export function createCommissionCardService(
     email?: string;
     name?: string;
     builderId?: string;
+    address?: CustomerAddress;
   }> {
     const builder = deps.builders
       ? await deps.builders.getByTenantKey(tenantKey)
@@ -261,6 +275,9 @@ export function createCommissionCardService(
       tenantKey,
       ...(builderEmail || email ? { email: builderEmail ?? email } : {}),
       ...(builder ? { name: builder.businessName, builderId: builder.id } : {}),
+      ...(builder?.billingAddress
+        ? { address: toCustomerAddress(builder.billingAddress) }
+        : {}),
     };
   }
 
@@ -285,6 +302,9 @@ export function createCommissionCardService(
       name: builder.businessName,
       builderId: builder.id,
       ...(builder.email ? { email: builder.email } : {}),
+      ...(builder.billingAddress
+        ? { address: toCustomerAddress(builder.billingAddress) }
+        : {}),
     });
     await audit.append({
       tenantKey: builder.tenantKey,

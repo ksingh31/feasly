@@ -17,6 +17,8 @@
  * Commission rate, plan and status are never part of these payloads.
  */
 
+import type { BuilderBillingAddress, BuilderBillingAddressInput } from './builder';
+
 /** The builder-editable profile and branding. */
 export interface BuilderProfile {
   /** The builder's tenant key (read-only). */
@@ -30,6 +32,11 @@ export interface BuilderProfile {
   readonly logoUrl: string | null;
   /** `#rrggbb`; null = the embed's default accent. */
   readonly accentColor: string | null;
+  /**
+   * #881: billing address on the Stripe customer; null = not set. Always
+   * sent by the API; optional on the type for older fixtures.
+   */
+  readonly billingAddress?: BuilderBillingAddress | null;
   readonly updatedAt: string;
 }
 
@@ -58,6 +65,8 @@ export interface BuilderProfileUpdateBody {
   readonly contactPhone?: string | null;
   readonly logoUrl?: string | null;
   readonly accentColor?: string | null;
+  /** #881: omitted = unchanged; null clears it. CA postal code validated. */
+  readonly billingAddress?: BuilderBillingAddressInput | null;
 }
 
 /** Install status of one allowed origin. */

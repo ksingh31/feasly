@@ -95,6 +95,47 @@
               [error]="fieldError('accentColor')"
             />
 
+            <fieldset class="settings__fieldset" data-testid="billing-address">
+              <legend class="settings__legend">{{ copy.billingHeading }}</legend>
+              <p class="settings__fieldset-intro">{{ copy.billingIntro }}</p>
+              <ui-text-field
+                formControlName="billingLine1"
+                data-testid="field-billingLine1"
+                autocomplete="billing address-line1"
+                [label]="copy.billingLine1Label"
+                [error]="fieldError('billingLine1')"
+              />
+              <ui-text-field
+                formControlName="billingLine2"
+                data-testid="field-billingLine2"
+                autocomplete="billing address-line2"
+                [label]="copy.billingLine2Label"
+                [error]="fieldError('billingLine2')"
+              />
+              <ui-text-field
+                formControlName="billingCity"
+                data-testid="field-billingCity"
+                autocomplete="billing address-level2"
+                [label]="copy.billingCityLabel"
+                [error]="fieldError('billingCity')"
+              />
+              <ui-select
+                formControlName="billingProvince"
+                data-testid="field-billingProvince"
+                [label]="copy.billingProvinceLabel"
+                [placeholder]="copy.billingProvincePlaceholder"
+                [options]="provinceOptions"
+                [error]="fieldError('billingProvince')"
+              />
+              <ui-text-field
+                formControlName="billingPostalCode"
+                data-testid="field-billingPostalCode"
+                autocomplete="billing postal-code"
+                [label]="copy.billingPostalCodeLabel"
+                [error]="fieldError('billingPostalCode')"
+              />
+            </fieldset>
+
             @if (saveError() !== null) {
               <p class="settings__alert" role="alert" data-testid="save-error">
                 {{ saveError() || copy.saveError }}

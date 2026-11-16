@@ -16,6 +16,7 @@ import { randomUUID } from 'node:crypto';
 import { count, eq } from 'drizzle-orm';
 import type {
   Builder,
+  BuilderBillingAddress,
   BuilderCreateBody,
   BuilderUpdateBody,
   LeadAssignBuilderResponse,
@@ -25,6 +26,7 @@ import { builders, commissionInvoices, tenants } from '../db/schema';
 import { ErrorCodes, HttpError } from '../middleware/errors';
 import { isUniqueViolation } from './pg-errors';
 import { readDefaultPaymentMethod } from '../lib/payment-method';
+import { sameBillingAddress } from '../lib/billing-address';
 import type { AdminAuditStore } from './admin-audit.store';
 import { normalizeBuilderStatus } from '../lib/builder-status-policy';
 import {
@@ -85,6 +87,8 @@ export interface BuilderProfilePatch {
   readonly phone?: string | null;
   readonly logoUrl?: string | null;
   readonly accentColor?: string | null;
+  /** #881: already validated + normalized (lib/billing-address.ts). */
+  readonly billingAddress?: BuilderBillingAddress | null;
 }
 
 export interface BuilderServiceDeps {
@@ -101,7 +105,8 @@ export interface BuilderServiceDeps {
     readonly builderId: string;
   }) => Promise<void>;
   /**
-   * #716: called after an update that changed the business name or email,
+   * #716/#881: called after an update that changed the business name,
+   * email or billing address,
    * so the builder's Stripe customer stays in sync. Best-effort: a failure
    * is logged and never fails the admin's update.
    */
@@ -186,6 +191,7 @@ export function toBuilderContract(row: BuilderRow): Builder {
     statusChangedBy: row.statusChangedBy ?? null,
     settings: { ...row.settings },
     commissionRatePercent: row.commissionRatePercent,
+    billingAddress: row.billingAddress ? { ...row.billingAddress } : null,
     createdAt: row.createdAt.toISOString(),
     updatedAt: row.updatedAt.toISOString(),
   };
@@ -223,6 +229,25 @@ async function syncTenantRow(
     .insert(tenants)
     .values({ tenantKey: row.tenantKey, ...shared })
     .onConflictDoUpdate({ target: tenants.tenantKey, set: shared });
+}
+
+/**
+ * #881: the stored shape of an admin-supplied address. The route already
+ * validated + normalized it (lib/billing-address.ts); this only fills the
+ * optional fields so the jsonb row is always complete.
+ */
+function toStoredAddress(
+  input: BuilderCreateBody['billingAddress'],
+): BuilderBillingAddress | null {
+  if (!input) return null;
+  return {
+    line1: input.line1,
+    line2: input.line2 ?? null,
+    city: input.city,
+    province: input.province,
+    postalCode: input.postalCode,
+    country: input.country ?? 'CA',
+  };
 }
 
 function sameOrigins(a: readonly string[], b: readonly string[]): boolean {
@@ -274,7 +299,9 @@ export function createBuilderService(deps: BuilderServiceDeps): BuilderService {
   ): Promise<void> {
     if (
       !deps.onBillingProfileChanged ||
-      (row.businessName === current.businessName && row.email === current.email)
+      (row.businessName === current.businessName &&
+        row.email === current.email &&
+        sameBillingAddress(row.billingAddress, current.billingAddress))
     ) {
       return;
     }
@@ -373,6 +400,7 @@ export function createBuilderService(deps: BuilderServiceDeps): BuilderService {
               status,
               settings: { ...(input.settings ?? {}) },
               commissionRatePercent,
+              billingAddress: toStoredAddress(input.billingAddress),
             })
             .returning();
           if (!inserted) throw new Error('builder insert returned no row');
@@ -419,6 +447,8 @@ export function createBuilderService(deps: BuilderServiceDeps): BuilderService {
       if (input.allowedOrigins !== undefined)
         patch.allowedOrigins = normalizeOrigins(input.allowedOrigins);
       if (input.plan !== undefined) patch.plan = input.plan?.trim() || null;
+      if (input.billingAddress !== undefined)
+        patch.billingAddress = toStoredAddress(input.billingAddress);
       if (
         input.status !== undefined &&
         input.status !== normalizeBuilderStatus(current.status)
@@ -514,6 +544,13 @@ export function createBuilderService(deps: BuilderServiceDeps): BuilderService {
       if (input.phone !== undefined) set('phone', input.phone);
       if (input.logoUrl !== undefined) set('logoUrl', input.logoUrl);
       if (input.accentColor !== undefined) set('accentColor', input.accentColor);
+      if (
+        input.billingAddress !== undefined &&
+        !sameBillingAddress(input.billingAddress, current.billingAddress)
+      ) {
+        changed.push('billingAddress');
+        patch.billingAddress = input.billingAddress;
+      }
       const row = await persistPatch(current, patch);
       await audit.log({
         actorEmail,

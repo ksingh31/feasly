@@ -152,10 +152,41 @@ export interface NormalizedDispute {
   readonly livemode: boolean | null;
 }
 
+/** #881: the builder's billing address in Stripe's shape (`Customer.address`). */
+export interface CustomerAddress {
+  readonly line1: string;
+  readonly line2: string | null;
+  readonly city: string;
+  /** Stripe `state` — the province code for CA. */
+  readonly state: string;
+  readonly postalCode: string;
+  /** ISO 3166-1 alpha-2. */
+  readonly country: string;
+}
+
+/** #881: Stripe API `address` param from a `CustomerAddress`. */
+export function toStripeAddress(address: CustomerAddress): {
+  line1: string;
+  line2?: string;
+  city: string;
+  state: string;
+  postal_code: string;
+  country: string;
+} {
+  return {
+    line1: address.line1,
+    ...(address.line2 ? { line2: address.line2 } : {}),
+    city: address.city,
+    state: address.state,
+    postal_code: address.postalCode,
+    country: address.country,
+  };
+}
+
 /**
  * #716: Stripe customer details Feasly keeps in sync with the builder
- * profile — business name, contact email and builder id metadata (receipts,
- * tax and dispute evidence).
+ * profile — business name, contact email, builder id metadata and (#881)
+ * billing address (receipts, tax and dispute evidence).
  */
 export interface CustomerDetails {
   readonly tenantKey: string;
@@ -164,6 +195,11 @@ export interface CustomerDetails {
   readonly email?: string;
   /** Builder row id (`metadata.feasly_builder_id`). */
   readonly builderId?: string;
+  /**
+   * #881: Stripe `address`. Omitted = left as it is in Stripe (a builder
+   * with no address on file never wipes one set in the Stripe dashboard).
+   */
+  readonly address?: CustomerAddress;
 }
 
 /** Input for an off-session charge. */
@@ -189,7 +225,7 @@ export interface PaymentProvider {
     input: CustomerDetails,
     idempotencyKey: string,
   ): Promise<{ id: string }>;
-  /** #716: update the customer's name/email/builder metadata. */
+  /** #716/#881: update the customer's name/email/address/builder metadata. */
   updateCustomer(customerId: string, input: CustomerDetails): Promise<void>;
   createSetupIntent(customerId: string): Promise<{
     id: string;

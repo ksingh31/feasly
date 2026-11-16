@@ -34,6 +34,7 @@ import {
   type BuilderUpdateBody,
 } from '@feasly/contracts';
 import { ErrorCodes, HttpError } from '../middleware/errors';
+import { billingAddressFieldSchema } from '../lib/billing-address';
 import type { AdminGuard } from '../middleware/admin-guard';
 import type { BuilderService } from '../services/builder.service';
 import type { BuilderLifecycleService } from '../services/builder-lifecycle.service';
@@ -137,6 +138,8 @@ const builderCreateSchema = z.object({
    * non-numeric input here.
    */
   commissionRatePercent: z.number().nullish(),
+  /** #881: billing address (CA postal code + province validated). */
+  billingAddress: billingAddressFieldSchema,
 });
 
 const builderUpdateSchema = z.object({
@@ -168,6 +171,8 @@ const builderUpdateSchema = z.object({
   defaultPaymentMethod: z
     .enum(['card', 'cheque', 'e_transfer', 'bank_draft'])
     .nullish(),
+  /** #881: billing address. Omitted = unchanged; null clears it. */
+  billingAddress: billingAddressFieldSchema,
 });
 
 function parseBuilderId(id: unknown): string {
@@ -181,10 +186,15 @@ function parseBuilderId(id: unknown): string {
 function parseBody<T>(schema: z.ZodType<T>, body: unknown, what: string): T {
   const parsed = schema.safeParse(body);
   if (!parsed.success) {
+    // Field path + rule only — never echo the submitted value.
+    const issue = parsed.error.issues[0];
+    const where = issue?.path.join('.');
     throw new HttpError(
       400,
       ErrorCodes.VALIDATION_FAILED,
-      `Invalid ${what} body.`,
+      where
+        ? `Invalid ${what} body: '${where}' ${issue?.code === 'custom' ? issue.message : 'is invalid'}.`
+        : `Invalid ${what} body.`,
       false,
     );
   }
@@ -229,6 +239,7 @@ export function createAdminBuildersRoute(
     ...(data.commissionRatePercent !== undefined && data.commissionRatePercent !== null
       ? { commissionRatePercent: data.commissionRatePercent }
       : {}),
+    ...(data.billingAddress ? { billingAddress: data.billingAddress } : {}),
   });
 
   const toUpdateBody = (
@@ -259,6 +270,9 @@ export function createAdminBuildersRoute(
       : {}),
     ...(data.defaultPaymentMethod !== undefined && data.defaultPaymentMethod !== null
       ? { defaultPaymentMethod: data.defaultPaymentMethod }
+      : {}),
+    ...(data.billingAddress !== undefined
+      ? { billingAddress: data.billingAddress }
       : {}),
   });
 

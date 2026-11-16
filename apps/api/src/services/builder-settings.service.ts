@@ -3,7 +3,8 @@
  *
  * - Profile & branding: any org member reads; org owners
  *   (`builder:settings:manage`) change display name, contact email/phone,
- *   logo URL (https) and accent colour (#rrggbb). Never rate, plan, status
+ *   logo URL (https), accent colour (#rrggbb) and the billing address
+ *   (#881 — re-synced to the Stripe customer). Never rate, plan, status
  *   or origins. Audit-logged under the acting user. The embed config reads
  *   the builders row directly (no cache), so the widget reflects a change
  *   on its next load.
@@ -36,6 +37,7 @@ import type {
 } from '@feasly/contracts';
 import { ErrorCodes, HttpError } from '../middleware/errors';
 import { parseEmbedOrigin } from '../lib/embed-origin';
+import { billingAddressFieldSchema } from '../lib/billing-address';
 import type { BuilderProfilePatch, BuilderService } from './builder.service';
 import type { AdminAuditStore } from './admin-audit.store';
 import type { EmailService } from './email/email.service';
@@ -134,6 +136,8 @@ const ProfileUpdateSchema = z
       blankToNull,
       z.string().trim().regex(HEX_COLOR_RE).transform((v) => v.toLowerCase()).nullable(),
     ).optional(),
+    /** #881: billing address (CA postal code + province validated). */
+    billingAddress: billingAddressFieldSchema,
   })
   .strict();
 
@@ -169,6 +173,7 @@ function toProfile(b: Builder): BuilderProfile {
     contactPhone: b.phone,
     logoUrl: b.logoUrl,
     accentColor: b.accentColor,
+    billingAddress: b.billingAddress ?? null,
     updatedAt: b.updatedAt,
   };
 }
@@ -281,6 +286,7 @@ export function createBuilderSettingsService(
         ...(d.contactPhone !== undefined ? { phone: d.contactPhone } : {}),
         ...(d.logoUrl !== undefined ? { logoUrl: d.logoUrl } : {}),
         ...(d.accentColor !== undefined ? { accentColor: d.accentColor } : {}),
+        ...(d.billingAddress !== undefined ? { billingAddress: d.billingAddress } : {}),
       };
       if (Object.keys(patch).length === 0) {
         throw badRequest('Send at least one profile field to change.');

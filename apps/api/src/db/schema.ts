@@ -35,6 +35,7 @@ import {
   uuid,
 } from 'drizzle-orm/pg-core';
 import { sql } from 'drizzle-orm';
+import type { BuilderBillingAddress } from '@feasly/contracts';
 
 export const estimates = pgTable(
   'estimates',
@@ -559,6 +560,12 @@ export const builders = pgTable('builders', {
    * creation — changing it affects future invoices only.
    */
   commissionRatePercent: real('commission_rate_percent').notNull().default(1),
+  /**
+   * #881: billing address sent to the builder's Stripe customer —
+   * `{ line1, line2, city, province, postalCode, country }`, validated and
+   * normalized by lib/billing-address.ts. Null = not set.
+   */
+  billingAddress: jsonb('billing_address').$type<BuilderBillingAddress>(),
   /**
    * Escape hatch for future per-builder config (per-plan fields, feature
    * flags) without new migrations. Always an object.

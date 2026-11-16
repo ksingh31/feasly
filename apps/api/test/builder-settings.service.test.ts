@@ -186,6 +186,56 @@ describe('builder settings service — profile', () => {
     const { service } = setup();
     expect((await httpError(service.updateProfile(OWNER, {}))).status).toBe(400);
   });
+  it('maps a normalized billing address and clears it with null (#881)', async () => {
+    const { service, builders } = setup();
+    await service.updateProfile(OWNER, {
+      billingAddress: {
+        line1: ' 100 8 Ave SW ',
+        line2: '',
+        city: 'Calgary',
+        province: 'ab',
+        postalCode: 't2p1j9',
+      },
+    });
+    expect(builders.updateProfile).toHaveBeenLastCalledWith(
+      'b-1',
+      {
+        billingAddress: {
+          line1: '100 8 Ave SW',
+          line2: null,
+          city: 'Calgary',
+          province: 'AB',
+          postalCode: 'T2P 1J9',
+          country: 'CA',
+        },
+      },
+      'owner@builder-a.example',
+    );
+    await service.updateProfile(OWNER, { billingAddress: null });
+    expect(builders.updateProfile).toHaveBeenLastCalledWith(
+      'b-1',
+      { billingAddress: null },
+      'owner@builder-a.example',
+    );
+  });
+
+  it('400s a CA billing address with a bad postal code, naming the field only (#881)', async () => {
+    const { service, builders } = setup();
+    const e = await httpError(
+      service.updateProfile(OWNER, {
+        billingAddress: {
+          line1: '100 8 Ave SW',
+          city: 'Calgary',
+          province: 'AB',
+          postalCode: '90210',
+        },
+      }),
+    );
+    expect(e.status).toBe(400);
+    expect(e.message).toContain('billingAddress.postalCode');
+    expect(e.message).not.toContain('90210');
+    expect(builders.updateProfile).not.toHaveBeenCalled();
+  });
 });
 
 describe('builder settings service — embed', () => {

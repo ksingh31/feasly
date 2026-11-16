@@ -196,8 +196,72 @@ describe('BuilderSettingsComponent (#871)', () => {
         contactPhone: null,
         logoUrl: null,
         accentColor: '#112233',
+        billingAddress: null,
       });
       expect(toasts.show).toHaveBeenCalledWith({ message: COPY.savedToast });
+    });
+
+    it('#881: an owner adds a billing address; a bad postal code is explained first', async () => {
+      const { el, fixture, api } = await setup();
+      type(input(el, 'field-billingLine1'), '100 8 Ave SW');
+      type(input(el, 'field-billingCity'), 'Calgary');
+      const province = el.querySelector('[data-testid="field-billingProvince"] select') as HTMLSelectElement;
+      province.value = 'AB';
+      province.dispatchEvent(new Event('change'));
+      type(input(el, 'field-billingPostalCode'), '90210');
+      fixture.detectChanges();
+      click(el, 'save');
+      fixture.detectChanges();
+      expect(api.updateProfile).not.toHaveBeenCalled();
+      expect(el.textContent).toContain(COPY.errorPostalCode);
+
+      type(input(el, 'field-billingPostalCode'), 't2p 1j9');
+      fixture.detectChanges();
+      click(el, 'save');
+      fixture.detectChanges();
+      expect(api.updateProfile).toHaveBeenCalledWith(
+        expect.objectContaining({
+          billingAddress: {
+            line1: '100 8 Ave SW',
+            line2: null,
+            city: 'Calgary',
+            province: 'AB',
+            postalCode: 't2p 1j9',
+            country: 'CA',
+          },
+        }),
+      );
+    });
+
+    it('#881: a partial billing address needs the rest before saving', async () => {
+      const { el, fixture, api } = await setup();
+      type(input(el, 'field-billingCity'), 'Calgary');
+      fixture.detectChanges();
+      click(el, 'save');
+      fixture.detectChanges();
+      expect(api.updateProfile).not.toHaveBeenCalled();
+      expect(el.textContent).toContain(COPY.errorRequired);
+    });
+
+    it('#881: prefills a saved billing address', async () => {
+      const { el } = await setup({
+        profile: {
+          ...PROFILE,
+          profile: {
+            ...PROFILE.profile,
+            billingAddress: {
+              line1: '100 8 Ave SW',
+              line2: 'Suite 400',
+              city: 'Calgary',
+              province: 'AB',
+              postalCode: 'T2P 1J9',
+              country: 'CA',
+            },
+          },
+        },
+      });
+      expect(input(el, 'field-billingLine2').value).toBe('Suite 400');
+      expect(input(el, 'field-billingPostalCode').value).toBe('T2P 1J9');
     });
 
     it('blocks an invalid save with field errors', async () => {

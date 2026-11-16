@@ -511,3 +511,122 @@ describe('BuilderService.updateBuilder Stripe customer sync hook (#716)', () => 
     expect(logWarning).toHaveBeenCalledWith(expect.stringContaining('stripe down'));
   });
 });
+
+describe('BuilderService billing address (#881)', () => {
+  const ADDRESS = {
+    line1: '100 8 Ave SW',
+    line2: null,
+    city: 'Calgary',
+    province: 'AB',
+    postalCode: 'T2P 1J9',
+    country: 'CA',
+  };
+
+  function makeUpdateDb(
+    current: ReturnType<typeof makeRow>,
+    returning: ReturnType<typeof makeRow>,
+  ): { db: AppDb; sets: Record<string, unknown>[] } {
+    const sets: Record<string, unknown>[] = [];
+    const db = {
+      query: { builders: { findFirst: vi.fn(async () => current) } },
+      update: vi.fn(() => ({
+        set: vi.fn((patch: Record<string, unknown>) => {
+          sets.push(patch);
+          return {
+            where: vi.fn(() => ({ returning: vi.fn(async () => [returning]) })),
+          };
+        }),
+      })),
+    } as Record<string, unknown>;
+    withTx(db);
+    return { db: db as unknown as AppDb, sets };
+  }
+
+  function service(db: AppDb, hook = vi.fn(async (_b: unknown) => {})) {
+    const audit = { log: vi.fn(async () => {}) } as unknown as AdminAuditStore;
+    return {
+      svc: createBuilderService({ db, audit, onBillingProfileChanged: hook }),
+      hook,
+      audit,
+    };
+  }
+
+  it('stores the address on create, filling line2 + the CA default', async () => {
+    const { db, insertCalls } = makeDb({ findFirst: undefined, insertBehavior: 'ok' });
+    const { service: svc } = makeDeps(db);
+    await svc.createBuilder(
+      {
+        ...INPUT,
+        billingAddress: {
+          line1: '100 8 Ave SW',
+          city: 'Calgary',
+          province: 'AB',
+          postalCode: 'T2P 1J9',
+        },
+      },
+      'admin@example.com',
+    );
+    expect(insertCalls[0]).toMatchObject({ billingAddress: ADDRESS });
+  });
+
+  it('a create without an address stores null', async () => {
+    const { db, insertCalls } = makeDb({ findFirst: undefined, insertBehavior: 'ok' });
+    const { service: svc } = makeDeps(db);
+    const builder = await svc.createBuilder(INPUT, 'admin@example.com');
+    expect(insertCalls[0]).toMatchObject({ billingAddress: null });
+    expect(builder.billingAddress).toBeNull();
+  });
+
+  it('an admin address change is stored, returned and re-syncs Stripe', async () => {
+    const current = makeRow({ billingAddress: null });
+    const { db, sets } = makeUpdateDb(current, makeRow({ billingAddress: ADDRESS }));
+    const { svc, hook } = service(db);
+    const builder = await svc.updateBuilder(
+      current.id,
+      { billingAddress: ADDRESS },
+      'admin@example.com',
+    );
+    expect(sets[0]).toMatchObject({ billingAddress: ADDRESS });
+    expect(builder.billingAddress).toEqual(ADDRESS);
+    expect(hook).toHaveBeenCalledWith(
+      expect.objectContaining({ billingAddress: ADDRESS }),
+    );
+  });
+
+  it('null clears the address; omitted leaves it unchanged', async () => {
+    const current = makeRow({ billingAddress: ADDRESS });
+    const cleared = makeUpdateDb(current, makeRow({ billingAddress: null }));
+    await service(cleared.db).svc.updateBuilder(
+      current.id,
+      { billingAddress: null },
+      'admin@example.com',
+    );
+    expect(cleared.sets[0]).toMatchObject({ billingAddress: null });
+
+    const untouched = makeUpdateDb(current, makeRow({ billingAddress: ADDRESS, phone: 'x' }));
+    const { svc, hook } = service(untouched.db);
+    await svc.updateBuilder(current.id, { phone: 'x' }, 'admin@example.com');
+    expect(untouched.sets[0]).not.toHaveProperty('billingAddress');
+    expect(hook).not.toHaveBeenCalled();
+  });
+
+  it('an identical address does not re-sync Stripe', async () => {
+    const current = makeRow({ billingAddress: ADDRESS });
+    const { db } = makeUpdateDb(current, makeRow({ billingAddress: { ...ADDRESS } }));
+    const { svc, hook } = service(db);
+    await svc.updateBuilder(current.id, { billingAddress: ADDRESS }, 'admin@example.com');
+    expect(hook).not.toHaveBeenCalled();
+  });
+
+  it('an owner profile address change re-syncs Stripe and audits the field name only', async () => {
+    const current = makeRow({ billingAddress: null });
+    const { db, sets } = makeUpdateDb(current, makeRow({ billingAddress: ADDRESS }));
+    const { svc, hook, audit } = service(db);
+    await svc.updateProfile(current.id, { billingAddress: ADDRESS }, 'owner@elite.test');
+    expect(sets[0]).toMatchObject({ billingAddress: ADDRESS });
+    expect(hook).toHaveBeenCalledTimes(1);
+    const detail = (audit.log as ReturnType<typeof vi.fn>).mock.calls[0]?.[0]?.detail as string;
+    expect(detail).toContain('fields=billingAddress');
+    expect(detail).not.toContain('T2P');
+  });
+});

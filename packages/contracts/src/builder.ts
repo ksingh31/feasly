@@ -442,6 +442,37 @@ export interface BuilderAccountClosureResponse {
   readonly requestedAt: string;
 }
 
+/**
+ * #881: the builder's billing address, sent to their Stripe customer
+ * (receipts, tax, dispute evidence). Stored normalized: a CA postal code is
+ * upper-case `A1A 1A1`; province and country are upper-case codes.
+ */
+export interface BuilderBillingAddress {
+  readonly line1: string;
+  readonly line2: string | null;
+  readonly city: string;
+  /** Province/state; for `CA` one of the 13 two-letter codes (e.g. `AB`). */
+  readonly province: string;
+  /** For `CA`, `A1A 1A1` (validated + normalized server-side). */
+  readonly postalCode: string;
+  /** ISO 3166-1 alpha-2 country code. Defaults to `CA`. */
+  readonly country: string;
+}
+
+/**
+ * #881: billing address input. `line2` and `country` are optional
+ * (`country` defaults to `CA`); a CA address needs a valid province code
+ * and postal code, or the request is refused with 400.
+ */
+export interface BuilderBillingAddressInput {
+  readonly line1: string;
+  readonly line2?: string | null;
+  readonly city: string;
+  readonly province: string;
+  readonly postalCode: string;
+  readonly country?: string;
+}
+
 export interface Builder {
   readonly id: string;
   readonly tenantKey: string;
@@ -472,6 +503,11 @@ export interface Builder {
    * only.
    */
   readonly commissionRatePercent: number;
+  /**
+   * #881: billing address on the Stripe customer. Null = not set. Always
+   * sent by the API; optional on the type for older fixtures.
+   */
+  readonly billingAddress?: BuilderBillingAddress | null;
   /**
    * #873: commission invoices of this builder with a live bank chargeback
    * (`chargeback_status = 'open'`). Sent by the admin builders list only;
@@ -504,6 +540,10 @@ export interface BuilderCreateBody {
    * Rejected with 400 INVALID_RATE outside 0–10.
    */
   readonly commissionRatePercent?: number;
+  /**
+   * #881: billing address. Omitted/null = none.
+   */
+  readonly billingAddress?: BuilderBillingAddressInput | null;
 }
 
 export interface BuilderUpdateBody {
@@ -529,6 +569,11 @@ export interface BuilderUpdateBody {
    * created with. Merged into `settings.defaultPaymentMethod`.
    */
   readonly defaultPaymentMethod?: BuilderPaymentMethod;
+  /**
+   * #881: billing address. Omitted = unchanged; null clears it. A change
+   * re-syncs the builder's Stripe customer.
+   */
+  readonly billingAddress?: BuilderBillingAddressInput | null;
 }
 
 export interface LeadAssignBuilderBody {

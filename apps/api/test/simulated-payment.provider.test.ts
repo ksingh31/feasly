@@ -283,6 +283,40 @@ describe('simulated payment provider — default card and customer details (#716
   });
 });
 
+describe('simulated payment provider — billing address (#881)', () => {
+  it('stores the address in Stripe shape on create and update', async () => {
+    const store = createInMemorySimulatedPaymentStore();
+    const provider = createSimulatedPaymentProvider({
+      store,
+      webhookSecret: SECRET,
+      deliveryDelayMs: 1_000,
+      schedule: () => () => undefined,
+      logWarning: () => undefined,
+    });
+    providers.push(provider);
+    const address = {
+      line1: '100 8 Ave SW',
+      line2: null,
+      city: 'Calgary',
+      state: 'AB',
+      postalCode: 'T2P 1J9',
+      country: 'CA',
+    };
+    const { id } = await provider.createCustomer({ tenantKey: 't' }, 'k');
+    expect((await store.get(id))?.data).toMatchObject({ address: null });
+    await provider.updateCustomer(id, { tenantKey: 't', address });
+    expect((await store.get(id))?.data).toMatchObject({
+      address: {
+        line1: '100 8 Ave SW',
+        city: 'Calgary',
+        state: 'AB',
+        postal_code: 'T2P 1J9',
+        country: 'CA',
+      },
+    });
+  });
+});
+
 describe('simulated payment provider — off-session charges', () => {
   it('4242 succeeds; the webhook is delivered only after the delay', async () => {
     const h = harness();

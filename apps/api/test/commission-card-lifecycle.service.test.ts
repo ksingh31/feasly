@@ -478,6 +478,35 @@ describe('Stripe customer details (#716)', () => {
     expect(auditTypes(audit)).toEqual(['customer.details_synced']);
   });
 
+  it('syncCustomerDetails sends the billing address as the Stripe address (#881)', async () => {
+    const { service, stripe } = setup();
+    await service.syncCustomerDetails({
+      ...BUILDER,
+      billingAddress: {
+        line1: '100 8 Ave SW',
+        line2: 'Suite 400',
+        city: 'Calgary',
+        province: 'AB',
+        postalCode: 'T2P 1J9',
+        country: 'CA',
+      },
+    });
+    expect(stripe.updateCustomer).toHaveBeenCalledWith(CUSTOMER, {
+      tenantKey: TENANT,
+      name: 'Elite Craft Builders',
+      builderId: 'b-1',
+      email: 'billing@elite.test',
+      address: {
+        line1: '100 8 Ave SW',
+        line2: 'Suite 400',
+        city: 'Calgary',
+        state: 'AB',
+        postalCode: 'T2P 1J9',
+        country: 'CA',
+      },
+    });
+  });
+
   it('syncCustomerDetails is a no-op without a customer, under flat, or when dormant', async () => {
     for (const opts of [
       { withCustomer: false },
