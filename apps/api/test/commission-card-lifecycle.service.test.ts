@@ -20,6 +20,7 @@ import {
   isCardWebhookEvent,
 } from '../src/services/billing/commission-card.service';
 import type { InvoiceSummaryRecord } from '../src/services/billing/invoice-summary.store';
+import { ACCEPTED_AGREEMENTS } from './helpers/agreement-gate.fake';
 import type {
   CardSummary,
   CustomerDetails,
@@ -156,6 +157,7 @@ function setup(opts?: {
   } as unknown as BillingAuditService;
   const logWarning = vi.fn();
   const service = createCommissionCardService({
+    agreements: ACCEPTED_AGREEMENTS,
     billing: {
       model: opts?.model ?? 'commission',
       cardExpiryWarningDays: 30,

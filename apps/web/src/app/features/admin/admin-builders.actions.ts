@@ -63,6 +63,15 @@ export class DismissAssignBuilderSuccess {
 }
 
 /**
+ * Load one builder's detail for the drawer's platform-agreement block
+ * (#722: GET /admin/builders/{id} → `agreement`).
+ */
+export class LoadAdminBuilderAgreement {
+  static readonly type = '[AdminBuilders] Load builder agreement';
+  constructor(readonly id: string) {}
+}
+
+/**
  * Lifecycle action on one builder (#861): suspend · reactivate · start or
  * complete offboarding, with the admin's mandatory reason. The result lands
  * in `lifecycleFeedback`; on success the builder row is replaced.

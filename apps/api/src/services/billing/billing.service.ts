@@ -40,6 +40,7 @@ import type {
 import type { DisputeService } from './dispute.service';
 import type { LeadStore } from '../lead.store';
 import type { BuilderService } from '../builder.service';
+import type { AgreementGate } from '../builder-agreement.service';
 import { ErrorCodes, HttpError } from '../../middleware/errors';
 import { requireBuilderCapability } from '../../lib/builder-status-policy';
 
@@ -155,6 +156,12 @@ export interface BillingServiceDeps {
    */
   readonly builders: Pick<BuilderService, 'getByTenantKey'>;
   /**
+   * #722: platform-agreement gate — recording a signed contract needs the
+   * org's acceptance of the current agreement version (409
+   * AGREEMENT_REQUIRED otherwise).
+   */
+  readonly agreements: Pick<AgreementGate, 'requireCurrentForTenant'>;
+  /**
    * Dispute console (billing/01 follow-on): records the dispute row +
    * immutable evidence snapshot when an invoice is disputed. Optional so
    * existing constructions keep working; composition always wires it.
@@ -165,7 +172,8 @@ export interface BillingServiceDeps {
 export function createBillingService(
   deps: BillingServiceDeps,
 ): BillingService {
-  const { leadStore, billingHook, commission, disputes, builders } = deps;
+  const { leadStore, billingHook, commission, disputes, builders, agreements } =
+    deps;
 
   /**
    * Resolve the session's tenant key to the builder row. Every report
@@ -220,6 +228,9 @@ export function createBillingService(
       input: ReportContractInput,
     ): Promise<BillableEventResult> {
       const builder = await requireBuilder(input.tenantKey, 'portalWrite');
+      // #722: no commission charge path without a current acceptance of
+      // the platform agreement.
+      await agreements.requireCurrentForTenant(builder.tenantKey);
       // auth/04 (iron rule): the lead is scoped by (id, builder_id)
       // resolved from session state — never by the lead row's tenant_key,
       // which can legitimately diverge (NULL or stale on builder-scoped
@@ -327,6 +338,8 @@ export function createBillingService(
       method: BuilderPaymentMethod,
     ): Promise<BuilderPaymentMethod> {
       await requireBuilder(tenantKey, 'payInvoices');
+      // #722: choosing how the org pays is a money action too.
+      await agreements.requireCurrentForTenant(tenantKey);
       return commission.setDefaultPaymentMethod(tenantKey, method);
     },
 

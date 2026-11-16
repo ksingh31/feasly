@@ -7,6 +7,7 @@
  * idempotency: the same idempotency key returns the same refund and never
  * creates a second one. No network, no real charges.
  */
+import { ACCEPTED_AGREEMENTS } from './helpers/agreement-gate.fake';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { randomUUID } from 'node:crypto';
 import { eq } from 'drizzle-orm';
@@ -1133,6 +1134,7 @@ describe('builder-scoped invoice reads hide the refunding admin (#715 AC7)', () 
       billingHook: {} as never,
       builders: { getByTenantKey: async () => null },
       commission: { getById: async () => record } as unknown as CommissionService,
+      agreements: ACCEPTED_AGREEMENTS,
     });
     const builderView = await billing.getInvoice('inv-1', 'elite-craft');
     expect(builderView.refunds?.[0]).toMatchObject({ amountCents: 50_000, actorEmail: null, note: null });

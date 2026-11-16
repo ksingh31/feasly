@@ -30,6 +30,7 @@ import type { Builder } from '@feasly/contracts';
 import type { BillingConfig } from '../../config';
 import { ErrorCodes, HttpError } from '../../middleware/errors';
 import type { BillingAuditService } from './billing-audit.service';
+import type { AgreementGate } from '../builder-agreement.service';
 import type { InvoiceSummaryStore } from './invoice-summary.store';
 import type {
   CardSummary,
@@ -113,6 +114,13 @@ export interface CommissionCardServiceDeps {
   readonly billing: BillingConfig;
   readonly audit: BillingAuditService;
   readonly stripe: StripeService;
+  /**
+   * #722: platform-agreement gate — saving a card (customer ensure +
+   * SetupIntent) needs the org's acceptance of the current agreement
+   * version (409 AGREEMENT_REQUIRED otherwise). Card-status reads, card
+   * removal and webhook card events are not gated.
+   */
+  readonly agreements: Pick<AgreementGate, 'requireCurrentForTenant'>;
   /** #716: blocks card removal while a card invoice is unpaid. */
   readonly invoiceSummaries?: Pick<InvoiceSummaryStore, 'findByTenantKey'>;
   /** #716: business name + builder id for the Stripe customer. */
@@ -167,7 +175,7 @@ export function cardExpiryFlags(
 export function createCommissionCardService(
   deps: CommissionCardServiceDeps,
 ): CommissionCardService {
-  const { billing, audit, stripe } = deps;
+  const { billing, audit, stripe, agreements } = deps;
   const now = deps.now ?? (() => new Date());
   const logWarning =
     deps.logWarning ?? ((message: string) => console.warn(message));
@@ -298,6 +306,7 @@ export function createCommissionCardService(
   return {
     async ensureCustomer(tenantKey: string, email?: string): Promise<string> {
       requireCommissionModel();
+      await agreements.requireCurrentForTenant(tenantKey);
       requireConfigured();
       const existing = await stripe.getCustomerId(tenantKey);
       if (existing) {
@@ -342,6 +351,7 @@ export function createCommissionCardService(
       provider?: 'stripe' | 'simulated';
     }> {
       requireCommissionModel();
+      await agreements.requireCurrentForTenant(tenantKey);
       requireConfigured();
       const customerId = await stripe.getCustomerId(tenantKey);
       if (!customerId) {

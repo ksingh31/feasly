@@ -1631,15 +1631,42 @@ export const ROUTE_REGISTRY: readonly ApiRouteEntry[] = [
 
   // ── Builder portal v1 (builder dashboard sessions) ───────────────
   {
+    method: 'GET',
+    path: '/api/v1/builder/agreement',
+    auth: 'builder-session',
+    permissions: ['builder:leads:read'] as const,
+    rateLimit: '100/min per session',
+    status: 'live',
+    summary:
+      'Platform agreement status for the session\u2019s builder org (#722): ' +
+      'current version, whether it is accepted (when, by whom), whether ' +
+      'the caller may accept, and the versioned agreement text.',
+  },
+  {
     method: 'POST',
     path: '/api/v1/builder/agreement/accept',
-    auth: 'none',
-    permissions: [] as const,
-    rateLimit: '10/min per IP',
-    status: 'planned',
+    auth: 'builder-session',
+    permissions: ['builder:leads:read'] as const,
+    rateLimit: '10/min per session',
+    status: 'live',
     summary:
-      'Accept the platform agreement (clickwrap, embed/10). Lawyer text ' +
-      'pending — placeholder records acceptance.',
+      'Accept the current platform agreement (clickwrap, #722; was planned ' +
+      'with auth none). Builder org admin only \u2014 members get 403 ' +
+      'AGREEMENT_ADMIN_REQUIRED; a stale version is 409 ' +
+      'AGREEMENT_VERSION_MISMATCH. Append-only record of version, time, ' +
+      'user, client IP and user agent.',
+  },
+  {
+    method: 'GET',
+    path: '/api/v1/builder/onboarding',
+    auth: 'builder-session',
+    permissions: ['builder:leads:read'] as const,
+    rateLimit: '100/min per session',
+    status: 'live',
+    summary:
+      'First-run onboarding checklist for the session\u2019s builder org ' +
+      '(#722): agreement accepted, profile complete, payment method set, ' +
+      'embed verified, team invited \u2014 each from real state.',
   },
   {
     method: 'GET',

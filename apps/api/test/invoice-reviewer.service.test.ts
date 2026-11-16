@@ -37,10 +37,17 @@ import {
   leads,
   tenants,
   builders,
+  builderAgreementAcceptances,
 } from '../src/db/schema';
+import {
+  createBuilderAgreementService,
+  type AgreementGate,
+} from '../src/services/builder-agreement.service';
+import { createDrizzleBuilderAgreementStore } from '../src/services/builder-agreement.store';
 import { createTestDb, type TestDb } from './pglite-db';
 
 import type { BillingConfig } from '../src/config';
+import { ACCEPTED_AGREEMENTS } from './helpers/agreement-gate.fake';
 import { BUILDER_STATUSES, BUILDER_STATUS_POLICY } from '@feasly/contracts';
 
 const BILLING: BillingConfig = {
@@ -130,6 +137,7 @@ function newFixtures(
   stripe: StripeService,
   billing = BILLING,
   builderStatus?: (tenantKey: string) => Promise<string | null>,
+  agreements: AgreementGate = ACCEPTED_AGREEMENTS,
 ): Fixtures {
   const email = fakeEmail();
   const attribution = createAttributionService({
@@ -154,6 +162,7 @@ function newFixtures(
     newId: nextId,
   });
   const reviewer = createInvoiceReviewerService({
+    agreements,
     billing,
     commission,
     audit,
@@ -379,12 +388,101 @@ describe('invoice reviewer timer', () => {
       finalized: 0,
       skipped: 0,
       failed: 0,
+      agreementBlocked: 0,
       reconciledPaid: 0,
       reconciledFailed: 0,
       stillPending: 0,
       retried: 0,
       overdueReminded: 0,
       errors: [],
+    });
+  });
+
+  describe('platform agreement gate (#722)', () => {
+    const CURRENT = '2026-11-draft-1';
+
+    async function seedBuilderFor(tenantKey: string): Promise<string> {
+      const id = randomUUID();
+      await testDb.db.insert(builders).values({
+        id,
+        tenantKey,
+        businessName: `Builder ${tenantKey}`,
+        displayName: `Builder ${tenantKey}`,
+      });
+      return id;
+    }
+
+    function gatedFixtures(currentVersion: string): Fixtures {
+      const agreements = createBuilderAgreementService({
+        store: createDrizzleBuilderAgreementStore({ db: testDb.db }),
+        currentVersion,
+      });
+      return newFixtures(testDb, fakeStripe(), BILLING, undefined, agreements);
+    }
+
+    it('skips (does not finalise) the invoice of an org without a current acceptance, and audits the skip', async () => {
+      const { reviewer, commission, attribution } = gatedFixtures(CURRENT);
+      const invoiceId = await seedInvoice(testDb, attribution, commission, 50_000_000);
+      const { tenantKey } = await commission.getById(invoiceId);
+      await seedBuilderFor(tenantKey);
+
+      const result = await reviewer.runReviewCycle(
+        new Date('2026-10-02T00:00:00.000Z'),
+      );
+
+      expect(result.finalized).toBe(0);
+      expect(result.agreementBlocked).toBe(1);
+      expect(result.failed).toBe(0);
+      expect((await commission.getById(invoiceId)).status).toBe('in_review');
+      const events = await testDb.db.select().from(billingEvents);
+      expect(
+        events.some(
+          (e) =>
+            e.eventType === 'invoice.finalize_blocked_agreement' &&
+            e.entityId === invoiceId,
+        ),
+      ).toBe(true);
+    });
+
+    it('finalises once the org has accepted the current version', async () => {
+      const { reviewer, commission, attribution } = gatedFixtures(CURRENT);
+      const invoiceId = await seedInvoice(testDb, attribution, commission, 50_000_000);
+      const { tenantKey } = await commission.getById(invoiceId);
+      const builderId = await seedBuilderFor(tenantKey);
+      await testDb.db.insert(builderAgreementAcceptances).values({
+        id: randomUUID(),
+        builderId,
+        version: CURRENT,
+      });
+
+      const result = await reviewer.runReviewCycle(
+        new Date('2026-10-02T00:00:00.000Z'),
+      );
+
+      expect(result.agreementBlocked).toBe(0);
+      expect(result.finalized).toBe(1);
+      expect((await commission.getById(invoiceId)).status).toBe('finalized');
+    });
+
+    it('a version bump blocks finalisation again until re-acceptance (old row kept)', async () => {
+      const { reviewer, commission, attribution } = gatedFixtures('2027-01-v2');
+      const invoiceId = await seedInvoice(testDb, attribution, commission, 50_000_000);
+      const { tenantKey } = await commission.getById(invoiceId);
+      const builderId = await seedBuilderFor(tenantKey);
+      await testDb.db.insert(builderAgreementAcceptances).values({
+        id: randomUUID(),
+        builderId,
+        version: CURRENT,
+      });
+
+      const result = await reviewer.runReviewCycle(
+        new Date('2026-10-02T00:00:00.000Z'),
+      );
+
+      expect(result.agreementBlocked).toBe(1);
+      expect((await commission.getById(invoiceId)).status).toBe('in_review');
+      const rows = await testDb.db.select().from(builderAgreementAcceptances);
+      expect(rows.map((r) => r.version)).toEqual([CURRENT]);
     });
   });
 

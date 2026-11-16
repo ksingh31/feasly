@@ -72,6 +72,21 @@ byte-match the required consent checkbox in the waitlist UI once approved.)_
 I agree to the Privacy Policy and that Feasly may email me when this launches. I can unsubscribe anytime.
 ```
 
+### Platform agreement (builder clickwrap)
+
+_(lawyer: the platform agreement every builder org accepts before any money
+action — commission rate, attribution window, reporting duty; issue #722.)_
+
+> **Status: draft-pending-lawyer.** Owner decision 2026-11-15: the copy is
+> draft-pending-counsel; the clickwrap mechanism ships with neutral draft
+> text. Source of truth while draft: `PLATFORM_AGREEMENT_DRAFT` in
+> `apps/api/src/lib/legal-copy.ts`, served by `GET /api/v1/builder/agreement`
+> (the `document` field) together with its version. The current version is
+> the API config `PLATFORM_AGREEMENT_VERSION` (default
+> `PLATFORM_AGREEMENT_VERSION` in the same file). When counsel approves (or
+> rewrites) the text: replace the draft, bump the version (every builder org
+> then accepts again; older acceptances stay on record), set the document
+> status to `approved` and remove the `draft-pending-lawyer` marker.
 ### API lead consent attestation
 
 _(lawyer: the wording an API or MCP caller attests to when it submits a lead

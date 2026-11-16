@@ -18,7 +18,11 @@
 
 import { z } from 'zod';
 import { version as packageVersion } from '../package.json';
-import { API_LEAD_CONSENT_VERSION, WAITLIST_CONSENT_VERSION } from './lib/legal-copy';
+import {
+  API_LEAD_CONSENT_VERSION,
+  PLATFORM_AGREEMENT_VERSION,
+  WAITLIST_CONSENT_VERSION,
+} from './lib/legal-copy';
 import {
   DEFAULT_DUNNING_GRACE_DAYS,
   MAX_DUNNING_GRACE_DAYS,
@@ -486,6 +490,11 @@ const EnvSchema = z.object({
   // consent wording stored in waitlist_signups.consent_version. Defaults to the
   // tag in lib/legal-copy.ts; override per environment without a code change.
   WAITLIST_CONSENT_VERSION: z.string().trim().min(1).default(WAITLIST_CONSENT_VERSION),
+  // #722: CURRENT platform agreement version. A builder org needs an
+  // acceptance of exactly this version before any money action; bumping it
+  // forces re-acceptance (older rows are kept, they just stop counting).
+  // Defaults to the tag in lib/legal-copy.ts, next to the agreement text.
+  PLATFORM_AGREEMENT_VERSION: z.string().trim().min(1).max(100).default(PLATFORM_AGREEMENT_VERSION),
   // #738 (owner decision 2026-11-15, invite-only free beta): per-API-key
   // usage quotas on top of the per-minute limit. Counted from the api_usage
   // table per UTC calendar day / month, so they hold across instances.
@@ -1447,6 +1456,15 @@ export interface WaitlistConfig {
   readonly consentVersion: string;
 }
 
+/** Platform agreement (clickwrap) config (#722). */
+export interface AgreementConfig {
+  /**
+   * The CURRENT agreement version. Only an acceptance of this exact version
+   * counts; bumping it forces every builder org to accept again.
+   */
+  readonly version: string;
+}
+
 /**
  * Embed platform config (embed/02, embed/06).
  */
@@ -1965,6 +1983,7 @@ export interface ApiConfig {
   readonly backupCheck: BackupCheckConfig;
   readonly embed: EmbedConfig;
   readonly waitlist: WaitlistConfig;
+  readonly agreement: AgreementConfig;
   readonly apiAccess: ApiAccessConfig;
 }
 
@@ -2634,6 +2653,9 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): ApiConfig {
     },
     waitlist: {
       consentVersion: e.WAITLIST_CONSENT_VERSION,
+    },
+    agreement: {
+      version: e.PLATFORM_AGREEMENT_VERSION,
     },
     apiAccess: {
       dailyQuota: e.API_KEY_DAILY_QUOTA,

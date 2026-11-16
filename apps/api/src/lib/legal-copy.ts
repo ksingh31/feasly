@@ -104,3 +104,73 @@ export const API_LEAD_CONSENT_ATTESTATION_DRAFT = {
 /** Short retention notice embedded in the export payload. */
 export const EXPORT_RETENTION_NOTICE_DRAFT: string =
   'Draft — pending lawyer review. Data-retention rules have not been legally approved yet; see docs/legal/approved-copy.md.';
+
+/**
+ * Default version tag of the platform agreement (#722). The CURRENT version
+ * is `config.agreement.version` (env `PLATFORM_AGREEMENT_VERSION`), which
+ * defaults to this. Bump both together whenever the text below changes:
+ * builder orgs then have to accept again (older acceptances are kept but no
+ * longer count as current).
+ */
+export const PLATFORM_AGREEMENT_VERSION = '2026-11-draft-1' as const;
+
+/** One section of the platform agreement text. */
+export interface PlatformAgreementSection {
+  readonly heading: string;
+  readonly paragraphs: readonly string[];
+}
+
+/** The platform agreement text served by GET /api/v1/builder/agreement. */
+export interface PlatformAgreementText {
+  readonly status: typeof LEGAL_REVIEW_PENDING;
+  readonly title: string;
+  readonly sections: readonly PlatformAgreementSection[];
+}
+
+/**
+ * DRAFT platform agreement (#722, owner decision 2026-11-15: copy is
+ * draft-pending-counsel). Neutral summary of the commercial terms so the
+ * clickwrap mechanism can ship; counsel replaces the wording later (swap
+ * the text, bump PLATFORM_AGREEMENT_VERSION, drop the marker). The
+ * structural `status` marker keeps the legal gate blocking production.
+ */
+export const PLATFORM_AGREEMENT_DRAFT: PlatformAgreementText = {
+  status: LEGAL_REVIEW_PENDING,
+  title: 'Feasly platform agreement (draft)',
+  sections: [
+    {
+      heading: 'About this agreement',
+      paragraphs: [
+        'This draft has not been reviewed by counsel yet. It summarises the commercial terms between Feasly and your organisation for leads introduced through Feasly.',
+        'An administrator of your organisation accepts it on behalf of the organisation. If the agreement changes, an administrator will be asked to accept the new version.',
+      ],
+    },
+    {
+      heading: 'Commission',
+      paragraphs: [
+        'When your organisation signs a construction contract with a homeowner Feasly introduced, Feasly charges a commission on the signed construction contract value, excluding land.',
+        'The default commission rate is 1%. A different rate may be agreed for your organisation; the rate shown in your portal is the one that applies, and a rate change affects future invoices only.',
+      ],
+    },
+    {
+      heading: 'Attribution window',
+      paragraphs: [
+        'A homeowner counts as introduced by Feasly for 12 months from the date of the introduction. A contract signed with that homeowner within those 12 months is subject to the commission.',
+        'If your organisation already had a relationship with the homeowner before the introduction, you can show this and the lead is excluded.',
+      ],
+    },
+    {
+      heading: 'Reporting duty',
+      paragraphs: [
+        'Your organisation reports each signed contract for an introduced homeowner in the Feasly portal within 14 days of signing, with the contract value excluding land and the signing date.',
+      ],
+    },
+    {
+      heading: 'Invoices and charges',
+      paragraphs: [
+        'We charge your card 7 days after the invoice is issued. You can question it any time before then.',
+        'You can choose a manual payment method instead of a card; manual invoices are not charged automatically.',
+      ],
+    },
+  ],
+};

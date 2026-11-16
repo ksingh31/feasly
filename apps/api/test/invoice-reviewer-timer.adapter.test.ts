@@ -95,6 +95,7 @@ vi.mock('../src/index', () => ({
 
 // Imported after the mock.
 import { invoiceReviewerTimerHandler } from '../src/functions/invoice-reviewer-timer';
+import { ACCEPTED_AGREEMENTS } from './helpers/agreement-gate.fake';
 
 const BILLING: BillingConfig = {
   model: 'commission',
@@ -206,6 +207,7 @@ function newRealService(testDb: TestDb, stripe: StripeService): {
   });
   return {
     reviewer: createInvoiceReviewerService({
+      agreements: ACCEPTED_AGREEMENTS,
       billing: BILLING,
       commission,
       audit,

@@ -20,6 +20,7 @@ import type { BuilderLifecycleService } from '../src/services/builder-lifecycle.
 import type { BuilderService } from '../src/services/builder.service';
 import type { AdminGuard } from '../src/middleware/admin-guard';
 import { ErrorCodes, HttpError } from '../src/middleware/errors';
+import type { AdminBuilderAgreementSummary } from '@feasly/contracts';
 
 const VALID_SESSION = 'feasly_admin_session=valid-test-session';
 
@@ -77,6 +78,15 @@ function makeDeps() {
     },
   } as unknown as AdminGuard;
 
+  const summary: AdminBuilderAgreementSummary = {
+    currentVersion: '2026-11-draft-1',
+    current: true,
+    acceptedVersion: '2026-11-draft-1',
+    acceptedAt: '2026-11-15T12:00:00.000Z',
+    acceptedBy: { userId: 'u-1', name: 'Org Admin', email: 'admin@builder.example' },
+  };
+  const agreements = { getAdminSummary: vi.fn(async () => summary) };
+
   const lifecycle = {
     changeStatus: vi.fn(async (id: string, action: string, reason: string) => ({
       builder: makeBuilder({ id, status: action === 'suspend' ? 'suspended' : 'active', statusReason: reason }),
@@ -89,9 +99,9 @@ function makeDeps() {
     })),
   } as unknown as BuilderLifecycleService;
 
-  const route = createAdminBuildersRoute({ builders, adminGuard, lifecycle });
+  const route = createAdminBuildersRoute({ builders, adminGuard, agreements, lifecycle });
   const headers = { cookie: VALID_SESSION };
-  return { route, builders, headers, lifecycle };
+  return { route, builders, headers, lifecycle, agreements, summary };
 }
 
 describe('admin-builders route', () => {
@@ -157,6 +167,13 @@ describe('admin-builders route', () => {
     const { route, headers } = makeDeps();
     const result = await route.get(headers, BUILDER_ID);
     expect(result.id).toBe(BUILDER_ID);
+  });
+
+  it('get carries the platform-agreement block for the drawer (#722)', async () => {
+    const { route, headers, agreements, summary } = makeDeps();
+    const result = await route.get(headers, BUILDER_ID);
+    expect(result.agreement).toEqual(summary);
+    expect(agreements.getAdminSummary).toHaveBeenCalledWith(BUILDER_ID);
   });
 
   it('get rejects invalid uuid with 400', async () => {

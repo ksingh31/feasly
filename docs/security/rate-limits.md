@@ -256,7 +256,9 @@ These need owner input and are not implemented yet:
 | GET | `/api/v1/admin/ops/sheets-status` | admin | 300/min per session | live |
 | GET | `/api/v1/admin/ops/jobs` | admin | 300/min per session | live |
 | POST | `/api/v1/admin/ops/sheets-sync-now` | admin | 10/min per session | live |
-| POST | `/api/v1/builder/agreement/accept` | none | 10/min per IP | planned |
+| GET | `/api/v1/builder/agreement` | builder-session | 100/min per session | live |
+| POST | `/api/v1/builder/agreement/accept` | builder-session | 10/min per session | live |
+| GET | `/api/v1/builder/onboarding` | builder-session | 100/min per session | live |
 | GET | `/api/v1/builder/leads/{id}` | builder-session | 300/min per session | planned |
 | POST | `/api/mcp/v1` | api-key | 100/min per key · 100/day + 2,000/month per key (config, #738) | live |
 | POST | `/api/v1/stripe/webhooks` | stripe-signature | 100/min per IP | live |

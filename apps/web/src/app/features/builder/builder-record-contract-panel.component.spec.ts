@@ -27,6 +27,10 @@ import { BuilderBillingApiService, type ReportContractResult } from './builder-b
 import { BuilderInvoicesApiService } from './builder-invoices-api.service';
 import { BuilderLeadsApiService } from './builder-leads-api.service';
 import type { BuilderPaymentMethod } from './builder-payment-methods';
+import { BuilderOnboardingApiService } from './builder-onboarding-api.service';
+import { BuilderChecklistState, BuilderOnboardingState } from './builder-onboarding.state';
+import { AGREEMENT_ACCEPTED, AGREEMENT_PENDING } from './test-helpers/onboarding.fixtures';
+import type { AgreementStatus } from '@feasly/contracts';
 
 const COPY = DEFAULT_BUILDER_COPY;
 const T = COPY.leadDrawer.record;
@@ -73,6 +77,7 @@ interface Options {
   readonly method?: BuilderPaymentMethod | 'error' | Subject<{ defaultMethod: BuilderPaymentMethod }>;
   readonly confirm?: boolean;
   readonly report?: Subject<ReportContractResult> | 'error';
+  readonly agreement?: AgreementStatus;
   /** Patches the minted invoice the success card reads. */
   readonly invoice?: Partial<CommissionInvoice>;
 }
@@ -126,7 +131,17 @@ function setup(options: Options = {}) {
       { provide: BUILDER_COPY, useValue: COPY },
       provideRouter([{ path: '**', children: [] }]),
       provideLocationMocks(),
-      provideStore([BuilderState, BuilderBillingState, BuilderReportContractState]),
+      provideStore([
+        BuilderState,
+        BuilderBillingState,
+        BuilderReportContractState,
+        BuilderOnboardingState,
+        BuilderChecklistState,
+      ]),
+      {
+        provide: BuilderOnboardingApiService,
+        useValue: { getAgreement: vi.fn(() => of(options.agreement ?? AGREEMENT_ACCEPTED)) },
+      },
       { provide: BuilderBillingApiService, useValue: billingApi },
       { provide: BuilderInvoicesApiService, useValue: invoicesApi },
       { provide: BuilderLeadsApiService, useValue: leadsApi },
@@ -384,5 +399,25 @@ describe('BuilderRecordContractPanelComponent (#529)', () => {
     const options = confirms.confirm.mock.calls[0][0];
     expect(options.verb).toBe(T.confirmVerbFlat);
     expect(options.body).toContain('$650,000');
+  });
+
+  describe('platform agreement gate (#722)', () => {
+    it('shows the agreement prompt instead of the form until it is accepted', () => {
+      const { el } = setup({ agreement: AGREEMENT_PENDING });
+      const note = el.querySelector('[data-testid="record-agreement-required"]');
+      expect(note?.textContent).toContain(COPY.agreement.requiredNotice);
+      const link = el.querySelector('[data-testid="record-agreement-link"]') as HTMLAnchorElement;
+      expect(decodeURIComponent(link.getAttribute('href') ?? '')).toBe(
+        '/builder/agreement?returnUrl=/builder?open=lead-a',
+      );
+      expect(el.querySelector('[data-testid="record-form"]')).toBeNull();
+      expect(el.querySelector('[data-testid="record-review"]')).toBeNull();
+    });
+
+    it('shows the form once the current version is accepted', () => {
+      const { el } = setup();
+      expect(el.querySelector('[data-testid="record-agreement-required"]')).toBeNull();
+      expect(el.querySelector('[data-testid="record-form"]')).not.toBeNull();
+    });
   });
 });

@@ -37,6 +37,12 @@ export const BUILDER_E2E_ROUTES: readonly BuilderE2eRoute[] = [
   { path: 'builder/invoices', url: '/builder/invoices', name: 'invoices', ready: '.builder-shell h1' },
   { path: 'builder/team', url: '/builder/team', name: 'team', ready: '.builder-shell h1' },
   {
+    path: 'builder/agreement',
+    url: '/builder/agreement',
+    name: 'agreement',
+    ready: '[data-testid="agreement-doc"]',
+  },
+  {
     path: 'builder/settings',
     url: '/builder/settings',
     name: 'settings',

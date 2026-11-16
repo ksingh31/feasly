@@ -389,6 +389,10 @@ apps/web/src/app/features/communities/community-profile-page.component.html
 # (wire-param assertions on page/pageSize).
 apps/web/src/app/features/admin/admin-invoices.actions.ts
 apps/web/src/app/features/admin/admin-invoices.state.ts
+
+# Test-only contract fixtures for the #722 onboarding/agreement specs (ISO
+# timestamps); never imported by app code.
+apps/web/src/app/features/builder/test-helpers/onboarding.fixtures.ts
 # #827: generated from the cost engine by packages/cost-engine/tools/gen-web-scope.ts
 # (never hand-edited). The worked-example figures are engine output, pinned by
 # packages/cost-engine/test/web-scope-agreement.test.ts; read via config.howWeEstimate.

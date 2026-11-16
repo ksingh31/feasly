@@ -39,6 +39,7 @@ import {
   DismissBuildersSaved,
   DismissBuildersSaveError,
   ExportBuilderData,
+  LoadAdminBuilderAgreement,
   LoadOffboardingBlockers,
   UpdateBuilder,
 } from './admin-builders.actions';
@@ -47,6 +48,7 @@ import {
   type AdminBuilderLifecycleData,
 } from './admin-builder-lifecycle-modal.component';
 import { adminEntityTarget, type AdminEntityTarget } from './admin-entity-routes';
+import { formatEdmontonMediumDate } from '@app/shared/utils/edmonton';
 import { AdminBuildersState } from './admin-builders.state';
 import { PLANNED_PAYMENT_METHOD_LABELS } from './admin-billing-api.service';
 import {
@@ -136,6 +138,19 @@ export class AdminBuilderDrawerComponent {
 
   protected readonly saving = this.store.selectSignal(AdminBuildersState.saving);
   protected readonly saveError = this.store.selectSignal(AdminBuildersState.saveError);
+  /** #722: the platform-agreement block (edit only). */
+  protected readonly agreement = this.store.selectSignal(AdminBuildersState.agreement);
+  protected readonly agreementStatus = this.store.selectSignal(AdminBuildersState.agreementStatus);
+  protected readonly agreementAcceptedAt = computed(() => {
+    const at = this.agreement()?.acceptedAt;
+    return at ? formatEdmontonMediumDate(at) : null;
+  });
+  protected readonly agreementAcceptedBy = computed(() => {
+    const by = this.agreement()?.acceptedBy;
+    if (!by) return null;
+    if (by.name && by.email) return `${by.name} (${by.email})`;
+    return by.name ?? by.email ?? null;
+  });
 
   /** The builder being edited (snapshot at open), or null when adding. */
   protected readonly builder: Builder | null =
@@ -283,6 +298,7 @@ export class AdminBuilderDrawerComponent {
     this.store.dispatch(new DismissBuildersSaveError());
     const b = this.builder;
     if (b) {
+      this.store.dispatch(new LoadAdminBuilderAgreement(b.id));
       this.form.reset({
         businessName: b.businessName,
         displayName: b.displayName,

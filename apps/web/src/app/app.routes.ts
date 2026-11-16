@@ -1,5 +1,13 @@
-import { inject } from '@angular/core';
-import { Routes, ActivatedRouteSnapshot, Router, RouterStateSnapshot } from '@angular/router';
+import { EnvironmentInjector, inject, runInInjectionContext } from '@angular/core';
+import {
+  Routes,
+  ActivatedRouteSnapshot,
+  Router,
+  RouterStateSnapshot,
+  type CanActivateFn,
+  type GuardResult,
+} from '@angular/router';
+import { from, switchMap, type Observable } from 'rxjs';
 import { lazyProvider } from '@ngxs/store';
 import { leadGateGuard } from './features/compare/lead-gate.guard';
 import { ErrorPageComponent } from './features/error/error-page.component';
@@ -14,6 +22,23 @@ import { builderGuard } from './features/builder/builder.guard';
 import { builderBillingGuard } from './features/builder/builder-billing.guard';
 import { recordContractRedirect } from './features/builder/record-contract-redirect';
 import { builderTeamGuard } from './features/builder/builder-team.guard';
+
+/**
+ * #722 agreement guard, loaded on demand: the guard (and the onboarding
+ * state it reads) stays in the builder lazy chunk, out of the initial
+ * bundle. Runs after builderBillingGuard on the money routes.
+ */
+const builderAgreementGuard: CanActivateFn = (route, state) => {
+  const injector = inject(EnvironmentInjector);
+  return from(import('./features/builder/builder-agreement.guard')).pipe(
+    switchMap((m) =>
+      runInInjectionContext(
+        injector,
+        () => m.builderAgreementGuard(route, state) as Observable<GuardResult>,
+      ),
+    ),
+  );
+};
 
 export const routes: Routes = [
   { path: '', component: LandingPageComponent, canActivate: [robotsGuard] },
@@ -616,6 +641,15 @@ export const routes: Routes = [
           (await import('./features/builder/builder-invoices.state'))
             .builderInvoicesStateProvider,
       ),
+      // #722: agreement status + first-run checklist (and its persisted
+      // dismissals). Shell-level: the Leads home checklist, the agreement
+      // page, the money-route agreement guard and the record-contract
+      // panel all read it. Lazy — out of the initial bundle.
+      lazyProvider(
+        async () =>
+          (await import('./features/builder/builder-onboarding.state'))
+            .builderOnboardingStateProvider,
+      ),
       // #864: the shell's Leads unread badge reads BuilderLeadsSeenState
       // (storage-plugin persisted under 'builderLeadsSeen'). Lazy-provided
       // so it stays out of the initial bundle.
@@ -672,7 +706,7 @@ export const routes: Routes = [
           import('./features/builder/builder-money.component').then(
             (m) => m.BuilderMoneyComponent,
           ),
-        canActivate: [builderBillingGuard],
+        canActivate: [builderBillingGuard, builderAgreementGuard],
       },
       {
         // Builder billing (billing/02, BILL-02): card-on-file section.
@@ -685,7 +719,7 @@ export const routes: Routes = [
           import('./features/builder/builder-billing.component').then(
             (m) => m.BuilderBillingComponent,
           ),
-        canActivate: [builderBillingGuard],
+        canActivate: [builderBillingGuard, builderAgreementGuard],
       },
       {
         // Builder invoices: commission invoice list + detail, now a
@@ -698,6 +732,7 @@ export const routes: Routes = [
           ),
         canActivate: [
           builderBillingGuard,
+          builderAgreementGuard,
           // The invoices state lazy-loads here (dynamic import) so it —
           // and the builder copy it reads — stays out of the initial
           // bundle, mirroring the admin data states above.
@@ -707,6 +742,17 @@ export const routes: Routes = [
                 .builderInvoicesStateProvider,
           ),
         ],
+      },
+      {
+        // Platform agreement (#722): the clickwrap screen. Every builder
+        // role may read it; only org admins can accept. Money routes send
+        // builders here (builderAgreementGuard) until the current version
+        // is accepted.
+        path: 'agreement',
+        loadComponent: () =>
+          import('./features/builder/builder-agreement.component').then(
+            (m) => m.BuilderAgreementComponent,
+          ),
       },
       {
         // Legacy path: redirect to the top-level Invoices tab.

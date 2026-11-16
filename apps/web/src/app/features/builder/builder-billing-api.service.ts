@@ -1,6 +1,6 @@
 import { HttpClient } from '@angular/common/http';
 import { inject, Injectable } from '@angular/core';
-import { catchError, timeout } from 'rxjs';
+import { catchError, tap, timeout } from 'rxjs';
 import type { Observable } from 'rxjs';
 import type {
   BuilderBillingOverviewResponse,
@@ -15,6 +15,7 @@ import type {
 import type { BuilderPaymentMethod } from './builder-payment-methods';
 import { ConfigService } from '../../core/config/config.service';
 import { toApiError } from '../../core/api/api-error';
+import { BuilderAgreementGate } from './builder-agreement-gate';
 
 /** Request body for POST /api/v1/billing/report-contract. */
 export interface ReportContractRequest {
@@ -74,6 +75,7 @@ export interface DefaultPaymentMethodResponse {
 export class BuilderBillingApiService {
   private readonly http = inject(HttpClient);
   private readonly config = inject(ConfigService);
+  private readonly agreementGate = inject(BuilderAgreementGate);
 
   private get billingBase(): string {
     // Split into short literals: the no-hardcode tripwire flags any string
@@ -84,7 +86,15 @@ export class BuilderBillingApiService {
 
   private call<T>(request: Observable<T>): Observable<T> {
     const timeoutMs = this.config.get('api').timeoutMs;
-    return request.pipe(timeout(timeoutMs), catchError(toApiError));
+    return request.pipe(
+      timeout(timeoutMs),
+      catchError(toApiError),
+      // #722: money calls (report-contract, setup-intent, payment-method)
+      // answer 409 AGREEMENT_REQUIRED until the org accepts the current
+      // platform agreement — send the builder to it. The error still
+      // propagates so callers clear their busy state.
+      tap({ error: (err: unknown) => this.agreementGate.handle(err) }),
+    );
   }
 
   /**

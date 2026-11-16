@@ -498,6 +498,13 @@
 			"when": 1797465600000,
 			"tag": "0073_admin_audit_log_created_idx",
 			"breakpoints": true
+		},
+		{
+			"idx": 71,
+			"version": "7",
+			"when": 1797552000000,
+			"tag": "0074_builder_agreement_acceptances",
+			"breakpoints": true
 		}
 	]
 }

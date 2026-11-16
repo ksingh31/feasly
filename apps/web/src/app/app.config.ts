@@ -193,6 +193,11 @@ export const appConfig: ApplicationConfig = {
           // route; the storage plugin rehydrates it on the lazy
           // UpdateState. Stale ids are pruned on each actionable load.
           DueInvoiceBannersState,
+          // #722 onboarding-checklist dismissals (step ids per opaque org
+          // id, no PII). By state NAME, not class: the state lazy-loads at
+          // the builder shell and must stay out of the initial bundle; the
+          // plugin rehydrates it on the lazy UpdateState.
+          'builderChecklist',
         ],
         beforeSerialize: (obj, key) =>
           // The report token, partner view, pre-gate preview, and transient

@@ -11,6 +11,7 @@
  * Stripe does — the same key returns the same PaymentIntent — so "double
  * submission creates one charge" is asserted on distinct PaymentIntents.
  */
+import { ACCEPTED_AGREEMENTS } from './helpers/agreement-gate.fake';
 import { describe, expect, it, beforeAll, afterAll } from 'vitest';
 import { randomUUID } from 'node:crypto';
 import { eq } from 'drizzle-orm';
@@ -584,6 +585,7 @@ describe('invoice reviewer runs the dunning schedule (#718)', () => {
       commission: fx.commission,
       audit: fx.audit,
       stripe: fx.stripe,
+      agreements: ACCEPTED_AGREEMENTS,
     });
     const due = await seedInReview(testDb, fx, 'rev-due');
     const paused = await seedInReview(testDb, fx, 'rev-paused');

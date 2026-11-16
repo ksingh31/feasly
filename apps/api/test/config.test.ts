@@ -1,7 +1,11 @@
 import { describe, expect, it, vi } from 'vitest';
 import { version as packageVersion } from '../package.json';
 import { loadConfig, parseNarrativeModels, SEED_ADMIN_EMAIL } from '../src/config';
-import { API_LEAD_CONSENT_VERSION, WAITLIST_CONSENT_VERSION } from '../src/lib/legal-copy';
+import {
+  API_LEAD_CONSENT_VERSION,
+  PLATFORM_AGREEMENT_VERSION,
+  WAITLIST_CONSENT_VERSION,
+} from '../src/lib/legal-copy';
 
 const VALID_ENV = {
   NODE_ENV: 'test',
@@ -399,6 +403,9 @@ describe('loadConfig', () => {
       waitlist: {
         consentVersion: WAITLIST_CONSENT_VERSION,
       },
+      agreement: {
+        version: PLATFORM_AGREEMENT_VERSION,
+      },
       apiAccess: {
         dailyQuota: 100,
         monthlyQuota: 2_000,
@@ -422,6 +429,12 @@ describe('loadConfig', () => {
       leadConsentVersion: 'api-lead-2027-01-01',
       quarantineLeads: false,
     });
+  });
+
+  it('reads the platform agreement version from PLATFORM_AGREEMENT_VERSION (#722)', () => {
+    expect(loadConfig(VALID_ENV).agreement.version).toBe('2026-11-draft-1');
+    const config = loadConfig({ ...VALID_ENV, PLATFORM_AGREEMENT_VERSION: ' 2027-01-v2 ' });
+    expect(config.agreement.version).toBe('2027-01-v2');
   });
 
   it('reads the waitlist consent version from WAITLIST_CONSENT_VERSION (#740)', () => {

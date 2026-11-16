@@ -192,6 +192,46 @@
   }
 }
 
+/* #722: platform-agreement facts (read-only). */
+.builder-drawer__facts {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 12rem), 1fr));
+  gap: var(--space-3);
+  margin: 0;
+}
+
+.builder-drawer__facts dt {
+  font: var(--type-meta);
+  color: var(--muted);
+}
+
+.builder-drawer__facts dd {
+  margin: var(--space-1) 0 0;
+  font: var(--type-body);
+  overflow-wrap: anywhere;
+}
+
+.builder-drawer__agreement-state {
+  display: inline-block;
+  margin-left: var(--space-2);
+  padding: 0 var(--space-2);
+  border-radius: var(--radius-pill);
+  background: var(--status-success-bg);
+  color: var(--status-success-fg);
+  font: var(--type-meta);
+}
+
+.builder-drawer__agreement-state--stale {
+  background: var(--status-warning-bg);
+  color: var(--status-warning-fg);
+}
+
+.builder-drawer__muted {
+  margin: 0;
+  font: var(--type-body-sm);
+  color: var(--muted);
+}
+
 // #861 account status, offboarding checklist, export.
 .builder-drawer__status-row {
   display: flex;

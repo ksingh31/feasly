@@ -1,0 +1,124 @@
+/* Platform agreement screen (#722). Tokens only — no colour literals. */
+:host {
+  display: block;
+  min-width: 0;
+}
+
+.agreement {
+  box-sizing: border-box;
+  display: grid;
+  gap: var(--space-4);
+  min-width: 0;
+  max-width: 48rem;
+  padding: var(--space-5);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  background: var(--card);
+  color: var(--text);
+}
+
+.agreement__meta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--space-2);
+}
+
+.agreement__title {
+  margin: 0;
+  font: var(--type-product-h2);
+}
+
+.agreement__version {
+  margin: 0;
+  font: var(--type-meta);
+  color: var(--muted);
+}
+
+.agreement__notice {
+  margin: 0;
+  padding: var(--space-3) var(--space-4);
+  border-radius: var(--radius-sm);
+  background: var(--status-info-bg);
+  color: var(--status-info-fg);
+  font: var(--type-body-sm);
+}
+
+.agreement__notice--draft {
+  background: var(--status-warning-bg);
+  color: var(--status-warning-fg);
+  font-weight: 600;
+}
+
+.agreement__notice--done {
+  background: var(--status-success-bg);
+  color: var(--status-success-fg);
+}
+
+/* The scrollable text: scroll-to-accept reads its scroll position. */
+.agreement__doc {
+  box-sizing: border-box;
+  max-height: min(55vh, 32rem);
+  overflow-y: auto;
+  overflow-wrap: anywhere;
+  padding: var(--space-4);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--surface-sunken);
+  font: var(--type-body);
+}
+
+.agreement__doc:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 3px var(--focus-ring);
+}
+
+.agreement__doc p {
+  margin: 0 0 var(--space-3);
+}
+
+.agreement__section {
+  margin: var(--space-4) 0 var(--space-2);
+  font: var(--type-body);
+  font-weight: 700;
+}
+
+.agreement__section:first-child {
+  margin-top: 0;
+}
+
+.agreement__hint {
+  margin: 0;
+  font: var(--type-body-sm);
+  color: var(--muted);
+}
+
+.agreement__error {
+  margin: 0;
+  padding: var(--space-3) var(--space-4);
+  border-radius: var(--radius-sm);
+  background: var(--danger-bg);
+  color: var(--danger);
+  font: var(--type-body-sm);
+}
+
+.agreement__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-3);
+}
+
+.agreement__actions > button {
+  min-height: 44px;
+}
+
+@media (max-width: 640px) {
+  .agreement {
+    padding: var(--space-4);
+  }
+
+  .agreement__actions > button {
+    flex: 1 1 100%;
+  }
+}

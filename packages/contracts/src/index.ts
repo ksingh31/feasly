@@ -39,6 +39,7 @@ export * from './admin-search';
 export * from './admin-sheets';
 export * from './community-narratives';
 export * from './admin-users';
+export * from './agreement';
 export * from './zoning';
 export * from './audit';
 export * from './partners';

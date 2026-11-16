@@ -54,6 +54,7 @@ import { SANDBOX_LEAD_NOT_BILLABLE_MESSAGE } from './billing/embed-billing-hook.
 import type { InvoiceSummaryStore } from './billing/invoice-summary.store';
 import type { CommentStore, CommentSummary } from './builder-comments.store';
 import type { BuilderService } from './builder.service';
+import type { AgreementGate } from './builder-agreement.service';
 import type { EmailService } from './email/email.service';
 import type { LeadAssignmentService } from './lead-assignment.service';
 import type { LeadRecord, LeadStatusChangeStore, LeadStore } from './lead.store';
@@ -161,6 +162,14 @@ export interface BuilderLeadsServiceDeps {
   readonly audit: AdminAuditStore;
   /** Resolves the session tenant key to the builder row (builders table). */
   readonly builders: BuilderService;
+  /**
+   * #722: platform-agreement gate — marking a lead won WITH contract
+   * details records the signed contract (the commission charge path), so
+   * it needs the org's acceptance of the current agreement (409
+   * AGREEMENT_REQUIRED otherwise). Status changes without contract details
+   * are not gated.
+   */
+  readonly agreements: Pick<AgreementGate, 'requireCurrentForTenant'>;
   readonly clock?: () => Date;
   /**
    * Billing charge path (billing/01). Invoked when a lead transitions to
@@ -331,6 +340,7 @@ export function createBuilderLeadsService(
     leadStore,
     audit,
     builders,
+    agreements,
     billingHook,
     invoiceSummaries,
     commentSummaries,
@@ -568,6 +578,11 @@ export function createBuilderLeadsService(
         'Contract details require both contractValueCents and contractSignedAt.',
         false,
       );
+    }
+    // #722: recording a signed contract is a money action — no current
+    // agreement acceptance, no contract (before any billing or write).
+    if (hasContractDetails) {
+      await agreements.requireCurrentForTenant(builder.tenantKey);
     }
 
     // Billing runs BEFORE the status update: won + invoice stay atomic.

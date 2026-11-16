@@ -37,6 +37,7 @@ import type { EmailService } from '../src/services/email/email.service';
 import { billingDisputes, billingEvents, estimates, leads, stripeEvents, tenants } from '../src/db/schema';
 import { createChargebackService } from '../src/services/billing/chargeback.service';
 import { createTestDb, type TestDb } from './pglite-db';
+import { ACCEPTED_AGREEMENTS } from './helpers/agreement-gate.fake';
 
 const CARD = {
   ok: '4242424242424242',
@@ -132,6 +133,7 @@ describe('simulated payments through the production webhook handler', () => {
       audit,
       stripe,
       invoiceSummaries: createInvoiceSummaryStore({ db: testDb.db }),
+      agreements: ACCEPTED_AGREEMENTS,
     });
     const webhook = createBillingWebhookService({
       db: testDb.db,

@@ -34,6 +34,7 @@ import type { EmailService } from '../src/services/email/email.service';
 import type { EmailDelivery } from '../src/services/email/email.service';
 import type { EmbedPublicConfig } from '@feasly/contracts';
 import { HttpError, ErrorCodes } from '../src/middleware/errors';
+import { ACCEPTED_AGREEMENTS } from './helpers/agreement-gate.fake';
 
 const ESTIMATE_ID = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa';
 const NOW = new Date('2026-09-27T12:00:00Z');
@@ -269,7 +270,7 @@ function makeCaptureDeps() {
 
 function makePortalDeps(store: LeadStore, builders: BuilderService) {
   const audit = { log: vi.fn(async () => {}) } as unknown as AdminAuditStore;
-  return createBuilderLeadsService({ leadStore: store, audit, builders });
+  return createBuilderLeadsService({ agreements: ACCEPTED_AGREEMENTS, leadStore: store, audit, builders });
 }
 
 describe('embed → builder portal visibility (builders table)', () => {

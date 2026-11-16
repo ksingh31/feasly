@@ -146,6 +146,7 @@ async function runReviewCycle(
     reconciledPaid,
     reconciledFailed,
     stillPending,
+    agreementBlocked,
     retried,
     overdueReminded,
     errors,
@@ -156,6 +157,13 @@ async function runReviewCycle(
       `reconciledPaid=${reconciledPaid} reconciledFailed=${reconciledFailed} stillPending=${stillPending} ` +
       `retried=${retried} overdueReminded=${overdueReminded})`,
   );
+  // #722: due invoices left in review because the builder org has not
+  // accepted the current platform agreement (count only — no tenant keys).
+  if (agreementBlocked > 0) {
+    context.log(
+      `invoice-reviewer-timer: finalise skipped, no current agreement acceptance (agreementBlocked=${agreementBlocked})`,
+    );
+  }
   for (const error of errors) {
     context.log(
       `invoice-reviewer-timer: invoice failed: ${sanitizeErrorMessage(error.message)}`,

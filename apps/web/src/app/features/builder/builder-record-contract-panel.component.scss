@@ -54,6 +54,13 @@
 .record-panel__failure {
   margin-top: var(--space-3);
 }
+/* #722: agreement prompt in place of the form until it's accepted. */
+.record-panel__agreement {
+  padding: var(--space-3) var(--space-4);
+  border-radius: var(--radius-sm);
+  background: var(--status-info-bg);
+  color: var(--status-info-fg);
+}
 .record-panel__cta {
   margin-top: var(--space-3);
 }
