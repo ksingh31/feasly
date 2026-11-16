@@ -216,6 +216,7 @@ import {
 import {
   createDrizzleAdminSessionStore,
 } from './services/admin-auth.store';
+import { withSessionPolicy } from './services/session-policy';
 import {
   createEntraTokenValidator,
   type EntraTokenValidator,
@@ -1295,9 +1296,16 @@ export function createComposition(
   // auth/02 — admin session auth (Entra sign-in mints the sessions).
   // The session guard replaces the interim pre-shared-key guard; routes
   // are untouched (they depend on the AdminGuard interface).
-  const adminSessionStore: AdminSessionStore =
-    options.adminSessionStore ??
-    createDrizzleAdminSessionStore({ db: db.db });
+  // #730: absolute + idle timeouts and activity tracking wrap the store, so
+  // every session reader (guards, AuthContextService, view-as) enforces them.
+  const adminSessionStore: AdminSessionStore = withSessionPolicy(
+    options.adminSessionStore ?? createDrizzleAdminSessionStore({ db: db.db }),
+    {
+      absoluteTtlSeconds: config.auth.adminSessionTtlSeconds,
+      idleTimeoutSeconds: config.auth.adminSessionIdleTimeoutSeconds,
+      touchIntervalSeconds: config.auth.sessionActivityTouchIntervalSeconds,
+    },
+  );
   // (adminAuditStore is defined above with the builders-table setup.)
   const adminAuthService: AdminAuthService = createAdminAuthService({
     sessions: adminSessionStore,
@@ -1336,9 +1344,15 @@ export function createComposition(
   // auth/05 hardening: created here (ahead of the builder-auth block) so
   // UserService can revoke builder sessions on disable — a staff-side
   // disable must kill portal sessions too, not just admin ones.
-  const builderSessionStore: BuilderSessionStore =
+  const builderSessionStore: BuilderSessionStore = withSessionPolicy(
     options.builderSessionStore ??
-    createDrizzleBuilderSessionStore({ db: db.db });
+      createDrizzleBuilderSessionStore({ db: db.db }),
+    {
+      absoluteTtlSeconds: config.auth.builderSessionTtlSeconds,
+      idleTimeoutSeconds: config.auth.builderSessionIdleTimeoutSeconds,
+      touchIntervalSeconds: config.auth.sessionActivityTouchIntervalSeconds,
+    },
+  );
   const userService: UserService = createUserService({
     users: userStore,
     invitations: invitationStore,
@@ -1401,7 +1415,7 @@ export function createComposition(
     appBaseUrl: config.email.appBaseUrl,
     magicLinkTtlSeconds: config.auth.magicLinkTtlSeconds,
     magicLinkMaxSendsPerHour: config.auth.magicLinkMaxSendsPerHour,
-    builderSessionTtlSeconds: config.auth.adminSessionTtlSeconds,
+    builderSessionTtlSeconds: config.auth.builderSessionTtlSeconds,
     // Entra end-session URL for logout (kills the IdP session too once
     // builder Entra lands in AUTH #74; ignored by the frontend until then).
     entraSignIn: config.entraSignIn,
@@ -1431,11 +1445,13 @@ export function createComposition(
   });
   const permissionGuard: PermissionGuard = createPermissionGuard({
     authContext: authContextService,
+    // #730: dangerous routes (registry `recentAuth`) need a recent sign-in.
+    reauthWindowSeconds: config.auth.sessionReauthWindowSeconds,
   });
   const builderAuthRoute: BuilderAuthRoute = createBuilderAuthRoute({
     builderAuth: builderAuthService,
     permissionGuard,
-    builderSessionTtlSeconds: config.auth.adminSessionTtlSeconds,
+    builderSessionTtlSeconds: config.auth.builderSessionTtlSeconds,
   });
   // auth/05 — builder Entra External ID sign-in (organization accounts).
   // Separate External ID app/user flow from admin (`config.builderEntraSignIn`).
@@ -1453,12 +1469,12 @@ export function createComposition(
       builders: builderService,
       sessions: builderSessionStore,
       audit: adminAuditStore,
-      builderSessionTtlSeconds: config.auth.adminSessionTtlSeconds,
+      builderSessionTtlSeconds: config.auth.builderSessionTtlSeconds,
     });
   const builderEntraCallbackRoute: BuilderEntraCallbackRoute =
     createBuilderEntraCallbackRoute({
       entraCallback: builderEntraCallbackService,
-      builderSessionTtlSeconds: config.auth.adminSessionTtlSeconds,
+      builderSessionTtlSeconds: config.auth.builderSessionTtlSeconds,
       permissionGuard,
     });
   const builderUsersRoute: BuilderUsersRoute = createBuilderUsersRoute({

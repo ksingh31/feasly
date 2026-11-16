@@ -174,8 +174,24 @@ const EnvSchema = z.object({
   // INTERIM (api-mcp/01): pre-shared key for admin endpoints until
   // admin/01's session auth lands. Unset = admin endpoints fail closed.
   ADMIN_API_KEY: z.string().trim().min(1).optional(),
-  // Admin session lifetime (admin/01, D-02): 7 days, same as the magic links.
-  ADMIN_SESSION_TTL_SECONDS: z.coerce.number().int().positive().default(604_800),
+  // Admin session ABSOLUTE lifetime (#730, owner decision 2026-11-15): 12 h.
+  // Was 7 days (admin/01, D-02). Also caps rows minted under the old value.
+  ADMIN_SESSION_TTL_SECONDS: z.coerce.number().int().positive().default(43_200),
+  // #730: admin IDLE timeout — a session unused for this long stops
+  // validating (1 h, owner decision 2026-11-15).
+  ADMIN_SESSION_IDLE_TIMEOUT_SECONDS: z.coerce.number().int().positive().default(3_600),
+  // #730: builder session absolute lifetime (7 days) and idle timeout (24 h),
+  // owner decision 2026-11-15. Builders previously shared the admin TTL.
+  BUILDER_SESSION_TTL_SECONDS: z.coerce.number().int().positive().default(604_800),
+  BUILDER_SESSION_IDLE_TIMEOUT_SECONDS: z.coerce.number().int().positive().default(86_400),
+  // #730: how often (at most) a validated session's last_seen_at is written.
+  // Bounds the write load of activity tracking; the idle timeout is accurate
+  // to within this interval.
+  SESSION_ACTIVITY_TOUCH_INTERVAL_SECONDS: z.coerce.number().int().positive().default(60),
+  // #730: dangerous actions (view-as, mark-paid, user deactivation, API-key
+  // issuance/rotation) require a sign-in no older than this; otherwise
+  // 401 REAUTH_REQUIRED and the user signs in again.
+  SESSION_REAUTH_WINDOW_SECONDS: z.coerce.number().int().positive().default(1_800),
   // auth/01: invitation lifetime — 7 days, same discipline as the
   // magic links it replaces.
   INVITATION_TTL_SECONDS: z.coerce.number().int().positive().default(604_800),
@@ -611,8 +627,18 @@ export interface AuthConfig {
    * admin endpoints fail closed.
    */
   readonly adminApiKey: string | undefined;
-  /** Lifetime of an admin session cookie (admin/01, D-02: 7 days). */
+  /** Absolute lifetime of an admin session (#730: 12 h). */
   readonly adminSessionTtlSeconds: number;
+  /** Admin idle timeout (#730: 1 h). */
+  readonly adminSessionIdleTimeoutSeconds: number;
+  /** Absolute lifetime of a builder session (#730: 7 days). */
+  readonly builderSessionTtlSeconds: number;
+  /** Builder idle timeout (#730: 24 h). */
+  readonly builderSessionIdleTimeoutSeconds: number;
+  /** Minimum interval between last_seen_at writes for one session (#730). */
+  readonly sessionActivityTouchIntervalSeconds: number;
+  /** Max age of the sign-in for dangerous actions (#730). */
+  readonly sessionReauthWindowSeconds: number;
   /** Lifetime of an invitation (auth/01: 7 days). */
   readonly invitationTtlSeconds: number;
 }
@@ -1494,6 +1520,11 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): ApiConfig {
       magicLinkMaxSendsPerHour: e.MAGIC_LINK_MAX_SENDS_PER_HOUR,
       adminApiKey: e.ADMIN_API_KEY,
       adminSessionTtlSeconds: e.ADMIN_SESSION_TTL_SECONDS,
+      adminSessionIdleTimeoutSeconds: e.ADMIN_SESSION_IDLE_TIMEOUT_SECONDS,
+      builderSessionTtlSeconds: e.BUILDER_SESSION_TTL_SECONDS,
+      builderSessionIdleTimeoutSeconds: e.BUILDER_SESSION_IDLE_TIMEOUT_SECONDS,
+      sessionActivityTouchIntervalSeconds: e.SESSION_ACTIVITY_TOUCH_INTERVAL_SECONDS,
+      sessionReauthWindowSeconds: e.SESSION_REAUTH_WINDOW_SECONDS,
       invitationTtlSeconds: e.INVITATION_TTL_SECONDS,
     },
     entra: {

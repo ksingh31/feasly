@@ -1,5 +1,5 @@
 /**
- * City-data cache store integration (#756): migration 0053 against PGlite,
+ * City-data cache store integration (#756): migration 0054 against PGlite,
  * get/put round-trip, expiry, upsert, dataset scoping.
  */
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';

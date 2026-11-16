@@ -48,7 +48,12 @@ describe('loadConfig', () => {
         // P1-6: max magic-link sends per email per hour (default 5).
         magicLinkMaxSendsPerHour: 5,
         adminApiKey: undefined,
-        adminSessionTtlSeconds: 604_800,
+        adminSessionTtlSeconds: 43_200,
+        adminSessionIdleTimeoutSeconds: 3_600,
+        builderSessionTtlSeconds: 604_800,
+        builderSessionIdleTimeoutSeconds: 86_400,
+        sessionActivityTouchIntervalSeconds: 60,
+        sessionReauthWindowSeconds: 1_800,
         // AUTH-01: Entra invitations expire after 7 days.
         invitationTtlSeconds: 604_800,
       },
