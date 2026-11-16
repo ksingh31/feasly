@@ -109,6 +109,8 @@ function fakeEmailService(): EmailService & {
     sendCommissionPaymentFailed: async () => ok,
     sendCommissionPaymentActionRequired: async () => ok,
     sendContractNeedsRecording: async () => ok,
+    sendBuilderNewLead: async () => ok,
+    sendBuilderNeedsYouDigest: async () => ok,
   };
 }
 
@@ -1150,5 +1152,60 @@ describe('#793 sandbox (feasly_test_ key) writes', () => {
     });
     expect(store.inserted).toHaveLength(0);
     expect(email.magicLinkSends).toHaveLength(0);
+  });
+});
+
+describe('#725 builder new-lead notification hook', () => {
+  const BUILDER_ID = '99999999-9999-4999-8999-999999999999';
+  const builders = {
+    getByTenantKey: async (key: string) => (key === 'elite-craft' ? { id: BUILDER_ID } : null),
+  } as unknown as NonNullable<Parameters<typeof createLeadService>[0]['builders']>;
+
+  function notifier() {
+    const calls: Array<{ leadId: string; builderId: string }> = [];
+    return {
+      calls,
+      notifyNewLead: async (args: { leadId: string; builderId: string }) => {
+        calls.push(args);
+      },
+    };
+  }
+
+  it('notifies the builder once for a new embed lead', async () => {
+    const store = fakeLeadStore();
+    const builderNotifier = notifier();
+    const service = createLeadService({ ...DEPS, store, builders, builderNotifier });
+    const result = await service.submitLead({ ...VALID_BODY, tenantKey: 'elite-craft' });
+    expect(builderNotifier.calls).toEqual([{ leadId: result.leadId, builderId: BUILDER_ID }]);
+  });
+
+  it('a notifier failure never fails lead capture', async () => {
+    const store = fakeLeadStore();
+    const service = createLeadService({
+      ...DEPS,
+      store,
+      builders,
+      builderNotifier: {
+        notifyNewLead: () => new Promise<void>(() => {}), // never settles
+      },
+    });
+    const result = await service.submitLead({ ...VALID_BODY, tenantKey: 'elite-craft' });
+    expect(result.leadId).toBeDefined();
+  });
+
+  it('no notification for direct-site, quarantined, or repeat submissions', async () => {
+    const store = fakeLeadStore();
+    const builderNotifier = notifier();
+    const service = createLeadService({ ...DEPS, store, builders, builderNotifier });
+    await service.submitLead(VALID_BODY);
+    await service.submitLead({
+      ...VALID_BODY,
+      email: 'bot@example.com',
+      tenantKey: 'elite-craft',
+      website: 'http://spam.example',
+    });
+    store.recent = existingLeadFixture({ tenantKey: 'elite-craft', builderId: BUILDER_ID });
+    await service.submitLead({ ...VALID_BODY, tenantKey: 'elite-craft' });
+    expect(builderNotifier.calls).toHaveLength(0);
   });
 });

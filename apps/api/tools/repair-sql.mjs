@@ -12,8 +12,27 @@
  * this repair script didn't cover it. `test/schema-repair-coverage.test.ts`
  * asserts EVERY pgTable in the Drizzle schema appears here — add new tables
  * to this file when you add them to the schema.
+ *
+ * MERGE-CONFLICT-FREE APPENDS (#900): new repair blocks go in their own file
+ * under `tools/repair-sql.d/` (`<issue>-<slug>.sql`), not at the end of the
+ * core string below — two branches appending here was a constant source of
+ * conflicts. Fragments run after the core in file-name order, but each must
+ * be ORDER-INDEPENDENT: idempotent, and depending only on the migrations and
+ * the core, never on another fragment (test/repair-sql-fragments.test.ts
+ * applies them in reverse order to prove it). The core is idempotent block by
+ * block too, so if a conflict does happen in it, keep both sides.
  */
-export const REPAIR_SQL = `
+import { readFileSync, readdirSync } from 'node:fs';
+
+const FRAGMENT_DIR = new URL('./repair-sql.d/', import.meta.url);
+
+/** Order-independent repair blocks, one file each (sorted by name). */
+export const REPAIR_FRAGMENTS = readdirSync(FRAGMENT_DIR)
+  .filter((name) => name.endsWith('.sql'))
+  .sort()
+  .map((name) => ({ name, sql: readFileSync(new URL(name, FRAGMENT_DIR), 'utf8') }));
+
+export const REPAIR_CORE_SQL = `
 CREATE TABLE IF NOT EXISTS "leads" (
 
 	"id" uuid PRIMARY KEY NOT NULL,
@@ -851,202 +870,46 @@ ALTER TABLE "builder_partners" ADD COLUMN IF NOT EXISTS "active" boolean DEFAULT
 ALTER TABLE "builder_partners" ADD COLUMN IF NOT EXISTS "created_at" timestamp with time zone DEFAULT now() NOT NULL;
 ALTER TABLE "builder_partners" ADD COLUMN IF NOT EXISTS "updated_at" timestamp with time zone DEFAULT now() NOT NULL;
 CREATE INDEX IF NOT EXISTS "builder_partners_active_order_idx" ON "builder_partners" USING btree ("active","display_order");
-CREATE TABLE IF NOT EXISTS "schools" (
+CREATE TABLE IF NOT EXISTS "builder_notification_preferences" (
 
-	"id" text PRIMARY KEY NOT NULL,
-	"provider" text NOT NULL,
-	"source" text NOT NULL,
-	"external_id" text NOT NULL,
-	"community_code" text,
-	"lat" double precision,
-	"lng" double precision,
-	"data" jsonb NOT NULL,
-	"content_hash" text NOT NULL,
-	"refreshed_at" timestamp with time zone NOT NULL,
-	"name" text NOT NULL,
-	"board" text,
-	"grades" text,
-	"created_at" timestamp with time zone DEFAULT now() NOT NULL,
-	"updated_at" timestamp with time zone DEFAULT now() NOT NULL
+	"user_id" uuid NOT NULL,
+	"builder_id" uuid NOT NULL,
+	"new_lead_email" boolean DEFAULT true NOT NULL,
+	"needs_you_digest" boolean DEFAULT false NOT NULL,
+	"billing_email" boolean DEFAULT true NOT NULL,
+	"updated_at" timestamp with time zone DEFAULT now() NOT NULL,
+	PRIMARY KEY ("user_id", "builder_id")
 );
-ALTER TABLE "schools" ADD COLUMN IF NOT EXISTS "provider" text NOT NULL;
-ALTER TABLE "schools" ADD COLUMN IF NOT EXISTS "source" text NOT NULL;
-ALTER TABLE "schools" ADD COLUMN IF NOT EXISTS "external_id" text NOT NULL;
-ALTER TABLE "schools" ADD COLUMN IF NOT EXISTS "community_code" text;
-ALTER TABLE "schools" ADD COLUMN IF NOT EXISTS "lat" double precision;
-ALTER TABLE "schools" ADD COLUMN IF NOT EXISTS "lng" double precision;
-ALTER TABLE "schools" ADD COLUMN IF NOT EXISTS "data" jsonb NOT NULL;
-ALTER TABLE "schools" ADD COLUMN IF NOT EXISTS "content_hash" text NOT NULL;
-ALTER TABLE "schools" ADD COLUMN IF NOT EXISTS "refreshed_at" timestamp with time zone NOT NULL;
-ALTER TABLE "schools" ADD COLUMN IF NOT EXISTS "name" text NOT NULL;
-ALTER TABLE "schools" ADD COLUMN IF NOT EXISTS "board" text;
-ALTER TABLE "schools" ADD COLUMN IF NOT EXISTS "grades" text;
-ALTER TABLE "schools" ADD COLUMN IF NOT EXISTS "created_at" timestamp with time zone DEFAULT now() NOT NULL;
-ALTER TABLE "schools" ADD COLUMN IF NOT EXISTS "updated_at" timestamp with time zone DEFAULT now() NOT NULL;
-CREATE INDEX IF NOT EXISTS "schools_provider_idx" ON "schools" USING btree ("provider");
-CREATE INDEX IF NOT EXISTS "schools_community_idx" ON "schools" USING btree ("community_code");
-CREATE TABLE IF NOT EXISTS "school_designations" (
+ALTER TABLE "builder_notification_preferences" ADD COLUMN IF NOT EXISTS "new_lead_email" boolean DEFAULT true NOT NULL;
+ALTER TABLE "builder_notification_preferences" ADD COLUMN IF NOT EXISTS "needs_you_digest" boolean DEFAULT false NOT NULL;
+ALTER TABLE "builder_notification_preferences" ADD COLUMN IF NOT EXISTS "billing_email" boolean DEFAULT true NOT NULL;
+ALTER TABLE "builder_notification_preferences" ADD COLUMN IF NOT EXISTS "updated_at" timestamp with time zone DEFAULT now() NOT NULL;
+CREATE INDEX IF NOT EXISTS "builder_notification_preferences_builder_idx" ON "builder_notification_preferences" USING btree ("builder_id");
+CREATE TABLE IF NOT EXISTS "builder_notifications" (
 
-	"id" text PRIMARY KEY NOT NULL,
-	"provider" text NOT NULL,
-	"source" text NOT NULL,
-	"external_id" text NOT NULL,
-	"community_code" text,
-	"lat" double precision,
-	"lng" double precision,
-	"data" jsonb NOT NULL,
-	"content_hash" text NOT NULL,
-	"refreshed_at" timestamp with time zone NOT NULL,
-	"school_id" text,
-	"grade_band" text,
-	"created_at" timestamp with time zone DEFAULT now() NOT NULL,
-	"updated_at" timestamp with time zone DEFAULT now() NOT NULL
+	"id" uuid PRIMARY KEY NOT NULL,
+	"dedupe_key" text NOT NULL,
+	"kind" text NOT NULL,
+	"builder_id" uuid NOT NULL,
+	"user_id" uuid NOT NULL,
+	"lead_id" uuid,
+	"status" text DEFAULT 'pending' NOT NULL,
+	"attempts" integer DEFAULT 0 NOT NULL,
+	"last_error_code" text,
+	"last_attempt_at" timestamp with time zone,
+	"processed_at" timestamp with time zone,
+	"created_at" timestamp with time zone DEFAULT now() NOT NULL
 );
-ALTER TABLE "school_designations" ADD COLUMN IF NOT EXISTS "provider" text NOT NULL;
-ALTER TABLE "school_designations" ADD COLUMN IF NOT EXISTS "source" text NOT NULL;
-ALTER TABLE "school_designations" ADD COLUMN IF NOT EXISTS "external_id" text NOT NULL;
-ALTER TABLE "school_designations" ADD COLUMN IF NOT EXISTS "community_code" text;
-ALTER TABLE "school_designations" ADD COLUMN IF NOT EXISTS "lat" double precision;
-ALTER TABLE "school_designations" ADD COLUMN IF NOT EXISTS "lng" double precision;
-ALTER TABLE "school_designations" ADD COLUMN IF NOT EXISTS "data" jsonb NOT NULL;
-ALTER TABLE "school_designations" ADD COLUMN IF NOT EXISTS "content_hash" text NOT NULL;
-ALTER TABLE "school_designations" ADD COLUMN IF NOT EXISTS "refreshed_at" timestamp with time zone NOT NULL;
-ALTER TABLE "school_designations" ADD COLUMN IF NOT EXISTS "school_id" text;
-ALTER TABLE "school_designations" ADD COLUMN IF NOT EXISTS "grade_band" text;
-ALTER TABLE "school_designations" ADD COLUMN IF NOT EXISTS "created_at" timestamp with time zone DEFAULT now() NOT NULL;
-ALTER TABLE "school_designations" ADD COLUMN IF NOT EXISTS "updated_at" timestamp with time zone DEFAULT now() NOT NULL;
-CREATE INDEX IF NOT EXISTS "school_designations_provider_idx" ON "school_designations" USING btree ("provider");
-CREATE INDEX IF NOT EXISTS "school_designations_community_idx" ON "school_designations" USING btree ("community_code");
-CREATE TABLE IF NOT EXISTS "school_ratings" (
-
-	"id" text PRIMARY KEY NOT NULL,
-	"provider" text NOT NULL,
-	"source" text NOT NULL,
-	"external_id" text NOT NULL,
-	"community_code" text,
-	"lat" double precision,
-	"lng" double precision,
-	"data" jsonb NOT NULL,
-	"content_hash" text NOT NULL,
-	"refreshed_at" timestamp with time zone NOT NULL,
-	"school_id" text,
-	"rating" real,
-	"period" text,
-	"created_at" timestamp with time zone DEFAULT now() NOT NULL,
-	"updated_at" timestamp with time zone DEFAULT now() NOT NULL
-);
-ALTER TABLE "school_ratings" ADD COLUMN IF NOT EXISTS "provider" text NOT NULL;
-ALTER TABLE "school_ratings" ADD COLUMN IF NOT EXISTS "source" text NOT NULL;
-ALTER TABLE "school_ratings" ADD COLUMN IF NOT EXISTS "external_id" text NOT NULL;
-ALTER TABLE "school_ratings" ADD COLUMN IF NOT EXISTS "community_code" text;
-ALTER TABLE "school_ratings" ADD COLUMN IF NOT EXISTS "lat" double precision;
-ALTER TABLE "school_ratings" ADD COLUMN IF NOT EXISTS "lng" double precision;
-ALTER TABLE "school_ratings" ADD COLUMN IF NOT EXISTS "data" jsonb NOT NULL;
-ALTER TABLE "school_ratings" ADD COLUMN IF NOT EXISTS "content_hash" text NOT NULL;
-ALTER TABLE "school_ratings" ADD COLUMN IF NOT EXISTS "refreshed_at" timestamp with time zone NOT NULL;
-ALTER TABLE "school_ratings" ADD COLUMN IF NOT EXISTS "school_id" text;
-ALTER TABLE "school_ratings" ADD COLUMN IF NOT EXISTS "rating" real;
-ALTER TABLE "school_ratings" ADD COLUMN IF NOT EXISTS "period" text;
-ALTER TABLE "school_ratings" ADD COLUMN IF NOT EXISTS "created_at" timestamp with time zone DEFAULT now() NOT NULL;
-ALTER TABLE "school_ratings" ADD COLUMN IF NOT EXISTS "updated_at" timestamp with time zone DEFAULT now() NOT NULL;
-CREATE INDEX IF NOT EXISTS "school_ratings_provider_idx" ON "school_ratings" USING btree ("provider");
-CREATE TABLE IF NOT EXISTS "amenities" (
-
-	"id" text PRIMARY KEY NOT NULL,
-	"provider" text NOT NULL,
-	"source" text NOT NULL,
-	"external_id" text NOT NULL,
-	"community_code" text,
-	"lat" double precision,
-	"lng" double precision,
-	"data" jsonb NOT NULL,
-	"content_hash" text NOT NULL,
-	"refreshed_at" timestamp with time zone NOT NULL,
-	"category" text NOT NULL,
-	"name" text NOT NULL,
-	"created_at" timestamp with time zone DEFAULT now() NOT NULL,
-	"updated_at" timestamp with time zone DEFAULT now() NOT NULL
-);
-ALTER TABLE "amenities" ADD COLUMN IF NOT EXISTS "provider" text NOT NULL;
-ALTER TABLE "amenities" ADD COLUMN IF NOT EXISTS "source" text NOT NULL;
-ALTER TABLE "amenities" ADD COLUMN IF NOT EXISTS "external_id" text NOT NULL;
-ALTER TABLE "amenities" ADD COLUMN IF NOT EXISTS "community_code" text;
-ALTER TABLE "amenities" ADD COLUMN IF NOT EXISTS "lat" double precision;
-ALTER TABLE "amenities" ADD COLUMN IF NOT EXISTS "lng" double precision;
-ALTER TABLE "amenities" ADD COLUMN IF NOT EXISTS "data" jsonb NOT NULL;
-ALTER TABLE "amenities" ADD COLUMN IF NOT EXISTS "content_hash" text NOT NULL;
-ALTER TABLE "amenities" ADD COLUMN IF NOT EXISTS "refreshed_at" timestamp with time zone NOT NULL;
-ALTER TABLE "amenities" ADD COLUMN IF NOT EXISTS "category" text NOT NULL;
-ALTER TABLE "amenities" ADD COLUMN IF NOT EXISTS "name" text NOT NULL;
-ALTER TABLE "amenities" ADD COLUMN IF NOT EXISTS "created_at" timestamp with time zone DEFAULT now() NOT NULL;
-ALTER TABLE "amenities" ADD COLUMN IF NOT EXISTS "updated_at" timestamp with time zone DEFAULT now() NOT NULL;
-CREATE INDEX IF NOT EXISTS "amenities_provider_idx" ON "amenities" USING btree ("provider");
-CREATE INDEX IF NOT EXISTS "amenities_community_idx" ON "amenities" USING btree ("community_code");
-CREATE TABLE IF NOT EXISTS "community_living_metrics" (
-
-	"id" text PRIMARY KEY NOT NULL,
-	"provider" text NOT NULL,
-	"source" text NOT NULL,
-	"external_id" text NOT NULL,
-	"community_code" text,
-	"lat" double precision,
-	"lng" double precision,
-	"data" jsonb NOT NULL,
-	"content_hash" text NOT NULL,
-	"refreshed_at" timestamp with time zone NOT NULL,
-	"metric" text NOT NULL,
-	"created_at" timestamp with time zone DEFAULT now() NOT NULL,
-	"updated_at" timestamp with time zone DEFAULT now() NOT NULL
-);
-ALTER TABLE "community_living_metrics" ADD COLUMN IF NOT EXISTS "provider" text NOT NULL;
-ALTER TABLE "community_living_metrics" ADD COLUMN IF NOT EXISTS "source" text NOT NULL;
-ALTER TABLE "community_living_metrics" ADD COLUMN IF NOT EXISTS "external_id" text NOT NULL;
-ALTER TABLE "community_living_metrics" ADD COLUMN IF NOT EXISTS "community_code" text;
-ALTER TABLE "community_living_metrics" ADD COLUMN IF NOT EXISTS "lat" double precision;
-ALTER TABLE "community_living_metrics" ADD COLUMN IF NOT EXISTS "lng" double precision;
-ALTER TABLE "community_living_metrics" ADD COLUMN IF NOT EXISTS "data" jsonb NOT NULL;
-ALTER TABLE "community_living_metrics" ADD COLUMN IF NOT EXISTS "content_hash" text NOT NULL;
-ALTER TABLE "community_living_metrics" ADD COLUMN IF NOT EXISTS "refreshed_at" timestamp with time zone NOT NULL;
-ALTER TABLE "community_living_metrics" ADD COLUMN IF NOT EXISTS "metric" text NOT NULL;
-ALTER TABLE "community_living_metrics" ADD COLUMN IF NOT EXISTS "created_at" timestamp with time zone DEFAULT now() NOT NULL;
-ALTER TABLE "community_living_metrics" ADD COLUMN IF NOT EXISTS "updated_at" timestamp with time zone DEFAULT now() NOT NULL;
-CREATE INDEX IF NOT EXISTS "community_living_metrics_provider_idx" ON "community_living_metrics" USING btree ("provider");
-CREATE INDEX IF NOT EXISTS "community_living_metrics_community_idx" ON "community_living_metrics" USING btree ("community_code","metric");
-CREATE TABLE IF NOT EXISTS "lot_living_metrics" (
-
-	"address_key" text PRIMARY KEY NOT NULL,
-	"data" jsonb NOT NULL,
-	"computed_at" timestamp with time zone DEFAULT now() NOT NULL,
-	"expires_at" timestamp with time zone NOT NULL
-);
-ALTER TABLE "lot_living_metrics" ADD COLUMN IF NOT EXISTS "data" jsonb NOT NULL;
-ALTER TABLE "lot_living_metrics" ADD COLUMN IF NOT EXISTS "computed_at" timestamp with time zone DEFAULT now() NOT NULL;
-ALTER TABLE "lot_living_metrics" ADD COLUMN IF NOT EXISTS "expires_at" timestamp with time zone NOT NULL;
-CREATE INDEX IF NOT EXISTS "lot_living_metrics_expires_at_idx" ON "lot_living_metrics" USING btree ("expires_at");
-CREATE TABLE IF NOT EXISTS "neighbourhood_refresh_state" (
-
-	"provider" text PRIMARY KEY NOT NULL,
-	"implementation" text NOT NULL,
-	"last_run_at" timestamp with time zone,
-	"last_success_at" timestamp with time zone,
-	"last_failure_at" timestamp with time zone,
-	"first_failure_at" timestamp with time zone,
-	"consecutive_failures" integer DEFAULT 0 NOT NULL,
-	"alerted_at" timestamp with time zone,
-	"last_rows_changed" integer DEFAULT 0 NOT NULL,
-	"last_error" text,
-	"updated_at" timestamp with time zone DEFAULT now() NOT NULL
-);
-ALTER TABLE "neighbourhood_refresh_state" ADD COLUMN IF NOT EXISTS "implementation" text NOT NULL;
-ALTER TABLE "neighbourhood_refresh_state" ADD COLUMN IF NOT EXISTS "last_run_at" timestamp with time zone;
-ALTER TABLE "neighbourhood_refresh_state" ADD COLUMN IF NOT EXISTS "last_success_at" timestamp with time zone;
-ALTER TABLE "neighbourhood_refresh_state" ADD COLUMN IF NOT EXISTS "last_failure_at" timestamp with time zone;
-ALTER TABLE "neighbourhood_refresh_state" ADD COLUMN IF NOT EXISTS "first_failure_at" timestamp with time zone;
-ALTER TABLE "neighbourhood_refresh_state" ADD COLUMN IF NOT EXISTS "consecutive_failures" integer DEFAULT 0 NOT NULL;
-ALTER TABLE "neighbourhood_refresh_state" ADD COLUMN IF NOT EXISTS "alerted_at" timestamp with time zone;
-ALTER TABLE "neighbourhood_refresh_state" ADD COLUMN IF NOT EXISTS "last_rows_changed" integer DEFAULT 0 NOT NULL;
-ALTER TABLE "neighbourhood_refresh_state" ADD COLUMN IF NOT EXISTS "last_error" text;
-ALTER TABLE "neighbourhood_refresh_state" ADD COLUMN IF NOT EXISTS "updated_at" timestamp with time zone DEFAULT now() NOT NULL;
+ALTER TABLE "builder_notifications" ADD COLUMN IF NOT EXISTS "lead_id" uuid;
+ALTER TABLE "builder_notifications" ADD COLUMN IF NOT EXISTS "status" text DEFAULT 'pending' NOT NULL;
+ALTER TABLE "builder_notifications" ADD COLUMN IF NOT EXISTS "attempts" integer DEFAULT 0 NOT NULL;
+ALTER TABLE "builder_notifications" ADD COLUMN IF NOT EXISTS "last_error_code" text;
+ALTER TABLE "builder_notifications" ADD COLUMN IF NOT EXISTS "last_attempt_at" timestamp with time zone;
+ALTER TABLE "builder_notifications" ADD COLUMN IF NOT EXISTS "processed_at" timestamp with time zone;
+ALTER TABLE "builder_notifications" ADD COLUMN IF NOT EXISTS "created_at" timestamp with time zone DEFAULT now() NOT NULL;
+CREATE UNIQUE INDEX IF NOT EXISTS "builder_notifications_dedupe_key_idx" ON "builder_notifications" USING btree ("dedupe_key");
+CREATE INDEX IF NOT EXISTS "builder_notifications_status_created_idx" ON "builder_notifications" USING btree ("status","created_at");
+CREATE INDEX IF NOT EXISTS "builder_notifications_lead_idx" ON "builder_notifications" USING btree ("lead_id");
 CREATE TABLE IF NOT EXISTS "partner_shares" (
 
 	"id" uuid PRIMARY KEY NOT NULL,
@@ -1288,19 +1151,10 @@ SET "tenant_key" = b."tenant_key"
 FROM "builders" b
 WHERE "leads"."builder_id" = b."id"
   AND ("leads"."tenant_key" IS NULL OR "leads"."tenant_key" <> b."tenant_key");
-
--- #888: builder partner seed guard. Mirrors migration 0055 exactly (same
--- fixed UUID): Elite Craft Builders is the current partner. A no-op when
--- the row already exists — an admin's later edits (deactivate, reorder,
--- rename) are never overwritten.
-INSERT INTO "builder_partners"
-  ("id", "builder_id", "name", "website_url", "display_order", "active")
-SELECT
-  '3fc7bb9f-e00b-4028-9255-e01730fd17c9',
-  (SELECT b."id" FROM "builders" b WHERE b."tenant_key" = 'elite-craft-builders'),
-  'Elite Craft Builders',
-  'https://elitecraftbuilders.com',
-  0,
-  true
-ON CONFLICT ("id") DO NOTHING;
 `;
+
+/** Core + every fragment: what tools/migrate.mjs runs after drizzle-kit. */
+export const REPAIR_SQL = [
+  REPAIR_CORE_SQL,
+  ...REPAIR_FRAGMENTS.map((f) => `-- tools/repair-sql.d/${f.name}\n${f.sql}`),
+].join('\n');

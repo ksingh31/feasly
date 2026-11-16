@@ -38,6 +38,16 @@ function csvToList(raw: string): string[] {
     .filter((part) => part.length > 0);
 }
 
+/** True when the runtime's Intl knows `zone` (rejects typos like "America/Edmonon"). */
+function isIanaTimeZone(zone: string): boolean {
+  try {
+    new Intl.DateTimeFormat('en-CA', { timeZone: zone });
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 const EnvSchema = z.object({
   NODE_ENV: z.enum(['development', 'test', 'staging', 'production']).default('development'),
 
@@ -145,6 +155,26 @@ const EnvSchema = z.object({
     .default('false')
     .transform((value) => value === 'true'),
   FOLLOW_UP_EMAIL_DELAY_HOURS: z.coerce.number().int().positive().default(72),
+
+  // #725: builder notifications — one new-lead email per opted-in member
+  // (send-once outbox, retried by the builder-notifications timer) and the
+  // opt-in daily "Needs you" digest. ENABLED is the kill switch (default on:
+  // owner decision 2026-11-15, new-lead email on for every member). The
+  // digest goes out on the first timer tick at/after DIGEST_LOCAL_HOUR in
+  // DIGEST_TIMEZONE (once per local day, deduped).
+  BUILDER_NOTIFICATIONS_ENABLED: z
+    .enum(['true', 'false'])
+    .default('true')
+    .transform((value) => value === 'true'),
+  BUILDER_NOTIFICATION_MAX_ATTEMPTS: z.coerce.number().int().min(1).max(20).default(5),
+  BUILDER_NOTIFICATION_RETRY_WINDOW_HOURS: z.coerce.number().int().positive().default(24),
+  BUILDER_NOTIFICATION_CLAIM_LEASE_MINUTES: z.coerce.number().int().positive().default(10),
+  BUILDER_DIGEST_LOCAL_HOUR: z.coerce.number().int().min(0).max(23).default(7),
+  BUILDER_DIGEST_TIMEZONE: z
+    .string()
+    .min(1)
+    .refine(isIanaTimeZone, 'must be an IANA time zone, e.g. America/Edmonton')
+    .default('America/Edmonton'),
 
   // neighbourhood/05: monthly community-stats refresh timer. Communities
   // with fewer fresh assessment records than this are skipped (logged, never
@@ -1062,6 +1092,22 @@ export interface BillingTaxConfig {
 }
 
 /** #703: post-report follow-up email (hourly timer, flag default off). */
+/** #725: builder new-lead email + daily "Needs you" digest. */
+export interface BuilderNotificationsConfig {
+  /** Kill switch — false = no enqueue, no sends (default true). */
+  readonly enabled: boolean;
+  /** Delivery attempts per notification (initial + timer retries). */
+  readonly maxAttempts: number;
+  /** Pending rows older than this are no longer retried. */
+  readonly retryWindowHours: number;
+  /** A claimed row is not re-claimed for this long (no double send). */
+  readonly claimLeaseMinutes: number;
+  /** Local hour (0–23) the daily digest becomes due. */
+  readonly digestLocalHour: number;
+  /** IANA zone for the digest hour and the digest's day key. */
+  readonly digestTimeZone: string;
+}
+
 export interface FollowUpEmailConfig {
   readonly enabled: boolean;
   /** Hours after the report is first opened before the follow-up is due. */
@@ -1294,6 +1340,7 @@ export interface ApiConfig {
   readonly sandboxPurge: SandboxPurgeConfig;
   readonly apiKeyAuth: ApiKeyAuthConfig;
   readonly followUpEmail: FollowUpEmailConfig;
+  readonly builderNotifications: BuilderNotificationsConfig;
   readonly sheets: SheetsConfig;
   readonly narrative: NarrativeConfig;
   readonly communityStatsRefresh: CommunityStatsRefreshConfig;
@@ -1620,6 +1667,14 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): ApiConfig {
     followUpEmail: {
       enabled: e.FOLLOW_UP_EMAIL_ENABLED,
       delayHours: e.FOLLOW_UP_EMAIL_DELAY_HOURS,
+    },
+    builderNotifications: {
+      enabled: e.BUILDER_NOTIFICATIONS_ENABLED,
+      maxAttempts: e.BUILDER_NOTIFICATION_MAX_ATTEMPTS,
+      retryWindowHours: e.BUILDER_NOTIFICATION_RETRY_WINDOW_HOURS,
+      claimLeaseMinutes: e.BUILDER_NOTIFICATION_CLAIM_LEASE_MINUTES,
+      digestLocalHour: e.BUILDER_DIGEST_LOCAL_HOUR,
+      digestTimeZone: e.BUILDER_DIGEST_TIMEZONE,
     },
     communityStatsRefresh: {
       minAssessmentCount: e.COMMUNITY_STATS_MIN_ASSESSMENTS,
