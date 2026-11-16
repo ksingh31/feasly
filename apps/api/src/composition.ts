@@ -581,6 +581,15 @@ import {
   createBuilderBillingOverviewRoute,
   type BuilderBillingOverviewRoute,
 } from './routes/builder/billing-overview.route';
+import { createDrizzleBuilderNotificationStore } from './services/builder-notification.store';
+import {
+  createBuilderNotificationsService,
+  type BuilderNotificationsService,
+} from './services/builder-notifications.service';
+import {
+  createBuilderNotificationsRoute,
+  type BuilderNotificationsRoute,
+} from './routes/builder/notifications.route';
 import {
   createStripeWebhooksRoute,
   type StripeWebhooksRoute,
@@ -821,6 +830,10 @@ export interface AppComposition {
   readonly billingOverviewService: BillingOverviewService;
   /** #531: thin route for GET /api/v1/builder/billing/overview. */
   readonly builderBillingOverviewRoute: BuilderBillingOverviewRoute;
+  /** #725: new-lead email, daily digest, preferences, billing recipients. */
+  readonly builderNotificationsService: BuilderNotificationsService;
+  /** #725: thin route for /api/v1/builder/notifications/preferences. */
+  readonly builderNotificationsRoute: BuilderNotificationsRoute;
   /** billing/01 follow-on: dispute console backend (was OPS-009). */
   readonly disputeService: DisputeService;
   /** billing/01 follow-on: thin route for /api/v1/admin/disputes/*. */
@@ -1201,6 +1214,9 @@ export function createComposition(
   const builderService: BuilderService = createBuilderService({
     db: db.db,
     audit: adminAuditStore,
+    // #725: late-bound — the notifications service is built further down
+    // (it needs the builder-leads "Needs you" feed). Never throws.
+    onLeadAssigned: (args) => builderNotificationsService.notifyNewLead(args),
     onBillingProfileChanged: async (builder) => {
       await syncStripeCustomer?.(builder);
     },
@@ -1217,6 +1233,10 @@ export function createComposition(
     minSubmitMs: config.lead.minSubmitMs,
     builderConfigs: builderConfigService,
     builders: builderService,
+    // #725: late-bound (see builderService above).
+    builderNotifier: {
+      notifyNewLead: (args) => builderNotificationsService.notifyNewLead(args),
+    },
   });
   const leadRoute: LeadRoute = createLeadRoute({ leads: leadService });
   const magicLinkService: MagicLinkService = createMagicLinkService({
@@ -2001,6 +2021,10 @@ export function createComposition(
   });
   const commissionService: CommissionService = createCommissionService({
     db: db.db,
+    // #725: billing emails go to every opted-in active builder admin;
+    // late-bound (see builderService above).
+    billingRecipients: (tenantKey) =>
+      builderNotificationsService.billingRecipients(tenantKey),
     billing: config.billing,
     attribution: attributionService,
     audit: billingAuditService,
@@ -2115,6 +2139,23 @@ export function createComposition(
     builderGuard,
     permissionGuard,
   });
+  // #725: builder notifications — new-lead email (send-once outbox), daily
+  // "Needs you" digest, member preferences, billing-email recipients.
+  const builderNotificationsService: BuilderNotificationsService =
+    createBuilderNotificationsService({
+      store: createDrizzleBuilderNotificationStore({ db: db.db }),
+      email: emailService,
+      needsYou: (tenantKey) => builderLeadsService.getNeedsYou(tenantKey),
+      resolveCommunity: async (addressKey) =>
+        (await propertyService.getProperty(addressKey)).community,
+      config: config.builderNotifications,
+      onError: (message) => console.error(message),
+    });
+  const builderNotificationsRoute: BuilderNotificationsRoute =
+    createBuilderNotificationsRoute({
+      notifications: builderNotificationsService,
+      builderGuard,
+    });
   // billing/05 lead comments: one service, two thin routes (builder/admin).
   const builderCommentsService: BuilderCommentsService =
     createBuilderCommentsService({
@@ -2353,6 +2394,8 @@ export function createComposition(
     billingRoute,
     billingOverviewService,
     builderBillingOverviewRoute,
+    builderNotificationsService,
+    builderNotificationsRoute,
     disputeService,
     adminDisputesRoute,
     adminBillingRoute,
