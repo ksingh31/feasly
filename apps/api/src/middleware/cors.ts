@@ -10,9 +10,8 @@
  * - A request whose `Origin` is allowlisted gets
  *   `Access-Control-Allow-Origin: <origin>` (echoed, never `*`) plus
  *   `Vary: Origin` and `Access-Control-Allow-Credentials: true`.
- * - `Access-Control-Allow-Credentials: true` is REQUIRED: this is the
- *   single CORS source (no platform-level CORS on the Function App), and
- *   the web app calls the API cross-origin with `withCredentials`, so
+ * - `Access-Control-Allow-Credentials: true` is REQUIRED: the web app
+ *   calls the API cross-origin with `withCredentials`, so
  *   the session cookies (`SameSite=None; Secure`) only flow when the
  *   browser sees this header. Echo + credentials demands `Vary: Origin`
  *   so shared caches never serve one origin's response to another.
@@ -20,7 +19,10 @@
  *   at all — fail-closed.
  * - `isPreflight()` identifies CORS preflight requests so adapters can
  *   answer them with 204 before the pipeline runs; `preflightHeaders()`
- *   supplies the static preflight response headers.
+ *   supplies the static preflight response headers. In Azure the
+ *   Functions host answers preflights itself from platform
+ *   `siteConfig.cors` (same allowlist, set in Bicep — #954), so this path
+ *   serves local `func start`/tests; keep both in step.
  *
  * Hard rule (enforced by test/boundaries.test.ts): this module never
  * embeds literal origins — the allowlist arrives as an argument.
@@ -30,7 +32,8 @@ export const ALLOW_ORIGIN = 'Access-Control-Allow-Origin';
 export const ALLOW_CREDENTIALS = 'Access-Control-Allow-Credentials';
 
 const ALLOW_METHODS = 'GET, POST, OPTIONS';
-const ALLOW_HEADERS = 'Content-Type, Authorization, X-Correlation-Id, X-Turnstile-Token';
+const ALLOW_HEADERS =
+  'Content-Type, Authorization, X-Correlation-Id, X-Turnstile-Token, X-Feasly-CSRF';
 const MAX_AGE_SECONDS = '86400';
 
 export type HeaderInput = string | string[] | undefined;

@@ -46,7 +46,7 @@ param acsConnectionStringSecretUri string = ''
 @description('Sender address for transactional email (must be an ACS-verified domain sender). Empty = app config default.')
 param emailFromAddress string = ''
 
-@description('CORS allowed origins for the Function App (ADM-10: the web app calls the API cross-origin). Fed to the in-app CORS middleware via CORS_ORIGINS — the single CORS source; platform-level CORS stays OFF so responses never carry duplicate Access-Control-Allow-Origin headers. Never "*".')
+@description('CORS allowed origins for the Function App (ADM-10: the web app calls the API cross-origin). ONE list feeds both CORS layers: the platform (siteConfig.cors, which answers every OPTIONS preflight before the worker runs — #954) and the in-app middleware via CORS_ORIGINS (actual responses). Never "*" — credentials are required.')
 param corsAllowedOrigins string[] = []
 
 @description('Public base URL of the web app, used to build magic-link URLs in emails (ADM-10: must be the live SWA hostname, not the feasly.example config default).')
@@ -573,17 +573,22 @@ resource app 'Microsoft.Web/sites@2024-04-01' = {
           }
         ]
       )
-      // In-app CORS is the single CORS source (#844): platform-level CORS is
-      // pinned explicitly EMPTY. Omitting the property is not enough — an
-      // ARM PUT that leaves siteConfig.cors out keeps whatever the live site
-      // already has (dev carried supportCredentials: true from a manual
-      // change), so Bicep and `az functionapp config show` drifted. With no
-      // allowed origins the platform never emits Access-Control-* headers,
-      // so it cannot duplicate or shadow the middleware's headers (which
-      // browsers reject on credentialed requests). Never add origins here.
+      // Platform CORS mirrors the SAME allowlist as CORS_ORIGINS (#954).
+      // The Functions host runs its own CORS middleware in front of the
+      // worker and short-circuits EVERY OPTIONS preflight with a 204 — even
+      // with an empty allowlist, and even for routes whose function.json
+      // lists `options` — so the in-app preflight branch never runs in Azure.
+      // Pinning this empty (#947) therefore stripped Access-Control-* from
+      // all preflights and blocked every cross-origin JSON POST from the SWA.
+      // The host's policy allows any method/header for an allowlisted origin
+      // (so X-Feasly-CSRF etc. pass); supportCredentials must be true for the
+      // SameSite=None session cookies. Both layers read `corsAllowedOrigins`,
+      // so there is still one allowlist and no drift; the platform set is
+      // pinned explicitly so CD resets manual portal edits (#844).
+      // Never '*'.
       cors: {
-        allowedOrigins: []
-        supportCredentials: false
+        allowedOrigins: corsAllowedOrigins
+        supportCredentials: true
       }
     }
     // functionAppConfig MUST be a direct child of properties (sibling of

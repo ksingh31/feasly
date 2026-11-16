@@ -97,24 +97,41 @@ the staging-auto-deploy question when staging infra is provisioned.
 
 ## CORS
 
-The in-app middleware (`apps/api/src/middleware/cors.ts`, allowlist from the
-`CORS_ORIGINS` app setting) is the **only** CORS enforcement point (#844).
-Platform CORS on the Function App is pinned empty in
-`infra/bicep/modules/function-app.bicep` (`siteConfig.cors`: no origins,
-`supportCredentials: false`), so CD resets any manual portal change.
+One allowlist — the `corsAllowedOrigins` Bicep param (live SWA hostname +
+`http://localhost:4200`, never `*`) — feeds two layers (#954):
 
-Check after a deploy (read-only):
+- **Platform CORS** (`siteConfig.cors` in
+  `infra/bicep/modules/function-app.bicep`, `supportCredentials: true`). The
+  Functions host answers **every** OPTIONS preflight itself with a 204 before
+  the worker runs, even when the list is empty and even when a route's
+  `function.json` lists `options`. An empty list means 204 with no
+  `Access-Control-*` headers, and every cross-origin JSON POST from the SWA
+  fails. #947 caused exactly that.
+- **In-app middleware** (`apps/api/src/middleware/cors.ts`, via the
+  `CORS_ORIGINS` app setting). It sets the headers on actual responses, and
+  on preflights under local `func start` and in tests.
+
+Both are pinned in Bicep, so CD resets manual portal edits (#844). Never edit
+one list without the other. They share one param, so the only way to split
+them is to hand-edit Azure.
+
+Check after a deploy (read-only). The health watch runs the preflight probe
+(`api_cors_preflight` in `infra/health/checks.sh`):
 
 ```bash
 az functionapp cors show -g rg-feasly-dev -n <function-app>
-# expect: "allowedOrigins": [], "supportCredentials": false
+# expect: allowedOrigins = [SWA origin, http://localhost:4200], supportCredentials: true
 
-API=https://<function-app>.azurewebsites.net/api/health
-# allowlisted origin -> 204 with Access-Control-Allow-Origin/-Headers from the middleware
+API=https://<function-app>.azurewebsites.net/api/v1/telemetry
+# allowlisted origin -> 204 with exactly ONE Access-Control-Allow-Origin
+# (the SWA origin) + Access-Control-Allow-Credentials: true
 curl -si -X OPTIONS "$API" -H "Origin: https://<swa-hostname>" \
   -H "Access-Control-Request-Method: POST" \
-  -H "Access-Control-Request-Headers: content-type" | grep -i '^access-control'
-# any other origin -> no Access-Control-* headers at all
+  -H "Access-Control-Request-Headers: content-type,x-feasly-csrf" | grep -i '^access-control'
+# any other origin -> no Access-Control-Allow-Origin
 curl -si -X OPTIONS "$API" -H "Origin: https://evil.example" \
-  -H "Access-Control-Request-Method: POST" | grep -i '^access-control' || echo "none (ok)"
+  -H "Access-Control-Request-Method: POST" | grep -i '^access-control-allow-origin' || echo "none (ok)"
+# simple GET from the SWA origin -> exactly one Access-Control-Allow-Origin
+curl -si "https://<function-app>.azurewebsites.net/api/v1/city-data/freshness" \
+  -H "Origin: https://<swa-hostname>" | grep -ci '^access-control-allow-origin'   # expect 1
 ```
