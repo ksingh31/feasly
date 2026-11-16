@@ -13,7 +13,7 @@
  * or audit details — only ids and tenant keys.
  */
 import { randomUUID } from 'node:crypto';
-import { eq } from 'drizzle-orm';
+import { count, eq } from 'drizzle-orm';
 import type {
   Builder,
   BuilderCreateBody,
@@ -21,7 +21,7 @@ import type {
   LeadAssignBuilderResponse,
 } from '@feasly/contracts';
 import type { AppDb } from '../db/client';
-import { builders, tenants } from '../db/schema';
+import { builders, commissionInvoices, tenants } from '../db/schema';
 import { ErrorCodes, HttpError } from '../middleware/errors';
 import { isUniqueViolation } from './pg-errors';
 import { readDefaultPaymentMethod } from '../lib/payment-method';
@@ -285,7 +285,17 @@ export function createBuilderService(deps: BuilderServiceDeps): BuilderService {
       const rows = await db.query.builders.findMany({
         orderBy: (t, { desc }) => [desc(t.createdAt)],
       });
-      return rows.map(toContract);
+      // #873: flag builders with a live bank chargeback (one grouped query).
+      const open = await db
+        .select({ tenantKey: commissionInvoices.tenantKey, n: count() })
+        .from(commissionInvoices)
+        .where(eq(commissionInvoices.chargebackStatus, 'open'))
+        .groupBy(commissionInvoices.tenantKey);
+      const openByTenant = new Map(open.map((r) => [r.tenantKey, Number(r.n)]));
+      return rows.map((row) => ({
+        ...toContract(row),
+        openChargebacks: openByTenant.get(row.tenantKey) ?? 0,
+      }));
     },
 
     async getBuilder(id: string): Promise<Builder> {

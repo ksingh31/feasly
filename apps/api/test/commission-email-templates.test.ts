@@ -90,6 +90,27 @@ describe('commission-payment-failed template (BILL-04)', () => {
     expect(rendered.html).toContain('7 days');
     expect(rendered.text).toContain('7 days');
   });
+
+  it('#873: the chargeback_lost variant says the payment was reversed, not declined', () => {
+    const rendered = renderCommissionPaymentFailedEmail(CTX, {
+      invoiceRef: 'INV-2026-001',
+      commissionCents: 500_000,
+      currency: 'CAD',
+      updateWithinDays: 7,
+      reason: 'chargeback_lost',
+    });
+    expect(rendered.subject).toBe(
+      'Your bank reversed a payment — invoice INV-2026-001 is unpaid again',
+    );
+    for (const body of [rendered.html, rendered.text]) {
+      expect(body).toContain('INV-2026-001');
+      expect(body).toContain('$5,000.00');
+      expect(body).toContain('chargeback');
+      expect(body).toContain('still owed');
+      expect(body).not.toContain('declined');
+    }
+    expect(rendered.html).toContain('https://app.feasly.example/builder/billing');
+  });
 });
 
 describe('commission-payment-action-required template (#712)', () => {

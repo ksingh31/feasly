@@ -2529,6 +2529,7 @@ export function createComposition(
       chargebacks: createChargebackService({
         db: db.db,
         audit: billingAuditService,
+        commission: commissionService,
         email: emailService,
         opsInbox: config.email.opsInbox,
       }),
