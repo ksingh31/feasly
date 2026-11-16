@@ -44,6 +44,12 @@ export const BUILDER_E2E_ROUTES: readonly BuilderE2eRoute[] = [
   },
   {
     path: 'builder/settings',
+    url: '/builder/settings?tab=notifications',
+    name: 'settings-notifications',
+    ready: '[data-testid="toggle-newLeadEmail"]',
+  },
+  {
+    path: 'builder/settings',
     url: '/builder/settings?tab=embed',
     name: 'settings-embed',
     ready: '[data-testid="snippet"]',

@@ -607,6 +607,23 @@ export const routes: Routes = [
           (await import('./features/builder/builder-invoices.state'))
             .builderInvoicesStateProvider,
       ),
+      // #864: the shell's Leads unread badge reads BuilderLeadsSeenState
+      // (storage-plugin persisted under 'builderLeadsSeen'). Lazy-provided
+      // so it stays out of the initial bundle.
+      lazyProvider(
+        async () =>
+          (await import('./features/builder/builder-leads-seen.state'))
+            .builderLeadsSeenStateProvider,
+      ),
+      // #980: card-on-file / default-method / overview state read by the
+      // shell, dashboard banners, Money, Billing, Invoices and the lead
+      // drawer. Memory-only; lazy-provided so it stays out of the initial
+      // bundle.
+      lazyProvider(
+        async () =>
+          (await import('./features/builder/builder-billing.state'))
+            .builderBillingStateProvider,
+      ),
     ],
     data: { noindex: true },
     children: [
@@ -621,7 +638,7 @@ export const routes: Routes = [
           // The dashboard's due-invoice banners read BuilderInvoicesState
           // (lazy-loaded here so it stays out of the initial bundle,
           // mirroring the invoices route) while BuilderBillingState is
-          // already root-provided for the banner's card summary.
+          // already provided by the shell route for the banner's card summary.
           // DueInvoiceBannersState (banner dismissal/expansion/collapse UI
           // state, storage-plugin persisted) lazy-loads here too.
           lazyProvider(
@@ -640,7 +657,7 @@ export const routes: Routes = [
         // Builder Money overview (#532): KPIs, recent invoices with the
         // lifecycle stepper, card panel, how charges work. The shell
         // already lazy-provides BuilderInvoicesState; BuilderBillingState
-        // is root-provided. Admin-only like every billing page.
+        // is provided by the shell route too. Admin-only like every billing page.
         path: 'money',
         loadComponent: () =>
           import('./features/builder/builder-money.component').then(

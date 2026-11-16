@@ -297,6 +297,99 @@
   }
 }
 
+/* Notifications (#864): native checkbox styled as a switch (role="switch"). */
+.settings__toggles {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.settings__toggle {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-3);
+  padding: var(--space-3) var(--space-4);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  background: var(--card);
+}
+
+.settings__toggle-text {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.settings__toggle-label {
+  color: var(--text);
+  font: var(--type-body);
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.settings__toggle-locked {
+  color: var(--status-warning-fg);
+  font: var(--type-body-sm);
+}
+
+.settings__switch {
+  flex: 0 0 auto;
+  position: relative;
+  width: 44px;
+  height: 26px;
+  margin: 0;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-pill);
+  background: var(--surface-sunken);
+  appearance: none;
+  cursor: pointer;
+  transition: background-color 150ms ease;
+
+  &::after {
+    content: '';
+    position: absolute;
+    top: 2px;
+    left: 2px;
+    width: 20px;
+    height: 20px;
+    border-radius: 50%;
+    background: var(--muted);
+    transition: transform 150ms ease;
+  }
+
+  &:checked {
+    border-color: var(--accent);
+    background: var(--accent);
+
+    &::after {
+      background: var(--card);
+      transform: translateX(18px);
+    }
+  }
+
+  &:disabled {
+    opacity: 0.55;
+    cursor: not-allowed;
+  }
+
+  &:focus-visible {
+    outline: 2px solid var(--focus-ring);
+    outline-offset: 2px;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    transition: none;
+
+    &::after {
+      transition: none;
+    }
+  }
+}
+
 /* Help. */
 .settings__help-email {
   display: flex;

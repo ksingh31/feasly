@@ -9,6 +9,7 @@ import { of, throwError } from 'rxjs';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type {
   BuilderEmbedResponse,
+  BuilderNotificationPreferencesResponse,
   BuilderOriginRequest,
   BuilderProfileResponse,
 } from '@feasly/contracts';
@@ -16,8 +17,10 @@ import {
   BuilderSettingsState,
   ClearBuilderSettingsErrors,
   LoadBuilderEmbed,
+  LoadBuilderNotificationPreferences,
   LoadBuilderProfile,
   RequestBuilderOriginChange,
+  SaveBuilderNotificationPreferences,
   SaveBuilderProfile,
 } from './builder-settings.state';
 import { BuilderSettingsApiService } from './builder-settings-api.service';
@@ -60,6 +63,13 @@ const EMBED_RESPONSE: BuilderEmbedResponse = {
   openRequests: [],
 };
 
+const NOTIFICATIONS: BuilderNotificationPreferencesResponse = {
+  channel: 'email',
+  preferences: { newLeadEmail: true, needsYouDigest: false, billingEmail: true },
+  role: 'builder_admin',
+  canDisableBillingEmail: true,
+};
+
 function setup(overrides: Partial<Record<keyof BuilderSettingsApiService, unknown>> = {}) {
   TestBed.resetTestingModule();
   const api = {
@@ -69,6 +79,10 @@ function setup(overrides: Partial<Record<keyof BuilderSettingsApiService, unknow
     ),
     getEmbed: vi.fn().mockReturnValue(of(EMBED_RESPONSE)),
     requestOriginChange: vi.fn().mockReturnValue(of({ request: OPEN_REQUEST, created: true })),
+    getNotificationPreferences: vi.fn().mockReturnValue(of(NOTIFICATIONS)),
+    updateNotificationPreferences: vi.fn().mockImplementation((body: object) =>
+      of({ ...NOTIFICATIONS, preferences: { ...NOTIFICATIONS.preferences, ...body } }),
+    ),
     ...overrides,
   };
   TestBed.configureTestingModule({
@@ -159,5 +173,51 @@ describe('BuilderSettingsState (#871)', () => {
       'Each add entry must be https.',
     );
     expect(store.selectSnapshot(BuilderSettingsState.requestOutcome)).toBeNull();
+  });
+});
+
+describe('BuilderSettingsState notifications (#864)', () => {
+  it('loads the preferences', () => {
+    const { store } = setup();
+    store.dispatch(new LoadBuilderNotificationPreferences());
+    expect(store.selectSnapshot(BuilderSettingsState.notifications)).toEqual(NOTIFICATIONS);
+    expect(store.selectSnapshot(BuilderSettingsState.notificationsStatus)).toBe('ready');
+  });
+
+  it('marks a failed load as error', () => {
+    const { store } = setup({
+      getNotificationPreferences: vi.fn().mockReturnValue(throwError(() => ({ message: 'x' }))),
+    });
+    store.dispatch(new LoadBuilderNotificationPreferences());
+    expect(store.selectSnapshot(BuilderSettingsState.notificationsStatus)).toBe('error');
+  });
+
+  it('saves a partial change and takes the server response', () => {
+    const { store, api } = setup();
+    store.dispatch(new LoadBuilderNotificationPreferences());
+    store.dispatch(new SaveBuilderNotificationPreferences({ needsYouDigest: true }));
+    expect(api.updateNotificationPreferences).toHaveBeenCalledWith({ needsYouDigest: true });
+    expect(store.selectSnapshot(BuilderSettingsState.notifications)?.preferences.needsYouDigest).toBe(
+      true,
+    );
+    expect(store.selectSnapshot(BuilderSettingsState.notificationsSaving)).toBe(false);
+    expect(store.selectSnapshot(BuilderSettingsState.notificationsError)).toBeNull();
+  });
+
+  it('keeps the server state and the API message on a 409 LAST_ADMIN', () => {
+    const message = 'Billing emails must reach at least one admin.';
+    const { store } = setup({
+      updateNotificationPreferences: vi
+        .fn()
+        .mockReturnValue(throwError(() => ({ code: 'LAST_ADMIN', message, retryable: false }))),
+    });
+    store.dispatch(new LoadBuilderNotificationPreferences());
+    store.dispatch(new SaveBuilderNotificationPreferences({ billingEmail: false }));
+    expect(store.selectSnapshot(BuilderSettingsState.notifications)?.preferences.billingEmail).toBe(
+      true,
+    );
+    expect(store.selectSnapshot(BuilderSettingsState.notificationsError)).toBe(message);
+    store.dispatch(new ClearBuilderSettingsErrors());
+    expect(store.selectSnapshot(BuilderSettingsState.notificationsError)).toBeNull();
   });
 });

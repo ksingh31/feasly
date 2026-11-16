@@ -11,6 +11,8 @@ import { Action, provideStates, Selector, State, StateContext } from '@ngxs/stor
 import type {
   BuilderAccountClosureBody,
   BuilderEmbedResponse,
+  BuilderNotificationPreferencesResponse,
+  BuilderNotificationPreferencesUpdateBody,
   BuilderOriginRequestBody,
   BuilderProfile,
   BuilderProfileUpdateBody,
@@ -39,6 +41,17 @@ export class LoadBuilderEmbed {
 export class RequestBuilderOriginChange {
   static readonly type = '[BuilderSettings] Request origin change';
   constructor(public readonly body: BuilderOriginRequestBody) {}
+}
+
+/** Load the signed-in member's email notification preferences (#864). */
+export class LoadBuilderNotificationPreferences {
+  static readonly type = '[BuilderSettings] Load notification preferences';
+}
+
+/** Save a (partial) notification preferences change (#864). */
+export class SaveBuilderNotificationPreferences {
+  static readonly type = '[BuilderSettings] Save notification preferences';
+  constructor(public readonly body: BuilderNotificationPreferencesUpdateBody) {}
 }
 
 /** #861: "Close my account" — files one admin task (org owners only). */
@@ -74,6 +87,13 @@ export interface BuilderSettingsStateModel {
   /** The API's message for the last failed request; '' = failed, no message. */
   requestError: string | null;
   requestOutcome: BuilderOriginRequestOutcome;
+  /** #864: email notification preferences (null until loaded). */
+  notifications: BuilderNotificationPreferencesResponse | null;
+  notificationsStatus: BuilderSettingsLoadStatus;
+  /** Preferences save in flight (busy guard). */
+  notificationsSaving: boolean;
+  /** The API's message for the last failed save (409/403…); '' = no message. */
+  notificationsError: string | null;
   /** #861: closure request in flight (busy guard). */
   closing: boolean;
   /** The API's message for the last failed closure request; '' = no message. */
@@ -94,6 +114,10 @@ const defaults: BuilderSettingsStateModel = {
   requesting: false,
   requestError: null,
   requestOutcome: null,
+  notifications: null,
+  notificationsStatus: 'idle',
+  notificationsSaving: false,
+  notificationsError: null,
   closing: false,
   closeError: null,
   closeOutcome: null,
@@ -106,7 +130,7 @@ function errorMessage(err: unknown): string {
 
 /**
  * Builder Settings state (#871): profile & branding, embed install data,
- * and origin-change requests. Memory-only (never persisted) and lazy-
+ * origin-change requests, and email notification preferences (#864). Memory-only (never persisted) and lazy-
  * provided at the `/builder/settings` route.
  *
  * Action handlers RETURN their API observables: NGXS owns the
@@ -175,6 +199,28 @@ export class BuilderSettingsState {
   @Selector()
   static requestOutcome(state: BuilderSettingsStateModel): BuilderOriginRequestOutcome {
     return state.requestOutcome;
+  }
+
+  @Selector()
+  static notifications(
+    state: BuilderSettingsStateModel,
+  ): BuilderNotificationPreferencesResponse | null {
+    return state.notifications;
+  }
+
+  @Selector()
+  static notificationsStatus(state: BuilderSettingsStateModel): BuilderSettingsLoadStatus {
+    return state.notificationsStatus;
+  }
+
+  @Selector()
+  static notificationsSaving(state: BuilderSettingsStateModel): boolean {
+    return state.notificationsSaving;
+  }
+
+  @Selector()
+  static notificationsError(state: BuilderSettingsStateModel): string | null {
+    return state.notificationsError;
   }
 
   @Selector()
@@ -272,6 +318,43 @@ export class BuilderSettingsState {
     );
   }
 
+  @Action(LoadBuilderNotificationPreferences)
+  loadNotifications(ctx: StateContext<BuilderSettingsStateModel>): Observable<unknown> {
+    ctx.patchState({ notificationsStatus: 'loading' });
+    return this.api.getNotificationPreferences().pipe(
+      tap((notifications) => {
+        ctx.patchState({ notifications, notificationsStatus: 'ready' });
+      }),
+      catchError(() => {
+        ctx.patchState({ notificationsStatus: 'error' });
+        return of(null);
+      }),
+    );
+  }
+
+  /**
+   * Server state wins: on success the response replaces the toggles; on
+   * failure (409 LAST_ADMIN, 403 view-as, network) the toggles keep the
+   * last server state and the API's message lands in `notificationsError`.
+   */
+  @Action(SaveBuilderNotificationPreferences)
+  saveNotifications(
+    ctx: StateContext<BuilderSettingsStateModel>,
+    action: SaveBuilderNotificationPreferences,
+  ): Observable<unknown> {
+    if (ctx.getState().notificationsSaving) return of(null);
+    ctx.patchState({ notificationsSaving: true, notificationsError: null });
+    return this.api.updateNotificationPreferences(action.body).pipe(
+      tap((notifications) => {
+        ctx.patchState({ notifications, notificationsSaving: false });
+      }),
+      catchError((err: unknown) => {
+        ctx.patchState({ notificationsSaving: false, notificationsError: errorMessage(err) });
+        return of(null);
+      }),
+    );
+  }
+
   @Action(RequestBuilderAccountClosure)
   requestAccountClosure(
     ctx: StateContext<BuilderSettingsStateModel>,
@@ -296,6 +379,7 @@ export class BuilderSettingsState {
       saveError: null,
       requestError: null,
       requestOutcome: null,
+      notificationsError: null,
       closeError: null,
       closeOutcome: null,
     });
