@@ -185,6 +185,7 @@ export interface CommissionInvoiceRecord {
   readonly dueAt: Date | null;
   /** Whole days past `dueAt`; 0 when not overdue. */
   readonly overdueDays: number;
+  /**
    * Bank chargeback state (#719): null = none; 'open' while Stripe's
    * dispute is live (retryCharge refuses); then won | lost | warning_closed.
    */
@@ -2307,7 +2308,7 @@ export function createCommissionService(
         if (already !== undefined) return { reopened: false };
         row = current;
       }
-      const record = toRecord(row, await leadNameFor(db, row.leadId), billing.commissionRate, taxLabel);
+      const record = toRecord(row, await leadNameFor(db, row.leadId), billing.commissionRate, taxLabel, dunningContext());
       // Same event type as a card decline so the dunning queue (BILL-03)
       // lists it with "past due since" = now and this reason.
       await audit.append({

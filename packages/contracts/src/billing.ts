@@ -166,6 +166,7 @@ export interface CommissionInvoice {
   readonly dueAt?: string | null;
   /** Whole days past `dueAt`; 0 when not overdue. */
   readonly overdueDays?: number;
+  /*
    * Bank chargebacks + dashboard refunds (#719). The API always sends
    * these; optional only so fixtures written before #719 keep compiling.
    */
@@ -216,6 +217,8 @@ export interface UpdateInvoiceDunningResponse {
   /** ISO 8601; null when no automatic retry is scheduled. */
   readonly nextRetryAt: string | null;
 }
+
+/**
  * Bank chargeback state on an invoice (#719): 'open' while Stripe's
  * dispute is live, then the outcome Stripe reported on close.
  */
