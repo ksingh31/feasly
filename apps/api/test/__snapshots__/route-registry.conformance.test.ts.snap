@@ -263,6 +263,14 @@ exports[`route registry > exhaustive role x route permission matrix (auth/04 acc
     "builder_member",
     "none",
   ],
+  "GET /api/v1/magic-link/estimates": [
+    "super_admin",
+    "admin",
+    "viewer",
+    "builder_admin",
+    "builder_member",
+    "none",
+  ],
   "GET /api/v1/magic-link/verify": [
     "super_admin",
     "admin",
@@ -679,6 +687,14 @@ exports[`route registry > exhaustive role x route permission matrix (auth/04 acc
     "none",
   ],
   "POST /api/v1/leads": [
+    "super_admin",
+    "admin",
+    "viewer",
+    "builder_admin",
+    "builder_member",
+    "none",
+  ],
+  "POST /api/v1/magic-link/estimates/open": [
     "super_admin",
     "admin",
     "viewer",

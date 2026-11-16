@@ -16,6 +16,8 @@
  */
 import { z } from 'zod';
 import type {
+  MagicLinkEstimateOpenResponse,
+  MagicLinkEstimatesResponse,
   MagicLinkReissueResponse,
   MagicLinkVerifyResponse,
 } from '@feasly/contracts';
@@ -30,6 +32,10 @@ export interface MagicLinkRoute {
   verify(query: unknown): Promise<MagicLinkVerifyResponse>;
   /** POST /api/v1/magic-link/reissue — idempotent link resend. */
   reissue(requestBody: unknown): Promise<MagicLinkReissueResponse>;
+  /** GET /api/v1/magic-link/estimates?token=… — household estimate list (#800). */
+  estimates(query: unknown): Promise<MagicLinkEstimatesResponse>;
+  /** POST /api/v1/magic-link/estimates/open — open one listed estimate (#800). */
+  openEstimate(requestBody: unknown): Promise<MagicLinkEstimateOpenResponse>;
 }
 
 const verifyQuerySchema = z.object({
@@ -52,5 +58,19 @@ export function createMagicLinkRoute(deps: MagicLinkRouteDeps): MagicLinkRoute {
     },
     reissue: (requestBody: unknown): Promise<MagicLinkReissueResponse> =>
       deps.magicLinks.reissue(requestBody),
+    estimates: (query: unknown): Promise<MagicLinkEstimatesResponse> => {
+      const parsed = verifyQuerySchema.safeParse(query);
+      if (!parsed.success) {
+        // Same denial shape as an unknown token — no oracle.
+        return Promise.resolve({
+          valid: false,
+          reason: 'invalid',
+          reissueAllowed: true,
+        });
+      }
+      return deps.magicLinks.listEstimates(parsed.data.token);
+    },
+    openEstimate: (requestBody: unknown): Promise<MagicLinkEstimateOpenResponse> =>
+      deps.magicLinks.openEstimate(requestBody),
   };
 }

@@ -773,3 +773,33 @@ describe('composition wiring', () => {
     expect(result.provider).toBe('log');
   });
 });
+
+describe('recent estimates email (#800)', () => {
+  const several = renderMagicLinkEmail(CTX, { ...REPORT_INPUT, estimateCount: 4 });
+
+  it('says "your recent estimates" when the household link lists several properties', () => {
+    expect(several.subject).toMatch(/^Your recent .+ estimates$/);
+    for (const body of [several.html, several.text]) {
+      expect(body).toContain('recent estimates');
+      expect(body).toContain('4 properties');
+      expect(body).toContain('View my estimates');
+      expect(body).toContain(MAGIC_URL);
+      // Same real link rules as the single-report email.
+      expect(body).toContain('works until Nov 22, 2026');
+      expect(body).toContain('as often as you like');
+    }
+  });
+
+  it('keeps the unsubscribe footer and names no single address', () => {
+    expect(several.html.toLowerCase()).toContain('unsubscribe');
+    expect(several.text.toLowerCase()).toContain('unsubscribe');
+    expect(several.subject).not.toContain('1412 Prospect Av SW');
+  });
+
+  it('a count of 1 (or none) keeps the single-report email', () => {
+    for (const estimateCount of [1, undefined]) {
+      const one = renderMagicLinkEmail(CTX, { ...REPORT_INPUT, estimateCount });
+      expect(one.subject).toBe('Your estimate for 1412 Prospect Av SW');
+    }
+  });
+});

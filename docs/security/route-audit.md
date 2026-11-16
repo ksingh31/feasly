@@ -46,6 +46,8 @@ Related: [rate-limits.md](rate-limits.md) · [asvs-l1.md](asvs-l1.md) ·
 | POST | `/api/v1/leads` | none | — | 10/min per IP (dedicated lead limiter) | live | Anonymous by design; dedicated lead limiter; body never logged (PII). |
 | GET | `/api/v1/magic-link/verify` | magic-token | — | 100/min per IP | live |  |
 | POST | `/api/v1/magic-link/reissue` | none | — | 60s cooldown · 5 sends/hr per email · 100/min per IP | live | Same response whether or not the email exists (no account enumeration). |
+| GET | `/api/v1/magic-link/estimates` | magic-token | — | 100/min per IP | live | Lists other addresses only for household links (reissue-minted, email-only); lead-submit tokens prove nothing about the inbox, so they list their own report only. |
+| POST | `/api/v1/magic-link/estimates/open` | magic-token | — | 100/min per IP | live | Household token required; handle must be a non-quarantined lead of the same email (uniform invalid otherwise); minted token expires no later than the household link. |
 | GET | `/api/v1/reports/{reportToken}` | magic-token | — | 100/min per IP | live | Token is the credential: hashed at rest, expiring; unknown/expired token never returns another lead’s report. |
 | POST | `/api/v1/reports/{reportToken}/revisions` | magic-token | — | 20/hr per IP | live | Token is the credential; revision lands on the token’s own lead only. |
 | POST | `/api/v1/callbacks` | magic-token | — | 10/min per IP | live |  |

@@ -44,6 +44,9 @@ import {
   LeadRequestSchema,
   LeadResponseSchema,
   MagicLinkVerifyResponseSchema,
+  MagicLinkEstimatesResponseSchema,
+  MagicLinkEstimateOpenRequestSchema,
+  MagicLinkEstimateOpenResponseSchema,
   PartnerShareRequestSchema,
   PartnerShareResponseSchema,
   PartnerShareVerifyResponseSchema,
@@ -460,6 +463,68 @@ export function buildOpenApiSpec(options: OpenApiSpecOptions) {
         description: 'Partner link validity',
         content: {
           'application/json': { schema: PartnerShareVerifyResponseSchema },
+        },
+      },
+      ...errorResponses(),
+    },
+  });
+
+  // GET /v1/magic-link/estimates (#800)
+  registry.registerPath({
+    method: 'get',
+    path: '/v1/magic-link/estimates',
+    summary: 'List the household\'s recent estimates behind an emailed link',
+    description:
+      'Returns up to 10 of the email\'s most recent estimates, one per ' +
+      'property, newest first. Only household links (sent by POST ' +
+      '/v1/magic-link/reissue, delivered by email only) list other ' +
+      'properties; other owner links list their own report only. ' +
+      'Partner-share, expired, revoked and erased tokens answer ' +
+      'valid: false. The token IS the credential.',
+    security: [],
+    request: {
+      query: z.object({
+        token: z
+          .string()
+          .min(1)
+          .max(500)
+          .describe('The magic-link token from the email URL'),
+      }),
+    },
+    responses: {
+      '200': {
+        description: 'Household estimate list, or the uniform denial',
+        content: {
+          'application/json': { schema: MagicLinkEstimatesResponseSchema },
+        },
+      },
+      ...errorResponses(),
+    },
+  });
+
+  // POST /v1/magic-link/estimates/open (#800)
+  registry.registerPath({
+    method: 'post',
+    path: '/v1/magic-link/estimates/open',
+    summary: 'Open one estimate from the household list',
+    description:
+      'Exchanges the household token + a list handle for an owner report ' +
+      'token for that property (open /r/{reportToken}). The minted token ' +
+      'never outlives the household link. Non-household tokens and handles ' +
+      'outside the household answer valid: false.',
+    security: [],
+    request: {
+      body: {
+        content: {
+          'application/json': { schema: MagicLinkEstimateOpenRequestSchema },
+        },
+      },
+    },
+    responses: {
+      '200': {
+        description: 'Report token for the chosen estimate, or the uniform denial',
+        content: {
+          'application/json': { schema: MagicLinkEstimateOpenResponseSchema },
         },
       },
       ...errorResponses(),

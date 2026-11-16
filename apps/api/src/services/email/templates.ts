@@ -128,6 +128,11 @@ export interface MagicLinkTemplateInput {
    * (America/Edmonton); falls back to `expiresInDays` when absent.
    */
   readonly expiresOn?: Date;
+  /**
+   * #800 (consumer only): how many properties the household link lists.
+   * Above 1 the email is about "your recent estimates", not one address.
+   */
+  readonly estimateCount?: number;
 }
 
 const TRUST_LINE_TEXT =
@@ -144,13 +149,16 @@ function renderConsumerReportEmail(
   ctx: TemplateContext,
   input: MagicLinkTemplateInput,
 ): RenderedEmail {
+  const until = input.expiresOn
+    ? `until ${formatEdmontonDate(input.expiresOn)}`
+    : `for ${input.expiresInDays} days`;
+  if (input.estimateCount !== undefined && input.estimateCount > 1) {
+    return renderConsumerRecentEstimatesEmail(ctx, input, input.estimateCount, until);
+  }
   const address = input.address?.trim() ? input.address.trim() : undefined;
   const subject = address
     ? `Your estimate for ${address}`
     : `Your ${ctx.brandName} estimate is ready`;
-  const until = input.expiresOn
-    ? `until ${formatEdmontonDate(input.expiresOn)}`
-    : `for ${input.expiresInDays} days`;
   const ctaLabel = 'View my estimate';
   const greetingText = input.name ? `Hi ${input.name},` : 'Hi there,';
   const greetingHtml = input.name ? `Hi ${esc(input.name)},` : 'Hi there,';
@@ -189,6 +197,47 @@ ${fallbackLink(input.magicLinkUrl)}`;
     html: layout(
       ctx,
       address ? `Your estimate for ${esc(address)}` : 'Your estimate is ready',
+      body,
+      footerUrl ? renderLeadEmailFooter(footerUrl) : undefined,
+    ),
+    text,
+  };
+}
+
+/**
+ * #800: the returning-user email when the household link lists several
+ * properties. Same link rules as the single-report email; no addresses or
+ * dollar figures in the body — the list lives behind the link.
+ */
+function renderConsumerRecentEstimatesEmail(
+  ctx: TemplateContext,
+  input: MagicLinkTemplateInput,
+  count: number,
+  until: string,
+): RenderedEmail {
+  const subject = `Your recent ${ctx.brandName} estimates`;
+  const ctaLabel = 'View my estimates';
+  const greetingText = input.name ? `Hi ${input.name},` : 'Hi there,';
+  const greetingHtml = input.name ? `Hi ${esc(input.name)},` : 'Hi there,';
+  const intro = `Here are your recent estimates — ${count} properties, newest first. Choose one to open its report.`;
+  const linkRules = `This link works ${until}. You can open it as often as you like, on any device.`;
+  const freshLink =
+    'After that, open the same link and enter your email address — we will send you a fresh one.';
+  const body = `<p>${greetingHtml}</p>
+<p>${esc(intro)}</p>
+${ctaButton(input.magicLinkUrl, ctaLabel)}
+<p>${esc(linkRules)}</p>
+<p style="font-size:14px;color:#5c574f;">${esc(freshLink)}</p>
+${fallbackLink(input.magicLinkUrl)}`;
+  const footerUrl = input.unsubscribeUrl;
+  const text =
+    `${greetingText}\n\n${intro}\n\n${ctaLabel}: ${input.magicLinkUrl}\n\n${linkRules}\n${freshLink}\n\n— ${ctx.brandName}\n${TRUST_LINE_TEXT}` +
+    (footerUrl ? `\n\n${leadEmailFooterText(footerUrl)}` : '');
+  return {
+    subject,
+    html: layout(
+      ctx,
+      'Your recent estimates',
       body,
       footerUrl ? renderLeadEmailFooter(footerUrl) : undefined,
     ),

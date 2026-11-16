@@ -599,6 +599,56 @@ export const MagicLinkVerifyResponseSchema = z
   })
   .openapi('MagicLinkVerifyResponse');
 
+/** #800 — one item of the household estimate list. */
+export const MagicLinkEstimateItemSchema = z
+  .object({
+    handle: z
+      .string()
+      .describe('Opaque per-estimate handle — opens the report with the household token; not a credential alone'),
+    address: z.string().describe('Display-formatted property address'),
+    preparedAt: z.string().datetime().describe('When the estimate was prepared (ISO-8601)'),
+    projectType: z.enum(['new_build', 'renovation']),
+    latest: z.boolean().describe('True for the newest estimate (first item)'),
+    current: z
+      .boolean()
+      .describe('True when the presented token already opens this report'),
+  })
+  .openapi('MagicLinkEstimateItem');
+
+/** #800 — `GET /v1/magic-link/estimates`. */
+export const MagicLinkEstimatesResponseSchema = z
+  .object({
+    valid: z.boolean(),
+    estimates: z
+      .array(MagicLinkEstimateItemSchema)
+      .max(50)
+      .optional()
+      .describe('Up to 10 items (config), newest first, one per property — present when valid'),
+    reason: z.enum(['expired', 'invalid']).optional(),
+    reissueAllowed: z.boolean().optional(),
+  })
+  .openapi('MagicLinkEstimatesResponse');
+
+/** #800 — `POST /v1/magic-link/estimates/open`. */
+export const MagicLinkEstimateOpenRequestSchema = z
+  .object({
+    token: z.string().min(1).max(500).describe('The household token from the emailed link'),
+    handle: z.string().uuid().describe('MagicLinkEstimateItem.handle'),
+  })
+  .openapi('MagicLinkEstimateOpenRequest');
+
+export const MagicLinkEstimateOpenResponseSchema = z
+  .object({
+    valid: z.boolean(),
+    reportToken: z
+      .string()
+      .optional()
+      .describe('Owner report token for the chosen estimate (Bearer <redacted>) — present when valid'),
+    reason: z.enum(['expired', 'invalid']).optional(),
+    reissueAllowed: z.boolean().optional(),
+  })
+  .openapi('MagicLinkEstimateOpenResponse');
+
 // ── Privacy ─────────────────────────────────────────────────────────────
 
 export const PrivacyEraseRequestSchema = z

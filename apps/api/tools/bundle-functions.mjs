@@ -62,6 +62,8 @@ const targets = [
   { entry: 'src/functions/health.ts', out: 'health/index.js' },
   { entry: 'src/functions/magic-link-verify.ts', out: 'magic-link-verify/index.js' },
   { entry: 'src/functions/magic-link-reissue.ts', out: 'magic-link-reissue/index.js' },
+  { entry: 'src/functions/magic-link-estimates.ts', out: 'magic-link-estimates/index.js' },
+  { entry: 'src/functions/magic-link-estimates-open.ts', out: 'magic-link-estimates-open/index.js' },
   { entry: 'src/functions/events.ts', out: 'events/index.js' },
   { entry: 'src/functions/privacy-export.ts', out: 'privacy-export/index.js' },
   { entry: 'src/functions/privacy-erase.ts', out: 'privacy-erase/index.js' },

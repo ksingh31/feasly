@@ -129,6 +129,8 @@ These need owner input and are not implemented yet:
 | POST | `/api/v1/leads` | none | 10/min per IP (dedicated lead limiter) | live |
 | GET | `/api/v1/magic-link/verify` | magic-token | 100/min per IP | live |
 | POST | `/api/v1/magic-link/reissue` | none | 60s cooldown · 5 sends/hr per email · 100/min per IP | live |
+| GET | `/api/v1/magic-link/estimates` | magic-token | 100/min per IP | live |
+| POST | `/api/v1/magic-link/estimates/open` | magic-token | 100/min per IP | live |
 | GET | `/api/v1/reports/{reportToken}` | magic-token | 100/min per IP | live |
 | POST | `/api/v1/reports/{reportToken}/revisions` | magic-token | 20/hr per IP | live |
 | POST | `/api/v1/callbacks` | magic-token | 10/min per IP | live |

@@ -913,6 +913,121 @@ exports[`OpenAPI drift > generated spec matches the snapshot 1`] = `
         ],
         "type": "object",
       },
+      "MagicLinkEstimateItem": {
+        "properties": {
+          "address": {
+            "description": "Display-formatted property address",
+            "type": "string",
+          },
+          "current": {
+            "description": "True when the presented token already opens this report",
+            "type": "boolean",
+          },
+          "handle": {
+            "description": "Opaque per-estimate handle — opens the report with the household token; not a credential alone",
+            "type": "string",
+          },
+          "latest": {
+            "description": "True for the newest estimate (first item)",
+            "type": "boolean",
+          },
+          "preparedAt": {
+            "description": "When the estimate was prepared (ISO-8601)",
+            "format": "date-time",
+            "type": "string",
+          },
+          "projectType": {
+            "enum": [
+              "new_build",
+              "renovation",
+            ],
+            "type": "string",
+          },
+        },
+        "required": [
+          "handle",
+          "address",
+          "preparedAt",
+          "projectType",
+          "latest",
+          "current",
+        ],
+        "type": "object",
+      },
+      "MagicLinkEstimateOpenRequest": {
+        "properties": {
+          "handle": {
+            "description": "MagicLinkEstimateItem.handle",
+            "format": "uuid",
+            "type": "string",
+          },
+          "token": {
+            "description": "The household token from the emailed link",
+            "maxLength": 500,
+            "minLength": 1,
+            "type": "string",
+          },
+        },
+        "required": [
+          "token",
+          "handle",
+        ],
+        "type": "object",
+      },
+      "MagicLinkEstimateOpenResponse": {
+        "properties": {
+          "reason": {
+            "enum": [
+              "expired",
+              "invalid",
+            ],
+            "type": "string",
+          },
+          "reissueAllowed": {
+            "type": "boolean",
+          },
+          "reportToken": {
+            "description": "Owner report token for the chosen estimate (Bearer <redacted>) — present when valid",
+            "type": "string",
+          },
+          "valid": {
+            "type": "boolean",
+          },
+        },
+        "required": [
+          "valid",
+        ],
+        "type": "object",
+      },
+      "MagicLinkEstimatesResponse": {
+        "properties": {
+          "estimates": {
+            "description": "Up to 10 items (config), newest first, one per property — present when valid",
+            "items": {
+              "$ref": "#/components/schemas/MagicLinkEstimateItem",
+            },
+            "maxItems": 50,
+            "type": "array",
+          },
+          "reason": {
+            "enum": [
+              "expired",
+              "invalid",
+            ],
+            "type": "string",
+          },
+          "reissueAllowed": {
+            "type": "boolean",
+          },
+          "valid": {
+            "type": "boolean",
+          },
+        },
+        "required": [
+          "valid",
+        ],
+        "type": "object",
+      },
       "MagicLinkVerifyResponse": {
         "properties": {
           "estimateId": {
@@ -3316,6 +3431,179 @@ URL versioning (\`/v1/\`). Breaking changes ship as \`/v2/\` with 6 months notic
           },
         ],
         "summary": "Submit a lead",
+      },
+    },
+    "/v1/magic-link/estimates": {
+      "get": {
+        "description": "Returns up to 10 of the email's most recent estimates, one per property, newest first. Only household links (sent by POST /v1/magic-link/reissue, delivered by email only) list other properties; other owner links list their own report only. Partner-share, expired, revoked and erased tokens answer valid: false. The token IS the credential.",
+        "parameters": [
+          {
+            "description": "The magic-link token from the email URL",
+            "in": "query",
+            "name": "token",
+            "required": true,
+            "schema": {
+              "description": "The magic-link token from the email URL",
+              "maxLength": 500,
+              "minLength": 1,
+              "type": "string",
+            },
+          },
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MagicLinkEstimatesResponse",
+                },
+              },
+            },
+            "description": "Household estimate list, or the uniform denial",
+          },
+          "400": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails",
+                },
+              },
+            },
+            "description": "Bad request — validation failed",
+          },
+          "429": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails",
+                },
+              },
+            },
+            "description": "Rate limit exceeded — per-key sliding window (60s) or per-IP fixed window. Body is RFC 7807 problem+json with code RATE_LIMITED. The X-RateLimit-* headers report the key's quota state.",
+            "headers": {
+              "X-RateLimit-Limit": {
+                "description": "Requests allowed per 60-second window for this API key.",
+                "required": true,
+                "schema": {
+                  "description": "Requests allowed per 60-second window for this API key.",
+                  "type": "integer",
+                },
+              },
+              "X-RateLimit-Remaining": {
+                "description": "Requests remaining in the current window.",
+                "required": true,
+                "schema": {
+                  "description": "Requests remaining in the current window.",
+                  "type": "integer",
+                },
+              },
+              "X-RateLimit-Reset": {
+                "description": "Unix epoch seconds when the current window slides past the oldest request.",
+                "required": true,
+                "schema": {
+                  "description": "Unix epoch seconds when the current window slides past the oldest request.",
+                  "type": "integer",
+                },
+              },
+            },
+          },
+          "500": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails",
+                },
+              },
+            },
+            "description": "Internal server error",
+          },
+        },
+        "security": [],
+        "summary": "List the household's recent estimates behind an emailed link",
+      },
+    },
+    "/v1/magic-link/estimates/open": {
+      "post": {
+        "description": "Exchanges the household token + a list handle for an owner report token for that property (open /r/{reportToken}). The minted token never outlives the household link. Non-household tokens and handles outside the household answer valid: false.",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/MagicLinkEstimateOpenRequest",
+              },
+            },
+          },
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MagicLinkEstimateOpenResponse",
+                },
+              },
+            },
+            "description": "Report token for the chosen estimate, or the uniform denial",
+          },
+          "400": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails",
+                },
+              },
+            },
+            "description": "Bad request — validation failed",
+          },
+          "429": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails",
+                },
+              },
+            },
+            "description": "Rate limit exceeded — per-key sliding window (60s) or per-IP fixed window. Body is RFC 7807 problem+json with code RATE_LIMITED. The X-RateLimit-* headers report the key's quota state.",
+            "headers": {
+              "X-RateLimit-Limit": {
+                "description": "Requests allowed per 60-second window for this API key.",
+                "required": true,
+                "schema": {
+                  "description": "Requests allowed per 60-second window for this API key.",
+                  "type": "integer",
+                },
+              },
+              "X-RateLimit-Remaining": {
+                "description": "Requests remaining in the current window.",
+                "required": true,
+                "schema": {
+                  "description": "Requests remaining in the current window.",
+                  "type": "integer",
+                },
+              },
+              "X-RateLimit-Reset": {
+                "description": "Unix epoch seconds when the current window slides past the oldest request.",
+                "required": true,
+                "schema": {
+                  "description": "Unix epoch seconds when the current window slides past the oldest request.",
+                  "type": "integer",
+                },
+              },
+            },
+          },
+          "500": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails",
+                },
+              },
+            },
+            "description": "Internal server error",
+          },
+        },
+        "security": [],
+        "summary": "Open one estimate from the household list",
       },
     },
     "/v1/partners": {

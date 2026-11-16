@@ -31,6 +31,11 @@ export interface MagicLinkRecord {
   readonly expiresAt: Date;
   readonly usedAt: Date | null;
   readonly revokedAt: Date | null;
+  /**
+   * #800: true for email-only household links (reissue path) — the only
+   * links that list a household's other estimates. Omitted → false.
+   */
+  readonly household?: boolean;
   readonly createdAt: Date;
 }
 
@@ -58,6 +63,11 @@ export interface IssueMagicLinkArgs {
   readonly ttlSeconds: number;
   /** #793: true when issued for a sandbox (test API key) lead. */
   readonly sandbox?: boolean;
+  /**
+   * #800: mint a household link. Only for tokens delivered by email and
+   * never returned in an API response — the caller's contract.
+   */
+  readonly household?: boolean;
   /** Injected clock for tests; defaults to wall time. */
   readonly clock?: () => Date;
 }
@@ -105,6 +115,7 @@ function toRecord(row: typeof magicLinks.$inferSelect): MagicLinkRecord {
     expiresAt: row.expiresAt,
     usedAt: row.usedAt,
     revokedAt: row.revokedAt,
+    household: row.household,
     createdAt: row.createdAt,
   };
 }
@@ -128,6 +139,7 @@ export function createDrizzleMagicLinkStore(
           tokenHash: hashMagicToken(token),
           expiresAt: new Date(now.getTime() + args.ttlSeconds * 1000),
           sandbox: args.sandbox ?? false,
+          household: args.household ?? false,
         })
         .returning({ id: magicLinks.id, expiresAt: magicLinks.expiresAt });
       const row = rows[0];

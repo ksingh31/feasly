@@ -200,6 +200,9 @@ const EnvSchema = z.object({
   // an email-bombing vector against any known address. This caps actual
   // magic-link *sends* per normalized email per rolling hour on both paths.
   MAGIC_LINK_MAX_SENDS_PER_HOUR: z.coerce.number().int().positive().default(5),
+  // #800: how many of a household's most recent estimates (one per
+  // property) the emailed household link lists. Owner decision on #704: 10.
+  MAGIC_LINK_HOUSEHOLD_LIST_LIMIT: z.coerce.number().int().positive().max(50).default(10),
   // EMB-06: relay-code lifetime (10 minutes per story) and the session-token
   // lifetime it exchanges into (12 hours per story). Both from env so tests
   // and staging can shorten them without code changes.
@@ -688,6 +691,11 @@ export interface AuthConfig {
    * never a 429 — so the budget can't become a send oracle.
    */
   readonly magicLinkMaxSendsPerHour: number;
+  /**
+   * #800: max estimates (one per property, newest first) the household
+   * link lists (from MAGIC_LINK_HOUSEHOLD_LIST_LIMIT).
+   */
+  readonly magicLinkHouseholdListLimit: number;
   /**
    * INTERIM (api-mcp/01): pre-shared key for the admin endpoints, from
    * ADMIN_API_KEY. admin/01 replaces this with session auth. Undefined =
@@ -1650,6 +1658,7 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): ApiConfig {
       magicLinkTtlSeconds: e.MAGIC_LINK_TTL_SECONDS,
       magicLinkReissueCooldownMs: e.MAGIC_LINK_REISSUE_COOLDOWN_MS,
       magicLinkMaxSendsPerHour: e.MAGIC_LINK_MAX_SENDS_PER_HOUR,
+      magicLinkHouseholdListLimit: e.MAGIC_LINK_HOUSEHOLD_LIST_LIMIT,
       adminApiKey: e.ADMIN_API_KEY,
       adminSessionTtlSeconds: e.ADMIN_SESSION_TTL_SECONDS,
       adminSessionIdleTimeoutSeconds: e.ADMIN_SESSION_IDLE_TIMEOUT_SECONDS,

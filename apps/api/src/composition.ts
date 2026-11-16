@@ -49,6 +49,10 @@ import {
   type MagicLinkService,
 } from './services/magic-link.service';
 import {
+  createDrizzleHouseholdEstimatesStore,
+  type HouseholdEstimatesStore,
+} from './services/household-estimates.store';
+import {
   createUnsubscribeService,
   type UnsubscribeService,
 } from './services/unsubscribe.service';
@@ -878,6 +882,8 @@ export interface CompositionOptions {
   /** #703: report-opened + follow-up stamps (default: Drizzle). */
   readonly leadFollowUpStore?: LeadFollowUpStore;
   readonly magicLinkStore?: MagicLinkStore;
+  /** #800: test override for the household estimate list. */
+  readonly householdEstimatesStore?: HouseholdEstimatesStore;
   readonly privacyStore?: PrivacyStore;
   readonly apiKeyStore?: ApiKeyStore;
   readonly apiKeyAuditStore?: ApiKeyAuditStore;
@@ -1208,10 +1214,14 @@ export function createComposition(
   const magicLinkService: MagicLinkService = createMagicLinkService({
     magicLinks: magicLinkStore,
     leads: leadStore,
+    householdEstimates:
+      options.householdEstimatesStore ??
+      createDrizzleHouseholdEstimatesStore({ db: db.db }),
     email: emailService,
     unsubscribe: unsubscribeService,
     appBaseUrl: config.email.appBaseUrl,
     magicLinkTtlSeconds: config.auth.magicLinkTtlSeconds,
+    householdListLimit: config.auth.magicLinkHouseholdListLimit,
     magicLinkReissueCooldownMs: config.auth.magicLinkReissueCooldownMs,
     magicLinkMaxSendsPerHour: config.auth.magicLinkMaxSendsPerHour,
     reissueCooldown: createSharedCooldown({

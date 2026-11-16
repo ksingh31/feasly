@@ -35,6 +35,10 @@ export const ROUTE_AUDIT_NOTES: Readonly<Record<RouteKey, string>> = {
     'Anonymous by design; dedicated lead limiter; body never logged (PII).',
   'POST /api/v1/magic-link/reissue':
     'Same response whether or not the email exists (no account enumeration).',
+  'GET /api/v1/magic-link/estimates':
+    'Lists other addresses only for household links (reissue-minted, email-only); lead-submit tokens prove nothing about the inbox, so they list their own report only.',
+  'POST /api/v1/magic-link/estimates/open':
+    'Household token required; handle must be a non-quarantined lead of the same email (uniform invalid otherwise); minted token expires no later than the household link.',
   'GET /api/v1/reports/{reportToken}':
     'Token is the credential: hashed at rest, expiring; unknown/expired token never returns another lead’s report.',
   'POST /api/v1/reports/{reportToken}/revisions':

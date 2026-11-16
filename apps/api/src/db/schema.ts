@@ -354,6 +354,12 @@ export const magicLinks = pgTable(
      * Sandbox rows auto-purge after 30 days (sandbox-purge timer).
      */
     sandbox: boolean('sandbox').notNull().default(false),
+    /**
+     * #800: true for owner links minted by the reissue path and delivered
+     * ONLY by email (possession proves control of the inbox). Only these
+     * list the household's other estimates.
+     */
+    household: boolean('household').notNull().default(false),
     createdAt: timestamp('created_at', { withTimezone: true })
       .notNull()
       .defaultNow(),

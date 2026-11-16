@@ -47,6 +47,8 @@ describe('loadConfig', () => {
         magicLinkReissueCooldownMs: 60_000,
         // P1-6: max magic-link sends per email per hour (default 5).
         magicLinkMaxSendsPerHour: 5,
+        // #800: household link lists the 10 newest estimates.
+        magicLinkHouseholdListLimit: 10,
         adminApiKey: undefined,
         adminSessionTtlSeconds: 43_200,
         adminSessionIdleTimeoutSeconds: 3_600,

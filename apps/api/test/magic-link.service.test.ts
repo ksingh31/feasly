@@ -22,6 +22,11 @@ import type {
   LeadStore,
 } from '../src/services/lead.store';
 import type {
+  HouseholdEstimateRow,
+  HouseholdEstimatesStore,
+} from '../src/services/household-estimates.store';
+import type { IssueMagicLinkArgs } from '../src/services/magic-link.store';
+import type {
   EmailService,
   MagicLinkEmailInput,
 } from '../src/services/email/email.service';
@@ -87,6 +92,7 @@ function leadFixture(overrides?: Partial<LeadRecord>): LeadRecord {
 
 interface FakeMagicLinks extends MagicLinkStore {
   issued: number;
+  issuedArgs: IssueMagicLinkArgs[];
   byToken: Map<string, MagicLinkRecord>;
   byLead: Map<string, MagicLinkRecord[]>;
 }
@@ -95,14 +101,17 @@ function fakeMagicLinks(): FakeMagicLinks {
   const byToken = new Map<string, MagicLinkRecord>();
   const byLead = new Map<string, MagicLinkRecord[]>();
   let issued = 0;
+  const issuedArgs: IssueMagicLinkArgs[] = [];
   return {
     get issued() {
       return issued;
     },
+    issuedArgs,
     byToken,
     byLead,
     issue: async (args): Promise<IssuedMagicLink> => {
       issued += 1;
+      issuedArgs.push(args);
       return {
         id: 'eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee',
         token: `<redacted>`,
@@ -140,7 +149,8 @@ function fakeLeads(opts?: {
         ? { estimateId: newestEstimateId, createdAt: NOW }
         : null,
     listLeads: async () => [],
-    findById: async (id: string) => (lead && lead.id === id ? lead : null),
+    findById: async (id: string) =>
+      (lead && lead.id === id ? lead : household.find((l) => l.id === id)) ?? null,
     findByIdAndBuilderId: async () => null,
     existsById: async () => false,
     findByEstimateId: async () => null,
@@ -198,9 +208,34 @@ const fakeUnsubscribe = {
     `https://app.test/unsubscribe/tok-${leadId}`,
 } as unknown as UnsubscribeService;
 
+/**
+ * #800: fake household list. Rows are given newest-first per property; the
+ * fake applies the store's email/addressKey/limit contract.
+ */
+interface FakeHousehold extends HouseholdEstimatesStore {
+  calls: Array<{ email: string; limit: number; addressKey?: string }>;
+}
+
+function fakeHousehold(rows: Array<HouseholdEstimateRow & { email?: string }> = []): FakeHousehold {
+  const calls: FakeHousehold['calls'] = [];
+  return {
+    calls,
+    listByEmail: async (args) => {
+      calls.push({ ...args });
+      return rows
+        .filter((r) => (r.email ?? 'sam@example.com') === args.email)
+        .filter((r) => args.addressKey === undefined || r.addressKey === args.addressKey)
+        .slice(0, args.limit)
+        .map(({ email: _email, ...row }) => row);
+    },
+  };
+}
+
 function makeService(opts?: {
   magicLinks?: FakeMagicLinks;
   leads?: LeadStore;
+  household?: FakeHousehold;
+  householdListLimit?: number;
   email?: EmailService & { sends: MagicLinkEmailInput[] };
   ttlSeconds?: number;
   reissueCooldownMs?: number;
@@ -210,9 +245,12 @@ function makeService(opts?: {
   const magicLinks = opts?.magicLinks ?? fakeMagicLinks();
   const leads = opts?.leads ?? fakeLeads();
   const email = opts?.email ?? fakeEmail();
+  const household = opts?.household ?? fakeHousehold();
   const service = createMagicLinkService({
     magicLinks,
     leads,
+    householdEstimates: household,
+    householdListLimit: opts?.householdListLimit ?? 10,
     email,
     unsubscribe: fakeUnsubscribe,
     appBaseUrl: APP_BASE_URL,
@@ -221,7 +259,7 @@ function makeService(opts?: {
     magicLinkMaxSendsPerHour: opts?.maxSendsPerHour ?? 5,
     clock: opts?.clock ?? (() => NOW),
   });
-  return { service, magicLinks, leads, email };
+  return { service, magicLinks, leads, email, household };
 }
 
 describe('magic-link verify', () => {
@@ -346,9 +384,9 @@ describe('magic-link verify', () => {
 });
 
 describe('magic-link reissue', () => {
-  it('sends nothing when a live link exists (AC4)', async () => {
+  it('sends nothing when a live household link exists (AC4)', async () => {
     const magicLinks = fakeMagicLinks();
-    magicLinks.byLead.set(LEAD_ID, [linkRecord()]);
+    magicLinks.byLead.set(LEAD_ID, [linkRecord({ household: true })]);
     const email = fakeEmail();
     const { service } = makeService({ magicLinks, email });
     expect(await service.reissue({ email: 'sam@example.com' })).toEqual({
@@ -523,6 +561,8 @@ describe('magic-link reissue', () => {
       createMagicLinkService({
         magicLinks: fakeMagicLinks(),
         leads: fakeLeads(),
+        householdEstimates: fakeHousehold(),
+        householdListLimit: 10,
         email,
         unsubscribe: fakeUnsubscribe,
         appBaseUrl: APP_BASE_URL,
@@ -646,5 +686,288 @@ describe('isMagicLinkLive', () => {
       ),
     ).toBe(false);
     expect(isMagicLinkLive(linkRecord({ revokedAt: NOW }), NOW)).toBe(false);
+  });
+});
+
+// ── #800: household estimate list ─────────────────────────────────────
+
+const ADDR_A = 'calgary-123-fake-st-nw';
+
+function leadId(n: number): string {
+  return `00000000-0000-4000-8000-${String(n).padStart(12, '0')}`;
+}
+
+/** n properties, newest first; property 1 is the token lead's (ADDR_A). */
+function householdRows(n: number): HouseholdEstimateRow[] {
+  return Array.from({ length: n }, (_, i) => ({
+    leadId: i === 0 ? LEAD_ID : leadId(i + 1),
+    addressKey: i === 0 ? ADDR_A : `calgary-${i + 1}-other-st-sw`,
+    estimateId: `11111111-1111-4111-8111-${String(i + 1).padStart(12, '0')}`,
+    projectType: i % 2 === 0 ? 'new_build' : 'renovation',
+    createdAt: new Date(NOW.getTime() - i * 86_400_000),
+    sandbox: false,
+  }));
+}
+
+function householdLeads(n: number): LeadRecord[] {
+  return householdRows(n).map((r) =>
+    leadFixture({ id: r.leadId, addressKey: r.addressKey, estimateId: r.estimateId }),
+  );
+}
+
+describe('#800 magic-link reissue — household link', () => {
+  it('mints a HOUSEHOLD link and uses "recent estimates" copy when several properties list', async () => {
+    const magicLinks = fakeMagicLinks();
+    const email = fakeEmail();
+    const household = fakeHousehold(householdRows(3));
+    const { service } = makeService({ magicLinks, email, household });
+    expect(await service.reissue({ email: 'sam@example.com' })).toEqual({ sent: true });
+    expect(magicLinks.issuedArgs).toHaveLength(1);
+    expect(magicLinks.issuedArgs[0]).toMatchObject({ household: true, purpose: 'lead' });
+    expect(email.sends[0]!.estimateCount).toBe(3);
+    expect(household.calls[0]).toEqual({ email: 'sam@example.com', limit: 10 });
+  });
+
+  it('keeps the single-report email when the household has one property', async () => {
+    const email = fakeEmail();
+    const { service } = makeService({ email, household: fakeHousehold(householdRows(1)) });
+    expect(await service.reissue({ email: 'sam@example.com' })).toEqual({ sent: true });
+    expect(email.sends[0]!.estimateCount).toBeUndefined();
+    expect(email.sends[0]!.address).toBe('Calgary 123 Fake St NW');
+  });
+
+  it('a live PLAIN owner link (the report email / lead-submit token) does not block the household link', async () => {
+    const magicLinks = fakeMagicLinks();
+    magicLinks.byLead.set(LEAD_ID, [linkRecord()]);
+    const email = fakeEmail();
+    const { service } = makeService({ magicLinks, email });
+    expect(await service.reissue({ email: 'sam@example.com' })).toEqual({ sent: true });
+    expect(magicLinks.issuedArgs[0]).toMatchObject({ household: true });
+  });
+
+  it('still sends nothing for quarantined leads', async () => {
+    const lead = leadFixture({ quarantined: true });
+    const email = fakeEmail();
+    const { service } = makeService({
+      leads: fakeLeads({ lead }),
+      email,
+      household: fakeHousehold(householdRows(3)),
+    });
+    expect(await service.reissue({ email: 'sam@example.com' })).toEqual({ sent: false });
+    expect(email.sends).toHaveLength(0);
+  });
+});
+
+describe('#800 magic-link listEstimates', () => {
+  it('AC1: a household link with 12 properties lists the 10 newest, newest first', async () => {
+    const magicLinks = fakeMagicLinks();
+    magicLinks.byToken.set('household-token', linkRecord({ household: true }));
+    const { service, household } = makeService({
+      magicLinks,
+      leads: fakeLeads({ household: householdLeads(12) }),
+      household: fakeHousehold(householdRows(12)),
+    });
+    const result = await service.listEstimates('household-token');
+    expect(result.valid).toBe(true);
+    if (!result.valid) return;
+    expect(result.estimates).toHaveLength(10);
+    expect(household.calls[0]).toEqual({ email: 'sam@example.com', limit: 10 });
+    const times = result.estimates.map((e) => Date.parse(e.preparedAt));
+    expect([...times].sort((a, b) => b - a)).toEqual(times);
+    expect(result.estimates.map((e) => e.latest)).toEqual([true, ...Array(9).fill(false)]);
+    expect(result.estimates[0]).toEqual({
+      handle: LEAD_ID,
+      address: 'Calgary 123 Fake St NW',
+      preparedAt: NOW.toISOString(),
+      projectType: 'new_build',
+      latest: true,
+      current: true,
+    });
+    expect(result.estimates[1]).toMatchObject({
+      handle: leadId(2),
+      projectType: 'renovation',
+      current: false,
+    });
+    // Handles are unique — each opens its own report.
+    expect(new Set(result.estimates.map((e) => e.handle)).size).toBe(10);
+  });
+
+  it('honours the configured list limit', async () => {
+    const magicLinks = fakeMagicLinks();
+    magicLinks.byToken.set('household-token', linkRecord({ household: true }));
+    const { service } = makeService({
+      magicLinks,
+      household: fakeHousehold(householdRows(12)),
+      householdListLimit: 3,
+    });
+    const result = await service.listEstimates('household-token');
+    expect(result.valid && result.estimates).toHaveLength(3);
+  });
+
+  it('AC2: an email with one estimate lists exactly that one (the UI opens it directly)', async () => {
+    const magicLinks = fakeMagicLinks();
+    magicLinks.byToken.set('household-token', linkRecord({ household: true }));
+    const { service } = makeService({ magicLinks, household: fakeHousehold(householdRows(1)) });
+    const result = await service.listEstimates('household-token');
+    expect(result).toMatchObject({ valid: true, estimates: [{ handle: LEAD_ID, current: true }] });
+    expect(result.valid && result.estimates).toHaveLength(1);
+  });
+
+  it('a non-household owner token (lead-submit response) lists ONLY its own property — no address leak', async () => {
+    const magicLinks = fakeMagicLinks();
+    magicLinks.byToken.set('submit-token', linkRecord());
+    const { service, household } = makeService({
+      magicLinks,
+      household: fakeHousehold(householdRows(5)),
+    });
+    const result = await service.listEstimates('submit-token');
+    expect(household.calls[0]).toEqual({
+      email: 'sam@example.com',
+      limit: 10,
+      addressKey: ADDR_A,
+    });
+    expect(result.valid && result.estimates.map((e) => e.handle)).toEqual([LEAD_ID]);
+  });
+
+  it('a household token on a quarantined lead lists nothing beyond its own property', async () => {
+    const magicLinks = fakeMagicLinks();
+    magicLinks.byToken.set('household-token', linkRecord({ household: true }));
+    const { service, household } = makeService({
+      magicLinks,
+      leads: fakeLeads({ lead: leadFixture({ quarantined: true }) }),
+      household: fakeHousehold(householdRows(5)),
+    });
+    await service.listEstimates('household-token');
+    expect(household.calls[0]!.addressKey).toBe(ADDR_A);
+  });
+
+  it('AC3: partner-share tokens list nothing', async () => {
+    const magicLinks = fakeMagicLinks();
+    magicLinks.byToken.set('partner', linkRecord({ purpose: 'partner-share', household: true }));
+    const { service, household } = makeService({ magicLinks, household: fakeHousehold(householdRows(3)) });
+    expect(await service.listEstimates('partner')).toEqual({
+      valid: false,
+      reason: 'invalid',
+      reissueAllowed: true,
+    });
+    expect(household.calls).toHaveLength(0);
+  });
+
+  it('AC3: expired and revoked household links list nothing', async () => {
+    const magicLinks = fakeMagicLinks();
+    magicLinks.byToken.set(
+      'expired',
+      linkRecord({ household: true, expiresAt: new Date(NOW.getTime() - 1) }),
+    );
+    magicLinks.byToken.set('revoked', linkRecord({ household: true, revokedAt: NOW }));
+    const { service, household } = makeService({ magicLinks, household: fakeHousehold(householdRows(3)) });
+    expect(await service.listEstimates('expired')).toEqual({
+      valid: false,
+      reason: 'expired',
+      reissueAllowed: true,
+    });
+    expect((await service.listEstimates('revoked')).valid).toBe(false);
+    expect(household.calls).toHaveLength(0);
+  });
+
+  it('AC3: an erased lead (row gone) and unknown tokens list nothing', async () => {
+    const magicLinks = fakeMagicLinks();
+    magicLinks.byToken.set('erased', linkRecord({ household: true }));
+    const { service, household } = makeService({
+      magicLinks,
+      leads: fakeLeads({ lead: null }),
+      household: fakeHousehold(householdRows(3)),
+    });
+    const invalid = { valid: false, reason: 'invalid', reissueAllowed: true };
+    expect(await service.listEstimates('erased')).toEqual(invalid);
+    expect(await service.listEstimates('unknown')).toEqual(invalid);
+    expect(household.calls).toHaveLength(0);
+  });
+});
+
+describe('#800 magic-link openEstimate', () => {
+  function setup(opts?: { record?: Partial<MagicLinkRecord>; leads?: LeadRecord[] }) {
+    const magicLinks = fakeMagicLinks();
+    magicLinks.byToken.set('household-token', linkRecord({ household: true, ...opts?.record }));
+    const made = makeService({
+      magicLinks,
+      leads: fakeLeads({ household: opts?.leads ?? householdLeads(3) }),
+    });
+    return { ...made, magicLinks };
+  }
+
+  it('AC1: mints an owner (non-household) report token for another listed property', async () => {
+    const { service, magicLinks } = setup();
+    const result = await service.openEstimate({ token: 'household-token', handle: leadId(2) });
+    expect(result).toEqual({ valid: true, reportToken: '<redacted>' });
+    expect(magicLinks.issuedArgs).toHaveLength(1);
+    expect(magicLinks.issuedArgs[0]).toMatchObject({ leadId: leadId(2), purpose: 'lead' });
+    expect(magicLinks.issuedArgs[0]!.household).toBeUndefined();
+  });
+
+  it('never extends access: the minted link expires with the household link', async () => {
+    const { service, magicLinks } = setup({
+      record: { expiresAt: new Date(NOW.getTime() + 3_600_000) },
+    });
+    await service.openEstimate({ token: 'household-token', handle: leadId(2) });
+    expect(magicLinks.issuedArgs[0]!.ttlSeconds).toBe(3_600);
+  });
+
+  it('returns the presented token for the property it already opens (no mint)', async () => {
+    const { service, magicLinks } = setup();
+    expect(await service.openEstimate({ token: 'household-token', handle: LEAD_ID })).toEqual({
+      valid: true,
+      reportToken: 'household-token',
+    });
+    expect(magicLinks.issued).toBe(0);
+  });
+
+  it('rejects a non-household owner token (lead-submit tokens cannot open other leads)', async () => {
+    const { service, magicLinks } = setup({ record: { household: false } });
+    expect(
+      await service.openEstimate({ token: 'household-token', handle: leadId(2) }),
+    ).toEqual({ valid: false, reason: 'invalid', reissueAllowed: true });
+    expect(magicLinks.issued).toBe(0);
+  });
+
+  it("rejects another email's lead, a quarantined lead and an unknown handle with the same denial", async () => {
+    const leads = [
+      ...householdLeads(1),
+      leadFixture({ id: leadId(7), email: 'someone@else.com', addressKey: 'x' }),
+      leadFixture({ id: leadId(8), quarantined: true, addressKey: 'y' }),
+    ];
+    const { service, magicLinks } = setup({ leads });
+    const invalid = { valid: false, reason: 'invalid', reissueAllowed: true };
+    for (const handle of [leadId(7), leadId(8), leadId(9)]) {
+      expect(await service.openEstimate({ token: 'household-token', handle })).toEqual(invalid);
+    }
+    expect(magicLinks.issued).toBe(0);
+  });
+
+  it('AC3: partner-share, expired and malformed requests open nothing', async () => {
+    const { service, magicLinks } = setup();
+    magicLinks.byToken.set('partner', linkRecord({ purpose: 'partner-share', household: true }));
+    magicLinks.byToken.set(
+      'expired',
+      linkRecord({ household: true, expiresAt: new Date(NOW.getTime() - 1) }),
+    );
+    expect((await service.openEstimate({ token: 'partner', handle: leadId(2) })).valid).toBe(false);
+    expect(await service.openEstimate({ token: 'expired', handle: leadId(2) })).toMatchObject({
+      valid: false,
+      reason: 'expired',
+    });
+    expect((await service.openEstimate({ token: 'household-token', handle: 'nope' })).valid).toBe(false);
+    expect((await service.openEstimate(null)).valid).toBe(false);
+    expect(magicLinks.issued).toBe(0);
+  });
+
+  it('flags the minted link for the sandbox purge when the target lead is sandbox', async () => {
+    const leads = [
+      ...householdLeads(1),
+      leadFixture({ id: leadId(2), addressKey: 'z', sandbox: true }),
+    ];
+    const { service, magicLinks } = setup({ leads });
+    await service.openEstimate({ token: 'household-token', handle: leadId(2) });
+    expect(magicLinks.issuedArgs[0]).toMatchObject({ sandbox: true });
   });
 });

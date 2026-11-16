@@ -57,6 +57,8 @@ export interface MagicLinkEmailInput {
   readonly address?: string;
   /** #703 (consumer only): the issued token's `expires_at`. */
   readonly expiresOn?: Date;
+  /** #800 (consumer only): properties the household link lists. */
+  readonly estimateCount?: number;
 }
 
 export interface PartnerShareEmailInput {

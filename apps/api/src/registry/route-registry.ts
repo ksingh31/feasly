@@ -141,6 +141,29 @@ export const ROUTE_REGISTRY: readonly ApiRouteEntry[] = [
   },
   {
     method: 'GET',
+    path: '/api/v1/magic-link/estimates',
+    auth: 'magic-token',
+    permissions: [] as const,
+    rateLimit: '100/min per IP',
+    status: 'live',
+    summary:
+      'Household estimate list (?token=, #800): up to 10 recent estimates, ' +
+      'one per property, newest first. Only email-delivered household links ' +
+      'list the household; other owner links list their own report only.',
+  },
+  {
+    method: 'POST',
+    path: '/api/v1/magic-link/estimates/open',
+    auth: 'magic-token',
+    permissions: [] as const,
+    rateLimit: '100/min per IP',
+    status: 'live',
+    summary:
+      'Open one listed estimate (#800): household token + handle → an owner ' +
+      'report token for that property, never outliving the household link.',
+  },
+  {
+    method: 'GET',
     path: '/api/v1/reports/{reportToken}',
     auth: 'magic-token',
     permissions: [] as const,

@@ -12,12 +12,26 @@ import type { MagicLinkService } from '../src/services/magic-link.service';
 function fakeService(): MagicLinkService & {
   verifyCalls: unknown[];
   reissueCalls: unknown[];
+  listCalls: unknown[];
+  openCalls: unknown[];
 } {
   const verifyCalls: unknown[] = [];
   const reissueCalls: unknown[] = [];
+  const listCalls: unknown[] = [];
+  const openCalls: unknown[] = [];
   return {
     verifyCalls,
     reissueCalls,
+    listCalls,
+    openCalls,
+    listEstimates: async (token: string) => {
+      listCalls.push(token);
+      return { valid: true, estimates: [] };
+    },
+    openEstimate: async (request: unknown) => {
+      openCalls.push(request);
+      return { valid: true, reportToken: 'minted' };
+    },
     verify: async (token: string) => {
       verifyCalls.push(token);
       return {
@@ -70,5 +84,32 @@ describe('magic-link route', () => {
     expect(service.reissueCalls).toEqual([{ email: 'sam@example.com' }]);
     expect(Object.keys(result)).toEqual(['sent']);
     expect(result).toEqual({ sent: true });
+  });
+});
+
+describe('#800 magic-link estimates routes', () => {
+  it('estimates delegates a well-formed token query to the service', async () => {
+    const service = fakeService();
+    const route = createMagicLinkRoute({ magicLinks: service });
+    expect(await route.estimates({ token: ' abc ' })).toEqual({ valid: true, estimates: [] });
+    expect(service.listCalls).toEqual(['abc']);
+  });
+
+  it('estimates answers invalid without calling the service on a missing token', async () => {
+    const service = fakeService();
+    const route = createMagicLinkRoute({ magicLinks: service });
+    const invalid = { valid: false, reason: 'invalid', reissueAllowed: true };
+    expect(await route.estimates({})).toEqual(invalid);
+    expect(await route.estimates({ token: '' })).toEqual(invalid);
+    expect(await route.estimates(undefined)).toEqual(invalid);
+    expect(service.listCalls).toHaveLength(0);
+  });
+
+  it('openEstimate passes the body through to exactly one service call', async () => {
+    const service = fakeService();
+    const route = createMagicLinkRoute({ magicLinks: service });
+    const body = { token: 't', handle: 'h' };
+    expect(await route.openEstimate(body)).toEqual({ valid: true, reportToken: 'minted' });
+    expect(service.openCalls).toEqual([body]);
   });
 });
