@@ -394,6 +394,10 @@ import {
   type CommunityStatsRefreshRoute,
 } from './routes/community-stats-refresh.route';
 import {
+  createCommunityLivingRoute,
+  type CommunityLivingRoute,
+} from './routes/community-living.route';
+import {
   createAdminNeighbourhoodDataRoute,
   type AdminNeighbourhoodDataRoute,
 } from './routes/admin-neighbourhood-data.route';
@@ -815,6 +819,8 @@ export interface AppComposition {
   /** #773: request-path neighbourhood reads (tables only, no providers). */
   readonly neighbourhoodReadService: NeighbourhoodReadService;
   readonly adminNeighbourhoodDataRoute: AdminNeighbourhoodDataRoute;
+  /** #777: public community living-nearby metrics. */
+  readonly communityLivingRoute: CommunityLivingRoute;
   /** Append-only admin audit log (neighbourhood/05; reused by later admin stories). */
   readonly adminAuditStore: AdminAuditStore;
   readonly builderConfigService: BuilderConfigService;
@@ -1860,6 +1866,9 @@ export function createComposition(
   // NEIGHBOURHOOD_ALERT_AFTER_FAILURE_DAYS of failures; telemetry is one JSON
   // trace per provider run: `traces | where message startswith
   // '{"event":"neighbourhood_data.'`.
+  // Shared City-data cache (#756) — also reused by neighbourhood reads (#777).
+  const cityDataCacheStore: CityDataCacheStore =
+    options.cityDataCacheStore ?? createDrizzleCityDataCacheStore({ db: db.db });
   const neighbourhoodDataStore: NeighbourhoodDataStore =
     options.neighbourhoodDataStore ?? createDrizzleNeighbourhoodDataStore({ db: db.db });
   const neighbourhoodRefreshService: NeighbourhoodRefreshService =
@@ -1882,6 +1891,15 @@ export function createComposition(
     store: neighbourhoodDataStore,
     lotRadiusM: config.neighbourhoodData.lotRadiusM,
     lotMetricsTtlMs: config.neighbourhoodData.lotMetricsTtlMs,
+    amenityCategories: config.neighbourhoodData.amenityCategories,
+    amenitySearchRadiusM: config.neighbourhoodData.amenitySearchRadiusM,
+    amenityCountRadiiM: config.neighbourhoodData.amenityCountRadiiM,
+    treeCoverThresholds: config.neighbourhoodData.treeCoverThresholds,
+    communityCache: cityDataCacheStore,
+    communityMetricsTtlMs: config.neighbourhoodData.communityMetricsTtlMs,
+  });
+  const communityLivingRoute: CommunityLivingRoute = createCommunityLivingRoute({
+    neighbourhood: neighbourhoodReadService,
   });
   const adminNeighbourhoodDataRoute: AdminNeighbourhoodDataRoute =
     createAdminNeighbourhoodDataRoute({
@@ -1926,8 +1944,6 @@ export function createComposition(
   // Telemetry: one JSON trace per resolution / City call, queryable in App
   // Insights as `traces | where message startswith '{"event":"property_data.'`
   // (docs/ops/property-data-cache.md).
-  const cityDataCacheStore: CityDataCacheStore =
-    options.cityDataCacheStore ?? createDrizzleCityDataCacheStore({ db: db.db });
   const propertyService: PropertyService = createPropertyService(config.propertyData, {
     cache: cityDataCacheStore,
     onEvent: (event) =>
@@ -2439,6 +2455,7 @@ export function createComposition(
     neighbourhoodRefreshService,
     neighbourhoodReadService,
     adminNeighbourhoodDataRoute,
+    communityLivingRoute,
     adminAuditStore,
     builderConfigService,
     embedConfigRoute,
