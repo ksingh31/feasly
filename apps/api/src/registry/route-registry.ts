@@ -1350,7 +1350,7 @@ export const ROUTE_REGISTRY: readonly ApiRouteEntry[] = [
     path: '/api/mcp/v1',
     auth: 'api-key',
     permissions: [] as const,
-    rateLimit: '100/min per key',
+    rateLimit: '100/min per key · 100/day + 2,000/month per key (config, #738)',
     status: 'live',
     summary:
       'MCP server: Streamable HTTP transport (api-mcp/06). Bearer <redacted> ' +

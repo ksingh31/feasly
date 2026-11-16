@@ -18,7 +18,7 @@
 
 import { z } from 'zod';
 import { version as packageVersion } from '../package.json';
-import { WAITLIST_CONSENT_VERSION } from './lib/legal-copy';
+import { API_LEAD_CONSENT_VERSION, WAITLIST_CONSENT_VERSION } from './lib/legal-copy';
 
 export type NodeEnv = 'development' | 'test' | 'staging' | 'production';
 
@@ -396,6 +396,20 @@ const EnvSchema = z.object({
   // consent wording stored in waitlist_signups.consent_version. Defaults to the
   // tag in lib/legal-copy.ts; override per environment without a code change.
   WAITLIST_CONSENT_VERSION: z.string().trim().min(1).default(WAITLIST_CONSENT_VERSION),
+  // #738 (owner decision 2026-11-15, invite-only free beta): per-API-key
+  // usage quotas on top of the per-minute limit. Counted from the api_usage
+  // table per UTC calendar day / month, so they hold across instances.
+  API_KEY_DAILY_QUOTA: z.coerce.number().int().positive().default(100),
+  API_KEY_MONTHLY_QUOTA: z.coerce.number().int().positive().default(2_000),
+  // #738: consent-attestation version an API caller must send with a lead
+  // (`consentVersion`). Defaults to the tag in lib/legal-copy.ts.
+  API_LEAD_CONSENT_VERSION: z.string().trim().min(1).default(API_LEAD_CONSENT_VERSION),
+  // #738: leads submitted with an API key land in the admin quarantine
+  // queue for review (no magic-link email until approved). Beta default on.
+  API_KEY_LEADS_QUARANTINE: z
+    .enum(['true', 'false'])
+    .default('true')
+    .transform((value) => value === 'true'),
   // INTERIM (api-mcp/01): pre-shared key for admin endpoints until
   // admin/01's session auth lands. Unset = admin endpoints fail closed.
   ADMIN_API_KEY: z.string().trim().min(1).optional(),
@@ -1241,6 +1255,18 @@ export interface CityDataFreshnessConfig {
   readonly cacheTtlMs: number;
 }
 
+/** Agent API access policy (#738, owner decision 2026-11-15). */
+export interface ApiAccessConfig {
+  /** Accepted calls per key per UTC calendar day. */
+  readonly dailyQuota: number;
+  /** Accepted calls per key per UTC calendar month. */
+  readonly monthlyQuota: number;
+  /** The consent-attestation version an API lead must carry. */
+  readonly leadConsentVersion: string;
+  /** API-key leads go to the admin quarantine queue for review. */
+  readonly quarantineLeads: boolean;
+}
+
 /** Waitlist signups (#520, #740). */
 export interface WaitlistConfig {
   /** Consent-wording version stored with every signup (`consent_version`). */
@@ -1662,6 +1688,7 @@ export interface ApiConfig {
   readonly backupCheck: BackupCheckConfig;
   readonly embed: EmbedConfig;
   readonly waitlist: WaitlistConfig;
+  readonly apiAccess: ApiAccessConfig;
 }
 
 /** Turn a ZodError into a readable startup failure naming each variable. */
@@ -2262,6 +2289,12 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): ApiConfig {
     },
     waitlist: {
       consentVersion: e.WAITLIST_CONSENT_VERSION,
+    },
+    apiAccess: {
+      dailyQuota: e.API_KEY_DAILY_QUOTA,
+      monthlyQuota: e.API_KEY_MONTHLY_QUOTA,
+      leadConsentVersion: e.API_LEAD_CONSENT_VERSION,
+      quarantineLeads: e.API_KEY_LEADS_QUARANTINE,
     },
   };
 }

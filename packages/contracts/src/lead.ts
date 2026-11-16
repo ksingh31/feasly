@@ -35,6 +35,17 @@ export interface LeadRequest {
    * never in the client. Optional — agent-API callers may omit it.
    */
   readonly elapsedMs?: number;
+  /**
+   * Agent-API consent attestation (#738). REQUIRED when the request carries
+   * an API key (REST Bearer key or MCP `submit_lead`): `true` attests the
+   * person asked to be contacted. Ignored for web/embed submissions.
+   */
+  readonly consent?: true;
+  /**
+   * Version tag of the attestation wording (#738), required with `consent`
+   * on API-key requests; must equal the current version.
+   */
+  readonly consentVersion?: string;
 }
 
 export interface LeadResponse {

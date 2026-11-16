@@ -414,6 +414,13 @@
 			"when": 1796428800000,
 			"tag": "0061_community_narratives",
 			"breakpoints": true
+		},
+		{
+			"idx": 59,
+			"version": "7",
+			"when": 1796515200000,
+			"tag": "0062_lead_api_consent_attestation",
+			"breakpoints": true
 		}
 	]
 }
