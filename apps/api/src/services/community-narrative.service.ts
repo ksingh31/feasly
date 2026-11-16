@@ -104,6 +104,7 @@ export interface CommunityNarrativeServiceDeps {
     readonly promptVersion: string;
     readonly maxPerRun: number;
     readonly adminBudgetMs: number;
+    readonly tickBudgetMs: number;
   };
   readonly clock?: () => Date;
   /** Telemetry sink (default: one JSON console.info line). */
@@ -278,7 +279,9 @@ export function createCommunityNarrativeService(
         targets.set(`${target.community.slug}|${target.period}`, target);
       }
 
-      const counts = await processTargets([...targets.values()], null);
+      // Deadline keeps the tick inside the host timeout so the run event and
+      // the retry-day alert check below always execute.
+      const counts = await processTargets([...targets.values()], Date.now() + config.tickBudgetMs);
 
       let alerted = false;
       if (window && window.daysSinceRunDay >= config.retryDays && !provider.synthetic) {

@@ -436,6 +436,10 @@ const EnvSchema = z.object({
   // Wall-clock budget (ms) for an admin "regenerate all" request; the rest
   // is left 'stale' and finished by the next daily tick.
   COMMUNITY_NARRATIVE_ADMIN_BUDGET_MS: z.coerce.number().int().positive().default(60_000),
+  // Wall-clock budget (ms) for one timer tick, kept well under the 30 min
+  // Functions host timeout so the run event and the retry-day alert check
+  // always run; whatever is left is picked up by the next daily tick.
+  COMMUNITY_NARRATIVE_TICK_BUDGET_MS: z.coerce.number().int().positive().default(1_200_000),
   // Service-account email — placeholder until provisioned in Key Vault.
   // Empty = sync disabled (worker fails closed, alert fires).
   SHEETS_SERVICE_ACCOUNT_EMAIL: z.string().default(''),
@@ -1402,6 +1406,8 @@ export interface CommunityNarrativesConfig {
   readonly maxPerRun: number;
   /** Wall-clock budget for an admin "regenerate all" request. */
   readonly adminBudgetMs: number;
+  /** Wall-clock budget for one timer tick (below the host timeout). */
+  readonly tickBudgetMs: number;
 }
 
 export interface ApiConfig {
@@ -2030,6 +2036,7 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): ApiConfig {
       promptVersion: e.COMMUNITY_NARRATIVE_PROMPT_VERSION,
       maxPerRun: e.COMMUNITY_NARRATIVE_MAX_PER_RUN,
       adminBudgetMs: e.COMMUNITY_NARRATIVE_ADMIN_BUDGET_MS,
+      tickBudgetMs: e.COMMUNITY_NARRATIVE_TICK_BUDGET_MS,
     },
     embed: {
       relayCodeTtlSeconds: e.EMBED_RELAY_CODE_TTL_SECONDS,

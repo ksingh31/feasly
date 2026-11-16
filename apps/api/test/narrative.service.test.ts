@@ -325,6 +325,7 @@ describe('narrative read path (#759)', () => {
         promptVersion: 'community-v1',
         maxPerRun: 400,
         adminBudgetMs: 1000,
+        tickBudgetMs: 1_200_000,
       },
       logEvent: () => {},
     });

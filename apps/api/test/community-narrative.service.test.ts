@@ -1,7 +1,7 @@
 /**
  * Monthly community narratives (#759) — the job, admin regenerate, status,
  * and the stored-narrative read, against the real Drizzle store on PGlite
- * (migration 0057 applied).
+ * (migration 0059 applied).
  *
  * AC1: one row per community per period; a re-run creates none.
  * AC3: a failed month keeps serving last month's narrative; a community
@@ -53,6 +53,7 @@ const CONFIG: CommunityNarrativeServiceDeps['config'] = {
   promptVersion: 'community-v1',
   maxPerRun: 400,
   adminBudgetMs: 60_000,
+  tickBudgetMs: 1_200_000,
 };
 
 describe('community narrative service (#759)', () => {
@@ -206,6 +207,36 @@ describe('community narrative service (#759)', () => {
     expect(r).toMatchObject({ period: null, attempted: 0, alerted: false });
   });
 
+  it('tick time budget: stops generating at the deadline, still emits the run event and alerts', async () => {
+    // Each generation "takes" 2 s of wall clock; the tick budget is 1 s, so
+    // only the first community is attempted. Date.now is advanced by the
+    // provider instead of sleeping.
+    const realNow = Date.now.bind(Date);
+    let offset = 0;
+    const nowSpy = vi.spyOn(Date, 'now').mockImplementation(() => realNow() + offset);
+    try {
+      const inner = scriptedProvider((c) => GOOD(c));
+      const slow: NarrativeProvider = {
+        synthetic: false,
+        async generate(prompt) {
+          offset += 2_000;
+          return inner.generate(prompt);
+        },
+      };
+      // Last retry day of the 2026-12 window: leftovers must raise the alert.
+      const { service, events, opsAlerts } = makeService(slow, new Date('2026-12-03T09:00:00Z'), {
+        config: { ...CONFIG, tickBudgetMs: 1_000 },
+      });
+      const result = await service.runScheduledTick();
+      expect(result).toMatchObject({ attempted: 1, succeeded: 1, deferred: 2, alerted: true });
+      expect(opsAlerts.notifyFailure).toHaveBeenCalledTimes(1);
+      expect(events).toHaveLength(1);
+      expect(events[0]).toMatchObject({ event: 'community_narrative.run', deferred: 2 });
+    } finally {
+      nowSpy.mockRestore();
+    }
+  });
+
   it('AC3: a failed month keeps serving last month; a new community has none', async () => {
     const ok = scriptedProvider((c) => GOOD(c));
     await makeService(ok, new Date('2026-10-31T09:00:00Z')).service.runScheduledTick();
@@ -322,7 +353,7 @@ describe('community narrative timer schedule (AC5)', () => {
     const fn = JSON.parse(
       readFileSync(join(__dirname, '..', 'community-narrative-timer', 'function.json'), 'utf8'),
     ) as { bindings: Array<{ schedule?: string }> };
-    const config = loadConfig({ DATABASE_URL: 'postgres://u:p@localhost:5432/db' });
+    const config = loadConfig({ DATABASE_URL: 'postgresql://user:pass@localhost:5432/feasly' });
     expect(fn.bindings[0].schedule).toBe(config.communityNarratives.schedule);
   });
 });

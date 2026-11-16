@@ -1,4 +1,4 @@
--- #759: monthly community narratives. Mirrors migration 0057; idempotent and
+-- #759: monthly community narratives. Mirrors migration 0059; idempotent and
 -- dependent only on the core (no other fragment).
 CREATE TABLE IF NOT EXISTS "community_narratives" (
 	"community_slug" text NOT NULL,
