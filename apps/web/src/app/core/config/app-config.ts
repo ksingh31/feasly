@@ -989,12 +989,6 @@ export interface AppConfig {
     estimateRoundingStep: number;
   };
   /**
-   * Typical custom-infill build timeline by city (#823, owner decision
-   * 2026-11-15: 12–16 months design to completion). Rendered by the shared
-   * BuildTimelineComponent on the report and address overview; the API's
-   * report email carries the same figures from its own config.
-   */
-  /**
    * What a new-build estimate includes and leaves out (#824, owner decision
    * 2026-11-15). `includes` is GENERATED from the cost engine's line items
    * (estimate-scope.generated.ts) — never hand-written, so it can't drift.
@@ -1004,6 +998,12 @@ export interface AppConfig {
     includes: readonly EstimateScopeItem[];
     notIncluded: readonly EstimateScopeItem[];
   };
+  /**
+   * Typical custom-infill build timeline by city (#823, owner decision
+   * 2026-11-15: 12–16 months design to completion). Rendered by the shared
+   * BuildTimelineComponent on the report and address overview; the API's
+   * report email carries the same figures from its own config.
+   */
   buildTimeline: {
     /** City used when a surface does not pass one. Must be a key of `cities`. */
     defaultCity: string;

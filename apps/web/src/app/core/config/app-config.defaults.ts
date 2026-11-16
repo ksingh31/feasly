@@ -1382,7 +1382,9 @@ export const DEFAULT_APP_CONFIG: AppConfig = {
         },
         {
           q: 'What is not included in these figures?',
-          a: 'The build range covers site preparation, foundation, framing, envelope, mechanical systems, interior finishes, design, permits and a contingency. It does not include demolition, utility connections, landscaping and driveway, new-home warranty, or GST, so budget for those separately with your builder.',
+          // #824: {includes}/{notIncluded} are filled from `estimateScope`
+          // (generated from the cost engine) — never list items here.
+          a: 'The build range covers {includes}. It does not include {notIncluded}, so budget for those separately with your builder.',
         },
         {
           q: 'What is the next step?',
