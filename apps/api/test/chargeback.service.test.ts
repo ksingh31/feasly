@@ -418,6 +418,118 @@ describe('Stripe chargebacks + dashboard refunds (#719)', () => {
     },
   );
 
+  /** A chargeback service whose audit.append throws once for `failOn`. */
+  function flakyChargebacks(failOn: string): ChargebackService {
+    let failed = false;
+    const flakyAudit: BillingAuditService = {
+      ...audit,
+      append: async (input) => {
+        if (!failed && input.eventType === failOn) {
+          failed = true;
+          throw new Error(`injected failure on ${failOn}`);
+        }
+        return audit.append(input);
+      },
+    };
+    return createChargebackService({
+      db: testDb.db,
+      audit: flakyAudit,
+      email: fakeEmail(),
+      opsInbox: 'ops@example.com',
+      now: () => NOW,
+      newId: nextId,
+      logWarning: () => undefined,
+    });
+  }
+
+  it('AC1 repair: a failure after the chargeback insert still alerts on redelivery', async () => {
+    const { invoiceId, piId } = await paidInvoice();
+    const service = flakyChargebacks('chargeback.opened');
+    const created = disputeEvent('charge.dispute.created', piId);
+    const input = {
+      eventId: (created as { id: string }).id,
+      eventType: 'charge.dispute.created' as const,
+      paymentIntentId: piId,
+      dispute: normalizeStripeEvent(created as never).dispute!,
+    };
+    await expect(service.handleDisputeEvent(input)).rejects.toThrow('injected failure');
+    expect(await chargebackRows(invoiceId)).toHaveLength(1);
+
+    alerts.length = 0;
+    const redelivered = await service.handleDisputeEvent(input);
+    expect(redelivered.changed).toBe(true);
+    // At-least-once: the redelivery sends the deadline alert.
+    expect(alerts.filter((a) => a.title.includes('Chargeback opened'))).toHaveLength(1);
+    const [row] = await chargebackRows(invoiceId);
+    expect(await auditsFor(row!.id)).toEqual(['chargeback.opened']);
+    expect((await commission.getById(invoiceId)).chargebackStatus).toBe('open');
+
+    // A further redelivery is a no-op.
+    alerts.length = 0;
+    expect((await service.handleDisputeEvent(input)).changed).toBe(false);
+    expect(alerts).toHaveLength(0);
+  });
+
+  it('AC3 repair: a failure after the dispute row closes still reconciles the invoice on redelivery', async () => {
+    const { invoiceId, piId } = await paidInvoice();
+    await deliver(disputeEvent('charge.dispute.created', piId));
+    const service = flakyChargebacks('chargeback.closed');
+    const closed = disputeEvent('charge.dispute.closed', piId, { status: 'lost' });
+    const input = {
+      eventId: (closed as { id: string }).id,
+      eventType: 'charge.dispute.closed' as const,
+      paymentIntentId: piId,
+      dispute: normalizeStripeEvent(closed as never).dispute!,
+    };
+    alerts.length = 0;
+    await expect(service.handleDisputeEvent(input)).rejects.toThrow('injected failure');
+    const [rowAfterFailure] = await chargebackRows(invoiceId);
+    expect(rowAfterFailure).toMatchObject({ status: 'closed', outcome: 'lost' });
+    expect((await commission.getById(invoiceId)).chargebackStatus).toBe('open');
+    expect(alerts).toHaveLength(0);
+
+    const redelivered = await service.handleDisputeEvent(input);
+    expect(redelivered.changed).toBe(true);
+    expect((await commission.getById(invoiceId)).chargebackStatus).toBe('lost');
+    expect(alerts.map((a) => a.title)).toEqual([expect.stringContaining('Chargeback lost')]);
+    expect(await auditsFor(rowAfterFailure!.id)).toEqual(['chargeback.opened', 'chargeback.closed']);
+    expect(
+      (await auditsFor(invoiceId)).filter((t) => t === 'invoice.chargeback_closed'),
+    ).toHaveLength(1);
+
+    // A further redelivery is a no-op.
+    expect((await service.handleDisputeEvent(input)).changed).toBe(false);
+    expect(alerts).toHaveLength(1);
+
+    // retryCharge is no longer blocked by a stale 'open' flag.
+    await testDb.db
+      .update(commissionInvoices)
+      .set({ status: 'failed' })
+      .where(eq(commissionInvoices.id, invoiceId));
+    const retryError = await commission.retryCharge(invoiceId).then(
+      () => undefined,
+      (error: unknown) => error,
+    );
+    expect(String((retryError as Error | undefined)?.message ?? '')).not.toContain('open chargeback');
+
+  });
+
+  it('a late updated event does not overwrite a closed chargeback', async () => {
+    const { invoiceId, piId } = await paidInvoice();
+    await deliver(disputeEvent('charge.dispute.created', piId));
+    await deliver(disputeEvent('charge.dispute.closed', piId, { status: 'won' }));
+    await deliver(
+      disputeEvent('charge.dispute.updated', piId, {
+        status: 'under_review',
+        amount: 1,
+        evidence_details: { due_by: DUE_BY + 86_400 },
+      }),
+    );
+    const [row] = await chargebackRows(invoiceId);
+    expect(row).toMatchObject({ status: 'closed', outcome: 'won', stripeStatus: 'won', amountCents: 505_000 });
+    expect(row!.evidenceDueAt?.getTime()).toBe(DUE_BY * 1000);
+  });
+
   it('an out-of-order close (no created seen) still records and closes the chargeback', async () => {
     const { invoiceId, piId } = await paidInvoice();
     await deliver(disputeEvent('charge.dispute.closed', piId, { status: 'lost' }));

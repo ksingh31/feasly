@@ -21,7 +21,11 @@
  * - `charge.refunded` mirrors Stripe's cumulative `amount_refunded` onto
  *   `commission_invoices.refunded_cents` (monotonic) with a timeline row.
  * - Every state change appends a `billing_events` row. Each handler is
- *   idempotent on terminal state, so a webhook redelivery is a no-op.
+ *   idempotent on terminal state, so a webhook redelivery is a no-op —
+ *   and repairable: writes are not transactional, so the opened/closed
+ *   timeline rows and alerts are keyed on their audit row existing, and the
+ *   invoice is reconciled to a closed row's outcome, letting a redelivery
+ *   finish a handler that failed partway.
  * - A PaymentIntent no invoice owns throws 404 NOT_FOUND; the webhook turns
  *   that into the orphan-PaymentIntent audit + ops alert (#711).
  *
@@ -206,6 +210,33 @@ export function createChargebackService(
     }
   }
 
+  /**
+   * True when an audit row of this type exists for the entity (optionally
+   * narrowed by one payload field). Used to make multi-step writes
+   * repairable: the services write without a transaction, so a redelivery
+   * after a mid-handler failure re-checks each step instead of trusting
+   * that an earlier, already-applied state change finished the rest.
+   */
+  async function hasAudit(
+    eventType: string,
+    entityType: string,
+    entityId: string,
+    payloadMatch?: { key: string; value: string },
+  ): Promise<boolean> {
+    const existing = await db.query.billingEvents.findFirst({
+      columns: { id: true },
+      where: and(
+        eq(billingEvents.eventType, eventType),
+        eq(billingEvents.entityType, entityType),
+        eq(billingEvents.entityId, entityId),
+        payloadMatch === undefined
+          ? undefined
+          : sql`${billingEvents.payload}->>${payloadMatch.key} = ${payloadMatch.value}`,
+      ),
+    });
+    return existing !== undefined;
+  }
+
   /** One audit row per Stripe event — skipped when it already exists. */
   async function appendOnce(
     tenantKey: string,
@@ -215,16 +246,14 @@ export function createChargebackService(
     stripeEventId: string,
     payload: Record<string, unknown>,
   ): Promise<boolean> {
-    const existing = await db.query.billingEvents.findFirst({
-      columns: { id: true },
-      where: and(
-        eq(billingEvents.eventType, eventType),
-        eq(billingEvents.entityType, entityType),
-        eq(billingEvents.entityId, entityId),
-        sql`${billingEvents.payload}->>'stripeEventId' = ${stripeEventId}`,
-      ),
-    });
-    if (existing !== undefined) return false;
+    if (
+      await hasAudit(eventType, entityType, entityId, {
+        key: 'stripeEventId',
+        value: stripeEventId,
+      })
+    ) {
+      return false;
+    }
     await audit.append({
       tenantKey,
       eventType,
@@ -293,6 +322,10 @@ export function createChargebackService(
     row: DisputeRow,
     dispute: NormalizedDispute,
   ): Promise<{ row: DisputeRow; changed: boolean }> {
+    // A closed chargeback is final: a late, out-of-order event (e.g. an
+    // `updated` with status 'under_review') must not rewrite its Stripe
+    // status, amount or deadline after the outcome was recorded.
+    if (row.status !== 'open') return { row, changed: false };
     const patch: Partial<typeof billingDisputes.$inferInsert> = {};
     if (dispute.status !== null && dispute.status !== row.stripeStatus) {
       patch.stripeStatus = dispute.status;
@@ -315,9 +348,16 @@ export function createChargebackService(
     const [updated] = await db
       .update(billingDisputes)
       .set({ ...patch, updatedAt: now() })
-      .where(eq(billingDisputes.id, row.id))
+      .where(and(eq(billingDisputes.id, row.id), eq(billingDisputes.status, 'open')))
       .returning();
-    return { row: updated ?? row, changed: true };
+    if (updated === undefined) {
+      // Closed concurrently — leave it; re-read so callers see the outcome.
+      const fresh = await db.query.billingDisputes.findFirst({
+        where: eq(billingDisputes.id, row.id),
+      });
+      return { row: fresh ?? row, changed: false };
+    }
+    return { row: updated, changed: true };
   }
 
   /** Flag the invoice as under chargeback (no-op when already flagged). */
@@ -366,8 +406,12 @@ export function createChargebackService(
     stripeEventId: string,
   ): Promise<boolean> {
     const resolvedAt = now();
+    // Each step below is checked on its own so a redelivery after a
+    // mid-handler failure finishes the work: the dispute row closing first
+    // must not strand the invoice at chargeback_status='open' (which would
+    // block retryCharge forever and swallow the won/lost alert).
     // Conditional on 'open': a redelivered close finds nothing to update.
-    const [closed] = await db
+    const [justClosed] = await db
       .update(billingDisputes)
       .set({
         status: 'closed',
@@ -378,42 +422,61 @@ export function createChargebackService(
       })
       .where(and(eq(billingDisputes.id, row.id), eq(billingDisputes.status, 'open')))
       .returning();
-    if (closed === undefined) return false;
-    await audit.append({
-      tenantKey: row.tenantKey,
-      eventType: 'chargeback.closed',
-      entityType: 'billing_dispute',
-      entityId: row.id,
-      payload: {
-        outcome,
-        invoiceId: row.invoiceId,
-        stripeDisputeId: row.stripeDisputeId,
-        amountCents: closed.amountCents,
-        stripeEventId,
-      },
-    });
-    await db
+    let closed: DisputeRow | undefined = justClosed;
+    if (closed === undefined) {
+      closed = await db.query.billingDisputes.findFirst({
+        where: eq(billingDisputes.id, row.id),
+      });
+      if (closed === undefined || closed.status !== 'closed') return false;
+    }
+    // An already-closed row keeps the outcome it was closed with.
+    const finalOutcome = (closed.outcome ?? outcome) as ChargebackOutcome;
+    let changed = justClosed !== undefined;
+
+    if (!(await hasAudit('chargeback.closed', 'billing_dispute', row.id))) {
+      await audit.append({
+        tenantKey: row.tenantKey,
+        eventType: 'chargeback.closed',
+        entityType: 'billing_dispute',
+        entityId: row.id,
+        payload: {
+          outcome: finalOutcome,
+          invoiceId: row.invoiceId,
+          stripeDisputeId: row.stripeDisputeId,
+          amountCents: closed.amountCents,
+          stripeEventId,
+        },
+      });
+      changed = true;
+    }
+
+    const [reconciled] = await db
       .update(commissionInvoices)
-      .set({ chargebackStatus: outcome, updatedAt: resolvedAt })
-      .where(eq(commissionInvoices.id, invoice.id));
-    await audit.append({
-      tenantKey: invoice.tenantKey,
-      eventType: 'invoice.chargeback_closed',
-      entityType: 'commission_invoice',
-      entityId: invoice.id,
-      payload: {
-        // The invoice status is unchanged either way: won → it stays paid;
-        // lost → ops decides re-collection vs write-off manually.
-        status: invoice.status,
-        chargebackStatus: outcome,
-        disputeId: row.id,
-        stripeDisputeId: row.stripeDisputeId,
-        ...(outcome === 'lost' ? { manualFollowUpRequired: true } : {}),
-        stripeEventId,
-      },
-    });
+      .set({ chargebackStatus: finalOutcome, updatedAt: resolvedAt })
+      .where(
+        and(
+          eq(commissionInvoices.id, invoice.id),
+          sql`${commissionInvoices.chargebackStatus} IS DISTINCT FROM ${finalOutcome}`,
+        ),
+      )
+      .returning({ id: commissionInvoices.id });
+    if (reconciled !== undefined) changed = true;
+
+    // The invoice timeline row + ops alert are keyed on this dispute, not on
+    // the transition above, so they are written even when the invoice was
+    // reconciled by an earlier, partially failed delivery.
+    if (
+      await hasAudit('invoice.chargeback_closed', 'commission_invoice', invoice.id, {
+        key: 'disputeId',
+        value: row.id,
+      })
+    ) {
+      return changed;
+    }
     const amount = formatCents(closed.amountCents, invoice.currency);
-    if (outcome === 'lost') {
+    // Alert before the audit row: if the audit write fails, the redelivery
+    // alerts again (at-least-once) rather than never.
+    if (finalOutcome === 'lost') {
       await alertOps(
         `Chargeback lost on ${invoice.invoiceNumber}`,
         `Stripe closed chargeback ${row.stripeDisputeId} on invoice ` +
@@ -423,12 +486,72 @@ export function createChargebackService(
       );
     } else {
       await alertOps(
-        `Chargeback closed on ${invoice.invoiceNumber}: ${outcome.replace('_', ' ')}`,
+        `Chargeback closed on ${invoice.invoiceNumber}: ${finalOutcome.replace('_', ' ')}`,
         `Stripe closed chargeback ${row.stripeDisputeId} on invoice ` +
           `${invoice.invoiceNumber} (${amount}) with outcome ` +
-          `'${outcome}'. No action needed.`,
+          `'${finalOutcome}'. No action needed.`,
       );
     }
+    await audit.append({
+      tenantKey: invoice.tenantKey,
+      eventType: 'invoice.chargeback_closed',
+      entityType: 'commission_invoice',
+      entityId: invoice.id,
+      payload: {
+        // The invoice status is unchanged either way: won → it stays paid;
+        // lost → ops decides re-collection vs write-off manually.
+        status: invoice.status,
+        chargebackStatus: finalOutcome,
+        disputeId: row.id,
+        stripeDisputeId: row.stripeDisputeId,
+        ...(finalOutcome === 'lost' ? { manualFollowUpRequired: true } : {}),
+        stripeEventId,
+      },
+    });
+    return true;
+  }
+
+  /**
+   * The opened timeline row + evidence-deadline alert (AC1). Keyed on the
+   * audit row existing, not on the insert, so a failure anywhere after the
+   * chargeback row is created is repaired by the next delivery for this
+   * dispute. Alert first: a failed audit write re-alerts on redelivery
+   * (at-least-once) instead of losing the deadline.
+   */
+  async function ensureOpenedRecorded(
+    invoice: InvoiceRow,
+    row: DisputeRow,
+    stripeEventId: string,
+  ): Promise<boolean> {
+    if (await hasAudit('chargeback.opened', 'billing_dispute', row.id)) return false;
+    if (row.status === 'open') {
+      const deadline = row.evidenceDueAt
+        ? formatDeadline(row.evidenceDueAt)
+        : 'not set by Stripe';
+      await alertOps(
+        `Chargeback opened on ${invoice.invoiceNumber} — evidence due ${deadline}`,
+        `A bank chargeback (${row.stripeReason ?? 'no reason given'}) was ` +
+          `opened against invoice ${invoice.invoiceNumber} for ` +
+          `${formatCents(row.amountCents, invoice.currency)}. Stripe dispute ` +
+          `${row.stripeDisputeId}. Evidence is due ${deadline} (America/Edmonton) ` +
+          `— submit it in the Stripe dashboard. Further charges on this ` +
+          `invoice are paused until Stripe closes the dispute.`,
+      );
+    }
+    await audit.append({
+      tenantKey: row.tenantKey,
+      eventType: 'chargeback.opened',
+      entityType: 'billing_dispute',
+      entityId: row.id,
+      payload: {
+        invoiceId: row.invoiceId,
+        stripeDisputeId: row.stripeDisputeId,
+        reason: row.stripeReason,
+        amountCents: row.amountCents,
+        evidenceDueAt: row.evidenceDueAt?.toISOString() ?? null,
+        stripeEventId,
+      },
+    });
     return true;
   }
 
@@ -439,34 +562,7 @@ export function createChargebackService(
       let row = initial;
       let changed = created;
 
-      if (created) {
-        await audit.append({
-          tenantKey: row.tenantKey,
-          eventType: 'chargeback.opened',
-          entityType: 'billing_dispute',
-          entityId: row.id,
-          payload: {
-            invoiceId: row.invoiceId,
-            stripeDisputeId: row.stripeDisputeId,
-            reason: row.stripeReason,
-            amountCents: row.amountCents,
-            evidenceDueAt: row.evidenceDueAt?.toISOString() ?? null,
-            stripeEventId: input.eventId,
-          },
-        });
-        const deadline = row.evidenceDueAt
-          ? formatDeadline(row.evidenceDueAt)
-          : 'not set by Stripe';
-        await alertOps(
-          `Chargeback opened on ${invoice.invoiceNumber} — evidence due ${deadline}`,
-          `A bank chargeback (${row.stripeReason ?? 'no reason given'}) was ` +
-            `opened against invoice ${invoice.invoiceNumber} for ` +
-            `${formatCents(row.amountCents, invoice.currency)}. Stripe dispute ` +
-            `${row.stripeDisputeId}. Evidence is due ${deadline} (America/Edmonton) ` +
-            `— submit it in the Stripe dashboard. Further charges on this ` +
-            `invoice are paused until Stripe closes the dispute.`,
-        );
-      } else {
+      if (!created) {
         const synced = await syncStripeFields(row, input.dispute);
         row = synced.row;
         if (synced.changed && input.eventType === 'charge.dispute.updated') {
@@ -485,6 +581,8 @@ export function createChargebackService(
           );
         }
       }
+
+      changed = (await ensureOpenedRecorded(invoice, row, input.eventId)) || changed;
 
       // A closed chargeback is never re-opened by a late, out-of-order event.
       if (row.status === 'open') {

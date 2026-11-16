@@ -919,7 +919,7 @@ export const commissionInvoices = pgTable(
      */
     totalCents: integer('total_cents'),
     /**
-     * Bank chargeback state (#719, migration 0054): null = never disputed
+     * Bank chargeback state (#719, migration 0055): null = never disputed
      * with the bank; 'open' while Stripe's dispute is live (no further
      * charge attempts); then 'won' | 'lost' | 'warning_closed' from
      * `charge.dispute.closed`. A lost chargeback does NOT change `status`
