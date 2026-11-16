@@ -60,6 +60,14 @@ export interface BuilderService {
 export interface BuilderServiceDeps {
   readonly db: AppDb;
   readonly audit: AdminAuditStore;
+  /**
+   * #725: called after an admin assigns a lead to a (different) builder —
+   * composition wires the builder-notifications service. Must not throw.
+   */
+  readonly onLeadAssigned?: (args: {
+    readonly leadId: string;
+    readonly builderId: string;
+  }) => Promise<void>;
 }
 
 type BuilderRow = typeof builders.$inferSelect;
@@ -378,6 +386,12 @@ export function createBuilderService(deps: BuilderServiceDeps): BuilderService {
         .update(leads)
         .set({ builderId })
         .where(eq(leads.id, leadId));
+      // #725: a lead newly assigned to a builder notifies that builder's
+      // team once (the outbox dedupes per lead + builder + member). The
+      // hook never throws.
+      if (builderId !== null && lead.builderId !== builderId && deps.onLeadAssigned) {
+        await deps.onLeadAssigned({ leadId, builderId });
+      }
       await audit.log({
         actorEmail: adminEmail,
         action:

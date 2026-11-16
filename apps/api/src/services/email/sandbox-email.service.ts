@@ -26,6 +26,8 @@ import type {
   CommissionPaymentReceivedEmailInput,
   CommissionPaymentFailedEmailInput,
   ContractNeedsRecordingEmailInput,
+  BuilderNewLeadEmailInput,
+  BuilderNeedsYouDigestEmailInput,
 } from './email.service';
 
 export interface SandboxEmailServiceDeps {
@@ -76,5 +78,9 @@ export function createSandboxSuppressingEmailService(
       suppressed('sendCommissionPaymentFailed', log),
     sendContractNeedsRecording: (_input: ContractNeedsRecordingEmailInput) =>
       suppressed('sendContractNeedsRecording', log),
+    sendBuilderNewLead: (_input: BuilderNewLeadEmailInput) =>
+      suppressed('sendBuilderNewLead', log),
+    sendBuilderNeedsYouDigest: (_input: BuilderNeedsYouDigestEmailInput) =>
+      suppressed('sendBuilderNeedsYouDigest', log),
   };
 }

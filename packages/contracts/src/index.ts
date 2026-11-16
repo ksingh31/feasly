@@ -28,6 +28,7 @@ export * from './billing-health';
 export * from './payments';
 export * from './admin-auth';
 export * from './builder';
+export * from './builder-notifications';
 export * from './admin-leads';
 export * from './admin-estimates';
 export * from './admin-calibration';

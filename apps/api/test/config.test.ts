@@ -189,6 +189,14 @@ describe('loadConfig', () => {
         enabled: false,
         delayHours: 72,
       },
+      builderNotifications: {
+        enabled: true,
+        maxAttempts: 5,
+        retryWindowHours: 24,
+        claimLeaseMinutes: 10,
+        digestLocalHour: 7,
+        digestTimeZone: 'America/Edmonton',
+      },
       communityStatsRefresh: {
         minAssessmentCount: 10,
         alertAfterConsecutiveFailures: 2,

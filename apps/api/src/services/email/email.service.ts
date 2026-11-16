@@ -24,6 +24,8 @@ import {
   renderCommissionInvoiceReadyEmail,
   renderCommissionPaymentFailedEmail,
   renderCommissionPaymentReceivedEmail,
+  renderBuilderNeedsYouDigestEmail,
+  renderBuilderNewLeadEmail,
   renderContractNeedsRecordingEmail,
   renderFollowUpEmail,
   renderInvitationEmail,
@@ -31,6 +33,7 @@ import {
   renderNudgeEmail,
   renderOpsAlertEmail,
   renderShareEmail,
+  type BuilderDigestLeadLine,
   type CommissionEmailTax,
   type TemplateContext,
 } from './templates';
@@ -185,6 +188,27 @@ export interface ContractNeedsRecordingEmailInput {
   readonly leadId: string;
 }
 
+/** #725: one new-lead notice to a builder team member (no contact details). */
+export interface BuilderNewLeadEmailInput {
+  readonly to: string;
+  readonly firstName: string;
+  readonly community: string;
+  readonly projectType: string;
+  readonly builderName: string;
+  readonly leadId: string;
+}
+
+/** #725: the daily "Needs you" digest to an opted-in builder member. */
+export interface BuilderNeedsYouDigestEmailInput {
+  readonly to: string;
+  readonly builderName: string;
+  readonly uncontacted: readonly BuilderDigestLeadLine[];
+  readonly stale: readonly BuilderDigestLeadLine[];
+  readonly wonWithoutContract: readonly BuilderDigestLeadLine[];
+  readonly staleAfterDays: number;
+  readonly maxPerGroup: number;
+}
+
 export interface EmailService {
   sendMagicLink(input: MagicLinkEmailInput): Promise<EmailDelivery>;
   sendInvitation(input: InvitationEmailInput): Promise<EmailDelivery>;
@@ -211,6 +235,12 @@ export interface EmailService {
   /** Issue #530: lead marked won — ask an org admin to record the contract. */
   sendContractNeedsRecording(
     input: ContractNeedsRecordingEmailInput,
+  ): Promise<EmailDelivery>;
+  /** #725: new lead assigned to the member's org. */
+  sendBuilderNewLead(input: BuilderNewLeadEmailInput): Promise<EmailDelivery>;
+  /** #725: daily "Needs you" digest (never sent for an empty feed). */
+  sendBuilderNeedsYouDigest(
+    input: BuilderNeedsYouDigestEmailInput,
   ): Promise<EmailDelivery>;
 }
 
@@ -469,6 +499,33 @@ export function createEmailService(deps: EmailServiceDeps): EmailService {
         address: input.address,
         builderName: input.builderName,
         leadId: input.leadId,
+      });
+      return deliver({ ...rendered, to: input.to });
+    },
+
+    async sendBuilderNewLead(
+      input: BuilderNewLeadEmailInput,
+    ): Promise<EmailDelivery> {
+      const rendered = renderBuilderNewLeadEmail(ctx, {
+        firstName: input.firstName,
+        community: input.community,
+        projectType: input.projectType,
+        builderName: input.builderName,
+        leadId: input.leadId,
+      });
+      return deliver({ ...rendered, to: input.to });
+    },
+
+    async sendBuilderNeedsYouDigest(
+      input: BuilderNeedsYouDigestEmailInput,
+    ): Promise<EmailDelivery> {
+      const rendered = renderBuilderNeedsYouDigestEmail(ctx, {
+        builderName: input.builderName,
+        uncontacted: input.uncontacted,
+        stale: input.stale,
+        wonWithoutContract: input.wonWithoutContract,
+        staleAfterDays: input.staleAfterDays,
+        maxPerGroup: input.maxPerGroup,
       });
       return deliver({ ...rendered, to: input.to });
     },

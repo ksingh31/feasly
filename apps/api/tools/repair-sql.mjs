@@ -813,6 +813,46 @@ ALTER TABLE "simulated_payment_objects" ADD COLUMN IF NOT EXISTS "created_at" ti
 ALTER TABLE "simulated_payment_objects" ADD COLUMN IF NOT EXISTS "delivered_at" timestamp with time zone;
 CREATE INDEX IF NOT EXISTS "simulated_payment_objects_customer_idx" ON "simulated_payment_objects" USING btree ("customer_id","object_type");
 CREATE INDEX IF NOT EXISTS "simulated_payment_objects_type_delivered_idx" ON "simulated_payment_objects" USING btree ("object_type","delivered_at");
+CREATE TABLE IF NOT EXISTS "builder_notification_preferences" (
+
+	"user_id" uuid NOT NULL,
+	"builder_id" uuid NOT NULL,
+	"new_lead_email" boolean DEFAULT true NOT NULL,
+	"needs_you_digest" boolean DEFAULT false NOT NULL,
+	"billing_email" boolean DEFAULT true NOT NULL,
+	"updated_at" timestamp with time zone DEFAULT now() NOT NULL,
+	PRIMARY KEY ("user_id", "builder_id")
+);
+ALTER TABLE "builder_notification_preferences" ADD COLUMN IF NOT EXISTS "new_lead_email" boolean DEFAULT true NOT NULL;
+ALTER TABLE "builder_notification_preferences" ADD COLUMN IF NOT EXISTS "needs_you_digest" boolean DEFAULT false NOT NULL;
+ALTER TABLE "builder_notification_preferences" ADD COLUMN IF NOT EXISTS "billing_email" boolean DEFAULT true NOT NULL;
+ALTER TABLE "builder_notification_preferences" ADD COLUMN IF NOT EXISTS "updated_at" timestamp with time zone DEFAULT now() NOT NULL;
+CREATE INDEX IF NOT EXISTS "builder_notification_preferences_builder_idx" ON "builder_notification_preferences" USING btree ("builder_id");
+CREATE TABLE IF NOT EXISTS "builder_notifications" (
+
+	"id" uuid PRIMARY KEY NOT NULL,
+	"dedupe_key" text NOT NULL,
+	"kind" text NOT NULL,
+	"builder_id" uuid NOT NULL,
+	"user_id" uuid NOT NULL,
+	"lead_id" uuid,
+	"status" text DEFAULT 'pending' NOT NULL,
+	"attempts" integer DEFAULT 0 NOT NULL,
+	"last_error_code" text,
+	"last_attempt_at" timestamp with time zone,
+	"processed_at" timestamp with time zone,
+	"created_at" timestamp with time zone DEFAULT now() NOT NULL
+);
+ALTER TABLE "builder_notifications" ADD COLUMN IF NOT EXISTS "lead_id" uuid;
+ALTER TABLE "builder_notifications" ADD COLUMN IF NOT EXISTS "status" text DEFAULT 'pending' NOT NULL;
+ALTER TABLE "builder_notifications" ADD COLUMN IF NOT EXISTS "attempts" integer DEFAULT 0 NOT NULL;
+ALTER TABLE "builder_notifications" ADD COLUMN IF NOT EXISTS "last_error_code" text;
+ALTER TABLE "builder_notifications" ADD COLUMN IF NOT EXISTS "last_attempt_at" timestamp with time zone;
+ALTER TABLE "builder_notifications" ADD COLUMN IF NOT EXISTS "processed_at" timestamp with time zone;
+ALTER TABLE "builder_notifications" ADD COLUMN IF NOT EXISTS "created_at" timestamp with time zone DEFAULT now() NOT NULL;
+CREATE UNIQUE INDEX IF NOT EXISTS "builder_notifications_dedupe_key_idx" ON "builder_notifications" USING btree ("dedupe_key");
+CREATE INDEX IF NOT EXISTS "builder_notifications_status_created_idx" ON "builder_notifications" USING btree ("status","created_at");
+CREATE INDEX IF NOT EXISTS "builder_notifications_lead_idx" ON "builder_notifications" USING btree ("lead_id");
 CREATE TABLE IF NOT EXISTS "partner_shares" (
 
 	"id" uuid PRIMARY KEY NOT NULL,
