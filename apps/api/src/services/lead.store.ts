@@ -8,6 +8,8 @@
  * created within the window. The window bound is a parameter
  * (config-driven), not a constant.
  */
+import type { ClickIdType } from '@feasly/contracts';
+import type { CampaignSourceColumns } from '../lib/campaign-source';
 import { and, desc, eq, gte, inArray, isNull, lt, max, sql } from 'drizzle-orm';
 import type { AppDb } from '../db/client';
 import { estimates, leadNotes, leadStatusHistory, leads } from '../db/schema';
@@ -29,6 +31,12 @@ export interface LeadRecord {
   readonly quarantined: boolean;
   /** api-mcp/01: true when captured via a sandbox API key. */
   readonly sandbox: boolean;
+  /**
+   * #738: the API key that attested consent for an agent-submitted lead;
+   * null/absent for web and embed captures. Lets the dedupe path tell an
+   * attested API row (quarantined for review) from honeypot spam.
+   */
+  readonly consentAttestedByApiKeyId?: string | null;
   /** consumer/02: heuristic score, recomputed on every dedupe update. */
   readonly leadScore: number;
   /** Pipeline status: new | contacted | quoting | won | lost. */
@@ -38,6 +46,11 @@ export interface LeadRecord {
    * flow never depends on it. The builder portal scopes to this column.
    */
   readonly builderId: string | null;
+  /**
+   * #814: campaign attribution stored at creation (`source_*` columns).
+   * Optional so hand-built test records stay valid; absent = none.
+   */
+  readonly attribution?: CampaignSourceColumns;
   /** email/03: CASL opt-out timestamp; null = still subscribed. */
   readonly unsubscribedAt: Date | null;
   /**
@@ -80,6 +93,18 @@ export interface NewLead {
   readonly quarantined?: boolean;
   /** Set when captured via a sandbox API key (api-mcp/01). */
   readonly sandbox?: boolean;
+  /** #814: sanitized campaign attribution from the submit payload. */
+  readonly attribution?: CampaignSourceColumns;
+  /**
+   * #738: consent attestation for a lead submitted with an API key —
+   * the attested wording version, the attesting key id and the time.
+   * Absent for web/embed leads.
+   */
+  readonly consentAttestation?: {
+    readonly version: string;
+    readonly apiKeyId: string;
+    readonly attestedAt: Date;
+  };
 }
 
 export interface LeadStore {
@@ -332,6 +357,21 @@ export interface DrizzleLeadStoreDeps {
   readonly db: AppDb;
 }
 
+/** #814: the lead's `source_*` columns as campaign-source columns. */
+export function leadAttributionFromRow(
+  row: typeof leads.$inferSelect,
+): CampaignSourceColumns {
+  return {
+    utmSource: row.sourceUtmSource,
+    utmMedium: row.sourceUtmMedium,
+    utmCampaign: row.sourceUtmCampaign,
+    utmTerm: row.sourceUtmTerm,
+    utmContent: row.sourceUtmContent,
+    // Written only from the validated ClickIdType union (lead.service).
+    clickIdType: row.sourceClickIdType as ClickIdType | null,
+  };
+}
+
 function toRecord(row: typeof leads.$inferSelect): LeadRecord {
   return {
     id: row.id,
@@ -347,6 +387,7 @@ function toRecord(row: typeof leads.$inferSelect): LeadRecord {
     source: row.source,
     quarantined: row.quarantined,
     sandbox: row.sandbox,
+    consentAttestedByApiKeyId: row.consentAttestedByApiKeyId,
     leadScore: row.leadScore,
     status: row.status,
     unsubscribedAt: row.unsubscribedAt,
@@ -354,6 +395,7 @@ function toRecord(row: typeof leads.$inferSelect): LeadRecord {
     consentUpdatedAt: row.consentUpdatedAt,
     nudgeSentAt: row.nudgeSentAt,
     builderId: row.builderId,
+    attribution: leadAttributionFromRow(row),
     sheetsSyncedAt: row.sheetsSyncedAt,
     updatedAt: row.updatedAt,
     createdAt: row.createdAt,
@@ -410,6 +452,15 @@ export function createDrizzleLeadStore(deps: DrizzleLeadStoreDeps): LeadStore {
           source: lead.source,
           quarantined: lead.quarantined ?? false,
           sandbox: lead.sandbox ?? false,
+          sourceUtmSource: lead.attribution?.utmSource ?? null,
+          sourceUtmMedium: lead.attribution?.utmMedium ?? null,
+          sourceUtmCampaign: lead.attribution?.utmCampaign ?? null,
+          sourceUtmTerm: lead.attribution?.utmTerm ?? null,
+          sourceUtmContent: lead.attribution?.utmContent ?? null,
+          sourceClickIdType: lead.attribution?.clickIdType ?? null,
+          consentVersion: lead.consentAttestation?.version ?? null,
+          consentAttestedByApiKeyId: lead.consentAttestation?.apiKeyId ?? null,
+          consentAttestedAt: lead.consentAttestation?.attestedAt ?? null,
         })
         .returning();
       const row = rows[0];

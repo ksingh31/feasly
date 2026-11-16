@@ -74,6 +74,7 @@ of #733: **CA$0.45 month-to-date**.
 | Scheduled-query alert rules (5, 15-min frequency) | ~1–4 | ~1–4 | ~1–4 |
 | Azure Communication Services email | <1 at magic-link volumes | 0 (log provider) | <1 |
 | LLM narrative (external provider, Gemini + Groq fallback) | pennies; capped by #750 | — | capped by #750 |
+| Public status page (Upptime on GitHub Actions + Pages, [status-page.md](status-page.md)) — ~8.6k `/api/health` calls/month, inside the Functions free grant | 0 | — | 0 |
 | **Total** | **~CA$1–6** (fits the CA$10 budget) | not deployed | **~CA$60–75** — above CA$10 |
 
 Only dev exists today. **A prod stack does not fit CA$10/month**: Postgres alone

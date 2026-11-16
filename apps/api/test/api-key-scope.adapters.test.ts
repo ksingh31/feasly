@@ -54,6 +54,9 @@ const usage = {
   async checkRateLimit(_keyId: string, limit: number) {
     return { allowed: true, limit, remaining: limit, resetEpoch: 0 };
   },
+  async checkQuota() {
+    return { allowed: true };
+  },
   async recordUsage() {},
 } as unknown as UsageService;
 
@@ -88,6 +91,7 @@ const fakeApp = {
   withApiKeyRateLimit: createApiKeyRateLimitMiddleware({
     apiKeys,
     usage,
+    quota: { daily: 1_000_000, monthly: 1_000_000 },
     logger: () => {},
   }),
 };

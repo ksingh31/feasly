@@ -19,5 +19,7 @@ export class SiteFooterComponent {
   /** #704: "Find my report" entry for returning users on any device. */
   // Optional chaining: page specs stub ConfigService with partial copy.
   protected readonly findReportLabel = this.config.get('copy')?.returning?.findReportLink ?? '';
+  /** #831: public Upptime status page; empty = no link (never a dead end). */
+  protected readonly statusPageUrl = this.config.get('site').statusPageUrl ?? '';
   protected readonly year = new Date().getFullYear();
 }

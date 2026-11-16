@@ -1,0 +1,54 @@
+# Feasly public status page — Upptime config (#831).
+#
+# This file is the SOURCE OF TRUTH for the separate public repo
+# `ksingh31/feasly-status` (created from the upptime/upptime template).
+# Copy it to that repo's root as `.upptimerc.yml` whenever it changes.
+# Runbook: docs/ops/status-page.md. Zero Azure cost: Upptime runs on
+# GitHub Actions + GitHub Pages, both free on a public repo.
+#
+# URLs mirror the defaults in infra/health/checks.sh (dev environment).
+# apps/web/tools/status-page-config.spec.ts fails CI if they drift.
+owner: ksingh31
+repo: feasly-status
+
+sites:
+  # The consumer site (Static Web App).
+  - name: Site
+    url: https://victorious-meadow-0b295cc1e.6.azurestaticapps.net/
+  # API health: HTTP 200 + database check. A sick DB answers 200 with
+  # "status": "degraded" (never a 500) — Upptime marks that as degraded.
+  - name: API
+    url: https://feasly-dev-api-4fhkep.azurewebsites.net/api/health
+    __dangerous__body_degraded: degraded
+  # The builder embed: the versioned loader every builder page includes.
+  # Down if the SWA serves anything other than the loader (e.g. index.html).
+  - name: Embed
+    url: https://victorious-meadow-0b295cc1e.6.azurestaticapps.net/embed/v1/loader.js
+    __dangerous__body_down_if_text_missing: Feasly embed loader
+
+# Every 5 minutes (the issue's cadence; GitHub's shortest cron interval).
+workflowSchedule:
+  uptime: "*/5 * * * *"
+  responseTime: "0 23 * * *"
+  graphs: "0 0 * * *"
+  summary: "0 0 * * *"
+  staticSite: "0 1 * * *"
+  updateTemplate: "0 0 * * *"
+  updates: "0 3 * * *"
+
+# A down site opens a GitHub issue in feasly-status, assigned here, and
+# closes it on recovery. Labels: status, <site-slug>.
+assignees:
+  - ksingh31
+
+status-website:
+  # GitHub Pages project site: https://ksingh31.github.io/feasly-status/
+  baseUrl: /feasly-status
+  name: Feasly Status
+  introTitle: "Feasly service status"
+  introMessage: Live uptime and response time for the Feasly site, API and builder embed, checked every 5 minutes.
+  navbar:
+    - title: Status
+      href: /
+    - title: Feasly
+      href: https://victorious-meadow-0b295cc1e.6.azurestaticapps.net/

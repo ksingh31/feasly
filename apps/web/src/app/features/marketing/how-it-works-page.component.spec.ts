@@ -9,6 +9,7 @@ import { Observable, of, throwError } from 'rxjs';
 import type { BuilderPartnerListResponse } from '@feasly/contracts';
 import { API_SERVICE } from '../../core/api/api.service';
 import { ConfigService } from '../../core/config';
+import { DEFAULT_APP_CONFIG } from '../../core/config/app-config.defaults';
 import { PartnersState } from '../../core/partners';
 import { WizardState } from '../wizard/wizard.state';
 import { HowItWorksPageComponent } from './how-it-works-page.component';
@@ -130,6 +131,14 @@ describe('HowItWorksPageComponent', () => {
   it('renders the deterministic-math note', () => {
     const text = (fixture.nativeElement as HTMLElement).textContent ?? '';
     expect(text).toContain('Real math, not guesses');
+  });
+
+  it('lists what every estimate includes and leaves out (#824)', () => {
+    const el = fixture.nativeElement as HTMLElement;
+    const titles = [...el.querySelectorAll('app-estimate-scope h2')].map((h) => h.textContent?.trim());
+    expect(titles).toEqual(['What this estimate includes', 'Not included']);
+    expect(el.querySelectorAll('app-estimate-scope .es-in').length).toBe(DEFAULT_APP_CONFIG.estimateScope.includes.length);
+    expect(el.querySelector('app-estimate-scope .es-out')?.textContent).toContain('Demolition');
   });
 
   it('renders the zoning cross-link card to the zoning guide', () => {

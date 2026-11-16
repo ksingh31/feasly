@@ -180,6 +180,28 @@ export const leads = pgTable(
      */
     sandbox: boolean('sandbox').notNull().default(false),
     /**
+     * #814: campaign attribution from the lead submit (UTM parameters +
+     * which ad click-id parameter was present). Stored once at creation,
+     * never on dedupe updates. Nullable (expand migration 0063); validated
+     * by `lib/campaign-source.ts` — invalid values are stored as NULL.
+     * Distinct from `source` (the capture surface).
+     */
+    sourceUtmSource: text('source_utm_source'),
+    sourceUtmMedium: text('source_utm_medium'),
+    sourceUtmCampaign: text('source_utm_campaign'),
+    sourceUtmTerm: text('source_utm_term'),
+    sourceUtmContent: text('source_utm_content'),
+    sourceClickIdType: text('source_click_id_type'),
+    /**
+     * #738: agent-API consent attestation. Set only for leads submitted
+     * with an API key: the attested wording version, the attesting key
+     * (no FK — the audit trail outlives key deletion) and when. NULL for
+     * web/embed leads, whose consent is the gate checkbox (`consent_ts`).
+     */
+    consentVersion: text('consent_version'),
+    consentAttestedByApiKeyId: uuid('consent_attested_by_api_key_id'),
+    consentAttestedAt: timestamp('consent_attested_at', { withTimezone: true }),
+    /**
      * admin/04: Sheets sync watermark. NULL = never synced; otherwise the
      * timestamp of the last successful upsert to the Google Sheet.
      * The sync worker is the ONLY writer of this column (test asserts via DB diff).
@@ -633,11 +655,27 @@ export const analyticsEvents = pgTable(
      * traffic. Set by embed clients; the funnel dashboard filters on it.
      */
     tenantKey: text('tenant_key'),
+    /**
+     * #814: campaign attribution carried on the event (`source` in the
+     * contract). NULL = no attribution. The funnel dashboard filters and
+     * groups on utm_source / utm_campaign.
+     */
+    utmSource: text('utm_source'),
+    utmMedium: text('utm_medium'),
+    utmCampaign: text('utm_campaign'),
+    utmTerm: text('utm_term'),
+    utmContent: text('utm_content'),
+    clickIdType: text('click_id_type'),
     createdAt: timestamp('created_at', { withTimezone: true })
       .notNull()
       .defaultNow(),
   },
   (t) => [
+    index('analytics_events_source_created_idx').on(
+      t.utmSource,
+      t.utmCampaign,
+      t.createdAt,
+    ),
     index('analytics_events_event_created_idx').on(t.event, t.createdAt),
     index('analytics_events_tenant_created_idx').on(t.tenantKey, t.createdAt),
   ],

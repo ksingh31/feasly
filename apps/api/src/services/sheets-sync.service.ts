@@ -290,6 +290,12 @@ export function createSheetsSyncService(
       tenant: lead.tenantKey ?? '',
       source: lead.source,
       createdAt: lead.createdAt.toISOString(),
+      utmSource: lead.attribution?.utmSource ?? '',
+      utmMedium: lead.attribution?.utmMedium ?? '',
+      utmCampaign: lead.attribution?.utmCampaign ?? '',
+      utmTerm: lead.attribution?.utmTerm ?? '',
+      utmContent: lead.attribution?.utmContent ?? '',
+      clickIdType: lead.attribution?.clickIdType ?? '',
     };
   }
 }

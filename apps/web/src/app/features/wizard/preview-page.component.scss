@@ -72,6 +72,15 @@
   margin-top: 32px;
 }
 
+/* #824: includes / not-included lists, below the property facts. */
+.scope-card {
+  margin-top: 24px;
+  padding: 20px;
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  background: var(--card);
+}
+
 .loading {
   padding: 48px 0;
   text-align: center;

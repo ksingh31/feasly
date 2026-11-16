@@ -1,6 +1,7 @@
 import { Injectable, inject } from '@angular/core';
 import type { ReportSnapshot } from '@feasly/contracts';
 import { ConfigService } from '../../core/config/config.service';
+import { notIncludedItems } from '../../core/utils/estimate-scope';
 import { aggregateCostBuckets, type CostBucket } from '../../shared/cost-buckets';
 import {
   formatCompactCad,
@@ -877,16 +878,28 @@ export class ReportPdfService {
     }
     L.card(nAtoms);
 
-    // -- What's not in this estimate (new-build only). --
+    // -- What this estimate includes / not included (new-build only, #824).
+    //    Includes = the engine's line items (generated); not included =
+    //    config, minus anything the engine now prices. Same lists the page shows. --
     if (!isReno) {
-      const eAtoms: Atom[] = [
-        L.heading(inner, reportCopy.exclusionsTitle),
-        L.text(inner, reportCopy.includedLine, bodyRun(), 8),
+      const scopeCopy = this.config.get('copy').estimateScope;
+      const scope = this.config.get('estimateScope');
+      const iAtoms: Atom[] = [
+        L.heading(inner, scopeCopy.includesTitle),
+        L.text(inner, scopeCopy.includesIntro, bodyRun(), 8),
       ];
-      for (const item of reportCopy.exclusions) {
-        eAtoms.push(L.bullet(inner, item));
+      for (const item of scope.includes) {
+        iAtoms.push(L.bullet(inner, item.label));
       }
-      L.card(eAtoms);
+      const notIncluded = notIncludedItems(scope);
+      if (notIncluded.length > 0) {
+        iAtoms.push(L.heading(inner, scopeCopy.notIncludedTitle));
+        iAtoms.push(L.text(inner, scopeCopy.notIncludedIntro, bodyRun(), 8));
+        for (const item of notIncluded) {
+          iAtoms.push(L.bullet(inner, item.label));
+        }
+      }
+      L.card(iAtoms);
     }
 
     // -- Next steps. --

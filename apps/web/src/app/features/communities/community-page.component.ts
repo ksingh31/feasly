@@ -35,6 +35,7 @@ import {
 } from './community-profile.actions';
 import { CommunityProfileState } from './community-profile.state';
 import { toDisplayName } from './community-names';
+import { fillScopePlaceholders } from '../../core/utils/estimate-scope';
 
 interface TierRow {
   key: 'standard' | 'premium' | 'luxury';
@@ -217,10 +218,11 @@ export class CommunityPageComponent implements OnInit {
   /** Build sqft the ranges assume (from the page-data JSON, not hardcoded). */
   buildSqft = 0;
 
-  /** FAQ items from config (short alias for the template). */
-  get faqs(): { q: string; a: string }[] {
-    return this.copy.faqItems;
-  }
+  /** FAQ items from config, scope lists filled from the engine (#824). */
+  readonly faqs: readonly { q: string; a: string }[] = this.copy.faqItems.map((item) => ({
+    q: item.q,
+    a: fillScopePlaceholders(item.a, this.config.get('estimateScope')),
+  }));
 
   ngOnInit(): void {
     // #783: the nav search can open another community from this page. The
@@ -298,7 +300,7 @@ export class CommunityPageComponent implements OnInit {
     this.meta.updateTag({ name: 'feasly:cost-data-version', content: this.costDataVersion });
     // SEO-06: FAQPage + LocalBusiness JSON-LD for rich results.
     const pagePath = `/communities/${view.slug}/`;
-    this.seo.setJsonLdScript('faq', buildFaqPageSchema(this.copy.faqItems));
+    this.seo.setJsonLdScript('faq', buildFaqPageSchema(this.faqs));
     this.seo.setJsonLdScript(
       'business',
       buildLocalBusinessSchema(this.seo.getSiteUrl(), `${this.seo.getSiteUrl()}${pagePath}`),

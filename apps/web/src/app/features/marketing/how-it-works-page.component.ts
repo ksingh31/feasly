@@ -5,7 +5,7 @@ import { ConfigService } from '../../core/config';
 import { SeoService } from '../../core/seo';
 import { LoadPartners, PartnersState } from '../../core/partners';
 import { buildHowToSchema } from '../../core/seo/jsonld-schemas';
-import { SiteFooterComponent, SiteNavComponent } from '../../shared/components';
+import { EstimateScopeComponent, SiteFooterComponent, SiteNavComponent } from '../../shared/components';
 import { ChooseProjectType, type ProjectType } from '../wizard/wizard.actions';
 
 /**
@@ -24,7 +24,7 @@ import { ChooseProjectType, type ProjectType } from '../wizard/wizard.actions';
 @Component({
   selector: 'app-how-it-works-page',
   standalone: true,
-  imports: [RouterLink, SiteFooterComponent, SiteNavComponent],
+  imports: [EstimateScopeComponent, RouterLink, SiteFooterComponent, SiteNavComponent],
   templateUrl: './how-it-works-page.component.html',
   styleUrl: './marketing.scss',
 })

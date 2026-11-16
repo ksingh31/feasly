@@ -86,5 +86,13 @@
       <app-property-card [property]="p" [showLandNote]="!isReno()" />
     </div>
   }
+
+  @if (ready() && !isReno()) {
+    <!-- #824: what the estimate includes (engine line items) and leaves
+         out. No figures — safe to show pre-gate. -->
+    <div class="scope-card">
+      <app-estimate-scope [headingLevel]="2" />
+    </div>
+  }
 </main>
 <app-site-footer />

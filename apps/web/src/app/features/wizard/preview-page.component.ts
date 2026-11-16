@@ -6,6 +6,7 @@ import { Store } from '@ngxs/store';
 import { ConfigService } from '../../core/config/config.service';
 import { SeoService } from '../../core/seo/seo.service';
 import {
+  EstimateScopeComponent,
   PropertyCardComponent,
   SiteFooterComponent,
   SiteNavComponent,
@@ -44,6 +45,7 @@ import { WizardState } from './wizard.state';
   selector: 'app-preview-page',
   standalone: true,
   imports: [
+    EstimateScopeComponent,
     NgTemplateOutlet,
     PropertyCardComponent,
     RouterLink,

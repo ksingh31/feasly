@@ -13,6 +13,8 @@ packages/cost-engine/cost-data :: PLACEHOLDER :: uncalibrated stand-in data, blo
 packages/cost-engine/src/cost-data.ts :: PLACEHOLDER :: PLACEHOLDER_COST_DATA definition, blocked on Karan's cost Sheet
 @feasly/cost-engine :: PLACEHOLDER :: PLACEHOLDER_COST_DATA constant, blocked on Karan's cost Sheet
 apps/api/src/composition.ts :: PLACEHOLDER :: wires PLACEHOLDER_COST_DATA, blocked on Karan's cost Sheet
+packages/cost-engine/tools/gen-web-scope.ts :: PLACEHOLDER :: reads line items from PLACEHOLDER_COST_DATA (the active table) for the web includes list (#824), blocked on Karan's cost Sheet
+packages/cost-engine/test/web-scope-agreement.test.ts :: PLACEHOLDER :: checks the includes list against PLACEHOLDER_COST_DATA rows (#824), blocked on Karan's cost Sheet
 
 apps/api/src/generated/builder-configs.ts :: PLACEHOLDER :: Elite Craft brand assets pending (embed/05), fill when provided
 config/builders/elite-craft-builders.json :: PLACEHOLDER :: Elite Craft brand assets pending (embed/05), fill when provided

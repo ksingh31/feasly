@@ -33,6 +33,18 @@ export interface SheetLeadRow {
   readonly tenant: string;
   readonly source: string;
   readonly createdAt: string;
+  /**
+   * #814: campaign attribution (empty string when not set). Appended after
+   * `createdAt` so existing Sheet columns keep their positions. The
+   * offline-conversion upload (docs/marketing/google-ads-offline-conversions.md)
+   * reads these.
+   */
+  readonly utmSource: string;
+  readonly utmMedium: string;
+  readonly utmCampaign: string;
+  readonly utmTerm: string;
+  readonly utmContent: string;
+  readonly clickIdType: string;
 }
 
 export interface SheetsClient {

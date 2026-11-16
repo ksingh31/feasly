@@ -45,6 +45,13 @@ export const SHEET_HEADERS = [
   'tenant',
   'source',
   'created_at',
+  // #814: campaign attribution — appended so earlier columns never move.
+  'utm_source',
+  'utm_medium',
+  'utm_campaign',
+  'utm_term',
+  'utm_content',
+  'click_id_type',
 ] as const;
 
 /**
@@ -91,6 +98,12 @@ export function rowToValues(row: SheetLeadRow): string[] {
     row.tenant,
     row.source,
     row.createdAt,
+    row.utmSource,
+    row.utmMedium,
+    row.utmCampaign,
+    row.utmTerm,
+    row.utmContent,
+    row.clickIdType,
   ];
 }
 
