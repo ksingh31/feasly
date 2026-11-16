@@ -321,6 +321,10 @@ const EnvSchema = z.object({
   PROPERTY_HTTP_TIMEOUT_MS: z.coerce.number().int().positive().default(15_000),
   PROPERTY_SEARCH_ROW_LIMIT: z.coerce.number().int().positive().default(50),
   PROPERTY_SUGGESTION_LIMIT: z.coerce.number().int().positive().default(8),
+  // #755: market rule — homes this many years old (or older, by the City's
+  // year of construction) are redevelopment candidates; younger homes are
+  // steered to renovation. Per market, so other cities can differ.
+  PROPERTY_REDEVELOPMENT_MIN_AGE_YEARS: z.coerce.number().int().positive().default(25),
   // --- Current land-use district (#686) ---
   // The assessment roll's land_use_designation is stale after the 2024
   // rezoning repeal (pre-repeal pairs like "R-C2,R-CG"). The current district
@@ -760,6 +764,11 @@ export interface PropertyDataConfig {
   readonly searchRowLimit: number;
   /** Max autocomplete suggestions returned. */
   readonly suggestionLimit: number;
+  /**
+   * #755: home age (years) at/over which a property is a redevelopment
+   * candidate; younger homes are steered to renovation. Market config.
+   */
+  readonly redevelopmentMinAgeYears: number;
 }
 
 /** Which current land-use district source a city uses (#686). */
@@ -1529,6 +1538,7 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): ApiConfig {
       httpTimeoutMs: e.PROPERTY_HTTP_TIMEOUT_MS,
       searchRowLimit: e.PROPERTY_SEARCH_ROW_LIMIT,
       suggestionLimit: e.PROPERTY_SUGGESTION_LIMIT,
+      redevelopmentMinAgeYears: e.PROPERTY_REDEVELOPMENT_MIN_AGE_YEARS,
     },
     landUse: {
       provider: e.LAND_USE_PROVIDER,

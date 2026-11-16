@@ -43,6 +43,10 @@ export const ANALYTICS_EVENT_ALLOWLIST: readonly AnalyticsEventName[] = [
   'report_link_request',
   'report_link_copy',
   'report_link_share',
+  'steer_new_build_offered',
+  'steer_renovation_offered',
+  'steer_none_offered',
+  'steer_override_new_build',
 ];
 
 /**

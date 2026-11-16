@@ -130,6 +130,7 @@ describe('loadConfig', () => {
         httpTimeoutMs: 15_000,
         searchRowLimit: 50,
         suggestionLimit: 8,
+        redevelopmentMinAgeYears: 25,
       },
       // #686: current land-use district from the City's Land Use Districts
       // dataset; falls back to the roll value on timeout/error/no hit.

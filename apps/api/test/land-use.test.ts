@@ -27,6 +27,7 @@ const PROPERTY_CONFIG: PropertyDataConfig = {
   httpTimeoutMs: 5_000,
   searchRowLimit: 50,
   suggestionLimit: 8,
+  redevelopmentMinAgeYears: 25,
 };
 
 const LAND_USE_CONFIG: LandUseConfig = {
