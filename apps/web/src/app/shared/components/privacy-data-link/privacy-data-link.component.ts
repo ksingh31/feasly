@@ -14,19 +14,7 @@ import { ConfigService } from '../../../core/config/config.service';
   standalone: true,
   imports: [RouterLink],
   template: `<a routerLink="/privacy/my-data">{{ label }}</a>`,
-  styles: `
-    :host {
-      display: block;
-      margin: var(--space-6) 0 0;
-      text-align: center;
-      font-size: var(--type-body-sm);
-    }
-    a {
-      display: inline-block;
-      padding: var(--space-3) 0;
-      color: var(--muted);
-    }
-  `,
+  styleUrl: './privacy-data-link.component.scss',
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class PrivacyDataLinkComponent {
