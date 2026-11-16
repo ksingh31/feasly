@@ -170,15 +170,16 @@ describe('BuilderShellComponent', () => {
     expect(brand!.getAttribute('href')).toBe('/builder');
   });
 
-  it('renders Leads · Money · Team for admins, and no Record contract nav item', async () => {
+  it('renders Leads · Money · Team · Settings for admins, and no Record contract nav item', async () => {
     const { fixture } = await setup();
     const nav = q(fixture, '.builder-shell__nav')!;
     const labels = Array.from(nav.querySelectorAll('a')).map((a) => a.textContent?.trim());
-    expect(labels).toEqual(['Leads', 'Money', 'Team']);
+    expect(labels).toEqual(['Leads', 'Money', 'Team', 'Settings']);
     expect(hrefsIn(fixture, '.builder-shell__nav')).toEqual([
       '/builder',
       '/builder/money',
       '/builder/team',
+      '/builder/settings',
     ]);
     // Record contract is an action, not a nav item.
     expect(hrefsIn(fixture, '.builder-shell__nav')).not.toContain('/builder/record-contract');
@@ -194,14 +195,15 @@ describe('BuilderShellComponent', () => {
       '/builder',
       '/builder/money',
       '/builder/team',
+      '/builder/settings',
     ]);
   });
 
-  it('hides Money and Team from members everywhere (AC3)', async () => {
+  it('hides Money and Team from members everywhere (AC3); Settings stays (#871)', async () => {
     const { fixture } = await setup({ isAdmin: false });
     for (const sel of ['.builder-shell__nav', '.builder-shell__tabs']) {
       const hrefs = hrefsIn(fixture, sel);
-      expect(hrefs).toEqual(['/builder']);
+      expect(hrefs).toEqual(['/builder', '/builder/settings']);
     }
     const text = (fixture.nativeElement as HTMLElement).textContent ?? '';
     expect(text).not.toContain('Money');
