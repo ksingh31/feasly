@@ -40,6 +40,7 @@ import {
 } from './admin-quarantine.actions';
 import { AdminQuarantineState } from './admin-quarantine.state';
 import { ADMIN_PERMISSIONS, adminCan } from './admin-permissions';
+import { injectAdminCopy } from './admin-copy';
 
 /**
  * Admin Quarantine (#540, admin review page map) — `/admin/quarantine`.
@@ -78,7 +79,7 @@ export class AdminQuarantineComponent {
   private readonly injector = inject(Injector);
   private readonly destroyRef = inject(DestroyRef);
 
-  protected readonly copy = this.config.get('copy').admin.quarantine;
+  protected readonly copy = injectAdminCopy().quarantine;
   protected readonly debounceMs = this.config.get('timings').filterDebounceMs;
 
   protected readonly leads = this.store.selectSignal(AdminQuarantineState.leads);

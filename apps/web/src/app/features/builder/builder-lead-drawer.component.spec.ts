@@ -190,6 +190,50 @@ afterEach(() => {
 });
 
 describe('BuilderLeadDrawerComponent (#528)', () => {
+  it('#836: shows the callback request — preferred day, window with range, notes', async () => {
+    const { el } = await setup({
+      lead: {
+        latestCallback: {
+          id: 'cb-1',
+          window: 'afternoon',
+          preferredDate: '2026-11-18',
+          notes: 'Call the cell first',
+          phone: '(403) 555-0101',
+          status: 'pending',
+          createdAt: '2026-11-16T18:30:00.000Z',
+        },
+      },
+    });
+    const section = el.querySelector('[data-testid="drawer-callback"]');
+    expect(section?.querySelector('h3')?.textContent?.trim()).toBe(T.callbackHeading);
+    const text = section?.textContent ?? '';
+    expect(text).toContain('Wednesday, Nov 18');
+    expect(text).toContain('Afternoon (12–5 p.m. MT)');
+    expect(text).toContain('Call the cell first');
+  });
+
+  it('#836: a pre-#836 request reads "Any weekday"; no request hides the section', async () => {
+    const { el } = await setup({
+      lead: {
+        latestCallback: {
+          id: 'cb-0',
+          window: 'morning',
+          preferredDate: null,
+          notes: null,
+          phone: '(403) 555-0101',
+          status: 'pending',
+          createdAt: '2026-11-10T18:30:00.000Z',
+        },
+      },
+    });
+    const text = el.querySelector('[data-testid="drawer-callback"]')?.textContent ?? '';
+    expect(text).toContain(T.callbackAnyDay);
+    expect(text).not.toContain(T.callbackNotesLabel);
+
+    const none = await setup();
+    expect(none.el.querySelector('[data-testid="drawer-callback"]')).toBeNull();
+  });
+
   it('renders the drawer chrome: name, status + heat chips, arrived meta, contact actions', async () => {
     const { el } = await setup();
     expect(el.querySelector('.ui-drawer__title')?.textContent?.trim()).toBe('Jane Homeowner');

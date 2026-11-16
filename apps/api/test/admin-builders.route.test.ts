@@ -16,6 +16,7 @@ import {
   type AdminBuildersRouteDeps,
 } from '../src/routes/admin-builders.route';
 import { createAdminLeadsRoute } from '../src/routes/admin-leads.route';
+import type { BuilderLifecycleService } from '../src/services/builder-lifecycle.service';
 import type { BuilderService } from '../src/services/builder.service';
 import type { AdminGuard } from '../src/middleware/admin-guard';
 import { ErrorCodes, HttpError } from '../src/middleware/errors';
@@ -86,9 +87,21 @@ function makeDeps() {
   };
   const agreements = { getAdminSummary: vi.fn(async () => summary) };
 
-  const route = createAdminBuildersRoute({ builders, adminGuard, agreements });
+  const lifecycle = {
+    changeStatus: vi.fn(async (id: string, action: string, reason: string) => ({
+      builder: makeBuilder({ id, status: action === 'suspend' ? 'suspended' : 'active', statusReason: reason }),
+      changed: true,
+    })),
+    offboardingBlockers: vi.fn(async () => []),
+    exportCsv: vi.fn(async (_id: string, kind: string) => ({
+      csv: 'lead_id\n',
+      filename: `elite-craft-${kind}-2026-11-16.csv`,
+    })),
+  } as unknown as BuilderLifecycleService;
+
+  const route = createAdminBuildersRoute({ builders, adminGuard, agreements, lifecycle });
   const headers = { cookie: VALID_SESSION };
-  return { route, builders, headers, agreements, summary };
+  return { route, builders, headers, lifecycle, agreements, summary };
 }
 
 describe('admin-builders route', () => {
@@ -174,7 +187,7 @@ describe('admin-builders route', () => {
     const { route, builders, headers } = makeDeps();
     const result = await route.update(headers, BUILDER_ID, {
       displayName: 'Updated Name',
-      status: 'inactive',
+      status: 'active',
     });
     expect(builders.updateBuilder).toHaveBeenCalledTimes(1);
     expect(result.displayName).toBe('Updated Name');
@@ -185,6 +198,77 @@ describe('admin-builders route', () => {
     await expect(
       route.update({}, BUILDER_ID, { displayName: 'X' }),
     ).rejects.toMatchObject({ status: 401 });
+  });
+});
+
+describe('admin-builders lifecycle routes (#860)', () => {
+  it('changeStatus passes action, reason and the admin identity to the service', async () => {
+    const { route, headers, lifecycle } = makeDeps();
+    const result = await route.changeStatus(headers, BUILDER_ID, {
+      action: 'suspend',
+      reason: 'Unpaid invoices',
+    });
+    expect(lifecycle.changeStatus).toHaveBeenCalledWith(
+      BUILDER_ID,
+      'suspend',
+      'Unpaid invoices',
+      'admin@example.com',
+    );
+    expect(result.builder.status).toBe('suspended');
+  });
+
+  it.each([
+    [{ action: 'suspend' }],
+    [{ action: 'suspend', reason: '  ' }],
+    [{ action: 'delete', reason: 'nope nope' }],
+    [{ action: 'suspend', reason: 'x'.repeat(1001) }],
+  ])('changeStatus rejects a missing reason or unknown action (%j)', async (body) => {
+    const { route, headers, lifecycle } = makeDeps();
+    await expect(route.changeStatus(headers, BUILDER_ID, body)).rejects.toMatchObject({
+      status: 400,
+    });
+    expect(lifecycle.changeStatus).not.toHaveBeenCalled();
+  });
+
+  it('changeStatus requires admin auth (401)', async () => {
+    const { route } = makeDeps();
+    await expect(
+      route.changeStatus({}, BUILDER_ID, { action: 'suspend', reason: 'Because' }),
+    ).rejects.toMatchObject({ status: 401 });
+  });
+
+  it('offboardingBlockers returns the service blockers (#861)', async () => {
+    const { route, headers, lifecycle } = makeDeps();
+    const blocker = {
+      kind: 'unpaid_invoice' as const,
+      invoiceId: 'inv-1',
+      invoiceNumber: 'FEA-0001',
+      status: 'issued',
+    };
+    vi.mocked(lifecycle.offboardingBlockers).mockResolvedValueOnce([blocker]);
+    const out = await route.offboardingBlockers(headers, BUILDER_ID);
+    expect(out).toEqual({ blockers: [blocker] });
+    expect(lifecycle.offboardingBlockers).toHaveBeenCalledWith(BUILDER_ID);
+  });
+
+  it('offboardingBlockers requires admin auth (401) and a uuid id (400)', async () => {
+    const { route, headers, lifecycle } = makeDeps();
+    await expect(route.offboardingBlockers({}, BUILDER_ID)).rejects.toMatchObject({ status: 401 });
+    await expect(route.offboardingBlockers(headers, 'nope')).rejects.toMatchObject({ status: 400 });
+    expect(lifecycle.offboardingBlockers).not.toHaveBeenCalled();
+  });
+
+  it('exportCsv validates kind and returns the csv', async () => {
+    const { route, headers, lifecycle } = makeDeps();
+    const out = await route.exportCsv(headers, BUILDER_ID, { kind: 'invoices' });
+    expect(out.filename).toBe('elite-craft-invoices-2026-11-16.csv');
+    expect(lifecycle.exportCsv).toHaveBeenCalledWith(BUILDER_ID, 'invoices', 'admin@example.com');
+    await expect(route.exportCsv(headers, BUILDER_ID, { kind: 'users' })).rejects.toMatchObject({
+      status: 400,
+    });
+    await expect(route.exportCsv({}, BUILDER_ID, { kind: 'leads' })).rejects.toMatchObject({
+      status: 401,
+    });
   });
 });
 
@@ -238,6 +322,37 @@ describe('admin-leads assign-builder route', () => {
     await expect(
       route.assignBuilder(headers, LEAD_ID, { builderId: 'not-a-uuid' }),
     ).rejects.toMatchObject({ status: 400 });
+  });
+
+  it('assignBuilder returns the service result and propagates 409 LEAD_HAS_INVOICE (#721)', async () => {
+    const { builders, adminGuard } = makeAssignDeps();
+    const response = {
+      ok: true as const,
+      changed: true,
+      fromBuilderId: '123e4567-e89b-12d3-a456-426614174001',
+      toBuilderId: '123e4567-e89b-12d3-a456-426614174000',
+    };
+    builders.assignLead.mockResolvedValueOnce(response as never);
+    builders.assignLead.mockRejectedValueOnce(
+      new HttpError(
+        409,
+        ErrorCodes.LEAD_HAS_INVOICE,
+        'This lead has unpaid invoice INV-0042 (in_review) with its current builder.',
+        false,
+      ),
+    );
+    const route = createAdminLeadsRoute({
+      adminLeads: {} as never,
+      builders: builders as unknown as BuilderService,
+      adminGuard: adminGuard as unknown as AdminGuard,
+    });
+    const headers = { cookie: VALID_SESSION };
+    await expect(
+      route.assignBuilder(headers, LEAD_ID, { builderId: response.toBuilderId }),
+    ).resolves.toEqual(response);
+    await expect(
+      route.assignBuilder(headers, LEAD_ID, { builderId: null }),
+    ).rejects.toMatchObject({ status: 409, code: ErrorCodes.LEAD_HAS_INVOICE });
   });
 
   it('assignBuilder requires admin auth', async () => {

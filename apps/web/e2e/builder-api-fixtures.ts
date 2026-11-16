@@ -18,6 +18,9 @@ import type {
   BuilderAuthMeResponse,
   BuilderOnboardingStatus,
   BuilderBillingOverviewResponse,
+  BuilderEmbedResponse,
+  BuilderNotificationPreferencesResponse,
+  BuilderProfileResponse,
   BuilderLeadListItem,
   BuilderLeadListResponse,
   BuilderLeadNeedsYouItem,
@@ -166,6 +169,11 @@ const LEADS: readonly BuilderLeadListItem[] = [
 export const LEAD_LIST: BuilderLeadListResponse = {
   leads: LEADS,
   summary: { total: 5, new: 1, contacted: 1, quoted: 1, won: 1, lost: 1, needsRecording: 1 },
+  // #803: read-only "Reassigned by Feasly" rows (long name exercises wrapping at 390px).
+  reassigned: [
+    { id: 'lead-r1', name: 'Bartholomew Okonkwo-Vandermeer', reassignedAt: daysAgo(2) },
+    { id: 'lead-r2', name: 'Priya Natarajan', reassignedAt: daysAgo(9) },
+  ],
 };
 
 function needsYouItem(l: BuilderLeadListItem, waitingDays: number): BuilderLeadNeedsYouItem {
@@ -326,6 +334,59 @@ function json(route: Route, body: unknown, status = 200): Promise<void> {
  * Intercepts `/api/**` on the page. `signedIn: false` answers `/me` with
  * 401 so public pages render in their signed-out state.
  */
+/** #871: builder Settings — profile & branding + support contact. */
+export const PROFILE: BuilderProfileResponse = {
+  profile: {
+    tenantKey: TENANT,
+    businessName: 'Elite Craft Builders Incorporated (Calgary Infill Division)',
+    displayName: 'Elite Craft Builders',
+    contactEmail: 'alexandra.montgomery-whitfield@elitecraftbuilders.example',
+    contactPhone: '+1 (403) 555-0142',
+    logoUrl: null,
+    accentColor: '#c8a24b',
+    updatedAt: daysAgo(3),
+  },
+  canEdit: true,
+  support: {
+    channel: 'email',
+    email: 'builder-support@feasly.example',
+    responseTime: 'within 1 business day',
+  },
+};
+
+/** #871: embed snippet + per-origin install check (long origins on purpose). */
+export const EMBED: BuilderEmbedResponse = {
+  tenantKey: TENANT,
+  loaderUrl: 'https://feasly.example/embed/v1/loader.js',
+  snippet:
+    '<div id="feasly-estimator"></div>\n<script src="https://feasly.example/embed/v1/loader.js" data-tenant="elite-craft-builders" async></script>',
+  origins: [
+    { origin: 'https://www.elitecraftbuilders.example', lastSeenAt: daysAgo(1), loadedRecently: true },
+    { origin: 'https://staging-preview.elitecraftbuilders-calgary-infill.example', lastSeenAt: daysAgo(40), loadedRecently: false },
+    { origin: 'https://landing.elitecraftbuilders.example', lastSeenAt: null, loadedRecently: false },
+  ],
+  liveWindowDays: 7,
+  lastSeenAt: daysAgo(1),
+  openRequests: [
+    {
+      id: 'req-1',
+      status: 'open',
+      add: ['https://new-homes.elitecraftbuilders.example'],
+      remove: ['https://landing.elitecraftbuilders.example'],
+      note: null,
+      createdAt: daysAgo(2),
+    },
+  ],
+};
+
+/** #864: the signed-in admin's email preferences (last billing admin). */
+export const NOTIFICATION_PREFERENCES: BuilderNotificationPreferencesResponse = {
+  channel: 'email',
+  preferences: { newLeadEmail: true, needsYouDigest: false, billingEmail: true },
+  role: 'builder_admin',
+  canDisableBillingEmail: false,
+};
+
 export async function mockBuilderApi(page: Page, opts: { signedIn: boolean }): Promise<ApiMockHandle> {
   const handle: ApiMockHandle = { unhandled: [] };
   await page.route('**/api/**', (route) => {
@@ -355,6 +416,12 @@ export async function mockBuilderApi(page: Page, opts: { signedIn: boolean }): P
           return json(route, AGREEMENT);
         case '/api/v1/builder/onboarding':
           return json(route, ONBOARDING);
+        case '/api/v1/builder/profile':
+          return json(route, PROFILE);
+        case '/api/v1/builder/embed':
+          return json(route, EMBED);
+        case '/api/v1/builder/notifications/preferences':
+          return json(route, NOTIFICATION_PREFERENCES);
         case '/api/v1/billing/card':
           return json(route, CARD);
         case '/api/v1/billing/commission-rate':

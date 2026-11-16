@@ -706,8 +706,11 @@ export function mockRenoReport(
   };
 }
 
-export function mockCallbackOk(window: 'morning' | 'afternoon' | 'evening'): CallbackResponse {
-  return { ok: true, window };
+export function mockCallbackOk(
+  window: 'morning' | 'afternoon' | 'evening',
+  preferredDate: string | null = null,
+): CallbackResponse {
+  return { ok: true, window, preferredDate };
 }
 
 export function mockWaitlistOk(topic: WaitlistTopic): WaitlistResponse {
@@ -724,10 +727,28 @@ export function mockShareOk(partnerEmail: string): PartnerShareResponse {
  * pinned by mock-api.service.spec.ts.
  */
 export const MOCK_FUNNEL_COUNTS: ReadonlyArray<{ step: string; label: string; count: number }> = [
-  { step: 'scope', label: 'Scope', count: 1240 },
+  // #814 + #835 steps: mirrors FUNNEL_STEPS in apps/api/src/services/funnel.service.ts.
+  { step: 'landing', label: 'Landing view', count: 2400 },
+  { step: 'address', label: 'Address selected', count: 1240 },
   { step: 'preview', label: 'Preview', count: 812 },
-  { step: 'gate', label: 'Gate', count: 644 },
-  { step: 'report', label: 'Report', count: 301 },
+  { step: 'gate', label: 'Gate view', count: 644 },
+  { step: 'submit', label: 'Gate submit', count: 418 },
+  { step: 'convert', label: 'Gate convert', count: 352 },
+  { step: 'report', label: 'Report open', count: 301 },
+];
+
+/**
+ * #815: campaign split of the funnel fixture — each group's share of every
+ * step count. null source/campaign = untagged (direct) traffic.
+ */
+export const MOCK_FUNNEL_SOURCE_SHARES: ReadonlyArray<{
+  utmSource: string | null;
+  utmCampaign: string | null;
+  share: number;
+}> = [
+  { utmSource: null, utmCampaign: null, share: 0.45 },
+  { utmSource: 'google', utmCampaign: 'spring-infill', share: 0.4 },
+  { utmSource: 'www.reddit.com', utmCampaign: null, share: 0.15 },
 ];
 
 /** Direct-traffic slice of the funnel fixture (70% of all-traffic counts). */

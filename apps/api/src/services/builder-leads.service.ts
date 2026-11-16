@@ -42,6 +42,7 @@ import type {
   BuilderPaymentMethod,
   CommentAuthorKind,
   CommissionInvoiceStatus,
+  LeadCallbackSummary,
 } from '@feasly/contracts';
 import { ErrorCodes, HttpError } from '../middleware/errors';
 import type { AdminAuditStore } from './admin-audit.store';
@@ -55,8 +56,12 @@ import type { CommentStore, CommentSummary } from './builder-comments.store';
 import type { BuilderService } from './builder.service';
 import type { AgreementGate } from './builder-agreement.service';
 import type { EmailService } from './email/email.service';
+import type { LeadAssignmentService } from './lead-assignment.service';
 import type { LeadRecord, LeadStatusChangeStore, LeadStore } from './lead.store';
 import type { MembershipStore, UserStore } from './user.service';
+import type { CallbackRequestStore } from './callback-request.store';
+import { toLeadCallbackSummary } from './callback.service';
+import { requireBuilderCapability } from '../lib/builder-status-policy';
 
 export const BuilderLeadStatusSchema = z.enum([
   'new',
@@ -185,6 +190,12 @@ export interface BuilderLeadsServiceDeps {
    */
   readonly commentSummaries?: Pick<CommentStore, 'summariesByEntity'>;
   /**
+   * #836: callback requests for the listed leads — powers `latestCallback`
+   * (preferred day, window, notes). One query for all leads. Optional for
+   * tests that don't cover callbacks.
+   */
+  readonly callbackSummaries?: Pick<CallbackRequestStore, 'listByLeadIds'>;
+  /**
    * Resolves comment author ids to display names for the preview.
    * Optional for tests that don't cover comments (falls back to
    * 'Unknown', matching the comments service).
@@ -209,6 +220,11 @@ export interface BuilderLeadsServiceDeps {
    * back to the row's `updatedAt`.
    */
   readonly statusChanges?: LeadStatusChangeStore;
+  /**
+   * #721: leads Feasly moved away from this builder, listed as
+   * "Reassigned by Feasly". Absent in tests that don't cover it.
+   */
+  readonly reassignments?: Pick<LeadAssignmentService, 'listReassignedAway'>;
   /**
    * "Needs you" tunables from config (`lead.needsYouStaleDays`,
    * `lead.needsYouScanLimit`). Required by `getNeedsYou` — it fails with
@@ -292,6 +308,7 @@ function toListItem(
     readonly count: number;
     readonly latest: BuilderLeadCommentPreview | null;
   } | null,
+  latestCallback: LeadCallbackSummary | null = null,
 ): BuilderLeadListItem {
   return {
     id: record.id,
@@ -312,6 +329,7 @@ function toListItem(
     commentCount: comment?.count ?? 0,
     latestComment: comment?.latest ?? null,
     needsRecording: record.status === 'won' && invoiceSummary === null,
+    latestCallback,
   };
 }
 
@@ -326,25 +344,33 @@ export function createBuilderLeadsService(
     billingHook,
     invoiceSummaries,
     commentSummaries,
+    callbackSummaries,
     users,
     memberships,
     email,
     fallbackAdminInbox,
     statusChanges,
     needsYou,
+    reassignments,
   } = deps;
   const clock = deps.clock ?? (() => new Date());
 
   /**
    * Resolve the session's tenant key to the builder row. Every portal
    * call goes through here so a builder always acts as exactly one
-   * builder. Unknown tenant key → 404 (no builder to scope to).
+   * builder. Unknown tenant key → 404 (no builder to scope to). #860:
+   * a status that refuses `capability` → 403 BUILDER_PAUSED (reads stay
+   * open while suspended; writes need `portalWrite`).
    */
-  async function requireBuilder(tenantKey: string) {
+  async function requireBuilder(
+    tenantKey: string,
+    capability: 'portalRead' | 'portalWrite' = 'portalRead',
+  ) {
     const builder = await builders.getByTenantKey(tenantKey);
-    if (builder === null || builder.status !== 'active') {
+    if (builder === null) {
       throw new HttpError(404, ErrorCodes.NOT_FOUND, 'Builder not found.', false);
     }
+    requireBuilderCapability(builder.status, capability);
     return builder;
   }
 
@@ -499,7 +525,7 @@ export function createBuilderLeadsService(
       );
     }
 
-    const builder = await requireBuilder(tenantKey);
+    const builder = await requireBuilder(tenantKey, 'portalWrite');
 
     // auth/04 (iron rule): tenant scoping happens in SQL from session
     // state. The read AND the write are both scoped by
@@ -731,6 +757,19 @@ export function createBuilderLeadsService(
         };
       };
 
+      // #836: newest callback per lead — one query, rows newest first.
+      const latestCallbacks = new Map<string, LeadCallbackSummary>();
+      if (callbackSummaries !== undefined && records.length > 0) {
+        const callbackRows = await callbackSummaries.listByLeadIds(
+          records.map((record) => record.id),
+        );
+        for (const row of callbackRows) {
+          if (!latestCallbacks.has(row.leadId)) {
+            latestCallbacks.set(row.leadId, toLeadCallbackSummary(row));
+          }
+        }
+      }
+
       const summary = { ...countByStatus(records), needsRecording: 0 };
 
       const leads = records.map((record) =>
@@ -738,11 +777,17 @@ export function createBuilderLeadsService(
           record,
           byLeadId.get(record.id) ?? null,
           commentPreviewFor(record.id),
+          latestCallbacks.get(record.id) ?? null,
         ),
       );
       summary.needsRecording = leads.filter((lead) => lead.needsRecording).length;
 
-      return { leads, summary };
+      const reassigned =
+        reassignments === undefined
+          ? []
+          : await reassignments.listReassignedAway(builder.id);
+
+      return { leads, summary, reassigned };
     },
 
     async getNeedsYou(tenantKey: string): Promise<BuilderLeadsNeedsYouResponse> {
@@ -844,7 +889,7 @@ export function createBuilderLeadsService(
       tenantKey: string,
       actorEmail: string,
     ): Promise<BuilderLeadMarkWonResponse> {
-      const builder = await requireBuilder(tenantKey);
+      const builder = await requireBuilder(tenantKey, 'portalWrite');
       const record = await requireOwnLead(id, builder.id, tenantKey, actorEmail);
       requireNonSandbox(record);
 

@@ -61,6 +61,7 @@ function fakeStripeClient(): StripeClient & { customersCreated: string[] } {
     })),
     listPaymentMethods: vi.fn(async () => []),
     createOffSessionPaymentIntent: vi.fn(),
+    findRefundByMetadata: vi.fn(),
     refundPaymentIntent: vi.fn(),
     createSubscription: vi.fn(),
     cancelSubscription: vi.fn(),

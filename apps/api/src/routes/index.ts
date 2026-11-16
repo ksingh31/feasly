@@ -5,6 +5,8 @@ export * from './privacy.route';
 export * from './narrative.route';
 export * from './community-stats.route';
 export * from './community-stats-refresh.route';
+export * from './community-lots.route';
+export * from './admin-community-narratives.route';
 export * from './embed-config.route';
 export * from './embed-session.route';
 export * from './embed-relay-resend.route';

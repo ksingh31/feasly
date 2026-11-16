@@ -6,6 +6,7 @@ import { SeoService } from '../../core/seo';
 import { buildArticleSchema, buildFaqPageSchema } from '../../core/seo/jsonld-schemas';
 import { SiteFooterComponent, SiteNavComponent } from '../../shared/components';
 import { ResetWizard } from '../wizard/wizard.actions';
+import { injectZoningGuideCopy } from '@app/core/config/zoning-guide-copy';
 
 /**
  * Zoning explainer (SEO guides): long-form "Calgary zoning explained"
@@ -37,7 +38,7 @@ export class ZoningGuidePageComponent implements OnInit {
   private readonly router = inject(Router);
 
   /** Zoning-guide copy (config-owned). */
-  readonly copy = this.config.get('copy').marketing.zoningGuide;
+  readonly copy = injectZoningGuideCopy();
 
   /** Index of the open FAQ accordion item; -1 collapses all. No leaked state: a plain signal. */
   readonly openIndex = signal(-1);

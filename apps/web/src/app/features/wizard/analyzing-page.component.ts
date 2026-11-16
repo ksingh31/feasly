@@ -11,6 +11,7 @@ import { ConfigService } from '../../core/config/config.service';
 import { SeoService } from '../../core/seo/seo.service';
 import { isServerPlatform } from '../../core/utils/platform';
 import { SiteFooterComponent, SiteNavComponent, WizardBackComponent } from '../../shared/components';
+import { AnalyticsService } from '../consent/analytics.service';
 import { EmbedState } from '../embed/embed.state';
 import { SetReportToken } from '../report/report.actions';
 import { LeadState, StorePreviewEstimate, WizardState } from '../wizard';
@@ -61,6 +62,7 @@ export class AnalyzingPageComponent implements OnInit {
   private readonly seo = inject(SeoService);
   private readonly config = inject(ConfigService);
   private readonly destroyRef = inject(DestroyRef);
+  private readonly analytics = inject(AnalyticsService);
   private readonly isServer = isServerPlatform();
 
   /** Analyzing copy (config-owned). */
@@ -203,6 +205,9 @@ export class AnalyzingPageComponent implements OnInit {
         },
         error: () => {
           this.failed.set(true);
+          // #815: one event per failed run (a retry starts a new run).
+          // Consent-gated inside AnalyticsService.
+          this.analytics.track('estimate_error');
         },
       });
   }

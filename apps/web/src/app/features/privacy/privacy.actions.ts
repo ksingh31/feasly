@@ -16,6 +16,15 @@ export class RequestErasure {
   constructor(public readonly reportToken: string) {}
 }
 
+/**
+ * #806: asks the API again for the erase-confirmation email while the
+ * request is pending (same endpoint — idempotent, re-sends after cooldown).
+ */
+export class ResendErasureEmail {
+  static readonly type = '[Privacy] Resend erasure email';
+  constructor(public readonly reportToken: string) {}
+}
+
 /** Drops the pending request from the page (server-side it stays pending, unconfirmed). */
 export class CancelErasure {
   static readonly type = '[Privacy] Cancel erasure';

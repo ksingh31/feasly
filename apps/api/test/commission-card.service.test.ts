@@ -49,6 +49,7 @@ function fakeStripe(state: FakeStripeState): StripeService {
     createSubscription: vi.fn(),
     cancelSubscription: vi.fn(),
     retrievePaymentIntent: vi.fn(),
+    findRefundByMetadata: vi.fn(),
     refundPaymentIntent: vi.fn(),
     verifyWebhook: vi.fn(),
     saveCustomerId: vi.fn(async (tenantKey: string, customerId: string) => {

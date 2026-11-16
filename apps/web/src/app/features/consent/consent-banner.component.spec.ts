@@ -2,9 +2,9 @@ import { provideHttpClient } from '@angular/common/http';
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { By } from '@angular/platform-browser';
 import { provideStore, Store } from '@ngxs/store';
-import { beforeEach, describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { AcknowledgeConsent } from './consent.actions';
-import { ConsentBannerComponent } from './consent-banner.component';
+import { CONSENT_BANNER_HEIGHT_VAR, ConsentBannerComponent } from './consent-banner.component';
 import { ConsentState } from './consent.state';
 
 /**
@@ -57,6 +57,23 @@ describe('ConsentBannerComponent', () => {
     await fixture.whenStable();
     expect(store.selectSnapshot(ConsentState.status)).toBe('declined');
     expect(fixture.debugElement.query(By.css('[data-testid="consent-banner"]'))).toBeNull();
+  });
+
+  afterEach(() => document.documentElement.style.removeProperty(CONSENT_BANNER_HEIGHT_VAR));
+
+  // #832: focused fields must scroll clear of the bar (WCAG 2.2 SC 2.4.11).
+  it('publishes its height while visible and clears it once acknowledged', async () => {
+    const root = document.documentElement;
+    expect(root.style.getPropertyValue(CONSENT_BANNER_HEIGHT_VAR)).toMatch(/^\d+px$/);
+    fixture.debugElement.query(By.css('[data-testid="consent-decline"]')).nativeElement.click();
+    fixture.detectChanges();
+    await fixture.whenStable();
+    expect(root.style.getPropertyValue(CONSENT_BANNER_HEIGHT_VAR)).toBe('');
+  });
+
+  it('clears the reserved height when destroyed', () => {
+    fixture.destroy();
+    expect(document.documentElement.style.getPropertyValue(CONSENT_BANNER_HEIGHT_VAR)).toBe('');
   });
 
   it('stays hidden when consent was already acknowledged', async () => {

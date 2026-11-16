@@ -63,6 +63,24 @@
       <ui-key-value-list [items]="contactItems()" />
     </section>
 
+    <section class="lead-drawer__section" aria-labelledby="lead-drawer-callbacks" data-testid="admin-lead-callbacks">
+      <h3 id="lead-drawer-callbacks" class="lead-drawer__heading">{{ copy.callbacksHeading }}</h3>
+      @for (request of callbackRequests(); track request.id) {
+        <ui-key-value-list class="lead-drawer__callback" [items]="request.items" />
+      } @empty {
+        <p class="lead-drawer__note">{{ copy.noCallbacks }}</p>
+      }
+    </section>
+
+    <section class="lead-drawer__section" aria-labelledby="lead-drawer-campaign">
+      <h3 id="lead-drawer-campaign" class="lead-drawer__heading">{{ copy.sections.campaign }}</h3>
+      @if (attributionItems().length > 0) {
+        <ui-key-value-list class="lead-drawer__attribution" [items]="attributionItems()" />
+      } @else {
+        <p class="lead-drawer__note">{{ copy.noAttribution }}</p>
+      }
+    </section>
+
     <section class="lead-drawer__section" aria-labelledby="lead-drawer-property">
       <h3 id="lead-drawer-property" class="lead-drawer__heading">{{ copy.sections.property }}</h3>
       @if (l.estimate; as estimate) {
@@ -151,6 +169,19 @@
         </ol>
       } @else {
         <p class="lead-drawer__note">{{ copy.noActivity }}</p>
+      }
+      @if (reassignments().length > 0) {
+        <h4 class="lead-drawer__subheading">{{ copy.reassignmentsHeading }}</h4>
+        <ol class="lead-drawer__list" data-testid="lead-reassignments">
+          @for (entry of reassignments(); track entry.key) {
+            <li>
+              {{ entry.from }} → <strong>{{ entry.to }}</strong>
+              <span class="lead-drawer__muted">
+                {{ entry.changedAt | kitDateTime }} · {{ entry.changedBy }}
+              </span>
+            </li>
+          }
+        </ol>
       }
     </section>
 

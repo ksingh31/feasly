@@ -9,6 +9,7 @@ import type {
   ManualInvoiceResponse,
   MarkInvoicePaidResponse,
   SetCommissionRateResponse,
+  UpdateInvoiceDunningRequest,
 } from '@feasly/contracts';
 import {
   AdminBillingApiService,
@@ -26,6 +27,7 @@ import {
   SearchInvoiceLeads,
   SetCommissionRate,
   SetInvoicePlannedPaymentMethod,
+  UpdateInvoiceDunning,
 } from './billing-health.actions';
 
 /** Loading lifecycle for the billing-health dashboard. */
@@ -85,6 +87,19 @@ export interface BillingHealthStateModel {
   /** Create-invoice lead picker results for the chosen builder (#544). */
   invoiceLeads: readonly AdminLeadListItem[];
   invoiceLeadSearchStatus: InvoiceLeadSearchStatus;
+  /** #901: invoice whose dunning schedule is being saved, or null. */
+  dunningSavingId: string | null;
+  /**
+   * #901: one-shot outcome of the last schedule change. Copy-free — the
+   * page maps `action` / `conflict` to admin copy for the toast.
+   */
+  dunningFeedback: {
+    invoiceId: string;
+    action: UpdateInvoiceDunningRequest['action'];
+    ok: boolean;
+    /** The server refused because the invoice changed state (409). */
+    conflict: boolean;
+  } | null;
 }
 
 const defaults: BillingHealthStateModel = {
@@ -99,6 +114,8 @@ const defaults: BillingHealthStateModel = {
   invoiceFeedback: null,
   invoiceLeads: [],
   invoiceLeadSearchStatus: 'idle',
+  dunningSavingId: null,
+  dunningFeedback: null,
 };
 
 /**
@@ -205,6 +222,20 @@ export class BillingHealthState {
     state: BillingHealthStateModel,
   ): BillingHealthStateModel['invoiceFeedback'] {
     return state.invoiceFeedback;
+  }
+
+  /** #901: invoice whose dunning schedule is being saved, or null. */
+  @Selector()
+  static dunningSavingId(state: BillingHealthStateModel): string | null {
+    return state?.dunningSavingId ?? null;
+  }
+
+  /** #901: outcome of the last dunning schedule change. */
+  @Selector()
+  static dunningFeedback(
+    state: BillingHealthStateModel,
+  ): BillingHealthStateModel['dunningFeedback'] {
+    return state?.dunningFeedback ?? null;
   }
 
   /** Lead-picker results for the create-invoice modal (#544). */
@@ -319,6 +350,43 @@ export class BillingHealthState {
             message:
               serverMessage ??
               'Retry failed. Check the card on file and try again.',
+          },
+        });
+        return of(null);
+      }),
+    );
+  }
+
+  /**
+   * #901: edit one invoice's retry schedule. One change at a time (a
+   * dispatch while another saves is ignored). Success reloads the
+   * dashboard; the outcome lands in `dunningFeedback` for the page's toast
+   * and the grace-days modal's inline error.
+   */
+  @Action(UpdateInvoiceDunning)
+  updateInvoiceDunning(
+    ctx: StateContext<BillingHealthStateModel>,
+    action: UpdateInvoiceDunning,
+  ) {
+    if (ctx.getState().dunningSavingId !== null) return;
+    ctx.patchState({ dunningSavingId: action.invoiceId, dunningFeedback: null });
+    return this.api.updateInvoiceDunning(action.invoiceId, action.body).pipe(
+      tap(() => {
+        ctx.patchState({
+          dunningSavingId: null,
+          dunningFeedback: { invoiceId: action.invoiceId, action: action.body.action, ok: true, conflict: false },
+        });
+        ctx.dispatch(new LoadBillingHealth());
+      }),
+      catchError((err: unknown) => {
+        const code = (err as { code?: unknown } | null)?.code;
+        ctx.patchState({
+          dunningSavingId: null,
+          dunningFeedback: {
+            invoiceId: action.invoiceId,
+            action: action.body.action,
+            ok: false,
+            conflict: code === 'CONFLICT' || code === 'http_409',
           },
         });
         return of(null);

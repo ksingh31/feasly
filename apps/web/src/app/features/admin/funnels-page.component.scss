@@ -1,3 +1,5 @@
+@use '../../shared/stacked-table' as *;
+
 /**
  * Admin Funnels (admin/07, kit migration #547). Kit PageHeader / fields /
  * buttons / KpiTile; this file lays out the filter card and the funnel
@@ -127,4 +129,48 @@
 
 .funnels__drop {
   color: var(--status-warning-fg);
+}
+
+/* #815: per-(source, campaign) breakdown. Phones stack each row (#476). */
+.funnels__sources {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  min-width: 0;
+}
+
+.funnels__sources-heading {
+  margin: 0;
+  font: var(--type-product-h2);
+}
+
+.funnels__sources-note {
+  margin: 0;
+  color: var(--muted);
+  font: var(--type-body-sm);
+}
+
+.funnels__sources-table {
+  width: 100%;
+  border-collapse: collapse;
+  font: var(--type-body-sm);
+
+  @include feasly-stacked-table;
+}
+
+.funnels__sources-table th,
+.funnels__sources-table td {
+  text-align: left;
+  padding: var(--space-2) var(--space-3);
+  border-bottom: 1px solid var(--border);
+  overflow-wrap: anywhere;
+}
+
+.funnels__sources-table th {
+  font-weight: 600;
+}
+
+.funnels__sources-table .funnels__num {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
 }

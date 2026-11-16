@@ -131,6 +131,20 @@
               <dd>{{ inv.paymentReference }}</dd>
             </div>
           }
+          @if (recovery(); as r) {
+            @if (r.chargebackStatus; as cb) {
+              <div data-testid="invoice-chargeback">
+                <dt>Bank dispute</dt>
+                <dd><ui-status-chip domain="chargeback" [status]="cb" /></dd>
+              </div>
+            }
+            @if (r.refundedCents !== null) {
+              <div data-testid="invoice-refunded">
+                <dt>Refunded</dt>
+                <dd class="invoice-drawer__num">{{ r.refundedCents | kitMoney }}</dd>
+              </div>
+            }
+          }
           @if (inv.paidAt !== null) {
             <div>
               <dt>Paid</dt>
@@ -177,6 +191,12 @@
           }
         </dl>
       </section>
+
+      <app-admin-simulated-panel
+        [invoiceId]="inv.id"
+        [canManage]="canManageBilling()"
+        (fired)="onSimulatedEvent()"
+      />
     }
   </div>
 </ui-drawer>

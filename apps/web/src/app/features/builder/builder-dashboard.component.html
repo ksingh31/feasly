@@ -206,4 +206,30 @@
       </ng-template>
     </ui-data-table>
   </section>
+
+  <!-- #803: leads Feasly moved to another builder. Read-only: no reason, no detail link. -->
+  @if (reassigned().length > 0) {
+    <section class="leads-home__section" aria-labelledby="reassigned-heading" data-testid="reassigned">
+      <h2 id="reassigned-heading" class="leads-home__h2">
+        {{ home.reassignedHeading }}
+        <span class="leads-home__count">{{ reassigned().length }}</span>
+      </h2>
+      <p class="leads-home__note">{{ home.reassignedHint }}</p>
+      <ul class="reassigned-list" role="list">
+        @for (item of reassigned(); track item.id) {
+          <li class="reassigned-row" data-testid="reassigned-row">
+            <span class="lead-cell__avatar" aria-hidden="true">{{ initials(item.name) }}</span>
+            <span class="reassigned-row__name">{{ item.name }}</span>
+            <span class="reassigned-row__tag">{{ home.reassignedLabel }}</span>
+            <span class="reassigned-row__when">
+              {{ home.reassignedAtPrefix }}
+              <time [attr.datetime]="item.reassignedAt" [attr.title]="item.reassignedAt | kitDateTime">{{
+                item.reassignedAt | kitRelative
+              }}</time>
+            </span>
+          </li>
+        }
+      </ul>
+    </section>
+  }
 </div>

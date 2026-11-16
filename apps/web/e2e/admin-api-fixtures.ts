@@ -156,6 +156,9 @@ function leadDetail(item: AdminLeadListItem): AdminLeadDetail {
       createdAt: item.createdAt,
     },
     magicLinkStatus: 'used',
+    // #815: lead-1 arrived from the paid test campaign; the rest are direct.
+    attribution:
+      item.id === 'lead-1' ? { utm_source: 'google', utm_campaign: 'test', click_id_type: 'gclid' } : null,
     sheetsSyncedAt: daysAgo(1),
     snapshotCount: 2,
     builderId: item.tenantKey ? 'b-1' : null,
@@ -170,6 +173,13 @@ function leadDetail(item: AdminLeadListItem): AdminLeadDetail {
       { oldStatus: null, newStatus: 'new', changedBy: null, changedAt: item.createdAt },
       { oldStatus: 'new', newStatus: item.status, changedBy: ADMIN_ME.email, changedAt: daysAgo(1) },
     ],
+    // #803: builder moves render in the drawer's Activity section.
+    reassignments: item.tenantKey
+      ? [
+          { fromBuilderId: null, toBuilderId: 'b-2', changedBy: ADMIN_ME.email, changedAt: daysAgo(3) },
+          { fromBuilderId: 'b-2', toBuilderId: 'b-1', changedBy: ADMIN_ME.email, changedAt: daysAgo(2) },
+        ]
+      : [],
   };
 }
 
@@ -219,7 +229,7 @@ export const ADMIN_BUILDERS: BuilderListResponse = {
   builders: [
     builder('b-1', ELITE, 'Elite Craft Builders'),
     builder('b-2', NORTHERN, 'Northern Lights Custom Homes & Renovations Ltd.', { commissionRatePercent: 1.5 }),
-    builder('b-3', 'bow-river-custom', 'Bow River Custom', { status: 'inactive', plan: null }),
+    builder('b-3', 'bow-river-custom', 'Bow River Custom', { status: 'suspended', plan: null }),
   ],
 };
 
@@ -334,7 +344,35 @@ const DISPUTE_ITEM: DisputeListItem = {
   breached: false,
 };
 
-export const DISPUTES: DisputeListResponse = { disputes: [DISPUTE_ITEM] };
+/** #872: a Stripe bank chargeback on a paid invoice (resolved in Stripe). */
+const PAID = INVOICES.find((i) => i.status === 'paid')!;
+
+const CHARGEBACK_ITEM: DisputeListItem = {
+  id: 'chargeback-1',
+  invoiceId: PAID.id,
+  tenantKey: PAID.tenantKey,
+  reason: 'fraudulent',
+  status: 'open',
+  openedAt: daysAgo(1),
+  slaDueAt: daysAhead(6),
+  slaBreachedAt: null,
+  commissionCents: PAID.commissionCents,
+  currency: 'CAD',
+  contractValueCents: PAID.contractValueCents,
+  businessDaysRemaining: 4,
+  breached: false,
+  source: 'chargeback',
+  stripeDisputeId: 'dp_1QxE2eChargebackFixture000001',
+  stripeReason: 'product_not_received',
+  stripeStatus: 'needs_response',
+  amountCents: PAID.commissionCents,
+  evidenceDueAt: daysAhead(6),
+  evidenceDaysRemaining: 6,
+  outcome: null,
+  livemode: false,
+};
+
+export const DISPUTES: DisputeListResponse = { disputes: [DISPUTE_ITEM, CHARGEBACK_ITEM] };
 
 export const DISPUTE_DETAIL: DisputeDetailResponse = {
   ...DISPUTE_ITEM,
@@ -375,6 +413,45 @@ export const DISPUTE_DETAIL: DisputeDetailResponse = {
       entityId: DISPUTED.id,
       payload: { reason: DISPUTE_ITEM.reason },
       createdAt: daysAgo(2),
+    },
+  ],
+};
+
+export const CHARGEBACK_DETAIL: DisputeDetailResponse = {
+  ...CHARGEBACK_ITEM,
+  evidenceSnapshot: {
+    invoiceId: PAID.id,
+    tenantKey: PAID.tenantKey,
+    attributionId: PAID.attributionId,
+    leadId: PAID.leadId,
+    contractValueCents: PAID.contractValueCents,
+    commissionCents: PAID.commissionCents,
+    currency: 'CAD',
+    stripePaymentIntentId: 'pi_3QxE2eChargebackFixture00001',
+    status: 'paid',
+    reviewDueAt: daysAgo(3),
+    disputeReason: 'fraudulent',
+    invoiceCreatedAt: daysAgo(12),
+    disputedAt: daysAgo(1),
+    effectiveRatePercent: 1,
+  },
+  resolvedAt: null,
+  resolvedBy: null,
+  resolutionNote: null,
+  auditTrail: [
+    {
+      id: 'cb-ev-1',
+      tenantKey: PAID.tenantKey,
+      eventType: 'invoice.chargeback_opened',
+      entityType: 'invoice',
+      entityId: PAID.id,
+      payload: {
+        stripeDisputeId: CHARGEBACK_ITEM.stripeDisputeId,
+        amountCents: PAID.commissionCents,
+        stripeReason: 'product_not_received',
+        evidenceDueAt: CHARGEBACK_ITEM.evidenceDueAt,
+      },
+      createdAt: daysAgo(1),
     },
   ],
 };
@@ -425,16 +502,42 @@ export const SHEETS_STATUS: SheetsSyncStatusResponse = {
   ],
 };
 
+const FUNNEL_COUNTS: ReadonlyArray<readonly [string, string, number]> = [
+  ['landing', 'Landing view', 9640],
+  ['address', 'Address selected', 4820],
+  ['preview', 'Preview', 3110],
+  ['gate', 'Gate view', 2400],
+  ['submit', 'Gate submit', 1080],
+  ['convert', 'Gate convert', 912],
+  ['report', 'Report open', 760],
+];
+
+/** #814 funnel steps scaled by `share` (conversions recomputed). */
+function funnelSteps(share: number): FunnelReport['steps'] {
+  const counts = FUNNEL_COUNTS.map(([, , count]) => Math.round(count * share));
+  return FUNNEL_COUNTS.map(([step, label], i) => ({
+    step,
+    label,
+    count: counts[i]!,
+    conversionFromPrevious: i === 0 || counts[i - 1] === 0 ? null : +(counts[i]! / counts[i - 1]!).toFixed(3),
+  }));
+}
+
 export const FUNNEL: FunnelReport = {
   from: null,
   to: null,
   tenant: 'all',
-  steps: [
-    { step: 'address_entered', label: 'Address entered', count: 4820, conversionFromPrevious: null },
-    { step: 'preview_viewed', label: 'Preview viewed', count: 3110, conversionFromPrevious: 0.645 },
-    { step: 'gate_submitted', label: 'Email submitted', count: 912, conversionFromPrevious: 0.293 },
-    { step: 'report_viewed', label: 'Report viewed', count: 760, conversionFromPrevious: 0.833 },
+  utmSource: null,
+  utmCampaign: null,
+  steps: funnelSteps(1),
+  // #815: per-(source, campaign) breakdown, including a long campaign name
+  // so the phone layout is exercised.
+  bySource: [
+    { utmSource: null, utmCampaign: null, steps: funnelSteps(0.5) },
+    { utmSource: 'google', utmCampaign: 'calgary-infill-build-cost-spring-2027', steps: funnelSteps(0.35) },
+    { utmSource: 'www.reddit.com', utmCampaign: null, steps: funnelSteps(0.15) },
   ],
+  bySourceTruncated: false,
 };
 
 export const ESTIMATE_ID = 'est-1';
@@ -595,7 +698,8 @@ export async function mockAdminApi(page: Page, opts: { signedIn: boolean }): Pro
       }
       const disputeMatch = /^\/api\/v1\/admin\/disputes\/([^/]+)$/.exec(path);
       if (disputeMatch) {
-        return disputeMatch[1] === DISPUTE_DETAIL.id ? json(route, DISPUTE_DETAIL) : notFound(route);
+        const detail = [DISPUTE_DETAIL, CHARGEBACK_DETAIL].find((d) => d.id === disputeMatch[1]);
+        return detail ? json(route, detail) : notFound(route);
       }
       const estimateMatch = /^\/api\/v1\/admin\/estimates\/([^/]+)$/.exec(path);
       if (estimateMatch) {

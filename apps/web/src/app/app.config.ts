@@ -8,12 +8,15 @@ import {
 } from '@angular/core';
 import { provideRouter } from '@angular/router';
 import { provideStore, type NgxsModuleOptions } from '@ngxs/store';
-import { withNgxsStoragePlugin } from '@ngxs/storage-plugin';
+import { SESSION_STORAGE_ENGINE, withNgxsStoragePlugin } from '@ngxs/storage-plugin';
 import { provideApi } from './core/api/api.service';
 import { providePropertyData } from './core/api/property-data.service';
 import { GlobalErrorHandler, connectivityInterceptor } from './core/errors';
 import { credentialsInterceptor } from './core/api/credentials.interceptor';
+import { builderPausedInterceptor } from './features/builder/builder-paused.interceptor';
 import { ConfigService } from './core/config/config.service';
+import { WebTelemetryService } from './core/telemetry/web-telemetry.service';
+import { PartnersState } from './core/partners/partners.state';
 import { EmbedState } from './features/embed/embed.state';
 import { ComparisonState } from './features/compare/comparison.state';
 import { ReportState, serializeReportState } from './features/report/report.state';
@@ -21,14 +24,15 @@ import type { ReportStateModel } from './features/report/report.state';
 import { LeadState } from './features/wizard/lead.state';
 import { WizardState } from './features/wizard/wizard.state';
 import { ConsentState } from './features/consent/consent.state';
+import { CampaignSourceState } from './features/consent/campaign-source.state';
 import { AdminAuthState } from './features/admin/admin-auth.state';
 import { BuilderState, EMPTY_SUMMARY } from './features/builder/builder.state';
-import { BuilderBillingState } from './features/builder/builder-billing.state';
 import { DueInvoiceBannersState } from './features/builder/due-invoice-banners.state';
 import { BuilderReportContractState } from './features/builder/builder-report-contract.state';
 import { BuilderTeamState } from './features/builder/builder-team.state';
 import { CommunityProfileState } from './features/communities/community-profile.state';
 import { AnalyticsTrackerService } from './features/consent/analytics-tracker.service';
+import { RouteFocusService } from './core/a11y/route-focus.service';
 import { routes } from './app.routes';
 
 /**
@@ -56,18 +60,30 @@ export const appConfig: ApplicationConfig = {
     // credentials interceptor (ADM-10) attaches withCredentials to API-base
     // requests plus `Authorization: Bearer <token>` on admin/builder paths —
     // the cross-origin session cookie never sticks on modern browsers, so
-    // the bearer token is the primary session credential.
+    // the bearer token is the primary session credential. The builder-paused
+    // interceptor (#861) flags a 403 BUILDER_PAUSED on builder-portal calls
+    // so the shell shows the "account paused" screen.
     provideHttpClient(
       withFetch(),
-      withInterceptors([credentialsInterceptor, connectivityInterceptor]),
+      withInterceptors([credentialsInterceptor, connectivityInterceptor, builderPausedInterceptor]),
     ),
     // Load /assets/config/app-config.json before first render (FE0-002).
     // Never rejects: ConfigService falls back to compiled defaults.
-    provideAppInitializer(() => inject(ConfigService).load()),
+    // #830: real-user monitoring starts once config is loaded (it reads the
+    // sample rate + API base); browser-only, sampled, never throws.
+    provideAppInitializer(() => {
+      const telemetry = inject(WebTelemetryService);
+      return inject(ConfigService)
+        .load()
+        .then(() => telemetry.start());
+    }),
     // First-party analytics route tracking (consumer/01 call-site handoff):
     // maps completed funnel navigations to analytics events. Consent-gated
     // inside AnalyticsService — pre-consent navigations emit nothing.
     provideAppInitializer(() => inject(AnalyticsTrackerService).start()),
+    // #832: move focus to the new page's <main> after client-side navigation
+    // so screen-reader users hear the new step (WCAG 2.4.3 / 4.1.3).
+    provideAppInitializer(() => inject(RouteFocusService).start()),
     // Property data source from config (FE1-002): live City of Calgary API
     // by default, mock fixtures or our backend on request. Must come before
     // provideApi() — both ApiService implementations delegate to it.
@@ -119,6 +135,9 @@ export const appConfig: ApplicationConfig = {
         LeadState,
         EmbedState,
         ConsentState,
+        // #815: session-scoped campaign attribution (utm / click-id type /
+        // referrer host) — persisted to sessionStorage below.
+        CampaignSourceState,
         ComparisonState,
         // Admin data states are memory-only (never persisted) and NOT in
         // the root store — they lazy-load at the `/admin` route via
@@ -126,18 +145,26 @@ export const appConfig: ApplicationConfig = {
         // bundle: AdminLeadsState, AdminDisputesState, CalibrationState,
         // SheetsSyncState.
         BuilderState,
-        BuilderBillingState,
+        // BuilderBillingState is NOT here (#980): it lazy-loads at the
+        // `builder` shell route via lazyProvider (app.routes.ts) so the
+        // billing state stays out of the initial bundle.
         // BuilderInvoicesState is NOT here: it lazy-loads at the
         // `builder/invoices` route via lazyProvider (app.routes.ts) so the
         // invoices state — and the builder copy it reads — stays out of the
         // initial bundle.
         BuilderReportContractState,
         BuilderTeamState,
+        // BuilderLeadsSeenState (#864, Leads unread badge) is NOT here: it
+        // lazy-loads at the `builder` shell route via lazyProvider
+        // (app.routes.ts) so it stays out of the initial bundle.
         AdminAuthState,
         // CommunityProfileState is transient (never persisted): the property
         // context is navigation-scoped, and a refresh behaves like a direct
         // URL visit (community average only).
         CommunityProfileState,
+        // PartnersState (#918) is memory-only: the partner list is read once
+        // per session from GET /api/v1/partners and never persisted.
+        PartnersState,
       ],
       NGXS_STORE_OPTIONS,
       withNgxsStoragePlugin({
@@ -150,9 +177,16 @@ export const appConfig: ApplicationConfig = {
           LeadState,
           EmbedState,
           ConsentState,
+          // #815: first-touch attribution lives for the tab session only.
+          { key: CampaignSourceState, engine: SESSION_STORAGE_ENGINE },
           ComparisonState,
           AdminAuthState,
           BuilderState,
+          // #864: last Leads visit per org id (org UUID → ISO timestamp, no
+          // PII) so the Leads unread badge survives a reload. A string key
+          // (the state's name) so the lazy-loaded class stays out of the
+          // initial bundle; the plugin rehydrates it on the lazy UpdateState.
+          'builderLeadsSeen',
           // Due-invoice banner UI state (dismissed/open/collapsed): invoice
           // ids are opaque UUIDs (no PII) and dismissal must survive a
           // reload (Karan). The state itself lazy-loads at the dashboard
@@ -193,9 +227,11 @@ export const appConfig: ApplicationConfig = {
                       sessionExpired: false,
                       leads: [],
                       summary: { ...EMPTY_SUMMARY },
+                      reassigned: [],
                       leadsStatus: 'idle',
                       updatingLeadId: null,
                       updateError: null,
+                      accountPaused: null,
                     }
                   : // AdminAuthState persists the session token + identity so the
                     // session survives a reload, but the transient Entra

@@ -7,13 +7,22 @@
       "Host.Aggregator": "Information",
       "Function": "Warning",
       "Function.backup-check-timer.User": "Information",
+      "Function.builder-notifications-timer.User": "Information",
+      "Function.community-lots-refresh-timer.User": "Information",
+      "Function.community-narrative-timer.User": "Information",
+      "Function.admin-community-narratives-regenerate.User": "Information",
       "Function.community-stats-refresh-timer.User": "Information",
       "Function.dispute-sla-timer.User": "Information",
       "Function.follow-up-timer.User": "Information",
       "Function.invoice-reviewer-timer.User": "Information",
+      "Function.job-queue-timer.User": "Information",
+      "Function.neighbourhood-data-refresh-timer.User": "Information",
+      "Function.admin-neighbourhood-data-refresh.User": "Information",
       "Function.nudge-timer.User": "Information",
       "Function.sandbox-purge-timer.User": "Information",
-      "Function.sheets-sync-timer.User": "Information"
+      "Function.sheets-sync-timer.User": "Information",
+      "Function.telemetry.User": "Information",
+      "Function.zoning-watch-timer.User": "Information"
     },
     "applicationInsights": {
       "samplingSettings": {

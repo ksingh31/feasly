@@ -21,11 +21,15 @@ import { SeoService } from '../../core/seo/seo.service';
 import { BUILDER_COPY, provideBuilderCopy } from './builder-copy';
 import { BrandMarkComponent } from '../../shared/components/brand-mark';
 import { ViewAsBannerComponent } from '../../shared/view-as-banner';
+import { BuilderPausedComponent } from './builder-paused.component';
 import {
+  DismissBuilderAccountPaused,
   ExitBuilderViewAs,
+  LoadBuilderLeads,
   LoadBuilderMemberships,
   LogoutBuilder,
 } from './builder.actions';
+import { BuilderLeadsSeenState, MarkBuilderLeadsSeen } from './builder-leads-seen.state';
 import { BuilderState } from './builder.state';
 import { BuilderBillingState } from './builder-billing.state';
 import { injectCardModal } from './builder-card-modal.component';
@@ -39,10 +43,21 @@ const MONEY_PATHS = [
   '/builder/billing',
 ] as const;
 
+/** A router URL without its query string or fragment. */
+function urlPath(url: string): string {
+  return url.split(/[?#]/)[0];
+}
+
 /** Whether a router URL sits inside the Money section. */
 export function isMoneyUrl(url: string): boolean {
   const path = url.split(/[?#]/)[0];
   return MONEY_PATHS.some((p) => path === p || path.startsWith(`${p}/`));
+}
+
+/** Whether a router URL is the Leads home (`/builder`, query/hash ignored). */
+export function isLeadsUrl(url: string): boolean {
+  const path = url.split(/[?#]/)[0].replace(/\/+$/, '');
+  return path === '/builder';
 }
 
 /**
@@ -56,8 +71,15 @@ export function isMoneyUrl(url: string): boolean {
  * - Below 768px the section nav moves to a fixed bottom tab bar.
  * - "Record contract" is not a nav item: it is recorded from a won lead's
  *   drawer (#529); the old page redirects there.
+ * - Leads carries an unread badge (#864): leads that arrived since this
+ *   browser's last visit to Leads for the org. Entering or leaving Leads
+ *   marks everything up to that moment as seen (BuilderLeadsSeenState).
  * - A failed-card danger strip persists across every shell page (admins —
  *   billing is admin-only backend-side) until the failed invoice resolves.
+ *
+ * - #861: when the API refuses a call with 403 BUILDER_PAUSED, the page
+ *   is swapped for the "Your account is paused" screen until the builder
+ *   navigates to another page (e.g. invoices, which stay viewable).
  *
  * noindex,nofollow via the robots guard; excluded from prerendering.
  */
@@ -66,6 +88,7 @@ export function isMoneyUrl(url: string): boolean {
   standalone: true,
   imports: [
     BrandMarkComponent,
+    BuilderPausedComponent,
     RouterLink,
     RouterLinkActive,
     RouterOutlet,
@@ -104,6 +127,9 @@ export class BuilderShellComponent {
     BuilderState.viewAsBanner,
   );
 
+  /** #861: the org's account is paused (403 BUILDER_PAUSED seen). */
+  protected readonly accountPaused = this.store.selectSignal(BuilderState.accountPaused);
+
   private readonly actionableInvoices = this.store.selectSignal(
     BuilderInvoicesState.actionableInvoices,
   );
@@ -136,6 +162,20 @@ export class BuilderShellComponent {
   /** Money section is active (top nav, tabs, sub-nav). */
   protected readonly inMoney = computed(() => isMoneyUrl(this.url()));
 
+  /** Leads home is active. */
+  protected readonly inLeads = computed(() => isLeadsUrl(this.url()));
+
+  private readonly activeBuilderId = this.store.selectSignal(BuilderState.activeBuilderId);
+  private readonly leadsUnread = this.store.selectSignal(BuilderLeadsSeenState.unreadCount);
+
+  /** Unread badge count; 0 (hidden) while on Leads. */
+  protected readonly leadsBadge = computed(() => (this.inLeads() ? 0 : this.leadsUnread()));
+
+  /** Screen-reader text for the badge. */
+  protected readonly leadsBadgeLabel = computed(() =>
+    this.copy.shellLeadsUnreadLabel.replace('{count}', String(this.leadsBadge())),
+  );
+
   /** Account menu open state. */
   protected readonly accountOpen = signal(false);
 
@@ -164,9 +204,32 @@ export class BuilderShellComponent {
         takeUntilDestroyed(this.destroyRef),
       )
       .subscribe((event) => {
-        this.url.set((event as NavigationEnd).urlAfterRedirects);
+        const wasInLeads = this.inLeads();
+        const next = (event as NavigationEnd).urlAfterRedirects;
+        // #861: leaving the page leaves the paused screen. Query-only
+        // changes (a drawer's ?open= closing) keep it up.
+        if (urlPath(next) !== urlPath(this.url())) {
+          this.store.dispatch(new DismissBuilderAccountPaused());
+        }
+        this.url.set(next);
         this.accountOpen.set(false);
+        // Entering Leads clears the badge; leaving it marks leads that
+        // arrived during the visit as seen too.
+        if (wasInLeads || this.inLeads()) this.markLeadsSeen();
       });
+    if (this.inLeads()) {
+      this.markLeadsSeen();
+    } else if (
+      this.store.selectSnapshot(BuilderState.leadsStatus) === 'idle' &&
+      this.activeBuilderId()
+    ) {
+      // Badge data off the Leads page (the lead list is memory-only, so
+      // after a reload elsewhere it isn't loaded yet). Leads loads its own.
+      this.store
+        .dispatch(new LoadBuilderLeads())
+        .pipe(takeUntilDestroyed(this.destroyRef))
+        .subscribe();
+    }
     // Current org always visible (AC1): `/me` has no org name, so after a
     // reload resolve it from the memberships list.
     if (!this.activeOrgName() && this.session()?.builderId) {
@@ -182,6 +245,12 @@ export class BuilderShellComponent {
         .pipe(takeUntilDestroyed(this.destroyRef))
         .subscribe();
     }
+  }
+
+  private markLeadsSeen(): void {
+    const builderId = this.activeBuilderId();
+    if (!builderId) return;
+    this.store.dispatch(new MarkBuilderLeadsSeen(builderId, new Date().toISOString()));
   }
 
   protected toggleAccount(): void {

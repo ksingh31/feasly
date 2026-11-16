@@ -1,0 +1,40 @@
+// Builder lifecycle confirm (#861). Tokens only.
+
+:host {
+  display: block;
+}
+
+.lifecycle-modal__body {
+  margin: 0 0 var(--space-4);
+  color: var(--text);
+}
+
+.lifecycle-modal__textarea {
+  width: 100%;
+  min-height: 88px;
+  padding: var(--space-2) var(--space-3);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--card);
+  color: var(--text);
+  font: var(--type-body-sm);
+  resize: vertical;
+  box-sizing: border-box;
+
+  &:focus-visible {
+    outline: none;
+    box-shadow: 0 0 0 3px var(--focus-ring);
+  }
+
+  &[aria-invalid='true'] {
+    border-color: var(--status-danger-fg);
+  }
+}
+
+.lifecycle-modal__alert {
+  margin: var(--space-3) 0 0;
+  padding: var(--space-3);
+  border-radius: var(--radius-sm);
+  background: var(--status-danger-bg);
+  color: var(--status-danger-fg);
+}

@@ -54,6 +54,8 @@ async function setup(opts: SetupOpts = {}) {
             },
           }
         : {},
+    // #980: admin copy is lazy — served overrides reach it via getServedCopy.
+    getServedCopy: (): unknown => (config.get('copy') as { admin: unknown }).admin,
   };
   const route = {
     snapshot: {

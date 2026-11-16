@@ -32,6 +32,25 @@ export interface ProblemDetails extends ApiError {
     /** Epoch seconds when the window frees capacity. */
     readonly resetEpoch: number;
   };
+  /**
+   * #788: present on CHALLENGE_REQUIRED / CHALLENGE_FAILED 403s — the
+   * public Turnstile site key the client runs the invisible challenge with.
+   */
+  readonly challenge?: {
+    readonly provider: 'turnstile';
+    readonly siteKey: string;
+  };
+  /**
+   * Quota state (#738), present on 429s from the per-key daily/monthly
+   * quota. Surfaced as X-Quota-Period / -Limit / -Remaining / -Reset.
+   */
+  readonly quota?: {
+    readonly period: 'day' | 'month';
+    readonly limit: number;
+    readonly remaining: number;
+    /** Epoch seconds when the period resets (next UTC day / month). */
+    readonly resetEpoch: number;
+  };
 }
 
 /** Machine-readable error codes shared by routes, services and middleware. */
@@ -59,6 +78,12 @@ export const ErrorCodes = {
   /** Lead status lock (2026-09-29): status change on a recorded-contract lead. */
   LEAD_STATUS_LOCKED: 'LEAD_STATUS_LOCKED',
   /**
+   * #721: reassigning a lead that still has a non-void commission invoice
+   * with its current builder. 409; the message names the invoice. Void or
+   * refund it first.
+   */
+  LEAD_HAS_INVOICE: 'LEAD_HAS_INVOICE',
+  /**
    * Commission rate outside the allowed range (billing/08): builder rate
    * must satisfy 0 <= rate <= 10 (percent).
    */
@@ -66,6 +91,15 @@ export const ErrorCodes = {
   /** Analytics ingest without a valid consent_ts (story consumer/01). */
   CONSENT_REQUIRED: 'CONSENT_REQUIRED',
   RATE_LIMITED: 'RATE_LIMITED',
+  /**
+   * #788 — an IP that recently tripped a shared money/mail rate limit must
+   * pass the invisible Turnstile challenge. 403 with `challenge.siteKey`.
+   */
+  CHALLENGE_REQUIRED: 'CHALLENGE_REQUIRED',
+  /** #788 — the challenge token was rejected or could not be verified (fail closed). */
+  CHALLENGE_FAILED: 'CHALLENGE_FAILED',
+  /** #738 — an API key used up its daily or monthly quota. */
+  QUOTA_EXCEEDED: 'QUOTA_EXCEEDED',
   INVALID_API_KEY: 'INVALID_API_KEY',
   DEPENDENCY_UNAVAILABLE: 'DEPENDENCY_UNAVAILABLE',
   INTERNAL_ERROR: 'INTERNAL_ERROR',
@@ -93,6 +127,16 @@ export const ErrorCodes = {
    * to edit or delete it; link it during the Azure tenant setup instead.
    */
   PROTECTED_ACCOUNT: 'PROTECTED_ACCOUNT',
+  /**
+   * #860 — the builder's lifecycle status (suspended / offboarding /
+   * offboarded) refuses this action. 403; the portal shows "account paused".
+   */
+  BUILDER_PAUSED: 'BUILDER_PAUSED',
+  /**
+   * #860 — "complete offboarding" refused while invoices are unpaid or
+   * disputes are open. 409; the detail lists the blockers.
+   */
+  OFFBOARDING_BLOCKED: 'OFFBOARDING_BLOCKED',
 } as const;
 
 /**
@@ -182,6 +226,26 @@ export function rateLimitedProblem(
   };
 }
 
+/**
+ * 429 with the `QUOTA_EXCEEDED` code (#738): the key used up its daily or
+ * monthly quota. `retryAfterMs` runs to the period reset.
+ */
+export function quotaExceededProblem(
+  correlationId: string,
+  retryAfterMs: number,
+  quota: NonNullable<ProblemDetails['quota']>,
+): ProblemDetails {
+  const message =
+    quota.period === 'day'
+      ? 'This API key has used its daily request quota. It resets at midnight UTC.'
+      : 'This API key has used its monthly request quota. It resets on the first of the month (UTC).';
+  return {
+    ...toProblemDetails(new HttpError(429, ErrorCodes.QUOTA_EXCEEDED, message), correlationId),
+    retryAfterMs,
+    quota,
+  };
+}
+
 /** Narrow `T | ProblemDetails` pipeline results. */
 export function isProblemDetails(value: unknown): value is ProblemDetails {
   if (typeof value !== 'object' || value === null) return false;
@@ -217,6 +281,12 @@ export function problemResponseHeaders(
     headers['X-RateLimit-Limit'] = String(problem.rateLimit.limit);
     headers['X-RateLimit-Remaining'] = String(problem.rateLimit.remaining);
     headers['X-RateLimit-Reset'] = String(problem.rateLimit.resetEpoch);
+  }
+  if (problem.status === 429 && problem.quota) {
+    headers['X-Quota-Period'] = problem.quota.period;
+    headers['X-Quota-Limit'] = String(problem.quota.limit);
+    headers['X-Quota-Remaining'] = String(problem.quota.remaining);
+    headers['X-Quota-Reset'] = String(problem.quota.resetEpoch);
   }
   return headers;
 }

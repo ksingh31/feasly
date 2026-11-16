@@ -12,6 +12,15 @@
         }
         <h1 class="gate-heading">{{ copy.heading }}</h1>
         <p class="gate-sub">{{ copy.sub }}</p>
+        <!-- #835: exactly what the free report adds over the preview (config-owned). -->
+        <section class="gate-unlocks" aria-labelledby="gate-unlocks-heading">
+          <h2 id="gate-unlocks-heading" class="gate-unlocks-heading">{{ copy.unlocksHeading }}</h2>
+          <ul class="gate-unlocks-list">
+            @for (item of copy.unlocksItems; track item) {
+              <li>{{ item }}</li>
+            }
+          </ul>
+        </section>
         <p class="gate-trust" role="note">{{ copy.trustLine }}</p>
 
         @if (isEmbed) {
@@ -126,7 +135,7 @@
           <p class="field-error" id="gate-consent-error" role="alert">{{ copy.consentRequired }}</p>
         }
 
-        @if (status === 'error') {
+        @if (status() === 'error') {
           <div class="form-error" role="alert">
             <p>{{ copy.submitError }}</p>
             <button type="button" class="retry" (click)="onSubmit()">{{ copy.retryLabel }}</button>
@@ -134,15 +143,20 @@
         }
 
         <div class="actions">
-          <button class="cta" type="submit" [disabled]="status === 'sending'">
-            {{ status === 'sending' ? copy.submittingLabel : copy.submitLabel }}
+          <button class="cta" type="submit" [disabled]="status() === 'sending'">
+            {{ status() === 'sending' ? copy.submittingLabel : copy.submitLabel }}
           </button>
         </div>
 
         <p class="privacy-note">
           {{ copy.privacyNote }} <a routerLink="/privacy">{{ copy.privacyLinkLabel }}</a>
         </p>
-        <app-builder-matching-explainer />
+        <!-- #918: own-site leads go to Feasly's builder partner(s). Embeds
+             skip both: on a builder's site the lead goes to that builder. -->
+        @if (isOwnSite) {
+          <app-partner-disclosure [partners]="partners()" />
+          <app-builder-matching-explainer />
+        }
       </form>
       }
     </main>

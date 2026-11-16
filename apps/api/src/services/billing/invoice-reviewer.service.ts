@@ -24,6 +24,12 @@
  * counted in `agreementBlocked`, and an `invoice.finalize_blocked_agreement`
  * audit row records the skip. The next cycle after acceptance charges it.
  *
+ * Dunning (#718): failed card invoices whose automatic retry is due (one
+ * grace period after the failure, schedule active, retries left) are
+ * re-charged with a fresh idempotency key per attempt; a transient error
+ * leaves the invoice due, so the next cycle replays the same key. Manual-
+ * method invoices past their due date get one overdue reminder.
+ *
  * Never lets one bad invoice kill the batch: per-invoice errors are
  * collected and returned (the timer logs aggregates, never PII).
  */
@@ -33,6 +39,7 @@ import type { BillingAuditService } from './billing-audit.service';
 import type { StripeService } from './stripe.service';
 import type { AgreementGate } from '../builder-agreement.service';
 import { AUTHENTICATION_REQUIRED_CODE } from '../../lib/charge-outcome';
+import { builderStatusAllows } from '../../lib/builder-status-policy';
 
 /** Default hours before a 'finalized' invoice is reconciled (#711). */
 const DEFAULT_SETTLEMENT_THRESHOLD_HOURS = 24;
@@ -59,6 +66,10 @@ export interface InvoiceReviewerResult {
    * now waiting on the builder's 3DS confirmation.
    */
   readonly stillPending: number;
+  /** #718: failed card invoices re-charged on their dunning schedule. */
+  readonly retried: number;
+  /** #718: manual-method invoices sent their overdue reminder. */
+  readonly overdueReminded: number;
   readonly errors: ReadonlyArray<{ invoiceId: string; message: string }>;
 }
 
@@ -75,12 +86,25 @@ export interface InvoiceReviewerServiceDeps {
   readonly stripe: Pick<StripeService, 'retrievePaymentIntent'>;
   /** #722: finalising needs the org's acceptance of the current agreement. */
   readonly agreements: Pick<AgreementGate, 'isCurrentForTenant'>;
+  /**
+   * #860: the builder's lifecycle status by tenant key (null = unknown
+   * tenant). When the policy refuses `autoCharge` (suspended, offboarded)
+   * the invoice is held — not charged, counted as skipped. Absent = no hold.
+   */
+  readonly builderStatus?: (tenantKey: string) => Promise<string | null>;
 }
 
 export function createInvoiceReviewerService(
   deps: InvoiceReviewerServiceDeps,
 ): InvoiceReviewerService {
   const { billing, commission, audit, stripe, agreements } = deps;
+
+  /** #860: true when the builder's status pauses auto-charging. */
+  async function chargeHeld(tenantKey: string): Promise<boolean> {
+    if (!deps.builderStatus) return false;
+    const status = await deps.builderStatus(tenantKey);
+    return status !== null && !builderStatusAllows(status, 'autoCharge');
+  }
 
   interface ReconcileResult {
     reconciledPaid: number;
@@ -162,13 +186,16 @@ export function createInvoiceReviewerService(
           reconciledPaid: 0,
           reconciledFailed: 0,
           stillPending: 0,
+          retried: 0,
+          overdueReminded: 0,
           errors: [],
         };
       }
       const due = await commission.findDueReviews(reviewNow);
       // billing/12: manual-method invoices are skipped by findDueReviews
       // (no auto-charge, no card retry) — count them for observability.
-      const skipped = await commission.countSkippedManualReviews(reviewNow);
+      const skippedManual = await commission.countSkippedManualReviews(reviewNow);
+      let heldByStatus = 0;
       let finalized = 0;
       let failed = 0;
       let agreementBlocked = 0;
@@ -179,6 +206,10 @@ export function createInvoiceReviewerService(
       const agreementByTenant = new Map<string, boolean>();
       for (const invoice of due) {
         try {
+          if (await chargeHeld(invoice.tenantKey)) {
+            heldByStatus += 1;
+            continue;
+          }
           let accepted = agreementByTenant.get(invoice.tenantKey);
           if (accepted === undefined) {
             accepted = await agreements.isCurrentForTenant(invoice.tenantKey);
@@ -208,6 +239,39 @@ export function createInvoiceReviewerService(
         }
       }
 
+      // #718: automatic retries due on the dunning schedule.
+      let retried = 0;
+      for (const invoice of await commission.findDueRetries(reviewNow)) {
+        try {
+          await commission.retryCharge(invoice.id, { trigger: 'schedule' });
+          justFinalized.add(invoice.id);
+          retried += 1;
+        } catch (error) {
+          failed += 1;
+          errors.push({
+            invoiceId: invoice.id,
+            message: error instanceof Error ? error.message : 'Unknown error',
+          });
+        }
+      }
+
+      // #718: one overdue reminder per manual-method invoice.
+      let overdueReminded = 0;
+      for (const invoice of await commission.findOverdueManualInvoices(reviewNow)) {
+        try {
+          if ((await commission.sendOverdueReminder(invoice.id)) !== null) {
+            overdueReminded += 1;
+          }
+        } catch (error) {
+          failed += 1;
+          errors.push({
+            invoiceId: invoice.id,
+            message: error instanceof Error ? error.message : 'Unknown error',
+          });
+        }
+      }
+
+      const skipped = skippedManual + heldByStatus;
       const reconciled = await reconcile(reviewNow, justFinalized);
       failed += reconciled.failed;
       errors.push(...reconciled.errors);
@@ -224,9 +288,12 @@ export function createInvoiceReviewerService(
           failed,
           agreementBlocked,
           due: due.length,
+          heldByStatus,
           reconciledPaid,
           reconciledFailed,
           stillPending,
+          retried,
+          overdueReminded,
         },
       });
 
@@ -238,6 +305,8 @@ export function createInvoiceReviewerService(
         reconciledPaid,
         reconciledFailed,
         stillPending,
+        retried,
+        overdueReminded,
         errors,
       };
     },

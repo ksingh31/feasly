@@ -173,6 +173,23 @@ textarea {
   outline-offset: 2px;
 }
 
+/* <main tabindex="-1"> receives programmatic focus on navigation
+   (RouteFocusService, #832) and from the skip link. It is not an
+   interactive control, so it draws no ring. */
+main[tabindex='-1']:focus {
+  outline: none;
+}
+
+/* While the first-visit consent bar is up it publishes its height here
+   (ConsentBannerComponent, #832): focused fields scroll clear of it
+   (WCAG 2.2 SC 2.4.11) and the page end stays reachable above it. */
+html {
+  scroll-padding-bottom: var(--consent-banner-h, 0px);
+}
+body {
+  padding-bottom: var(--consent-banner-h, 0px);
+}
+
 /* Screen-reader-only text. */
 .sr-only {
   position: absolute;
@@ -184,6 +201,16 @@ textarea {
   clip: rect(0, 0, 0, 0);
   white-space: nowrap;
   border: 0;
+}
+
+/* Wide content tables (#832): scroll inside their own region on phones
+   instead of widening the page (WCAG 1.4.10 Reflow). The wrapper carries
+   role="region", an accessible name and tabindex="0" so keyboard users can
+   scroll it; the table itself keeps its native table semantics. */
+.table-scroll {
+  max-width: 100%;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
 }
 
 /* Shared form-validation treatment. Validation messages must be impossible
@@ -279,4 +306,16 @@ app-terms-page > main {
    heading element inside such summaries only. */
 .disclosure-heading {
   display: inline-block;
+}
+
+/* #905: host for the on-demand Turnstile widget. Empty (invisible) unless
+   Cloudflare asks for a click; then it floats above sticky CTAs and modals,
+   centred at the bottom so it never covers form inputs on mobile. */
+.feasly-turnstile-host {
+  position: fixed;
+  left: 50%;
+  bottom: var(--space-4);
+  transform: translateX(-50%);
+  z-index: var(--z-toast);
+  max-width: calc(100vw - 2 * var(--space-4));
 }

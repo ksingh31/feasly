@@ -35,6 +35,7 @@ import {
   type FlatPlanService,
 } from '../src/services/billing/flat-plan.service';
 import type { StripeService } from '../src/services/billing/stripe.service';
+import { createChargebackService } from '../src/services/billing/chargeback.service';
 import type { EmailService } from '../src/services/email/email.service';
 import {
   billingEvents,
@@ -94,6 +95,7 @@ function fakeStripe(): StripeService {
     }),
     createSubscription: async () => ({ id: 'sub_test', status: 'active' }),
     cancelSubscription: async (id) => ({ id }),
+    findRefundByMetadata: async () => null,
     refundPaymentIntent: async (paymentIntentId) => ({ id: 're_test', status: 'succeeded' }),
     retrievePaymentIntent: async (id: string) => ({ id, status: 'processing' }),
     getPaymentIntentConfirmation: async (id: string) => ({ id, status: 'requires_action', clientSecret: `${id}_secret_test` }),
@@ -222,6 +224,13 @@ describe('billing webhook service', () => {
       audit,
       commission,
       flatPlan,
+      chargebacks: createChargebackService({
+        db: testDb.db,
+        audit,
+        commission,
+        email,
+        opsInbox: 'ops@example.com',
+      }),
       email,
       opsInbox: 'ops@example.com',
     });
@@ -461,6 +470,13 @@ describe('billing webhook service', () => {
       audit,
       commission: flakyCommission,
       flatPlan,
+      chargebacks: createChargebackService({
+        db: testDb.db,
+        audit,
+        commission,
+        email,
+        opsInbox: 'ops@example.com',
+      }),
       email,
       opsInbox: 'ops@example.com',
     });
@@ -810,6 +826,13 @@ describe('billing webhook service', () => {
       audit,
       commission,
       flatPlan,
+      chargebacks: createChargebackService({
+        db: testDb.db,
+        audit,
+        commission,
+        email,
+        opsInbox: 'ops@example.com',
+      }),
       commissionCard: { handleCardEvent },
       email,
       opsInbox: 'ops@example.com',
@@ -854,6 +877,13 @@ describe('billing webhook service', () => {
       audit,
       commission,
       flatPlan,
+      chargebacks: createChargebackService({
+        db: testDb.db,
+        audit,
+        commission,
+        email,
+        opsInbox: 'ops@example.com',
+      }),
       commissionCard: {
         handleCardEvent: vi.fn(async () => {
           throw new Error('stripe down');

@@ -17,6 +17,9 @@
  *   (commission.resolveDispute 'resume').
  * - Every open/resolve/SLA-breach appends one `billing_events` row via the
  *   shared billing-audit service.
+ * - Bank chargebacks (#719, chargeback.service.ts) share the table and the
+ *   open-disputes queue (`source = 'chargeback'`, SLA = Stripe's evidence
+ *   deadline) but are closed by Stripe's webhook, never accepted/rejected.
  *
  * Only services and composition.ts may import from src/db/ — enforced by
  * test/boundaries.test.ts.
@@ -24,7 +27,7 @@
 import { and, asc, eq, isNull, lte, or } from 'drizzle-orm';
 import { randomUUID } from 'node:crypto';
 import type { AppDb } from '../../db/client';
-import { billingDisputes, billingEvents, commissionInvoices } from '../../db/schema';
+import { billingDisputes, billingEvents, billingRefunds, commissionInvoices } from '../../db/schema';
 import { ErrorCodes, HttpError } from '../../middleware/errors';
 import {
   DISPUTE_SLA_BUSINESS_DAYS,
@@ -44,9 +47,14 @@ import type {
 } from './commission.service';
 import type { StripeService } from './stripe.service';
 import type { OpsAlertsService } from '../ops-alerts.service';
-import type { DisputeEvidenceSnapshot } from '@feasly/contracts';
+import type {
+  ChargebackOutcome,
+  DisputeEvidenceSnapshot,
+  DisputeSource,
+} from '@feasly/contracts';
 
-export type DisputeStatus = 'open' | 'accepted' | 'rejected';
+/** 'closed' = a chargeback Stripe closed (#719); builder disputes never use it. */
+export type DisputeStatus = 'open' | 'accepted' | 'rejected' | 'closed';
 
 export interface DisputeRecord {
   readonly id: string;
@@ -63,6 +71,16 @@ export interface DisputeRecord {
   readonly resolvedAt: Date | null;
   readonly resolvedBy: string | null;
   readonly resolutionNote: string | null;
+  /** 'builder' (portal dispute) or 'chargeback' (bank dispute, #719). */
+  readonly source: DisputeSource;
+  /** Chargebacks only (#719); null for builder disputes. */
+  readonly stripeDisputeId: string | null;
+  readonly stripeReason: string | null;
+  readonly stripeStatus: string | null;
+  readonly amountCents: number | null;
+  readonly evidenceDueAt: Date | null;
+  readonly outcome: ChargebackOutcome | null;
+  readonly livemode: boolean | null;
   readonly createdAt: Date;
   readonly updatedAt: Date;
 }
@@ -72,6 +90,8 @@ export interface DisputeListItem extends DisputeRecord {
   readonly businessDaysRemaining: number;
   /** True when now is past slaDueAt. */
   readonly breached: boolean;
+  /** Whole calendar days until evidenceDueAt (chargebacks); null otherwise. */
+  readonly evidenceDaysRemaining: number | null;
 }
 
 /** Full console detail: list item + audit trail. */
@@ -166,6 +186,14 @@ function toRecord(
     resolvedAt: row.resolvedAt,
     resolvedBy: row.resolvedBy,
     resolutionNote: row.resolutionNote,
+    source: row.source === 'chargeback' ? 'chargeback' : 'builder',
+    stripeDisputeId: row.stripeDisputeId,
+    stripeReason: row.stripeReason,
+    stripeStatus: row.stripeStatus,
+    amountCents: row.amountCents,
+    evidenceDueAt: row.evidenceDueAt,
+    outcome: row.outcome as ChargebackOutcome | null,
+    livemode: row.livemode,
     createdAt: row.createdAt,
     updatedAt: row.updatedAt,
   };
@@ -221,6 +249,16 @@ export function createDisputeService(
   function requireOpen(
     row: typeof billingDisputes.$inferSelect,
   ): void {
+    if (row.source === 'chargeback') {
+      // #719: a bank chargeback is decided by the bank via Stripe; evidence
+      // goes in the Stripe dashboard. Feasly records the outcome from the
+      // charge.dispute.closed webhook — it is never accepted/rejected here.
+      throw new HttpError(
+        409,
+        ErrorCodes.CONFLICT,
+        `Dispute "${row.id}" is a bank chargeback — respond in the Stripe dashboard; Feasly records the outcome automatically`,
+      );
+    }
     if (row.status !== 'open') {
       throw new HttpError(
         409,
@@ -239,6 +277,10 @@ export function createDisputeService(
         DISPUTE_SLA_TIMEZONE,
       ),
       breached: at.getTime() > row.slaDueAt.getTime(),
+      evidenceDaysRemaining:
+        row.evidenceDueAt === null
+          ? null
+          : Math.ceil((row.evidenceDueAt.getTime() - at.getTime()) / 86_400_000),
     };
   }
 
@@ -250,12 +292,41 @@ export function createDisputeService(
   async function voidPaidInvoice(
     invoice: CommissionInvoiceRecord,
     disputeId: string,
-    refundId: string,
+    refundId: string | null,
+    refundedNowCents: number,
+    adminEmail: string,
   ): Promise<void> {
     await db
       .update(commissionInvoices)
-      .set({ status: 'void', updatedAt: now() })
+      .set({
+        status: 'void',
+        // Ledger: the dispute refund brings the invoice to fully refunded.
+        refundedCents: invoice.totalCents,
+        updatedAt: now(),
+      })
       .where(eq(commissionInvoices.id, invoice.id));
+    if (refundedNowCents > 0 && refundId !== null) {
+      // Idempotent on a retried accept: one ledger row per dispute.
+      await db
+        .insert(billingRefunds)
+        .values({
+          id: newId(),
+          invoiceId: invoice.id,
+          tenantKey: invoice.tenantKey,
+          amountCents: refundedNowCents,
+          currency: invoice.currency,
+          reason: 'other',
+          note: `Dispute ${disputeId} accepted`,
+          method: 'stripe',
+          status: 'succeeded',
+          stripeRefundId: refundId,
+          idempotencyKey: `feasly:billing_disputes:${disputeId}:refund`,
+          actorEmail: adminEmail,
+          createdAt: now(),
+          updatedAt: now(),
+        })
+        .onConflictDoNothing({ target: billingRefunds.idempotencyKey });
+    }
     await audit.append({
       tenantKey: invoice.tenantKey,
       eventType: 'invoice.status_changed',
@@ -266,7 +337,7 @@ export function createDisputeService(
         commissionCents: invoice.commissionCents,
         from: 'paid',
         resolution: 'accept',
-        creditNote: 'stripe_refund',
+        creditNote: refundId === null ? 'already_refunded' : 'stripe_refund',
         refundId,
         disputeId,
       },
@@ -315,6 +386,7 @@ export function createDisputeService(
         where: and(
           eq(billingDisputes.invoiceId, invoice.id),
           eq(billingDisputes.status, 'open'),
+          eq(billingDisputes.source, 'builder'),
         ),
       });
       if (existing !== undefined) {
@@ -363,7 +435,10 @@ export function createDisputeService(
       });
       for (const invoiceRow of disputedInvoices) {
         const existing = await db.query.billingDisputes.findFirst({
-          where: eq(billingDisputes.invoiceId, invoiceRow.id),
+          where: and(
+            eq(billingDisputes.invoiceId, invoiceRow.id),
+            eq(billingDisputes.source, 'builder'),
+          ),
         });
         if (existing === undefined) {
           const invoice = await commission.getById(invoiceRow.id);
@@ -437,11 +512,40 @@ export function createDisputeService(
             `Invoice "${invoice.id}" is 'paid' with no PaymentIntent — cannot issue a credit note`,
           );
         }
-        const refund = await stripe.refundPaymentIntent(
-          invoice.stripePaymentIntentId,
-          `feasly:billing_disputes:${row.id}:refund`,
-        );
-        await voidPaidInvoice(invoice, row.id, refund.id);
+        // A card refund still in flight could yet fail and release its
+        // claim against a total this accept is about to set: finish or fail
+        // it first.
+        const [pendingRefund] = await db
+          .select({ id: billingRefunds.id })
+          .from(billingRefunds)
+          .where(
+            and(
+              eq(billingRefunds.invoiceId, invoice.id),
+              eq(billingRefunds.status, 'pending'),
+            ),
+          )
+          .limit(1);
+        if (pendingRefund !== undefined) {
+          throw new HttpError(
+            409,
+            ErrorCodes.CONFLICT,
+            `Invoice "${invoice.id}" has a refund still pending — retry or fail it before accepting this dispute`,
+          );
+        }
+        // #715 ledger: admin refunds already issued on this invoice are in
+        // refundedCents. Refund only what is left (nothing when it is
+        // already fully refunded), so the customer is never refunded twice.
+        const remainingCents = invoice.totalCents - invoice.refundedCents;
+        let refundId: string | null = null;
+        if (remainingCents > 0) {
+          const refund = await stripe.refundPaymentIntent(
+            invoice.stripePaymentIntentId,
+            `feasly:billing_disputes:${row.id}:refund`,
+            invoice.refundedCents > 0 ? remainingCents : undefined,
+          );
+          refundId = refund.id;
+        }
+        await voidPaidInvoice(invoice, row.id, refundId, remainingCents, input.adminEmail);
       } else if (invoice.status === 'disputed') {
         await commission.resolveDispute(invoice.id, 'void');
       } else {

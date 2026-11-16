@@ -1,4 +1,9 @@
-import type { BuilderCreateBody, BuilderUpdateBody } from '@feasly/contracts';
+import type {
+  BuilderCreateBody,
+  BuilderExportKind,
+  BuilderLifecycleAction,
+  BuilderUpdateBody,
+} from '@feasly/contracts';
 
 /** Load the full builders table into state. */
 export class LoadBuilders {
@@ -64,4 +69,43 @@ export class DismissAssignBuilderSuccess {
 export class LoadAdminBuilderAgreement {
   static readonly type = '[AdminBuilders] Load builder agreement';
   constructor(readonly id: string) {}
+}
+
+/**
+ * Lifecycle action on one builder (#861): suspend · reactivate · start or
+ * complete offboarding, with the admin's mandatory reason. The result lands
+ * in `lifecycleFeedback`; on success the builder row is replaced.
+ */
+export class ChangeBuilderStatus {
+  static readonly type = '[AdminBuilders] Change status';
+  constructor(
+    readonly id: string,
+    readonly action: BuilderLifecycleAction,
+    readonly reason: string,
+  ) {}
+}
+
+/** Clear the last lifecycle result (the modal read it). */
+export class DismissBuilderLifecycleFeedback {
+  static readonly type = '[AdminBuilders] Dismiss lifecycle feedback';
+}
+
+/** Load what blocks "complete offboarding" for one builder (#861 checklist). */
+export class LoadOffboardingBlockers {
+  static readonly type = '[AdminBuilders] Load offboarding blockers';
+  constructor(readonly id: string) {}
+}
+
+/** Download one builder's leads or invoices CSV (#861 hand-over export). */
+export class ExportBuilderData {
+  static readonly type = '[AdminBuilders] Export builder data';
+  constructor(
+    readonly id: string,
+    readonly kind: BuilderExportKind,
+  ) {}
+}
+
+/** Dismiss the inline export error in the builder drawer. */
+export class DismissBuilderExportError {
+  static readonly type = '[AdminBuilders] Dismiss export error';
 }

@@ -14,6 +14,7 @@ import type { AdminSearchService } from '../src/services/admin-search.service';
 import { createPermissionGuard } from '../src/middleware/permission-guard';
 import { HttpError } from '../src/middleware/errors';
 import {
+  adminOrBuilderSessionRateLimitKey,
   adminSessionRateLimitKey,
   createAdminSearchPipeline,
 } from '../src/middleware/admin-guard';
@@ -170,6 +171,34 @@ describe('adminSessionRateLimitKey', () => {
 
   it('returns undefined without a session (the per-IP limiter covers it)', () => {
     expect(adminSessionRateLimitKey({ headers: {} })).toBeUndefined();
+  });
+});
+
+describe('adminOrBuilderSessionRateLimitKey (finance exports, #728)', () => {
+  it('keys a cookie-only builder session per session', () => {
+    const a = adminOrBuilderSessionRateLimitKey({
+      headers: { cookie: 'feasly_builder_session=b-1' },
+    });
+    const b = adminOrBuilderSessionRateLimitKey({
+      headers: { cookie: 'feasly_builder_session=b-2' },
+    });
+    expect(a).toMatch(/^session:[0-9a-f]{64}$/);
+    expect(a).not.toContain('b-1');
+    expect(a).not.toBe(b);
+    // The admin-only key gives a builder cookie no session bucket.
+    expect(adminSessionRateLimitKey({ headers: { cookie: 'feasly_builder_session=b-1' } })).toBeUndefined();
+  });
+
+  it('matches the admin key for Bearer and admin-cookie sessions', () => {
+    for (const headers of [
+      { authorization: 'Bearer tok-1' },
+      { cookie: 'feasly_admin_session=tok-2' },
+    ]) {
+      expect(adminOrBuilderSessionRateLimitKey({ headers })).toBe(
+        adminSessionRateLimitKey({ headers }),
+      );
+    }
+    expect(adminOrBuilderSessionRateLimitKey({ headers: {} })).toBeUndefined();
   });
 });
 

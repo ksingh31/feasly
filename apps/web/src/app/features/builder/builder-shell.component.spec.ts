@@ -14,13 +14,16 @@ import { Store } from '@ngxs/store';
 import { of } from 'rxjs';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { UiModalService } from '@app/shared/ui';
-import { BuilderShellComponent, isMoneyUrl } from './builder-shell.component';
+import { BuilderShellComponent, isLeadsUrl, isMoneyUrl } from './builder-shell.component';
+import { BuilderLeadsSeenState, MarkBuilderLeadsSeen } from './builder-leads-seen.state';
 import { BuilderCardModalComponent } from './builder-card-modal.component';
 import { BuilderBillingState } from './builder-billing.state';
 import { BuilderState } from './builder.state';
 import { BuilderInvoicesState } from './builder-invoices.state';
 import {
+  DismissBuilderAccountPaused,
   ExitBuilderViewAs,
+  LoadBuilderLeads,
   LoadBuilderMemberships,
   LogoutBuilder,
 } from './builder.actions';
@@ -29,6 +32,9 @@ import { SeoService } from '../../core/seo/seo.service';
 import { ConfigService } from '../../core/config/config.service';
 import { DEFAULT_APP_CONFIG } from '../../core/config/app-config.defaults';
 import type { BuilderSessionIdentity } from './builder-auth.contracts';
+import { DEFAULT_BUILDER_COPY } from './builder-copy.defaults';
+
+const DEFAULT_APP_CONFIG_BUILDER_PAUSED_BODY = DEFAULT_BUILDER_COPY.paused.body;
 
 /** Blank route target. */
 @Component({ standalone: true, template: '' })
@@ -53,6 +59,9 @@ interface SetupOptions {
   invoices?: readonly { id: string; status: string }[];
   url?: string;
   orgName?: string | null;
+  unread?: number;
+  leadsStatus?: string;
+  paused?: { message: string | null } | null;
 }
 
 async function setup(opts: SetupOptions = {}) {
@@ -68,18 +77,24 @@ async function setup(opts: SetupOptions = {}) {
 
   const store = {
     dispatch: vi.fn().mockReturnValue(of({})),
-    selectSnapshot: (selector: unknown) =>
-      selector === BuilderBillingState.card ? { hasCard: true, brand: 'visa', last4: '4242' } : null,
+    selectSnapshot: (selector: unknown) => {
+      if (selector === BuilderBillingState.card) return { hasCard: true, brand: 'visa', last4: '4242' };
+      if (selector === BuilderState.leadsStatus) return opts.leadsStatus ?? 'ready';
+      return null;
+    },
     selectSignal: (selector: unknown) => {
       if (selector === BuilderState.session) return signal(SESSION);
       if (selector === BuilderState.activeBuilderName)
         return signal(orgName);
       if (selector === BuilderState.isBuilderAdmin) return signal(isAdmin);
       if (selector === BuilderState.viewAsBanner) return signal(viewAsBanner);
+      if (selector === BuilderState.accountPaused) return signal(opts.paused ?? null);
       if (selector === BuilderInvoicesState.actionableInvoices)
         return signal(invoices);
       if (selector === BuilderInvoicesState.actionableStatus)
         return signal('ready');
+      if (selector === BuilderState.activeBuilderId) return signal(SESSION.builderId);
+      if (selector === BuilderLeadsSeenState.unreadCount) return signal(opts.unread ?? 0);
       return signal(null);
     },
   };
@@ -153,6 +168,76 @@ describe('isMoneyUrl', () => {
   });
 });
 
+describe('isLeadsUrl', () => {
+  it.each([
+    ['/builder', true],
+    ['/builder?lead=abc', true],
+    ['/builder/', true],
+    ['/builder/settings', false],
+    ['/builder/money', false],
+  ])('%s → %s', (url, expected) => {
+    expect(isLeadsUrl(url)).toBe(expected);
+  });
+});
+
+describe('BuilderShellComponent unread Leads badge (#864)', () => {
+  beforeEach(() => {
+    TestBed.resetTestingModule();
+  });
+
+  it('shows the count on Leads (top nav + tab bar) away from Leads', async () => {
+    const { fixture } = await setup({ url: '/builder/settings', unread: 3 });
+    expect(q(fixture, '[data-testid="leads-badge"]')?.textContent?.trim()).toBe('3');
+    expect(q(fixture, '[data-testid="leads-badge-tab"]')?.textContent?.trim()).toBe('3');
+    const leadsLink = q(fixture, '.builder-shell__nav a')!;
+    expect(leadsLink.textContent).toContain('3 new since your last visit');
+  });
+
+  it('hides the badge with no unread leads', async () => {
+    const { fixture } = await setup({ url: '/builder/settings', unread: 0 });
+    expect(q(fixture, '[data-testid="leads-badge"]')).toBeNull();
+    expect(q(fixture, '[data-testid="leads-badge-tab"]')).toBeNull();
+  });
+
+  it('clears on visit: no badge on Leads and the visit is recorded', async () => {
+    const { fixture, store } = await setup({ url: '/builder', unread: 3 });
+    expect(q(fixture, '[data-testid="leads-badge"]')).toBeNull();
+    expect(store.dispatch).toHaveBeenCalledWith(expect.any(MarkBuilderLeadsSeen));
+    const mark = store.dispatch.mock.calls
+      .map((c: unknown[]) => c[0])
+      .find((a: unknown) => a instanceof MarkBuilderLeadsSeen) as MarkBuilderLeadsSeen;
+    expect(mark.builderId).toBe('org-1');
+  });
+
+  it('records the visit on entering and leaving Leads', async () => {
+    const { fixture, store } = await setup({ url: '/builder/settings' });
+    const marks = () =>
+      store.dispatch.mock.calls.filter((c: unknown[]) => c[0] instanceof MarkBuilderLeadsSeen)
+        .length;
+    expect(marks()).toBe(0);
+    const router = TestBed.inject(Router);
+    await router.navigateByUrl('/builder');
+    await fixture.whenStable();
+    expect(marks()).toBe(1);
+    await router.navigateByUrl('/builder/team');
+    await fixture.whenStable();
+    expect(marks()).toBe(2);
+    await router.navigateByUrl('/builder/money');
+    await fixture.whenStable();
+    expect(marks()).toBe(2);
+  });
+
+  it('loads leads for the badge when off Leads and not loaded yet', async () => {
+    const { store } = await setup({ url: '/builder/settings', leadsStatus: 'idle' });
+    expect(store.dispatch).toHaveBeenCalledWith(expect.any(LoadBuilderLeads));
+  });
+
+  it('does not reload leads that are already loaded', async () => {
+    const { store } = await setup({ url: '/builder/settings', leadsStatus: 'ready' });
+    expect(store.dispatch).not.toHaveBeenCalledWith(expect.any(LoadBuilderLeads));
+  });
+});
+
 describe('BuilderShellComponent', () => {
   beforeEach(() => {
     TestBed.resetTestingModule();
@@ -170,15 +255,16 @@ describe('BuilderShellComponent', () => {
     expect(brand!.getAttribute('href')).toBe('/builder');
   });
 
-  it('renders Leads · Money · Team for admins, and no Record contract nav item', async () => {
+  it('renders Leads · Money · Team · Settings for admins, and no Record contract nav item', async () => {
     const { fixture } = await setup();
     const nav = q(fixture, '.builder-shell__nav')!;
     const labels = Array.from(nav.querySelectorAll('a')).map((a) => a.textContent?.trim());
-    expect(labels).toEqual(['Leads', 'Money', 'Team']);
+    expect(labels).toEqual(['Leads', 'Money', 'Team', 'Settings']);
     expect(hrefsIn(fixture, '.builder-shell__nav')).toEqual([
       '/builder',
       '/builder/money',
       '/builder/team',
+      '/builder/settings',
     ]);
     // Record contract is an action, not a nav item.
     expect(hrefsIn(fixture, '.builder-shell__nav')).not.toContain('/builder/record-contract');
@@ -194,14 +280,15 @@ describe('BuilderShellComponent', () => {
       '/builder',
       '/builder/money',
       '/builder/team',
+      '/builder/settings',
     ]);
   });
 
-  it('hides Money and Team from members everywhere (AC3)', async () => {
+  it('hides Money and Team from members everywhere (AC3); Settings stays (#871)', async () => {
     const { fixture } = await setup({ isAdmin: false });
     for (const sel of ['.builder-shell__nav', '.builder-shell__tabs']) {
       const hrefs = hrefsIn(fixture, sel);
-      expect(hrefs).toEqual(['/builder']);
+      expect(hrefs).toEqual(['/builder', '/builder/settings']);
     }
     const text = (fixture.nativeElement as HTMLElement).textContent ?? '';
     expect(text).not.toContain('Money');
@@ -361,5 +448,51 @@ describe('BuilderShellComponent', () => {
     q<HTMLButtonElement>(fixture, '.view-as-banner__exit')!.click();
     await fixture.whenStable();
     expect(store.dispatch).toHaveBeenCalledWith(expect.any(ExitBuilderViewAs));
+  });
+});
+
+/** #861: the "Your account is paused" screen instead of a generic error. */
+describe('BuilderShellComponent — account paused (#861)', () => {
+  it('swaps the page for the paused screen with the server message', async () => {
+    const { fixture } = await setup({
+      url: '/builder',
+      paused: { message: 'This builder account is paused. Contact Feasly to restore access.' },
+    });
+    const screen = q(fixture, '[data-testid="account-paused"]');
+    expect(screen).not.toBeNull();
+    expect(screen?.querySelector('h1')?.textContent?.trim()).toBe('Your account is paused');
+    expect(q(fixture, '[data-testid="account-paused-message"]')?.textContent?.trim()).toBe(
+      'This builder account is paused. Contact Feasly to restore access.',
+    );
+    expect(q<HTMLElement>(fixture, '.builder-shell__page')?.hidden).toBe(true);
+    expect(q(fixture, '[data-testid="paused-contact"]')?.getAttribute('href')).toBe('/builder/settings?tab=help');
+    expect(q(fixture, '[data-testid="paused-invoices"]')?.getAttribute('href')).toBe('/builder/invoices');
+  });
+
+  it('falls back to the copy default and hides invoices for members', async () => {
+    const { fixture } = await setup({ url: '/builder', isAdmin: false, paused: { message: null } });
+    expect(q(fixture, '[data-testid="account-paused-message"]')?.textContent?.trim()).toBe(
+      DEFAULT_APP_CONFIG_BUILDER_PAUSED_BODY,
+    );
+    expect(q(fixture, '[data-testid="paused-invoices"]')).toBeNull();
+  });
+
+  it('shows the page normally when not paused', async () => {
+    const { fixture } = await setup({ url: '/builder' });
+    expect(q(fixture, '[data-testid="account-paused"]')).toBeNull();
+    expect(q<HTMLElement>(fixture, '.builder-shell__page')?.hidden).toBe(false);
+  });
+
+  it('leaving the page dismisses the paused screen; a query-only change does not', async () => {
+    const { fixture, store } = await setup({ url: '/builder', paused: { message: null } });
+    const router = TestBed.inject(Router);
+    const dismissed = () =>
+      store.dispatch.mock.calls.filter(([a]) => a instanceof DismissBuilderAccountPaused).length;
+    await router.navigateByUrl('/builder?open=lead-1');
+    await fixture.whenStable();
+    expect(dismissed()).toBe(0);
+    await router.navigateByUrl('/builder/invoices');
+    await fixture.whenStable();
+    expect(dismissed()).toBe(1);
   });
 });

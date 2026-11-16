@@ -103,6 +103,8 @@
   background: rgba(0, 0, 0, 0.05);
   padding: 2px 6px;
   border-radius: 6px;
+  /* #832: long inline URLs wrap at 375px instead of widening the page. */
+  overflow-wrap: anywhere;
 }
 
 .developers pre {

@@ -2,6 +2,7 @@ import { Component, computed, inject, input, OnInit } from '@angular/core';
 import type { PropertyRecord } from '@feasly/contracts';
 import { ConfigService } from '../../../core/config';
 import { DataFreshnessService, formatFreshnessLine } from '../../../core/data-freshness';
+import { singleDetachedNeedsApproval } from '../../../core/utils/coverage';
 
 /**
  * Property card (shared): community, lot size, zoning, assessed value,
@@ -34,6 +35,14 @@ export class PropertyCardComponent implements OnInit {
    */
   readonly showLandNote = input(true);
 
+  /**
+   * Render the address as an `h2` (default). The scope steps place the card
+   * above their page `h1`, so they pass `false` and the address becomes a
+   * plain paragraph — the `h1` stays the first heading in `<main>` (#938,
+   * WCAG 1.3.1 / axe heading-order). Visual styling is identical.
+   */
+  readonly addressAsHeading = input(true);
+
   /** True while the mock property harness serves the data (never claim live data). */
   protected readonly isMockData = this.config.get('propertyData').source === 'mock';
 
@@ -47,6 +56,24 @@ export class PropertyCardComponent implements OnInit {
 
   /** Mock-mode freshness copy (config-owned, no hardcode). */
   protected readonly freshnessMock = this.config.get('copy').propertyCard.freshnessMock;
+
+  /** "Needs City approval" note copy (#911). */
+  protected readonly discretionaryZoningNote = this.config.get('copy').propertyCard.discretionaryZoningNote;
+
+  /**
+   * True when single-detached is only a discretionary use for this parcel's
+   * zoning (#911): quoted, but never presented as a sure thing.
+   */
+  protected readonly needsApproval = computed((): boolean => {
+    const p = this.property();
+    if (!p) return false;
+    const coverage = this.config.get('coverage');
+    return singleDetachedNeedsApproval(
+      p.zoning,
+      coverage.singleFamilyDistricts.calgary,
+      coverage.discretionarySingleFamilyDistricts.calgary,
+    );
+  });
 
   /** Shared freshness line: property roll year + dataset check month (#513). */
   protected readonly freshnessLine = computed((): string => {

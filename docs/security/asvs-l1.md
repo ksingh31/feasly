@@ -144,7 +144,7 @@ provided anyway: [threat-model.md](threat-model.md).
 |---|---|---|---|
 | 11.1.1 | Sequential step order enforced | Pass | Lead gate before full report. Contract recorded before commission invoice. Invoice states are enforced server-side. |
 | 11.1.2 | Realistic human timing | Pass | Rate limits per IP/email/tenant/key ([rate-limits.md](rate-limits.md)) |
-| 11.1.3 | Business limits per user | Pass | Narrative 5/day per estimate. Magic-link sends per email. |
+| 11.1.3 | Business limits per user | Pass | No per-estimate LLM calls: community narratives generated monthly, capped per run (COMMUNITY_NARRATIVE_MAX_PER_RUN, #759). Magic-link sends per email. |
 | 11.1.4 | Anti-automation on money/mail flows | Pass | Postgres-shared limits on money/mail endpoints (#729) |
 | 11.1.5 | Business-logic limits documented/enforced | Pass | [rate-limits.md](rate-limits.md) is generated from the registry. Dollar figures come only from the cost engine. |
 

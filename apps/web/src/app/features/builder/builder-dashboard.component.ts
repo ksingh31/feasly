@@ -132,6 +132,8 @@ export class BuilderDashboardComponent implements OnInit {
   protected readonly leads = this.store.selectSignal(BuilderState.leads);
   protected readonly summary = this.store.selectSignal(BuilderState.summary);
   protected readonly leadsStatus = this.store.selectSignal(BuilderState.leadsStatus);
+  /** #803: leads Feasly moved away — read-only, no detail link (it 404s). */
+  protected readonly reassigned = this.store.selectSignal(BuilderState.reassigned);
   protected readonly loadFailed = this.store.selectSignal(BuilderState.loadFailed);
   protected readonly needsYou = this.store.selectSignal(BuilderState.needsYou);
   protected readonly needsYouStatus = this.store.selectSignal(BuilderState.needsYouStatus);

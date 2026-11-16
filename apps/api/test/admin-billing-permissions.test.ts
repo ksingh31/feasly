@@ -2,7 +2,8 @@
  * Admin billing money actions — authorization acceptance.
  *
  * POST /api/v1/admin/billing/invoices/{id}/mark-paid and
- * POST /api/v1/admin/billing/invoices/{id}/commission-rate are
+ * POST /api/v1/admin/billing/invoices/{id}/commission-rate (and the #715
+ * refund / void / correct-contract / reverse-payment actions) are
  * platform-admin-only (`billing:manage` in the route registry). This pins the
  * CENTRAL enforcement point (`enforceRoutePermissions`, which every
  * Function adapter runs before the route):
@@ -25,6 +26,11 @@ import type { BuilderRole, StaffRole } from '../src/services/user.service';
 
 const MARK_PAID = '/api/v1/admin/billing/invoices/{id}/mark-paid';
 const SET_RATE = '/api/v1/admin/billing/invoices/{id}/commission-rate';
+// #715 AC6: refund / void / correct-contract / reverse-payment.
+const REFUND = '/api/v1/admin/billing/invoices/{id}/refund';
+const VOID = '/api/v1/admin/billing/invoices/{id}/void';
+const CORRECT_CONTRACT = '/api/v1/admin/billing/invoices/{id}/correct-contract';
+const REVERSE_PAYMENT = '/api/v1/admin/billing/invoices/{id}/reverse-payment';
 const HEADERS = { authorization: 'Bearer <redacted>' };
 const NOW = new Date('2026-11-16T12:00:00Z');
 
@@ -68,7 +74,7 @@ function makeHarness(ctx: AuthContext | null) {
 }
 
 describe('admin billing money actions — central permission enforcement', () => {
-  for (const path of [MARK_PAID, SET_RATE]) {
+  for (const path of [MARK_PAID, SET_RATE, REFUND, VOID, CORRECT_CONTRACT, REVERSE_PAYMENT]) {
     it(`403s a builder_member session on POST ${path}`, async () => {
       const { guard, auditDenied } = makeHarness(ctxFor(null, ['builder_member']));
       const err = await enforceRoutePermissions(guard, 'POST', path, HEADERS).catch(

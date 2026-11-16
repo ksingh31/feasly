@@ -12,6 +12,7 @@
  */
 import type { BuilderPaymentMethod, CommissionInvoiceStatus } from './billing';
 import type { AdminBuilderAgreementSummary } from './agreement';
+import type { LeadCallbackSummary } from './callback';
 
 export interface BuilderAuthRequestBody {
   readonly email: string;
@@ -163,6 +164,11 @@ export interface BuilderLeadListItem {
    * recomputes it.
    */
   readonly needsRecording: boolean;
+  /**
+   * #836: the newest callback request on this lead (preferred day, time
+   * window, notes), null when none. Optional for older backends.
+   */
+  readonly latestCallback?: LeadCallbackSummary | null;
 }
 
 /**
@@ -185,6 +191,11 @@ export interface BuilderLeadListResponse {
     /** Issue #530: won leads with no recorded contract (needsRecording). */
     readonly needsRecording: number;
   };
+  /**
+   * #721: leads Feasly moved away from this builder, newest first. The API
+   * always sends it; optional only so older portal builds keep compiling.
+   */
+  readonly reassigned?: readonly BuilderReassignedLead[];
 }
 
 /** Per-status lead counts for the portal's segmented pipeline filter. */
@@ -275,7 +286,162 @@ export interface BuilderLeadMarkWonResponse {
  * billing joins). Only admins manage these rows.
  */
 
-export type BuilderStatus = 'active' | 'inactive';
+/**
+ * Builder lifecycle status (#860). What each status allows (embed, new
+ * leads, sign-in, invoices, auto-charge, API keys) is the policy matrix in
+ * {@link BUILDER_STATUS_POLICY}. Legacy `inactive` rows were migrated to
+ * `suspended`.
+ */
+export type BuilderStatus = 'active' | 'suspended' | 'offboarding' | 'offboarded';
+
+export const BUILDER_STATUSES: readonly BuilderStatus[] = [
+  'active',
+  'suspended',
+  'offboarding',
+  'offboarded',
+];
+
+/** One capability gated by builder status (#860). */
+export type BuilderCapability =
+  /** The embed config serves (the widget loads on the builder's site). */
+  | 'embed'
+  /** New leads are routed to the builder (otherwise: admin unassigned queue). */
+  | 'newLeads'
+  /** Team members can sign in to the builder portal. */
+  | 'signIn'
+  /** Read the portal: leads, comments, billing overview. */
+  | 'portalRead'
+  /** Change things in the portal: lead status, mark won, comments, payment method. */
+  | 'portalWrite'
+  /** View invoices in the portal. */
+  | 'viewInvoices'
+  /** Pay invoices (portal or pay-now link — no card needed). */
+  | 'payInvoices'
+  /** The invoice reviewer may auto-charge the saved card. */
+  | 'autoCharge'
+  /** API keys bound to the builder authenticate. */
+  | 'apiKeys';
+
+/**
+ * The builder status policy matrix (#860) — the ONE place that decides what
+ * a status allows. Every enforcement point calls `builderStatusAllows`.
+ *
+ * - suspended (frozen): no embed, no new leads, portal read-only, invoices
+ *   viewable and payable, auto-charge and retries paused, API keys refused.
+ * - offboarding: winding down — existing leads can still be worked and
+ *   invoices settled (auto-charge continues so open invoices clear), but no
+ *   embed, no new leads and no API keys.
+ * - offboarded: relationship ended — no portal access; tail invoices (12
+ *   months on already-introduced leads) are paid by pay-now link.
+ */
+export const BUILDER_STATUS_POLICY: Readonly<
+  Record<BuilderStatus, Readonly<Record<BuilderCapability, boolean>>>
+> = {
+  active: {
+    embed: true,
+    newLeads: true,
+    signIn: true,
+    portalRead: true,
+    portalWrite: true,
+    viewInvoices: true,
+    payInvoices: true,
+    autoCharge: true,
+    apiKeys: true,
+  },
+  suspended: {
+    embed: false,
+    newLeads: false,
+    signIn: true,
+    portalRead: true,
+    portalWrite: false,
+    viewInvoices: true,
+    payInvoices: true,
+    autoCharge: false,
+    apiKeys: false,
+  },
+  offboarding: {
+    embed: false,
+    newLeads: false,
+    signIn: true,
+    portalRead: true,
+    portalWrite: true,
+    viewInvoices: true,
+    payInvoices: true,
+    autoCharge: true,
+    apiKeys: false,
+  },
+  offboarded: {
+    embed: false,
+    newLeads: false,
+    signIn: false,
+    portalRead: false,
+    portalWrite: false,
+    viewInvoices: false,
+    payInvoices: true,
+    autoCharge: false,
+    apiKeys: false,
+  },
+};
+
+/** Admin lifecycle actions (#860). Each needs a reason and is audit-logged. */
+export type BuilderLifecycleAction =
+  | 'suspend'
+  | 'reactivate'
+  | 'start_offboarding'
+  | 'complete_offboarding';
+
+/** `POST /api/v1/admin/builders/{id}/status` body (#860). */
+export interface BuilderLifecycleBody {
+  readonly action: BuilderLifecycleAction;
+  /** Mandatory, 3–1000 characters. Stored on the builder and in the audit row. */
+  readonly reason: string;
+}
+
+/** One thing that blocks "complete offboarding" (#860). */
+export interface BuilderOffboardingBlocker {
+  readonly kind: 'unpaid_invoice' | 'open_dispute';
+  /** Invoice id (both kinds name the invoice). */
+  readonly invoiceId: string;
+  readonly invoiceNumber: string | null;
+  /** Invoice status, or the dispute status for `open_dispute`. */
+  readonly status: string;
+}
+
+/** `GET /api/v1/admin/builders/{id}/offboarding-blockers` response (#861). */
+export interface BuilderOffboardingBlockersResponse {
+  /** Empty = nothing blocks "complete offboarding" right now. */
+  readonly blockers: readonly BuilderOffboardingBlocker[];
+}
+
+/** `POST /api/v1/admin/builders/{id}/status` response (#860). */
+export interface BuilderLifecycleResponse {
+  readonly builder: Builder;
+  /** False when the builder was already in the target status (idempotent). */
+  readonly changed: boolean;
+  /** Present for `complete_offboarding`: what was revoked/detached. */
+  readonly offboarding?: {
+    readonly sessionsRevoked: number;
+    readonly apiKeysRevoked: number;
+    readonly cardDetached: boolean;
+  };
+}
+
+/** `GET /api/v1/admin/builders/{id}/export.csv?kind=` (#860). */
+export type BuilderExportKind = 'leads' | 'invoices';
+
+/** `POST /api/v1/builder/account/close-request` body (#860). */
+export interface BuilderAccountClosureBody {
+  /** Optional note for Feasly staff, up to 1000 characters. */
+  readonly reason?: string;
+}
+
+/** `POST /api/v1/builder/account/close-request` response (#860). */
+export interface BuilderAccountClosureResponse {
+  readonly requestId: string;
+  /** False when an open closure request already existed (idempotent). */
+  readonly created: boolean;
+  readonly requestedAt: string;
+}
 
 export interface Builder {
   readonly id: string;
@@ -290,6 +456,15 @@ export interface Builder {
   /** 'flat' | 'commission' | null (undecided). */
   readonly plan: string | null;
   readonly status: BuilderStatus;
+  /**
+   * Why the status last changed (#860). Null before any lifecycle change.
+   * Always sent by the API; optional on the type for older fixtures.
+   */
+  readonly statusReason?: string | null;
+  /** When the status last changed (ISO). Null before any lifecycle change. */
+  readonly statusChangedAt?: string | null;
+  /** Admin email that last changed the status. Null before any lifecycle change. */
+  readonly statusChangedBy?: string | null;
   readonly settings: Readonly<Record<string, unknown>>;
   /**
    * Negotiated commission rate, in PERCENT (e.g. 1.5 = 1.5%). Defaults to
@@ -298,6 +473,13 @@ export interface Builder {
    * only.
    */
   readonly commissionRatePercent: number;
+  /**
+   * #873: commission invoices of this builder with a live bank chargeback
+   * (`chargeback_status = 'open'`). Sent by the admin builders list only;
+   * > 0 flags the builder for the admin, who can pause it by hand —
+   * nothing is paused automatically. Absent elsewhere.
+   */
+  readonly openChargebacks?: number;
   readonly createdAt: string;
   readonly updatedAt: string;
 }
@@ -361,6 +543,39 @@ export interface BuilderUpdateBody {
 export interface LeadAssignBuilderBody {
   /** Builder id to assign, or null to unassign. */
   readonly builderId: string | null;
+}
+
+/**
+ * `POST /api/v1/admin/leads/{id}/assign-builder` response (#721).
+ *
+ * Moving a lead away from a builder closes that builder's open attribution
+ * (nothing stays billable to them — owner decision 2026-11-15) and, when the
+ * lead moves to another builder, opens a fresh introduction for the new
+ * builder dated now. A lead with any non-void commission invoice is refused
+ * with 409 `LEAD_HAS_INVOICE`; the message names the invoice, and the admin
+ * must void or refund it first.
+ */
+export interface LeadAssignBuilderResponse {
+  readonly ok: true;
+  /** False when the lead was already assigned to the requested builder. */
+  readonly changed: boolean;
+  /** Builder the lead was assigned to before the call (null = unassigned). */
+  readonly fromBuilderId: string | null;
+  /** Builder the lead is assigned to now (null = unassigned). */
+  readonly toBuilderId: string | null;
+}
+
+/**
+ * A lead Feasly moved away from this builder (#721). The portal shows it
+ * marked "Reassigned by Feasly", with no reason given. Only the name is
+ * included: the builder no longer has access to the lead's contact details,
+ * detail view or comments (those return 404).
+ */
+export interface BuilderReassignedLead {
+  readonly id: string;
+  readonly name: string;
+  /** ISO-8601: when the lead was moved away from this builder. */
+  readonly reassignedAt: string;
 }
 
 /**

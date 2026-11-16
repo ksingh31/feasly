@@ -94,6 +94,7 @@ function fakeStripe(): StripeService & { calls: unknown[] } {
     },
     retrievePaymentIntent: async (id: string) => ({ id, status: 'processing' }),
     getPaymentIntentConfirmation: async (id: string) => ({ id, status: 'requires_action', clientSecret: `${id}_secret_test` }),
+    findRefundByMetadata: async () => null,
     refundPaymentIntent: async (paymentIntentId, idempotencyKey) => {
       calls.push({ op: 'refundPaymentIntent', paymentIntentId, idempotencyKey });
       return { id: 're_test_1', status: 'succeeded' };
@@ -149,6 +150,10 @@ function fakeEmail(): EmailService & { sent: unknown[] } {
     },
     sendCommissionPaymentActionRequired: async (input: unknown) => {
       sent.push({ op: 'sendCommissionPaymentActionRequired', input });
+      return { sent: true, provider: 'log' as const };
+    },
+    sendCommissionInvoiceOverdue: async (input: unknown) => {
+      sent.push({ op: 'sendCommissionInvoiceOverdue', input });
       return { sent: true, provider: 'log' as const };
     },
   };
@@ -1334,6 +1339,88 @@ describe('builder billing emails (BILL-04)', () => {
     const input = (sent as { input: { to: string; reviewDueAt: Date } }).input;
     expect(input.to).toBe('billing@example.com');
     expect(input.reviewDueAt).toEqual(inReview.reviewDueAt);
+  });
+
+  it('#725: emails every opted-in builder admin when recipients are configured', async () => {
+    const stripe = fakeStripe();
+    const email = fakeEmail();
+    const attribution = createAttributionService({
+      db: testDb.db,
+      billing: BILLING,
+      now: () => new Date(FIXED_NOW),
+      newId: nextId,
+    });
+    const audit = createBillingAuditService({ db: testDb.db, newId: nextId });
+    const seen: string[] = [];
+    const commission = createCommissionService({
+      db: testDb.db,
+      billing: BILLING,
+      attribution,
+      audit,
+      stripe,
+      email,
+      opsInbox: 'ops@example.com',
+      now: () => new Date(FIXED_NOW),
+      newId: nextId,
+      billingRecipients: async (tenantKey) => {
+        seen.push(tenantKey);
+        return ['admin1@example.com', 'admin2@example.com'];
+      },
+    });
+    const key = 'email-multi-admin-builder';
+    await seedBuilderWithEmail(key, 'contact@example.com');
+    const attributionId = await seedAttribution(testDb, attribution, key);
+    const draft = await commission.createDraftInvoice(attributionId);
+    email.sent.length = 0;
+    await commission.submitForReview(draft.id);
+
+    expect(seen).toContain(key);
+    const recipients = email.sent
+      .filter((s) => (s as { op: string }).op === 'sendCommissionInvoiceReady')
+      .map((s) => (s as { input: { to: string } }).input.to);
+    // The admins replace the single contact address.
+    expect(recipients).toEqual(['admin1@example.com', 'admin2@example.com']);
+  });
+
+  it('#725: falls back to the billing contact when no admin opted in (or lookup fails)', async () => {
+    for (const recipients of [
+      async () => [] as string[],
+      async (): Promise<string[]> => {
+        throw new Error('db down');
+      },
+    ]) {
+      const stripe = fakeStripe();
+      const email = fakeEmail();
+      const attribution = createAttributionService({
+        db: testDb.db,
+        billing: BILLING,
+        now: () => new Date(FIXED_NOW),
+        newId: nextId,
+      });
+      const audit = createBillingAuditService({ db: testDb.db, newId: nextId });
+      const commission = createCommissionService({
+        db: testDb.db,
+        billing: BILLING,
+        attribution,
+        audit,
+        stripe,
+        email,
+        opsInbox: 'ops@example.com',
+        now: () => new Date(FIXED_NOW),
+        newId: nextId,
+        billingRecipients: recipients,
+      });
+      const key = 'email-725-contact-fallback-builder';
+      await seedBuilderWithEmail(key, 'contact@example.com');
+      const attributionId = await seedAttribution(testDb, attribution, key);
+      const draft = await commission.createDraftInvoice(attributionId);
+      email.sent.length = 0;
+      await commission.submitForReview(draft.id);
+      const to = email.sent
+        .filter((s) => (s as { op: string }).op === 'sendCommissionInvoiceReady')
+        .map((s) => (s as { input: { to: string } }).input.to);
+      expect(to).toEqual(['contact@example.com']);
+    }
   });
 
   it('emails a receipt when the charge succeeds', async () => {

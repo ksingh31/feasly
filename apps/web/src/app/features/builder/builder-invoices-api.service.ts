@@ -198,4 +198,21 @@ export class BuilderInvoicesApiService {
       ),
     );
   }
+
+  /**
+   * #901 builder Pay now: `POST /invoices/{id}/pay` charges a `failed`
+   * card invoice against the card on file right away. Idempotent
+   * server-side (a double submit returns the invoice unchanged — one
+   * charge). Returns the invoice as it is after the attempt: `paid`,
+   * `failed` (declined again) or `action_required` (3D Secure).
+   */
+  payInvoiceNow(id: string): Observable<BuilderCommissionInvoice> {
+    return this.call(
+      this.http.post<BuilderCommissionInvoice>(
+        `${this.billingBase}/invoices/${encodeURIComponent(id)}/pay`,
+        null,
+        { withCredentials: true },
+      ),
+    );
+  }
 }

@@ -35,22 +35,81 @@ export interface DisputeSlaChip {
   readonly label: string;
 }
 
+/** True for a Stripe bank chargeback (#719/#872); absent source = builder. */
+export function isChargeback(item: Pick<DisputeListItem, 'source'>): boolean {
+  return item.source === 'chargeback';
+}
+
 /**
  * "4 days left" (neutral) · "Due today" (warning) · "Overdue 1d" (danger),
  * from the server's business-day countdown. `breached` wins so a dispute
  * the server already escalated never reads as on track.
+ *
+ * #872: a chargeback counts down to Stripe's evidence deadline instead —
+ * the server's calendar-day `evidenceDaysRemaining` — and says so
+ * ("Evidence due in 4 days").
  */
-export function disputeSlaChip(item: Pick<DisputeListItem, 'businessDaysRemaining' | 'breached'>): DisputeSlaChip {
-  const remaining = item.businessDaysRemaining;
+export function disputeSlaChip(
+  item: Pick<DisputeListItem, 'businessDaysRemaining' | 'breached' | 'source' | 'evidenceDaysRemaining'>,
+): DisputeSlaChip {
+  const evidence = isChargeback(item) && typeof item.evidenceDaysRemaining === 'number';
+  const remaining = evidence ? (item.evidenceDaysRemaining as number) : item.businessDaysRemaining;
   const key: DisputeSlaKey = item.breached ? 'overdue' : disputeSlaKey(remaining);
   if (key === 'overdue') {
     const overdue = Math.max(1, Math.abs(Math.min(remaining, 0)));
-    return { key, label: `Overdue ${overdue}d` };
+    return { key, label: evidence ? `Evidence overdue ${overdue}d` : `Overdue ${overdue}d` };
   }
   if (key === 'due_today') {
-    return { key, label: 'Due today' };
+    return { key, label: evidence ? 'Evidence due today' : 'Due today' };
+  }
+  if (evidence) {
+    return { key, label: remaining === 1 ? 'Evidence due in 1 day' : `Evidence due in ${remaining} days` };
   }
   return { key, label: remaining === 1 ? '1 day left' : `${remaining} days left` };
+}
+
+/**
+ * The amount a list row / drawer shows: the disputed charge for a
+ * chargeback (server `amountCents`), otherwise the commission.
+ */
+export function disputeAmountCents(item: Pick<DisputeListItem, 'source' | 'amountCents' | 'commissionCents'>): number {
+  return isChargeback(item) && typeof item.amountCents === 'number' ? item.amountCents : item.commissionCents;
+}
+
+/** Reason column: Stripe's reason code (sentence-cased) for a chargeback. */
+export function disputeReasonLabel(item: Pick<DisputeListItem, 'source' | 'stripeReason' | 'reason'>): string {
+  return isChargeback(item) && item.stripeReason ? enumLabel(item.stripeReason) : item.reason;
+}
+
+/**
+ * "View in Stripe" URL for a chargeback (#872): the dashboard base comes
+ * from ConfigService; test-mode disputes (`livemode === false`) open the
+ * `/test` path. Null for builder disputes, a missing dispute id, or an
+ * unknown mode — the link is hidden rather than pointing somewhere wrong.
+ */
+export function stripeDisputeUrl(
+  item: Pick<DisputeListItem, 'source' | 'stripeDisputeId' | 'livemode'>,
+  dashboardBaseUrl: string,
+): string | null {
+  const base = dashboardBaseUrl.trim().replace(/\/+$/, '');
+  if (!isChargeback(item) || !item.stripeDisputeId || typeof item.livemode !== 'boolean' || !base) return null;
+  const id = encodeURIComponent(item.stripeDisputeId);
+  return item.livemode ? `${base}/disputes/${id}` : `${base}/test/disputes/${id}`;
+}
+
+/** Chargeback facts for the drawer summary (formatted server fields only). */
+export function chargebackSummaryItems(d: DisputeListItem): KeyValueItem[] {
+  const items: KeyValueItem[] = [
+    { label: 'Builder', value: d.tenantKey },
+    { label: 'Disputed amount', value: formatCentsToCad(disputeAmountCents(d)) },
+    { label: 'Commission', value: formatCentsToCad(d.commissionCents) },
+    { label: 'Stripe reason', value: enumLabel(d.stripeReason) },
+    { label: 'Stripe status', value: enumLabel(d.stripeStatus) },
+    { label: 'Evidence due', value: formatEdmontonDateTime(d.evidenceDueAt ?? d.slaDueAt) },
+  ];
+  if (d.outcome) items.push({ label: 'Outcome', value: enumLabel(d.outcome) });
+  if (d.livemode === false) items.push({ label: 'Mode', value: 'Stripe test mode' });
+  return items;
 }
 
 /** Evidence snapshot as a definition list (formatted, never raw cents). */
@@ -82,6 +141,7 @@ export function disputeTechnicalIds(d: DisputeDetailResponse): TechnicalId[] {
     { label: 'Attribution ID', value: s.attributionId },
   ];
   if (s.stripePaymentIntentId) ids.push({ label: 'Payment intent', value: s.stripePaymentIntentId });
+  if (d.stripeDisputeId) ids.push({ label: 'Stripe dispute', value: d.stripeDisputeId });
   return ids;
 }
 
@@ -95,6 +155,9 @@ const EVENT_TITLES: Readonly<Record<string, string>> = {
   'invoice.charge_failed': 'Charge failed',
   'invoice.charge_blocked_disputed': 'Charge held (disputed)',
   'invoice.payment_method_changed': 'Payment method changed',
+  'invoice.refunded': 'Refunded',
+  'invoice.chargeback_opened': 'Chargeback opened',
+  'invoice.chargeback_closed': 'Chargeback closed',
   'dispute.opened': 'Dispute opened',
   'dispute.resolved': 'Dispute resolved',
   'dispute.sla_breached': 'Dispute SLA breached',
@@ -105,6 +168,9 @@ const EVENT_TONES: Readonly<Record<string, StatusTone>> = {
   'invoice.payment_failed': 'danger',
   'invoice.charge_failed': 'danger',
   'invoice.charge_blocked_disputed': 'paused',
+  'invoice.refunded': 'info',
+  'invoice.chargeback_opened': 'danger',
+  'invoice.chargeback_closed': 'neutral',
   'dispute.opened': 'warning',
   'dispute.resolved': 'success',
   'dispute.sla_breached': 'danger',
@@ -118,6 +184,13 @@ const PAYLOAD_FIELDS: Readonly<Record<string, readonly [string, FieldKind]>> = {
   commissionCents: ['Commission', 'money'],
   oldCommissionCents: ['Previous commission', 'money'],
   newCommissionCents: ['New commission', 'money'],
+  amountCents: ['Amount', 'money'],
+  refundedCents: ['Refunded', 'money'],
+  stripeReason: ['Stripe reason', 'enum'],
+  stripeStatus: ['Stripe status', 'enum'],
+  chargebackStatus: ['Chargeback', 'enum'],
+  evidenceDueAt: ['Evidence due', 'date'],
+  livemode: ['Live mode', 'bool'],
   commissionRatePercent: ['Commission rate', 'rate'],
   fromRatePercent: ['Previous rate', 'rate'],
   toRatePercent: ['New rate', 'rate'],
@@ -152,6 +225,8 @@ const HIDDEN_PAYLOAD_KEYS: ReadonlySet<string> = new Set([
   'leadId',
   'attributionId',
   'refundId',
+  'stripeDisputeId',
+  'chargeId',
   'stripePaymentIntentId',
   'paymentIntentId',
 ]);

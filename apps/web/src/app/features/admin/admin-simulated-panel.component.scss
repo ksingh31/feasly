@@ -1,0 +1,62 @@
+// Admin dev panel (#791) — simulated payment provider only. Tokens only.
+
+:host {
+  display: block;
+}
+
+.sim-panel {
+  margin-top: var(--space-6);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  padding: var(--space-4);
+  border: 1px dashed var(--border);
+  border-radius: var(--radius-sm);
+}
+
+.sim-panel__heading {
+  margin: 0;
+  font: var(--type-label);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+
+.sim-panel__notice {
+  align-self: flex-start;
+  margin: 0;
+  padding: var(--space-1) var(--space-2);
+  font: var(--type-label);
+  color: var(--status-warning-fg);
+  background: var(--status-warning-bg);
+  border-radius: var(--radius-sm);
+}
+
+.sim-panel__hint,
+.sim-panel__result {
+  margin: 0;
+  font: var(--type-body-sm);
+  color: var(--muted);
+}
+
+.sim-panel__result code {
+  color: var(--text);
+  overflow-wrap: anywhere;
+}
+
+.sim-panel__error {
+  color: var(--status-danger-fg);
+}
+
+.sim-panel__actions,
+.sim-panel__refund {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: var(--space-2);
+}
+
+.sim-panel__refund ui-text-field {
+  flex: 1 1 12rem;
+  min-width: 0;
+}

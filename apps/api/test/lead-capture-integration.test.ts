@@ -15,6 +15,9 @@ import type { EmailService } from '../src/services/email/email.service';
 import type { EmailDelivery } from '../src/services/email/email.service';
 import { createTestDb, type TestDb } from './pglite-db';
 import { createUnsubscribeService } from '../src/services/unsubscribe.service';
+import { createDrizzleAdminLeadsStore } from '../src/services/admin-leads.store';
+import { createAdminLeadsService } from '../src/services/admin-leads.service';
+import type { AdminAuditStore } from '../src/services/admin-audit.store';
 
 const ESTIMATE_ID = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa';
 const NOW = new Date('2026-09-26T07:00:00Z');
@@ -35,7 +38,12 @@ function fakeEmail(): EmailService & { sent: unknown[] } {
     sendCommissionPaymentReceived: async (input) => { sent.push(input); return ok; },
     sendCommissionPaymentFailed: async (input) => { sent.push(input); return ok; },
     sendCommissionPaymentActionRequired: async (input) => { sent.push(input); return ok; },
+    sendCommissionInvoiceOverdue: async (input) => { sent.push(input); return ok; },
+    sendCardExpiryReminder: async (input) => { sent.push(input); return ok; },
     sendContractNeedsRecording: async (input) => { sent.push(input); return ok; },
+    sendBuilderNewLead: async () => ok,
+    sendBuilderNeedsYouDigest: async () => ok,
+    sendErasureConfirmation: async () => ok,
   };
 }
 
@@ -85,7 +93,7 @@ describe('lead capture end-to-end (real stores, PGlite)', () => {
       magicLinkTtlSeconds: 604800,
       clock: () => NOW,
     });
-    return { service, email };
+    return { service, email, leadStore, estimateStore };
   }
 
   it('clean capture: persists lead, issues magic link, emails it', async () => {
@@ -116,5 +124,104 @@ describe('lead capture end-to-end (real stores, PGlite)', () => {
     expect(result.leadId).toMatch(/^[0-9a-f-]{36}$/);
     expect(result.magicLinkSent).toBe(false);
     expect(email.sent).toHaveLength(0);
+  });
+
+  it('#814: a lead submitted with source stores and returns those values', async () => {
+    const estimateId = 'cccccccc-cccc-4ccc-8ccc-cccccccccccc';
+    const { service, leadStore, estimateStore } = await makeService(estimateId);
+    const result = await service.submitLead({
+      email: 'campaign@example.com',
+      name: 'Pat Campaign',
+      timeline: '3-6mo',
+      marketingConsent: true,
+      estimateId,
+      source: {
+        utm_source: 'google',
+        utm_medium: 'cpc',
+        utm_campaign: 'spring-infill',
+        utm_term: 'infill builder calgary',
+        utm_content: 'ad-a',
+        click_id_type: 'gclid',
+      },
+    });
+
+    // Stored on the source_* columns.
+    const rows = await testDb.rows<Record<string, unknown>>(
+      `select source, source_utm_source, source_utm_medium, source_utm_campaign,
+              source_utm_term, source_utm_content, source_click_id_type
+         from leads where id = '${result.leadId}'`,
+    );
+    expect(rows[0]).toEqual({
+      source: 'api',
+      source_utm_source: 'google',
+      source_utm_medium: 'cpc',
+      source_utm_campaign: 'spring-infill',
+      source_utm_term: 'infill builder calgary',
+      source_utm_content: 'ad-a',
+      source_click_id_type: 'gclid',
+    });
+
+    // Returned by the admin lead detail API (real admin-leads store).
+    const audit: AdminAuditStore = {
+      log: async () => undefined,
+      append: async (args) => ({
+        id: 'audit-1',
+        action: args.action,
+        actorEmail: args.actorEmail,
+        detail: args.detail ?? null,
+        createdAt: NOW,
+      }),
+      recent: async () => [],
+    };
+    const adminLeads = createAdminLeadsService({
+      store: createDrizzleAdminLeadsStore({ db: testDb.db }),
+      leadStore,
+      estimateStore,
+      audit,
+      maxExportRows: 100,
+    });
+    const detail = await adminLeads.getLead(result.leadId, 'admin@example.com');
+    expect(detail.source).toBe('api');
+    expect(detail.attribution).toEqual({
+      utm_source: 'google',
+      utm_medium: 'cpc',
+      utm_campaign: 'spring-infill',
+      utm_term: 'infill builder calgary',
+      utm_content: 'ad-a',
+      click_id_type: 'gclid',
+    });
+
+    // And by the lead store the Sheets sync reads.
+    const record = await leadStore.findById(result.leadId);
+    expect(record?.attribution?.utmCampaign).toBe('spring-infill');
+  });
+
+  it('#814: invalid source fields are dropped, never fail the capture', async () => {
+    const estimateId = 'dddddddd-dddd-4ddd-8ddd-dddddddddddd';
+    const { service } = await makeService(estimateId);
+    const result = await service.submitLead({
+      email: 'odd-tags@example.com',
+      name: 'Odd Tags',
+      timeline: 'exploring',
+      marketingConsent: false,
+      estimateId,
+      source: {
+        utm_source: 'google',
+        utm_term: 'someone@example.com',
+        utm_campaign: 'x'.repeat(101),
+        click_id_type: 'not-a-click-id',
+        gclid: 'raw-click-id-value',
+      },
+    });
+    const rows = await testDb.rows<Record<string, unknown>>(
+      `select source_utm_source, source_utm_term, source_utm_campaign, source_click_id_type
+         from leads where id = '${result.leadId}'`,
+    );
+    expect(rows[0]).toEqual({
+      source_utm_source: 'google',
+      source_utm_term: null,
+      source_utm_campaign: null,
+      source_click_id_type: null,
+    });
   });
 });

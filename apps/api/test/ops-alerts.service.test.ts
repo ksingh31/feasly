@@ -147,14 +147,16 @@ describe('ops alerts (admin/06)', () => {
     const cases: Array<{ type: OpsAlertType; path: string }> = [
       { type: 'sheets_sync_failed', path: '/admin/ops/sheets' },
       { type: 'community_stats_failed', path: '/admin/ops/community-stats' },
+      { type: 'community_lots_failed', path: '/admin/ops/community-stats' },
       { type: 'stripe_webhook_failed', path: '/admin/ops/billing' },
       { type: 'narrative_worker_failed', path: '/admin/ops/narrative' },
       { type: 'backup_missed', path: '/admin/ops/backup' },
+      { type: 'neighbourhood_data_failed', path: '/admin/ops/neighbourhood-data' },
     ];
     for (const { type, path } of cases) {
       await service.notifyFailure(type, FAILURE_CTX);
     }
-    expect(sent).toHaveLength(5);
+    expect(sent).toHaveLength(cases.length);
     for (const [i, { path }] of cases.entries()) {
       const input = sent[i];
       expect(input?.detailsUrl).toBe(`${APP_URL}${path}`);

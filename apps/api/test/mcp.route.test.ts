@@ -232,4 +232,51 @@ describe('MCP route (api-mcp/06)', () => {
     const names = payload.result.tools.map((t) => t.name).sort();
     expect(names).toEqual(['estimate_project', 'get_property', 'submit_lead']);
   });
+
+  it('uses a key pre-authenticated by the per-key limiter without a second lookup (#738)', async () => {
+    const apiKeys = makeApiKeyService(KEY_RECORD);
+    const route = createMcpRoute({
+      apiKeys,
+      property: makePropertyService(),
+      estimate: makeEstimateService(),
+      leads: makeLeadService(),
+    });
+    const result = await route.handle(
+      AUTH_HEADERS,
+      toolsCallRequest('get_property', { addressKey: '1600 90 AV SW' }),
+      {
+        keyId: KEY_RECORD.id,
+        scopes: KEY_RECORD.scopes,
+        sandbox: KEY_RECORD.sandbox,
+        tenantId: null,
+        rateLimitPerMin: KEY_RECORD.rateLimitPerMin,
+      },
+    );
+    expect(result.status).toBe(200);
+    expect(apiKeys.authenticate).not.toHaveBeenCalled();
+  });
+
+  it('submit_lead passes the calling key to the lead service as the attesting caller (#738)', async () => {
+    const leads = makeLeadService();
+    const route = createMcpRoute({
+      apiKeys: makeApiKeyService(KEY_RECORD),
+      property: makePropertyService(),
+      estimate: makeEstimateService(),
+      leads,
+    });
+    const args = {
+      estimateId: '123e4567-e89b-12d3-a456-426614174000',
+      email: 'test@example.com',
+      name: 'Test Person',
+      timeline: 'exploring',
+      consent: true,
+      consentVersion: 'api-lead-test',
+    };
+    const result = await route.handle(AUTH_HEADERS, toolsCallRequest('submit_lead', args));
+    expect(result.status).toBe(200);
+    expect(leads.submitLead).toHaveBeenCalledWith(
+      { ...args, marketingConsent: false },
+      { keyId: 'key_1', sandbox: true, surface: 'mcp' },
+    );
+  });
 });

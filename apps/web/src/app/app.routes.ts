@@ -14,8 +14,6 @@ import { ErrorPageComponent } from './features/error/error-page.component';
 import { LandingPageComponent } from './features/landing/landing-page.component';
 import { NotFoundPageComponent } from './features/not-found/not-found-page.component';
 import { reportEstimateGuard } from './features/report/report-estimate.guard';
-import { FaqPageComponent } from './features/marketing/faq-page.component';
-import { HowItWorksPageComponent } from './features/marketing/how-it-works-page.component';
 import { wizardPropertyGuard } from './features/wizard/wizard-property.guard';
 import { robotsGuard } from './core/seo/robots.guard';
 import { wizardScopeGuard } from './features/wizard/wizard-scope.guard';
@@ -166,8 +164,26 @@ export const routes: Routes = [
   },
   // Marketing pages (SEO-010): indexable — no `noindex` data, so the SEO
   // table + check-prerender-seo.mjs treat them as crawlable like privacy/terms.
-  { path: 'how-it-works', component: HowItWorksPageComponent, canActivate: [robotsGuard] },
-  { path: 'faq', component: FaqPageComponent, canActivate: [robotsGuard] },
+  // #980: lazy-loaded to keep their templates out of the initial bundle
+  // (Lighthouse script budget); prerender follows loadComponent routes.
+  {
+    path: 'how-it-works',
+    loadComponent: () =>
+      import('./features/marketing/how-it-works-page.component').then((m) => m.HowItWorksPageComponent),
+    canActivate: [robotsGuard],
+  },
+  {
+    path: 'faq',
+    loadComponent: () => import('./features/marketing/faq-page.component').then((m) => m.FaqPageComponent),
+    canActivate: [robotsGuard],
+  },
+  // Help + contact (#834): indexable, lazy-loaded (prerender follows
+  // loadComponent routes, same as the guides).
+  {
+    path: 'help',
+    loadComponent: () => import('./features/marketing/help-page.component').then((m) => m.HelpPageComponent),
+    canActivate: [robotsGuard],
+  },
   // Pillar guide (SEO pillar): long-form cost guide — indexable like the
   // other marketing pages. Anchors the /guides/ section for future guides.
   // Lazy-loaded: prerendering follows loadComponent routes, so SEO is
@@ -414,12 +430,22 @@ export const routes: Routes = [
       // Dispute console (billing/01 follow-on, was OPS-009): open disputes
       // oldest-first with reason, immutable evidence snapshot, 5-business-day
       // SLA countdown, and accept/reject resolution.
+      // #872: the chargeback drawer reads BillingHealthState's provider
+      // (the "View in Stripe" link hides for the simulated provider) —
+      // lazy-registered here like /billing.
       {
         path: 'disputes',
         loadComponent: () =>
           import('./features/admin/admin-disputes.component').then(
             (m) => m.AdminDisputesComponent,
           ),
+        canActivate: [
+          lazyProvider(
+            async () =>
+              (await import('./features/admin/billing-health.state'))
+                .billingHealthStateProvider,
+          ),
+        ],
       },
       {
         path: 'calibration',
@@ -624,6 +650,23 @@ export const routes: Routes = [
           (await import('./features/builder/builder-onboarding.state'))
             .builderOnboardingStateProvider,
       ),
+      // #864: the shell's Leads unread badge reads BuilderLeadsSeenState
+      // (storage-plugin persisted under 'builderLeadsSeen'). Lazy-provided
+      // so it stays out of the initial bundle.
+      lazyProvider(
+        async () =>
+          (await import('./features/builder/builder-leads-seen.state'))
+            .builderLeadsSeenStateProvider,
+      ),
+      // #980: card-on-file / default-method / overview state read by the
+      // shell, dashboard banners, Money, Billing, Invoices and the lead
+      // drawer. Memory-only; lazy-provided so it stays out of the initial
+      // bundle.
+      lazyProvider(
+        async () =>
+          (await import('./features/builder/builder-billing.state'))
+            .builderBillingStateProvider,
+      ),
     ],
     data: { noindex: true },
     children: [
@@ -638,7 +681,7 @@ export const routes: Routes = [
           // The dashboard's due-invoice banners read BuilderInvoicesState
           // (lazy-loaded here so it stays out of the initial bundle,
           // mirroring the invoices route) while BuilderBillingState is
-          // already root-provided for the banner's card summary.
+          // already provided by the shell route for the banner's card summary.
           // DueInvoiceBannersState (banner dismissal/expansion/collapse UI
           // state, storage-plugin persisted) lazy-loads here too.
           lazyProvider(
@@ -657,7 +700,7 @@ export const routes: Routes = [
         // Builder Money overview (#532): KPIs, recent invoices with the
         // lifecycle stepper, card panel, how charges work. The shell
         // already lazy-provides BuilderInvoicesState; BuilderBillingState
-        // is root-provided. Admin-only like every billing page.
+        // is provided by the shell route too. Admin-only like every billing page.
         path: 'money',
         loadComponent: () =>
           import('./features/builder/builder-money.component').then(
@@ -725,6 +768,23 @@ export const routes: Routes = [
             (m) => m.BuilderTeamComponent,
           ),
         canActivate: [builderTeamGuard],
+      },
+      {
+        // Builder Settings (#871): Profile & branding, Embed, Help. Any org
+        // member may open it (members see read-only fields; the API
+        // enforces owner-only writes). State lazy-provided here.
+        path: 'settings',
+        loadComponent: () =>
+          import('./features/builder/builder-settings.component').then(
+            (m) => m.BuilderSettingsComponent,
+          ),
+        canActivate: [
+          lazyProvider(
+            async () =>
+              (await import('./features/builder/builder-settings.state'))
+                .builderSettingsStateProvider,
+          ),
+        ],
       },
       {
         // Retired page (#529): contracts are recorded from the lead drawer's

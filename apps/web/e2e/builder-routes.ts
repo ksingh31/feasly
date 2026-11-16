@@ -42,6 +42,30 @@ export const BUILDER_E2E_ROUTES: readonly BuilderE2eRoute[] = [
     name: 'agreement',
     ready: '[data-testid="agreement-doc"]',
   },
+  {
+    path: 'builder/settings',
+    url: '/builder/settings',
+    name: 'settings',
+    ready: '[data-testid="field-displayName"] input',
+  },
+  {
+    path: 'builder/settings',
+    url: '/builder/settings?tab=notifications',
+    name: 'settings-notifications',
+    ready: '[data-testid="toggle-newLeadEmail"]',
+  },
+  {
+    path: 'builder/settings',
+    url: '/builder/settings?tab=embed',
+    name: 'settings-embed',
+    ready: '[data-testid="snippet"]',
+  },
+  {
+    path: 'builder/settings',
+    url: '/builder/settings?tab=help',
+    name: 'settings-help',
+    ready: '[data-testid="support-email"]',
+  },
 ];
 
 /**

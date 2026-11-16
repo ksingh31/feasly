@@ -8,6 +8,7 @@ import { AdminAuthApiService } from './admin-auth-api.service';
 import { AdminEntraAuthService } from './admin-entra-auth.service';
 import { CompleteEntraSignIn, FailEntraSignIn } from './admin-auth.actions';
 import type { EntraCallbackErrorKind } from './admin-auth.state';
+import { injectAdminCopy } from './admin-copy';
 
 type CallbackStatus = 'verifying' | 'error';
 
@@ -53,7 +54,7 @@ export class AdminEntraCallbackComponent implements OnInit {
   private readonly seo = inject(SeoService);
   private readonly destroyRef = inject(DestroyRef);
   /** Buyer-grade callback copy (ConfigService, `copy.admin.auth`). */
-  protected readonly copy = inject(ConfigService).get('copy').admin.auth;
+  protected readonly copy = injectAdminCopy().auth;
 
   protected readonly status = signal<CallbackStatus>('verifying');
   protected readonly errorKind = signal<EntraCallbackErrorKind>('cancelled');

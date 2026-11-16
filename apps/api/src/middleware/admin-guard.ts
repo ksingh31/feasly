@@ -17,6 +17,7 @@ import { createHash } from 'node:crypto';
 import { ErrorCodes, HttpError } from './errors';
 import {
   ADMIN_SESSION_COOKIE,
+  BUILDER_SESSION_COOKIE,
   extractSessionToken,
   parseCookieValue,
   type HeaderRecord,
@@ -83,6 +84,23 @@ export function adminSessionRateLimitKey(request: {
 }
 
 /**
+ * Session limiter key for endpoints served to both Feasly staff and builders
+ * (finance CSV exports, #728): Bearer first, then the admin cookie, then the
+ * builder cookie — so a cookie-only builder also gets a per-session bucket.
+ * Same caveats as `adminSessionRateLimitKey`: unverified, secondary only.
+ */
+export function adminOrBuilderSessionRateLimitKey(request: {
+  readonly headers: HeaderRecord;
+}): string | undefined {
+  const token =
+    extractSessionToken(request.headers, ADMIN_SESSION_COOKIE) ??
+    parseCookieValue(request.headers, BUILDER_SESSION_COOKIE);
+  return token
+    ? `session:${createHash('sha256').update(token, 'utf8').digest('hex')}`
+    : undefined;
+}
+
+/**
  * Request pipeline for admin endpoints with a per-session budget (⌘K
  * search). The primary limiter is keyed per client IP and checked first, so
  * unverified tokens can't bypass throttling or flood the session limiter's
@@ -93,6 +111,8 @@ export function createAdminSearchPipeline(deps: {
   readonly sessionLimiter: RateLimiter;
   readonly logger?: (entry: LogEntry) => void;
   readonly csrf?: RequestPipelineDeps['csrf'];
+  /** Session limiter key; defaults to the admin session token. */
+  readonly sessionKeyFor?: typeof adminSessionRateLimitKey;
 }): RequestPipeline {
   return createRequestPipeline({
     csrf: deps.csrf,
@@ -100,7 +120,7 @@ export function createAdminSearchPipeline(deps: {
     extraLimiters: [
       {
         limiter: deps.sessionLimiter,
-        keyFor: adminSessionRateLimitKey,
+        keyFor: deps.sessionKeyFor ?? adminSessionRateLimitKey,
         label: 'admin-session',
       },
     ],

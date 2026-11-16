@@ -6,6 +6,7 @@ import { Action, Selector, State, StateContext } from '@ngxs/store';
 import type {
   BuilderLeadListItem,
   BuilderLeadListResponse,
+  BuilderReassignedLead,
   BuilderLeadsNeedsYouResponse,
   BuilderLeadStatus,
 } from '@feasly/contracts';
@@ -19,6 +20,8 @@ import { BuilderEntraAuthService } from './builder-entra-auth.service';
 import { BuilderLeadsApiService } from './builder-leads-api.service';
 import {
   ActivateBuilderViewAs,
+  BuilderAccountPaused,
+  DismissBuilderAccountPaused,
   ClearBuilderState,
   ClearBuilderViewAsError,
   CompleteBuilderEntraSignIn,
@@ -72,6 +75,11 @@ export interface BuilderStateModel {
   /** Tenant-scoped leads, memory-only (homeowner PII — never persisted). */
   leads: readonly BuilderLeadListItem[];
   summary: BuilderLeadListResponse['summary'];
+  /**
+   * Leads Feasly moved away from this builder (#721/#803), newest first.
+   * Memory-only (names are homeowner PII). Shown read-only.
+   */
+  reassigned: readonly BuilderReassignedLead[];
   leadsStatus: BuilderLeadsStatus;
   /**
    * Leads home "Needs you" feed (#527), memory-only (homeowner PII).
@@ -93,6 +101,12 @@ export interface BuilderStateModel {
    * authoritative — this is display only.
    */
   viewAsError: 'forbidden' | 'failed' | null;
+  /**
+   * #861: set when the API refused a call with 403 BUILDER_PAUSED — the
+   * shell shows the "account paused" screen. `message` is the server's
+   * text (null = use the copy default). Memory-only.
+   */
+  accountPaused: { readonly message: string | null } | null;
 }
 
 export const EMPTY_SUMMARY: BuilderLeadListResponse['summary'] = {
@@ -116,6 +130,7 @@ const defaults: BuilderStateModel = {
   lastEntraError: null,
   leads: [],
   summary: EMPTY_SUMMARY,
+  reassigned: [],
   leadsStatus: 'idle',
   needsYou: null,
   needsYouStatus: 'idle',
@@ -123,6 +138,7 @@ const defaults: BuilderStateModel = {
   updateError: null,
   viewAsBusy: false,
   viewAsError: null,
+  accountPaused: null,
 };
 
 /**
@@ -192,6 +208,12 @@ export class BuilderState {
     return state.membershipsLoading;
   }
 
+  /** #861: the org's account is paused (403 BUILDER_PAUSED seen). */
+  @Selector()
+  static accountPaused(state: BuilderStateModel): { readonly message: string | null } | null {
+    return state.accountPaused;
+  }
+
   @Selector()
   static membershipsError(state: BuilderStateModel): boolean {
     return state.membershipsError;
@@ -246,6 +268,11 @@ export class BuilderState {
   @Selector()
   static summary(state: BuilderStateModel): BuilderLeadListResponse['summary'] {
     return state.summary;
+  }
+
+  @Selector()
+  static reassigned(state: BuilderStateModel): readonly BuilderReassignedLead[] {
+    return state.reassigned;
   }
 
   @Selector()
@@ -316,6 +343,16 @@ export class BuilderState {
   @Selector()
   static viewAsError(state: BuilderStateModel): 'forbidden' | 'failed' | null {
     return state.viewAsError;
+  }
+
+  @Action(BuilderAccountPaused)
+  accountPausedSeen(ctx: StateContext<BuilderStateModel>, action: BuilderAccountPaused): void {
+    ctx.patchState({ accountPaused: { message: action.message } });
+  }
+
+  @Action(DismissBuilderAccountPaused)
+  dismissAccountPaused(ctx: StateContext<BuilderStateModel>): void {
+    if (ctx.getState().accountPaused !== null) ctx.patchState({ accountPaused: null });
   }
 
   @Action(LoadBuilderSession)
@@ -450,6 +487,7 @@ export class BuilderState {
         ctx.patchState({
           leads: response.leads,
           summary: response.summary,
+          reassigned: response.reassigned ?? [],
           leadsStatus: 'ready',
         });
       }),
@@ -549,7 +587,13 @@ export class BuilderState {
    */
   private refreshLeadsQuietly(ctx: StateContext<BuilderStateModel>): Observable<unknown> {
     return this.leadsApi.listLeads().pipe(
-      tap((response) => ctx.patchState({ leads: response.leads, summary: response.summary })),
+      tap((response) =>
+        ctx.patchState({
+          leads: response.leads,
+          summary: response.summary,
+          reassigned: response.reassigned ?? [],
+        }),
+      ),
       catchError(() => of(null)),
     );
   }

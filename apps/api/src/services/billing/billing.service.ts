@@ -42,6 +42,7 @@ import type { LeadStore } from '../lead.store';
 import type { BuilderService } from '../builder.service';
 import type { AgreementGate } from '../builder-agreement.service';
 import { ErrorCodes, HttpError } from '../../middleware/errors';
+import { requireBuilderCapability } from '../../lib/builder-status-policy';
 
 export interface ReportContractInput {
   readonly tenantKey: string;
@@ -132,6 +133,16 @@ export interface BillingService {
     invoiceId: string,
     tenantKey: string,
   ): Promise<ConfirmInvoicePaymentResponse>;
+  /**
+   * #718 Pay now: charge a failed card invoice against the card on file
+   * right away. Builders may only pay their own tenant's invoices (403
+   * otherwise). Double submission returns the invoice as it is — one
+   * charge. 409 unless the card payment failed.
+   */
+  payInvoice(
+    invoiceId: string,
+    tenantKey: string,
+  ): Promise<CommissionInvoiceRecord>;
 }
 
 export interface BillingServiceDeps {
@@ -170,11 +181,17 @@ export function createBillingService(
    * builder. Unknown (or inactive) tenant key → 404 (no builder to
    * scope to). Matches BuilderLeadsService.requireBuilder.
    */
-  async function requireBuilder(tenantKey: string) {
+  async function requireBuilder(
+    tenantKey: string,
+    capability: 'portalWrite' | 'payInvoices',
+  ) {
     const builder = await builders.getByTenantKey(tenantKey);
-    if (builder === null || builder.status !== 'active') {
+    if (builder === null) {
       throw new HttpError(404, ErrorCodes.NOT_FOUND, 'Builder not found.');
     }
+    // #860 policy: reporting a contract is a portal write (refused while
+    // suspended); choosing how to pay stays open wherever paying is.
+    requireBuilderCapability(builder.status, capability);
     return builder;
   }
 
@@ -190,6 +207,19 @@ export function createBillingService(
         'This invoice belongs to a different builder.',
       );
     }
+    // #715: builders see their refunds, but not which staff member issued
+    // them nor the admin's internal free-text note — both stay in the
+    // admin-side audit trail.
+    if (tenantKey !== null && invoice.refunds !== undefined) {
+      return {
+        ...invoice,
+        refunds: invoice.refunds.map((refund) => ({
+          ...refund,
+          actorEmail: null,
+          note: null,
+        })),
+      };
+    }
     return invoice;
   }
 
@@ -197,7 +227,7 @@ export function createBillingService(
     async reportContract(
       input: ReportContractInput,
     ): Promise<BillableEventResult> {
-      const builder = await requireBuilder(input.tenantKey);
+      const builder = await requireBuilder(input.tenantKey, 'portalWrite');
       // #722: no commission charge path without a current acceptance of
       // the platform agreement.
       await agreements.requireCurrentForTenant(builder.tenantKey);
@@ -307,7 +337,7 @@ export function createBillingService(
       tenantKey: string,
       method: BuilderPaymentMethod,
     ): Promise<BuilderPaymentMethod> {
-      await requireBuilder(tenantKey);
+      await requireBuilder(tenantKey, 'payInvoices');
       // #722: choosing how the org pays is a money action too.
       await agreements.requireCurrentForTenant(tenantKey);
       return commission.setDefaultPaymentMethod(tenantKey, method);
@@ -330,6 +360,14 @@ export function createBillingService(
     ): Promise<ConfirmInvoicePaymentResponse> {
       await requireTenantInvoice(invoiceId, tenantKey);
       return commission.createPaymentConfirmation(invoiceId);
+    },
+
+    async payInvoice(
+      invoiceId: string,
+      tenantKey: string,
+    ): Promise<CommissionInvoiceRecord> {
+      await requireTenantInvoice(invoiceId, tenantKey);
+      return commission.payNow(invoiceId);
     },
   };
 }

@@ -11,6 +11,19 @@ export class LoadBillingCard {
   static readonly type = '[BuilderBilling] Load card';
 }
 
+/**
+ * #879: removes the card on file (builder admin). On 409 the API's message
+ * (which invoice blocks removal) lands in `removeCardError`.
+ */
+export class RemoveBillingCard {
+  static readonly type = '[BuilderBilling] Remove card';
+}
+
+/** #879: clears a stale remove-card error (confirm step re-opened/cancelled). */
+export class ResetRemoveBillingCard {
+  static readonly type = '[BuilderBilling] Reset remove card';
+}
+
 /** Loads the builder's default payment method for new invoices. */
 export class LoadDefaultPaymentMethod {
   static readonly type = '[BuilderBilling] Load default payment method';

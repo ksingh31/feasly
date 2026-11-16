@@ -207,6 +207,41 @@ export const ROUTE_REGISTRY: readonly ApiRouteEntry[] = [
       'Verify a partner-share link token (?token=). Partner-share tokens ' +
       'only — owner tokens answer invalid here. Token IS the credential.',
   },
+  {
+    method: 'POST',
+    path: '/api/v1/shares/link',
+    auth: 'magic-token',
+    permissions: [] as const,
+    rateLimit: '10/min per IP',
+    status: 'live',
+    summary:
+      'Create a link-only report share (#838): a fresh read-only partner-share ' +
+      'link (never the owner token) that expires after SHARE_LINK_TTL_SECONDS. ' +
+      'Owner token in the body IS the credential; partner tokens 403. Max ' +
+      'SHARE_LINK_MAX_ACTIVE live links per report.',
+  },
+  {
+    method: 'POST',
+    path: '/api/v1/shares/link/list',
+    auth: 'magic-token',
+    permissions: [] as const,
+    rateLimit: '10/min per IP',
+    status: 'live',
+    summary:
+      'List the owner\'s link shares with active/expired/revoked status (#838). ' +
+      'Owner token in the body IS the credential.',
+  },
+  {
+    method: 'POST',
+    path: '/api/v1/shares/link/revoke',
+    auth: 'magic-token',
+    permissions: [] as const,
+    rateLimit: '10/min per IP',
+    status: 'live',
+    summary:
+      'Revoke one of the owner\'s link shares (#838) — the link stops opening ' +
+      'the report immediately. Owner token in the body IS the credential.',
+  },
 
   // ── Public v1: property data ──────────────────────────────────────
   {
@@ -245,6 +280,17 @@ export const ROUTE_REGISTRY: readonly ApiRouteEntry[] = [
       'require a valid consent_ts.',
   },
   {
+    method: 'POST',
+    path: '/api/v1/telemetry',
+    auth: 'none',
+    permissions: [] as const,
+    rateLimit: '10/min per IP (dedicated telemetry limiter)',
+    status: 'live',
+    summary:
+      'Real-user monitoring beacon (#830): sampled Core Web Vitals and JS ' +
+      'errors, no PII. Written to App Insights traces, never stored.',
+  },
+  {
     method: 'GET',
     path: '/api/v1/privacy/export',
     auth: 'magic-token',
@@ -276,11 +322,12 @@ export const ROUTE_REGISTRY: readonly ApiRouteEntry[] = [
     path: '/api/v1/estimates/{estimateId}/narrative',
     auth: 'magic-token',
     permissions: [] as const,
-    rateLimit: '100/min per IP + 5/day per estimate (cost guard)',
+    rateLimit: '100/min per IP',
     status: 'live',
     summary:
-      'Generate (or return cached) the AI narrative for an estimate. ' +
-      'LLM writes narrative only; figures are deterministic.',
+      'Report narrative for an estimate: the stored monthly community ' +
+      'narrative plus a deterministic estimate sentence (#759). No LLM call ' +
+      'per request; figures are deterministic.',
   },
   {
     method: 'GET',
@@ -313,6 +360,31 @@ export const ROUTE_REGISTRY: readonly ApiRouteEntry[] = [
   },
   {
     method: 'GET',
+    path: '/api/v1/communities/{slug}/lots',
+    auth: 'none',
+    permissions: [] as const,
+    rateLimit: '100/min per IP',
+    status: 'live',
+    summary:
+      'Community lot inventory (#691): vacant residential lots in an ' +
+      'established infill community, derived weekly from City open data. ' +
+      'Filters kind/district/minLotSqft/maxLotSqft, sort, cursor pagination; ' +
+      'refreshedAt + stale flag. City-assessed value only; no owner names.',
+  },
+  {
+    method: 'GET',
+    path: '/api/v1/communities/{slug}/living',
+    auth: 'none',
+    permissions: [] as const,
+    rateLimit: '100/min per IP',
+    status: 'live',
+    summary:
+      'Living nearby for an established community (#777): nearest + counts ' +
+      'within 500 m / 1 km per amenity category, and public-tree cover. ' +
+      'Served from monthly-refreshed City open data; never calls a provider.',
+  },
+  {
+    method: 'GET',
     path: '/api/v1/city-data/freshness',
     auth: 'none',
     permissions: [] as const,
@@ -335,6 +407,28 @@ export const ROUTE_REGISTRY: readonly ApiRouteEntry[] = [
       'Zoning rules catalogue for the configured city (#687): district → ' +
       'typical building forms + key rules (height, coverage, density) with ' +
       'bylaw sections; verified values only. Cache-Control public.',
+  },
+  {
+    method: 'GET',
+    path: '/api/v1/schools',
+    auth: 'none',
+    permissions: [] as const,
+    rateLimit: '100/min per IP',
+    status: 'live',
+    summary:
+      'Schools directory (#774): every Calgary K–12 school with type, board, ' +
+      'grades, programs, address, coordinates, website and tuition flag; ' +
+      'optional ?community= and ?type= filters. Per-field source attribution. ' +
+      'Served from our tables (monthly refresh) — never an outside call.',
+  },
+  {
+    method: 'GET',
+    path: '/api/v1/schools/{id}',
+    auth: 'none',
+    permissions: [] as const,
+    rateLimit: '100/min per IP',
+    status: 'live',
+    summary: 'One school from the schools directory (#774), with per-field source attribution; 404 when unknown.',
   },
   {
     method: 'GET',
@@ -748,6 +842,96 @@ export const ROUTE_REGISTRY: readonly ApiRouteEntry[] = [
       'status counts for the segmented filter.',
   },
   {
+    method: 'GET',
+    path: '/api/v1/builder/notifications/preferences',
+    auth: 'builder-session',
+    permissions: ['builder:leads:read'] as const,
+    rateLimit: '100/min per session',
+    status: 'live',
+    summary:
+      'Signed-in builder member reads their email notification preferences ' +
+      '(#725): new-lead email (default on), daily "Needs you" digest ' +
+      '(default off), billing email (default on, admins only), their org ' +
+      'role, and whether they may turn billing emails off.',
+  },
+  {
+    method: 'PUT',
+    path: '/api/v1/builder/notifications/preferences',
+    auth: 'builder-session',
+    permissions: ['builder:leads:read'] as const,
+    rateLimit: '100/min per session',
+    status: 'live',
+    summary:
+      'Signed-in builder member updates their email notification ' +
+      'preferences (#725, partial body). 409 LAST_ADMIN when the org\'s ' +
+      'last admin receiving billing emails turns them off; 403 while ' +
+      'viewing as a teammate.',
+  },
+  {
+    method: 'GET',
+    path: '/api/v1/builder/profile',
+    auth: 'builder-session',
+    permissions: ['builder:leads:read'] as const,
+    rateLimit: '100/min per session',
+    status: 'live',
+    summary:
+      'Builder org profile & branding (#870): display name, contact ' +
+      'email/phone, logo URL, accent colour, the support contact (email, ' +
+      'promised response time) and canEdit (org owners only). Never rate, ' +
+      'plan or status.',
+  },
+  {
+    method: 'PUT',
+    path: '/api/v1/builder/profile',
+    auth: 'builder-session',
+    permissions: ['builder:settings:manage'] as const,
+    rateLimit: '100/min per session',
+    status: 'live',
+    summary:
+      'Org owner updates profile & branding (#870, partial body): display ' +
+      'name, contact email/phone, https logo URL, #rrggbb accent colour. ' +
+      'Audit-logged under the acting user; 403 for members and while ' +
+      'viewing as a teammate.',
+  },
+  {
+    method: 'GET',
+    path: '/api/v1/builder/embed',
+    auth: 'builder-session',
+    permissions: ['builder:leads:read'] as const,
+    rateLimit: '100/min per session',
+    status: 'live',
+    summary:
+      'Embed install data (#870): tenant key, loader URL + snippet, ' +
+      'allowed origins (read-only) with each origin\'s last embed_loaded ' +
+      'and whether it loaded within the live window (default 7 days), plus ' +
+      'open origin-change requests.',
+  },
+  {
+    method: 'POST',
+    path: '/api/v1/builder/embed/origin-requests',
+    auth: 'builder-session',
+    permissions: ['builder:settings:manage'] as const,
+    rateLimit: '100/min per session',
+    status: 'live',
+    summary:
+      'Org owner asks Feasly staff to add/remove allowed embed origins ' +
+      '(#870; staff-controlled for the pilot). Creates exactly one admin ' +
+      'task (an identical open request returns created: false) and emails ' +
+      'the team inbox. Audit-logged.',
+  },
+  {
+    method: 'POST',
+    path: '/api/v1/builder/account/close-request',
+    auth: 'builder-session',
+    permissions: ['builder:settings:manage'] as const,
+    rateLimit: '100/min per session',
+    status: 'live',
+    summary:
+      'Org owner asks Feasly to close the builder account (#860). Creates ' +
+      'one open admin task per builder (a repeat returns created: false) ' +
+      'and emails the team inbox. No self-serve deletion. Audit-logged.',
+  },
+  {
     method: 'PATCH',
     path: '/api/v1/builder/leads/{id}',
     auth: 'builder-session',
@@ -976,6 +1160,20 @@ export const ROUTE_REGISTRY: readonly ApiRouteEntry[] = [
     summary: 'CSV export of the filtered lead set.',
   },
   {
+    method: 'GET',
+    path: '/api/v1/admin/audit',
+    auth: 'admin',
+    permissions: ['audit:read'] as const,
+    rateLimit: '300/min per session',
+    status: 'live',
+    summary:
+      'Audit log viewer (#728): admin_audit_log + billing_events merged, ' +
+      'newest first, keyset cursor (limit 1–100, default 50). Filters: ' +
+      'actor, action prefix, entity type/id, from/to, impersonation only, ' +
+      'source. Entries carry actor, time, entity link and before/after ' +
+      'detail.',
+  },
+  {
     method: 'POST',
     path: '/api/v1/admin/leads/{id}/assign-builder',
     auth: 'admin',
@@ -1031,6 +1229,43 @@ export const ROUTE_REGISTRY: readonly ApiRouteEntry[] = [
       'audit-logged with ids only, no contact PII.',
   },
   {
+    method: 'POST',
+    path: '/api/v1/admin/builders/{id}/status',
+    auth: 'admin',
+    permissions: ['builders:manage'] as const,
+    rateLimit: '60/min per session',
+    status: 'live',
+    summary:
+      'Builder lifecycle action (#860): suspend, reactivate, ' +
+      'start_offboarding or complete_offboarding, with a mandatory reason. ' +
+      'Complete is refused (409 OFFBOARDING_BLOCKED) while an invoice is ' +
+      'unpaid or a dispute is open; on success it revokes sessions and API ' +
+      'keys and detaches the card. Audit-logged with the admin identity.',
+  },
+  {
+    method: 'GET',
+    path: '/api/v1/admin/builders/{id}/offboarding-blockers',
+    auth: 'admin',
+    permissions: ['builders:manage'] as const,
+    rateLimit: '60/min per session',
+    status: 'live',
+    summary:
+      'What blocks "complete offboarding" for one builder right now (#861): ' +
+      'unpaid invoices and open disputes, each naming the invoice. Empty ' +
+      'list = nothing blocks. Read-only; drives the admin offboarding checklist.',
+  },
+  {
+    method: 'GET',
+    path: '/api/v1/admin/builders/{id}/export.csv',
+    auth: 'admin',
+    permissions: ['builders:manage'] as const,
+    rateLimit: '10/min per session',
+    status: 'live',
+    summary:
+      'CSV hand-over export of one builder\'s leads (kind=leads) or ' +
+      'invoices (kind=invoices) (#860). Audit-logged with row counts only.',
+  },
+  {
     method: 'GET',
     path: '/api/v1/admin/partners',
     auth: 'admin',
@@ -1078,10 +1313,9 @@ export const ROUTE_REGISTRY: readonly ApiRouteEntry[] = [
     rateLimit: '60/min per session',
     status: 'live',
     summary:
-      'Generate (or return cached) the AI narrative for an estimate. ' +
-      'Same pipeline as the consumer endpoint, but Entra admin-session-gated ' +
-      '(the consumer endpoint is consumer-magic-link-gated); LLM writes narrative ' +
-      'only, figures are deterministic.',
+      'Report narrative for an estimate (stored community narrative + ' +
+      'deterministic estimate sentence, #759). Same read path as the consumer ' +
+      'endpoint, but Entra admin-session-gated; no LLM call per request.',
   },
   {
     method: 'GET',
@@ -1121,6 +1355,19 @@ export const ROUTE_REGISTRY: readonly ApiRouteEntry[] = [
       'finalized (review window NOT reopened). Failed-only (409 ' +
       'otherwise), disputed never retried, ' +
       'capped by BILLING_MAX_CHARGE_RETRIES.',
+  },
+  {
+    method: 'POST',
+    path: '/api/v1/admin/billing/invoices/{id}/dunning',
+    auth: 'admin',
+    permissions: ['billing:manage'] as const,
+    rateLimit: '300/min per session',
+    status: 'live',
+    summary:
+      'Edit one invoice\'s retry schedule (#718): pause, resume or cancel ' +
+      'automatic retries and reminders, or set the grace period (1–90 ' +
+      'days; the next retry is rescheduled from the last failure). 409 on ' +
+      'paid, void or disputed invoices. Audited with the admin email.',
   },
   {
     method: 'POST',
@@ -1186,6 +1433,65 @@ export const ROUTE_REGISTRY: readonly ApiRouteEntry[] = [
   },
   {
     method: 'POST',
+    path: '/api/v1/admin/billing/invoices/{id}/refund',
+    auth: 'admin',
+    permissions: ['billing:manage'] as const,
+    rateLimit: '300/min per session',
+    status: 'live',
+    summary:
+      'Admin refunds a paid commission invoice in full or in part (#715). ' +
+      'Card-paid invoices are refunded on the payment provider (idempotency ' +
+      'key feasly:commission_invoices:{id}:refund:{idempotencyKey}); ' +
+      'manually paid invoices record an off-Stripe refund with a reference. ' +
+      'Same idempotencyKey = same refund, never a second one. 409 unless ' +
+      'paid; 422 past the amount left to refund. The invoice stays paid ' +
+      '(refundState partially_refunded / refunded). Audited with the admin ' +
+      'identity.',
+  },
+  {
+    method: 'POST',
+    path: '/api/v1/admin/billing/invoices/{id}/void',
+    auth: 'admin',
+    permissions: ['billing:manage'] as const,
+    rateLimit: '300/min per session',
+    status: 'live',
+    summary:
+      'Admin voids a commission invoice that must not be charged (#715). ' +
+      'Allowed from draft, in_review and failed; 409 from finalized ' +
+      '(charge in flight), paid (refund instead), disputed (dispute ' +
+      'console) and void. The review clock is cleared, so the reviewer ' +
+      'timer never charges it. Audited with the admin identity.',
+  },
+  {
+    method: 'POST',
+    path: '/api/v1/admin/billing/invoices/{id}/correct-contract',
+    auth: 'admin',
+    permissions: ['billing:manage'] as const,
+    rateLimit: '300/min per session',
+    status: 'live',
+    summary:
+      'Admin corrects the reported contract (value excl. land, signed ' +
+      'date, mandatory note) on a draft or in_review invoice (#715; 409 ' +
+      'otherwise). Commission and tax are recalculated at the invoice\'s ' +
+      'own rate and tax snapshot; an in_review invoice restarts its 7-day ' +
+      'review window and the builder is emailed. Original values stay in ' +
+      'the audit trail.',
+  },
+  {
+    method: 'POST',
+    path: '/api/v1/admin/billing/invoices/{id}/reverse-payment',
+    auth: 'admin',
+    permissions: ['billing:manage'] as const,
+    rateLimit: '300/min per session',
+    status: 'live',
+    summary:
+      'Admin reverses a manual mark-paid (bounced cheque) with a mandatory ' +
+      'reason (#715): paid → failed. Manually paid invoices with no ' +
+      'refunds only (409 otherwise); the planned payment method is kept, ' +
+      'so nothing is auto-charged. Audited with the admin identity.',
+  },
+  {
+    method: 'POST',
     path: '/api/v1/admin/billing/invoices',
     auth: 'admin',
     permissions: ['billing:manage'] as const,
@@ -1200,6 +1506,34 @@ export const ROUTE_REGISTRY: readonly ApiRouteEntry[] = [
       'Idempotent: re-reporting returns the existing invoice.',
   },
   {
+    method: 'GET',
+    path: '/api/v1/admin/billing/summary',
+    auth: 'admin',
+    permissions: ['finance:export'] as const,
+    rateLimit: '300/min per session',
+    status: 'live',
+    summary:
+      'Finance summary for [from, to) (#728; default the current month, ' +
+      'max FINANCE_MAX_RANGE_DAYS): invoiced, collected, refunded, ' +
+      'outstanding and tax in integer cents, total and by builder. ' +
+      'Computed from stored invoice amounts; matches the invoice CSV for ' +
+      'the same period to the cent.',
+  },
+  {
+    method: 'GET',
+    path: '/api/v1/admin/billing/invoices/export.csv',
+    auth: 'admin',
+    permissions: ['finance:export'] as const,
+    rateLimit: '10/min per session',
+    status: 'live',
+    summary:
+      'Invoice CSV for [from, to) (#728), every builder or one ' +
+      '(tenantKey): number, builder, lead, contract value, rate, ' +
+      'commission, tax, total, status, payment method, paid date, ' +
+      'refunded, Stripe PaymentIntent id. Over EXPORT_MAX_ROWS → 422 ' +
+      '(never truncated). Audit-logged.',
+  },
+  {
     method: 'POST',
     path: '/api/v1/admin/community-stats/refresh',
     auth: 'admin',
@@ -1209,6 +1543,41 @@ export const ROUTE_REGISTRY: readonly ApiRouteEntry[] = [
     summary:
       'Manually trigger the community-stats refresh (neighbourhood/05). ' +
       'Audit-logged.',
+  },
+  {
+    method: 'POST',
+    path: '/api/v1/admin/neighbourhood-data/{provider}/refresh',
+    auth: 'admin',
+    permissions: ['ops:manage'] as const,
+    rateLimit: '10/min per session',
+    status: 'live',
+    summary:
+      'Run one neighbourhood data provider refresh now (#773): ' +
+      'school-directory, school-designation, school-ratings, reviews, ' +
+      'amenities or commute. Keeps the previous data on failure. ' +
+      'Audit-logged.',
+  },
+  {
+    method: 'GET',
+    path: '/api/v1/admin/community-narratives',
+    auth: 'admin',
+    permissions: ['ops:manage'] as const,
+    rateLimit: '300/min per session',
+    status: 'live',
+    summary:
+      'Monthly community narratives (#759): each community\'s latest period, ' +
+      'status, and generated date.',
+  },
+  {
+    method: 'POST',
+    path: '/api/v1/admin/community-narratives/regenerate',
+    auth: 'admin',
+    permissions: ['ops:manage'] as const,
+    rateLimit: '10/min per session',
+    status: 'live',
+    summary:
+      'Regenerate the community narrative now — one community or all (#759). ' +
+      'Admin-only, audit-logged.',
   },
   {
     method: 'GET',
@@ -1238,6 +1607,17 @@ export const ROUTE_REGISTRY: readonly ApiRouteEntry[] = [
     rateLimit: '300/min per session',
     status: 'live',
     summary: 'Sheets sync worker status (admin/05).',
+  },
+  {
+    method: 'GET',
+    path: '/api/v1/admin/ops/jobs',
+    auth: 'admin',
+    permissions: ['ops:manage'] as const,
+    rateLimit: '300/min per session',
+    status: 'live',
+    summary:
+      'Job queue view (#838): per-status counts + latest jobs in one status ' +
+      '(?status=, default dead = failed jobs that exhausted retries).',
   },
   {
     method: 'POST',
@@ -1304,7 +1684,7 @@ export const ROUTE_REGISTRY: readonly ApiRouteEntry[] = [
     path: '/api/mcp/v1',
     auth: 'api-key',
     permissions: [] as const,
-    rateLimit: '100/min per key',
+    rateLimit: '100/min per key · 100/day + 2,000/month per key (config, #738)',
     status: 'live',
     summary:
       'MCP server: Streamable HTTP transport (api-mcp/06). Bearer <redacted> ' +
@@ -1428,6 +1808,19 @@ export const ROUTE_REGISTRY: readonly ApiRouteEntry[] = [
   },
   {
     method: 'GET',
+    path: '/api/v1/builder/activity',
+    auth: 'builder-session',
+    permissions: ['builder:activity:read'] as const,
+    rateLimit: '100/min per session',
+    status: 'live',
+    summary:
+      'Builder org activity history (#728), newest first, keyset cursor. ' +
+      'Builder owner/admins (builder:activity:team) see the whole team; ' +
+      'other members see only their own actions. Staff security ' +
+      'internals are excluded and Feasly staff show as Feasly.',
+  },
+  {
+    method: 'GET',
     path: '/api/v1/billing/payment-method',
     auth: 'builder-session',
     permissions: ['builder:billing'] as const,
@@ -1481,6 +1874,21 @@ export const ROUTE_REGISTRY: readonly ApiRouteEntry[] = [
       'invoice.',
   },
   {
+    method: 'POST',
+    path: '/api/v1/billing/invoices/{id}/pay',
+    auth: 'builder-session',
+    permissions: ['builder:billing'] as const,
+    rateLimit: '100/min per session',
+    status: 'live',
+    summary:
+      'Pay now (#718): charge a commission invoice whose card payment ' +
+      'failed against the card on file right away (new PaymentIntent, ' +
+      'idempotency key feasly:commission_invoices:{id}:retry:{n}). Allowed ' +
+      'while retries are paused, cancelled or in collections; never changes ' +
+      'the schedule. Double submission returns the invoice unchanged — one ' +
+      'charge. 409 unless failed; 403 for another tenant\'s invoice.',
+  },
+  {
     method: 'GET',
     path: '/api/v1/billing/invoices/{id}',
     auth: 'builder-session',
@@ -1515,6 +1923,19 @@ export const ROUTE_REGISTRY: readonly ApiRouteEntry[] = [
       'BILL-04: paginated commission invoice list, newest first ' +
       '(limit 1–100, default 20; offset default 0). Builders see only ' +
       'their own tenant\'s invoices; admins see all.',
+  },
+  {
+    method: 'GET',
+    path: '/api/v1/billing/invoices/export.csv',
+    auth: 'builder-session',
+    permissions: ['builder:billing'] as const,
+    rateLimit: '10/min per session',
+    status: 'live',
+    summary:
+      'Builder downloads their own invoice CSV for [from, to) (#728) for ' +
+      'their bookkeeper — same columns as the admin export. Tenant comes ' +
+      'from the session; another tenant\'s invoices are never included. ' +
+      'Audit-logged.',
   },
   {
     method: 'POST',
