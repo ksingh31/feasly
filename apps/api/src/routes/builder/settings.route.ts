@@ -9,6 +9,8 @@
  *   (read-only) and per-origin install check (any org member).
  * - `POST /api/v1/builder/embed/origin-requests` — "Request a change" for
  *   allowed origins; creates one admin task (org owners only).
+ * - `POST /api/v1/builder/account/close-request` — "Close my account"
+ *   (#860); one admin task + team-inbox email (org owners only).
  *
  * The org comes from the SESSION (`requireBuilderId`), never the request.
  * Writes are refused while viewing as a teammate (403) so every audit row
@@ -20,6 +22,7 @@
  * - a route depends on the service *interface*, never the implementation
  */
 import type {
+  BuilderAccountClosureResponse,
   BuilderEmbedResponse,
   BuilderOriginRequestResponse,
   BuilderProfileResponse,
@@ -56,12 +59,18 @@ export interface BuilderSettingsRoute {
     headers: Headers,
     body: unknown,
   ): Promise<BuilderOriginRequestResponse>;
+  /** POST /api/v1/builder/account/close-request (#860) */
+  requestAccountClosure(
+    headers: Headers,
+    body: unknown,
+  ): Promise<BuilderAccountClosureResponse>;
 }
 
 const ROUTE_PROFILE_GET = 'GET /api/v1/builder/profile';
 const ROUTE_PROFILE_PUT = 'PUT /api/v1/builder/profile';
 const ROUTE_EMBED_GET = 'GET /api/v1/builder/embed';
 const ROUTE_ORIGIN_REQUEST = 'POST /api/v1/builder/embed/origin-requests';
+const ROUTE_CLOSE_REQUEST = 'POST /api/v1/builder/account/close-request';
 
 export function createBuilderSettingsRoute(
   deps: BuilderSettingsRouteDeps,
@@ -112,6 +121,12 @@ export function createBuilderSettingsRoute(
     async requestOriginChange(headers, body) {
       return settings.requestOriginChange(
         await ownerActor(headers, ROUTE_ORIGIN_REQUEST),
+        body,
+      );
+    },
+    async requestAccountClosure(headers, body) {
+      return settings.requestAccountClosure(
+        await ownerActor(headers, ROUTE_CLOSE_REQUEST),
         body,
       );
     },

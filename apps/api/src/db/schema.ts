@@ -540,8 +540,18 @@ export const builders = pgTable('builders', {
     .default([]),
   /** 'flat' | 'commission' | null (undecided). */
   plan: text('plan'),
-  /** 'active' | 'inactive' — inactive builders can't bill or embed. */
+  /**
+   * #860 lifecycle: 'active' | 'suspended' | 'offboarding' | 'offboarded'.
+   * What each allows is lib/builder-status-policy.ts. Legacy 'inactive'
+   * rows were migrated to 'suspended' (migration 0067).
+   */
   status: text('status').notNull().default('active'),
+  /** #860: why the status last changed (admin-entered). Null = never changed. */
+  statusReason: text('status_reason'),
+  /** #860: when the status last changed. */
+  statusChangedAt: timestamp('status_changed_at', { withTimezone: true }),
+  /** #860: admin email that last changed the status. */
+  statusChangedBy: text('status_changed_by'),
   /**
    * Negotiated commission rate, in PERCENT (e.g. 1.5 = 1.5%). Defaults to
    * 1 (Karan 2026-09-24 decision); editable in the admin portal

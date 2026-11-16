@@ -35,7 +35,7 @@ export type LeadStatusKey = AdminLeadStatus | BuilderLeadStatus;
 /** Portal member/user — the spec's `deactivated` plus the wire `disabled`. */
 export type MemberStatusKey = AdminUserStatus | 'deactivated';
 /** Builder account health — spec states plus the wire `inactive`. */
-export type BuilderStatusKey = BuilderStatus | 'past_due' | 'degraded' | 'suspended';
+export type BuilderStatusKey = BuilderStatus | 'inactive' | 'past_due' | 'degraded';
 export type ApiKeyStatusKey = 'active' | 'revoked';
 /** Dispute review SLA — derive the key with {@link disputeSlaKey}. */
 export type DisputeSlaKey = 'on_track' | 'due_today' | 'overdue';
@@ -89,6 +89,8 @@ const BUILDER: Dictionary<BuilderStatusKey> = {
   past_due: { label: 'Past due', tone: 'warning' },
   degraded: { label: 'Degraded', tone: 'danger' },
   suspended: { label: 'Suspended', tone: 'danger' },
+  offboarding: { label: 'Offboarding', tone: 'warning' },
+  offboarded: { label: 'Offboarded', tone: 'neutral' },
 };
 
 const API_KEY: Dictionary<ApiKeyStatusKey> = {
