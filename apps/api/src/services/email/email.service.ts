@@ -23,6 +23,7 @@ import type { BuildTimeline } from '../../lib/build-timeline';
 import {
   renderCallbackTeamEmail,
   renderCommissionInvoiceOverdueEmail,
+  renderCardExpiryReminderEmail,
   renderCommissionInvoiceReadyEmail,
   renderCommissionPaymentFailedEmail,
   renderCommissionPaymentActionRequiredEmail,
@@ -204,6 +205,16 @@ export interface CommissionInvoiceOverdueEmailInput {
   readonly tax?: CommissionEmailTax;
 }
 
+/** #880 input: the saved card enters the expiry warning window (once per card). */
+export interface CardExpiryReminderEmailInput {
+  readonly to: string;
+  readonly businessName: string;
+  readonly brand: string;
+  readonly last4: string;
+  readonly expMonth: number;
+  readonly expYear: number;
+}
+
 /** #712 input: the bank wants the builder to confirm the charge (3DS). */
 export interface CommissionPaymentActionRequiredEmailInput {
   readonly to: string;
@@ -289,6 +300,10 @@ export interface EmailService {
   /** #718: manual-method invoice past its due date (sent once). */
   sendCommissionInvoiceOverdue(
     input: CommissionInvoiceOverdueEmailInput,
+  ): Promise<EmailDelivery>;
+  /** #880: one-time "your card expires soon" reminder (replace-card CTA). */
+  sendCardExpiryReminder(
+    input: CardExpiryReminderEmailInput,
   ): Promise<EmailDelivery>;
   /** Issue #530: lead marked won — ask an org admin to record the contract. */
   sendContractNeedsRecording(
@@ -580,6 +595,19 @@ export function createEmailService(deps: EmailServiceDeps): EmailService {
         commissionCents: input.commissionCents,
         currency: input.currency,
         ...(input.tax ? { tax: input.tax } : {}),
+      });
+      return deliver({ ...rendered, to: input.to });
+    },
+
+    async sendCardExpiryReminder(
+      input: CardExpiryReminderEmailInput,
+    ): Promise<EmailDelivery> {
+      const rendered = renderCardExpiryReminderEmail(ctx, {
+        businessName: input.businessName,
+        brand: input.brand,
+        last4: input.last4,
+        expMonth: input.expMonth,
+        expYear: input.expYear,
       });
       return deliver({ ...rendered, to: input.to });
     },
