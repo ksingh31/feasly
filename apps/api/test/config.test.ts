@@ -175,6 +175,7 @@ describe('loadConfig', () => {
         isProduction: false,
         maxChargeRetries: 3,
         settlementThresholdHours: 24,
+        cardExpiryWarningDays: 30,
         tax: {
           enabled: false,
           ratePercent: 5,
@@ -331,6 +332,7 @@ describe('loadConfig', () => {
       isProduction: false,
       maxChargeRetries: 3,
       settlementThresholdHours: 24,
+      cardExpiryWarningDays: 30,
       tax: {
         enabled: false,
         ratePercent: 5,
@@ -383,6 +385,33 @@ describe('loadConfig', () => {
     expect(() =>
       loadConfig({ ...VALID_ENV, BILLING_SETTLEMENT_THRESHOLD_HOURS: '0' }),
     ).toThrow(/BILLING_SETTLEMENT_THRESHOLD_HOURS/);
+  });
+
+  it('reads BILLING_STATEMENT_DESCRIPTOR (#716) and enforces Stripe descriptor rules', () => {
+    expect(loadConfig(VALID_ENV).billing.statementDescriptor).toBeUndefined();
+    expect(
+      loadConfig({ ...VALID_ENV, BILLING_STATEMENT_DESCRIPTOR: ' FEASLY COMMISSION ' })
+        .billing.statementDescriptor,
+    ).toBe('FEASLY COMMISSION');
+    expect(() =>
+      loadConfig({ ...VALID_ENV, BILLING_STATEMENT_DESCRIPTOR: 'X'.repeat(23) }),
+    ).toThrow(/BILLING_STATEMENT_DESCRIPTOR/);
+    expect(() =>
+      loadConfig({ ...VALID_ENV, BILLING_STATEMENT_DESCRIPTOR: 'FEASLY*COMM' }),
+    ).toThrow(/BILLING_STATEMENT_DESCRIPTOR/);
+    expect(() =>
+      loadConfig({ ...VALID_ENV, BILLING_STATEMENT_DESCRIPTOR: '12345' }),
+    ).toThrow(/BILLING_STATEMENT_DESCRIPTOR/);
+  });
+
+  it('reads BILLING_CARD_EXPIRY_WARNING_DAYS (#716) and rejects 0', () => {
+    expect(
+      loadConfig({ ...VALID_ENV, BILLING_CARD_EXPIRY_WARNING_DAYS: '45' }).billing
+        .cardExpiryWarningDays,
+    ).toBe(45);
+    expect(() =>
+      loadConfig({ ...VALID_ENV, BILLING_CARD_EXPIRY_WARNING_DAYS: '0' }),
+    ).toThrow(/BILLING_CARD_EXPIRY_WARNING_DAYS/);
   });
 
   it('rejects an unknown billing model naming the variable', () => {

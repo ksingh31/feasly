@@ -401,6 +401,22 @@ const EnvSchema = z.object({
   // reconciled against Stripe by the daily reviewer and flagged on
   // /admin/webhooks. 24h default (open owner question on #711 — tunable).
   BILLING_SETTLEMENT_THRESHOLD_HOURS: z.coerce.number().int().positive().default(24),
+  // --- Card lifecycle (#716) ---
+  // Text on the builder's bank statement for a commission charge. Sent as
+  // Stripe's statement_descriptor_suffix (card PaymentIntents reject a full
+  // statement_descriptor). Stripe rules: at most 22 characters, at least one
+  // letter, none of < > \ ' " *. Unset → the Stripe account default.
+  BILLING_STATEMENT_DESCRIPTOR: z
+    .string()
+    .trim()
+    .min(1)
+    .max(22)
+    .regex(/^[^<>\\'"*]+$/, 'must not contain < > \\ \' " *')
+    .regex(/[A-Za-z]/, 'must contain at least one letter')
+    .optional(),
+  // Days before a saved card's expiry month ends that the portal shows
+  // "expires soon" on the card on file.
+  BILLING_CARD_EXPIRY_WARNING_DAYS: z.coerce.number().int().min(1).max(365).default(30),
   // --- Sales tax on commission invoices (#714) ---
   // Owner decision 2026-11-15: Feasly bills through the owner's existing
   // company; GST at 5%, shown as its own line, priced "commission plus GST"
@@ -928,6 +944,16 @@ export interface BillingConfig {
    * no tax: every invoice figure and document matches the pre-tax output.
    */
   readonly tax?: BillingTaxConfig;
+  /**
+   * #716: bank-statement text for commission charges (Stripe
+   * `statement_descriptor_suffix`). Undefined = Stripe account default.
+   */
+  readonly statementDescriptor?: string;
+  /**
+   * #716: a saved card whose expiry month ends within this many days is
+   * flagged `expiresSoon` on GET /billing/card. Default 30.
+   */
+  readonly cardExpiryWarningDays?: number;
   /** Flat-plan fields — dormant until model='flat'. */
   readonly flatPlanName: string;
   /** Flat monthly price in integer minor units (cents). */
@@ -1634,6 +1660,10 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): ApiConfig {
       maxChargeRetries: e.BILLING_MAX_CHARGE_RETRIES,
       settlementThresholdHours: e.BILLING_SETTLEMENT_THRESHOLD_HOURS,
       tax: buildTaxConfig(e),
+      ...(e.BILLING_STATEMENT_DESCRIPTOR
+        ? { statementDescriptor: e.BILLING_STATEMENT_DESCRIPTOR }
+        : {}),
+      cardExpiryWarningDays: e.BILLING_CARD_EXPIRY_WARNING_DAYS,
       flatPlanName: e.BILLING_FLAT_PLAN_NAME,
       flatMonthlyCents: e.BILLING_FLAT_MONTHLY_CENTS,
       flatCurrency: e.BILLING_FLAT_CURRENCY,
