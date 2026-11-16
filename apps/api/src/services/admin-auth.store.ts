@@ -30,6 +30,7 @@ function toSessionRecord(
     revokedAt: row.revokedAt,
     expiresAt: row.expiresAt,
     createdAt: row.createdAt,
+    lastSeenAt: row.lastSeenAt ?? null,
     userId: row.userId,
     activeBuilderId: row.activeBuilderId,
     viewAs: normalizeViewAs(row.viewAs),
@@ -102,6 +103,13 @@ export function createDrizzleAdminSessionStore(
         .limit(1);
       const row = rows[0];
       return row ? toSessionRecord(row) : null;
+    },
+
+    async touch(sessionTokenHash: string, at: Date): Promise<void> {
+      await db
+        .update(adminSessions)
+        .set({ lastSeenAt: at })
+        .where(eq(adminSessions.sessionTokenHash, sessionTokenHash));
     },
 
     async revokeByHash(

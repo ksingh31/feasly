@@ -36,6 +36,14 @@ import type { AttributionService } from './attribution.service';
 import type { BillingAuditService } from './billing-audit.service';
 import type { CommissionService } from './commission.service';
 
+/**
+ * #840: sandbox (test API key) leads never enter billing. Callers that
+ * load the lead (builder status change, report-contract) refuse with this
+ * message (409 CONFLICT) before calling the hook.
+ */
+export const SANDBOX_LEAD_NOT_BILLABLE_MESSAGE =
+  'Sandbox test leads cannot be marked won or billed.';
+
 /** Billable events in the embed/builder track. */
 export type BillableEventType = 'lead_created' | 'lead_won';
 

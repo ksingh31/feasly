@@ -103,7 +103,7 @@ describe('rangesForCommunity', () => {
 describe('writeRangesFile', () => {
   const file = {
     generatedAt: new Date().toISOString(),
-    costDataVersion: 'v0.2.0-unclibrated',
+    costDataVersion: 'v0.4.1-uncalibrated',
     calibrated: false,
     buildSqft: 2400,
     communities: [
@@ -156,7 +156,7 @@ describe('scanDenyListRanges', () => {
       scanDenyListRanges(
         JSON.stringify({
           generatedAt: '2026-09-24T00:00:00.000Z',
-          costDataVersion: 'v0.2.0-unclibrated',
+          costDataVersion: 'v0.4.1-uncalibrated',
           calibrated: false,
           buildSqft: 2400,
           communities: [

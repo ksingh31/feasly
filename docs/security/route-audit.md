@@ -129,6 +129,7 @@ Related: [rate-limits.md](rate-limits.md) · [asvs-l1.md](asvs-l1.md) ·
 | GET | `/api/v1/admin/funnels` | admin | analytics:read | 300/min per session | live |  |
 | GET | `/api/v1/admin/billing` | admin | billing:read | 300/min per session | live |  |
 | POST | `/api/v1/admin/billing/invoices/{id}/retry` | admin | billing:manage | 300/min per session | live |  |
+| POST | `/api/v1/admin/billing/simulated/invoices/{id}/events` | admin | billing:manage | 300/min per session | live |  |
 | POST | `/api/v1/admin/billing/invoices/{id}/mark-paid` | admin | billing:manage | 300/min per session | live |  |
 | POST | `/api/v1/admin/billing/invoices/{id}/commission-rate` | admin | billing:manage | 300/min per session | live |  |
 | PUT | `/api/v1/admin/billing/invoices/{id}/payment-method` | admin | billing:manage | 300/min per session | live |  |
@@ -144,6 +145,8 @@ Related: [rate-limits.md](rate-limits.md) · [asvs-l1.md](asvs-l1.md) ·
 | POST | `/api/v1/stripe/webhooks` | stripe-signature | — | 100/min per IP | live | Stripe-Signature verified with timestamp tolerance; processed event ids are stored, so a replayed event is a no-op. |
 | POST | `/api/v1/billing/report-contract` | builder-session | builder:billing | 100/min per session | live |  |
 | POST | `/api/v1/billing/setup-intent` | builder-session | builder:billing | 100/min per session | live |  |
+| POST | `/api/v1/billing/simulated/confirm-setup` | builder-session | builder:billing | 100/min per session | live |  |
+| POST | `/api/v1/billing/simulated/authenticate` | builder-session | builder:billing | 100/min per session | live |  |
 | GET | `/api/v1/billing/card` | builder-session | builder:billing | 100/min per session | live |  |
 | GET | `/api/v1/billing/commission-rate` | builder-session | builder:billing | 100/min per session | live |  |
 | GET | `/api/v1/builder/billing/overview` | builder-session | builder:billing | 100/min per session | live |  |

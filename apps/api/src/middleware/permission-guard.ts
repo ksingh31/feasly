@@ -63,10 +63,24 @@ export interface PermissionGuard {
    * SQL to. Throws 403 when the session carries no builder context.
    */
   requireBuilderId(ctx: AuthContext, route: string): Promise<string>;
+  /**
+   * #730: dangerous actions (view-as, mark-paid, user deactivation, API-key
+   * issuance) need a recent sign-in. Throws 401 REAUTH_REQUIRED
+   * (audit-logged) when `ctx.authenticatedAt` is older than the configured
+   * window, missing, or the guard was built without a window (fail closed).
+   */
+  requireRecentAuth(ctx: AuthContext, route: string): Promise<void>;
 }
 
 export interface PermissionGuardDeps {
   readonly authContext: AuthContextService;
+  /**
+   * #730: SESSION_REAUTH_WINDOW_SECONDS. Optional so guards for routes
+   * without dangerous actions need not carry it; when absent,
+   * `requireRecentAuth` always refuses (fail closed).
+   */
+  readonly reauthWindowSeconds?: number;
+  readonly clock?: () => Date;
 }
 
 function unauthenticated(): HttpError {
@@ -74,6 +88,15 @@ function unauthenticated(): HttpError {
     401,
     ErrorCodes.UNAUTHENTICATED,
     'Authentication required.',
+    false,
+  );
+}
+
+function reauthRequired(): HttpError {
+  return new HttpError(
+    401,
+    ErrorCodes.REAUTH_REQUIRED,
+    'Please sign in again to continue.',
     false,
   );
 }
@@ -90,7 +113,7 @@ function forbidden(): HttpError {
 export function createPermissionGuard(
   deps: PermissionGuardDeps,
 ): PermissionGuard {
-  const { authContext } = deps;
+  const { authContext, reauthWindowSeconds, clock = () => new Date() } = deps;
 
   return {
     async requirePermission(permission, headers, route) {
@@ -143,6 +166,21 @@ export function createPermissionGuard(
         throw forbidden();
       }
       return ctx.builderId;
+    },
+
+    async requireRecentAuth(ctx, route) {
+      const signedInAt = ctx.authenticatedAt?.getTime();
+      const fresh =
+        reauthWindowSeconds !== undefined &&
+        signedInAt !== undefined &&
+        clock().getTime() - signedInAt <= reauthWindowSeconds * 1000;
+      if (fresh) return;
+      await authContext.auditDenied({
+        ctx,
+        permission: 'recent-auth',
+        route,
+      });
+      throw reauthRequired();
     },
   };
 }

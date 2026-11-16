@@ -28,7 +28,7 @@ describe('createComparisonEstimate', () => {
     );
 
     expect(result.rowSets).toHaveLength(2);
-    expect(result.costDataVersion).toBe('v0.4.0-unclibrated');
+    expect(result.costDataVersion).toBe('v0.4.1-uncalibrated');
 
     // Exactly one has lowestLand: true (community-a has the lower assessed value)
     const lowest = result.rowSets.filter((rs) => rs.lowestLand);

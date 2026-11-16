@@ -273,6 +273,12 @@ export interface CardOnFileStatus {
 export interface SetupIntentResponse {
   readonly setupIntentId: string;
   readonly clientSecret: string;
+  /**
+   * #753: which payment provider issued the intent. `simulated` → show the
+   * test-card picker (POST /billing/simulated/confirm-setup) instead of
+   * Stripe Elements.
+   */
+  readonly provider?: 'stripe' | 'simulated';
 }
 
 /**

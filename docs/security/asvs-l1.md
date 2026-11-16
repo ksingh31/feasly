@@ -43,7 +43,7 @@ provided anyway: [threat-model.md](threat-model.md).
 | 3.2.2 | ≥ 64 bits entropy | Pass | `randomBytes(32)` session tokens (`builder-auth.service.ts`), SHA-256 hashed at rest (`hashSessionToken`) |
 | 3.2.3 | Stored securely in browser | Pass (accepted) | httpOnly + Secure cookie. The SPA also persists the builder session token in localStorage via the NGXS storage plugin, as a Bearer fallback for Safari ITP. Accepted because the CSP blocks third-party script, so XSS is the only way to read it. Mitigated by 5.2.1. |
 | 3.3.1 | Logout invalidates the session | Pass | `POST …/auth/logout` revokes the server-side row. A disabled user loses access on the next request (`auth-context.service.ts`). |
-| 3.3.2 | Periodic re-authentication | Pass | Admin session TTL 7 days (`ADMIN_SESSION_TTL_SECONDS`). Builder session TTL is in config. |
+| 3.3.2 | Periodic re-authentication | Pass | #730: admin sessions last 12 h absolute / 1 h idle, builder sessions 7 days absolute / 24 h idle (`ADMIN_SESSION_TTL_SECONDS`, `ADMIN_SESSION_IDLE_TIMEOUT_SECONDS`, `BUILDER_SESSION_TTL_SECONDS`, `BUILDER_SESSION_IDLE_TIMEOUT_SECONDS`; `services/session-policy.ts`). Dangerous actions need a sign-in within `SESSION_REAUTH_WINDOW_SECONDS` (registry `recentAuth`, 401 `REAUTH_REQUIRED`). See `session-hardening.md`. |
 | 3.4.1 | Cookie `Secure` | Pass | `admin-auth.route.ts`, `builder-auth.route.ts` |
 | 3.4.2 | Cookie `HttpOnly` | Pass | Same files |
 | 3.4.3 | Cookie `SameSite` | Pass | `SameSite=None` is required for the cross-origin SPA. Cookie-authenticated state-changing requests must carry an allowlisted Origin/Referer (`middleware/csrf.ts`, **F-6** fixed in #794). |

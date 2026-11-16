@@ -190,7 +190,10 @@ export async function executeTool(
     case 'estimate_project': {
       requireToolScope(auth, 'estimate_project');
       // The EstimateService validates the full shape (same as REST).
-      return deps.estimate.estimate(args);
+      // #793: a sandbox key writes a sandbox-flagged estimate row.
+      return auth?.sandbox
+        ? deps.estimate.estimate(args, { sandbox: true })
+        : deps.estimate.estimate(args);
     }
     case 'submit_lead': {
       requireToolScope(auth, 'submit_lead');
@@ -199,7 +202,10 @@ export async function executeTool(
       // the service's 90-day dedupe provides the idempotency guarantee.
       // The key is accepted for API consistency and future use.
       const { idempotencyKey: _key, ...leadBody } = input;
-      return deps.leads.submitLead(leadBody);
+      // #793: a sandbox key writes a sandbox-flagged lead, no email.
+      return auth?.sandbox
+        ? deps.leads.submitLead(leadBody, { sandbox: true })
+        : deps.leads.submitLead(leadBody);
     }
     default:
       throw new Error(`Unknown tool: ${toolName}.`);

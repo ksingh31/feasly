@@ -105,7 +105,7 @@ function main(): void {
   const aggregatesFile = readJson<{ generatedAt: string; communities: AggregateRow[] }>(aggregatesPath);
   const aggregates = aggregatesFile.communities;
   const ranges = readJson<{
-    communities: Array<{ slug: string; tiers: unknown[]; costDataVersion: string; calibrated: boolean; buildSqft: number }>;
+    communities: Array<{ slug: string; tiers: unknown }>;
     costDataVersion?: string;
     calibrated?: boolean;
     buildSqft?: number;
@@ -146,7 +146,18 @@ function main(): void {
       avgAssessedValue: view.avgAssessedValue,
       avgLotSqft: view.avgLotSqft,
     });
-    const range = rangesBySlug.get(slug) ?? null;
+    // The version/calibration/sqft fields live once at the top of the ranges
+    // file; each page's range row carries them so the page can state them
+    // (feasly:cost-data-version meta, illustrative banner).
+    const row = rangesBySlug.get(slug);
+    const range = row
+      ? {
+          ...row,
+          costDataVersion: ranges.costDataVersion ?? '',
+          calibrated: ranges.calibrated ?? false,
+          buildSqft: ranges.buildSqft ?? 0,
+        }
+      : null;
     const nearbySlugs = nearbyCommunities(slug, aggregates, 3);
     const nearby: NearbyEntry[] = nearbySlugs
       .map((s) => aggregateBySlug.get(s))

@@ -25,7 +25,7 @@
     "prebuild": "tsx tools/generate-builder-configs.ts",
     "pretest": "tsx tools/generate-builder-configs.ts",
     "prebundle:functions": "tsx tools/generate-builder-configs.ts",
-    "gen:route-docs": "tsx tools/insert-registry-table.mts && tsx tools/insert-rate-limit-table.mts",
+    "gen:route-docs": "tsx tools/insert-registry-table.mts && tsx tools/insert-rate-limit-table.mts && tsx tools/insert-route-audit-table.mts",
     "openapi:emit": "tsx tools/emit-openapi.ts",
     "openapi:lint": "tsx tools/emit-openapi.ts /tmp/feasly-openapi.json && redocly lint /tmp/feasly-openapi.json"
   },

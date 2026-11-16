@@ -19,20 +19,31 @@
  * - a route depends on the service *interface*, never the implementation
  */
 import type { ComparisonEstimateResponse, EstimateResponse } from '@feasly/contracts';
-import type { EstimateService } from '../services/estimate.service';
+import type { EstimateOptions, EstimateService } from '../services/estimate.service';
 
 export interface EstimateRouteDeps {
   readonly estimate: EstimateService;
 }
 
 export interface EstimateRoute {
-  /** Runs one estimate on an untrusted request body. */
-  handle(requestBody: unknown): Promise<EstimateResponse | ComparisonEstimateResponse>;
+  /**
+   * Runs one estimate on an untrusted request body. `options.sandbox`
+   * comes from the API-key auth context (#793), never the body.
+   */
+  handle(
+    requestBody: unknown,
+    options?: EstimateOptions,
+  ): Promise<EstimateResponse | ComparisonEstimateResponse>;
 }
 
 export function createEstimateRoute(deps: EstimateRouteDeps): EstimateRoute {
   return {
-    handle: (requestBody: unknown): Promise<EstimateResponse | ComparisonEstimateResponse> =>
-      deps.estimate.estimate(requestBody),
+    handle: (
+      requestBody: unknown,
+      options?: EstimateOptions,
+    ): Promise<EstimateResponse | ComparisonEstimateResponse> =>
+      options === undefined
+        ? deps.estimate.estimate(requestBody)
+        : deps.estimate.estimate(requestBody, options),
   };
 }

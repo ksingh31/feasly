@@ -7,8 +7,7 @@
  *
  * Sitemap sources (no hardcoded URL total — the parity test asserts
  * set-equality):
- * - Static routes: /, /privacy, /terms, /how-it-works, /faq, /communities/,
- *   and /developers.
+ * - Static routes: every page in src/app/core/seo/indexable-pages.json.
  * - Community pages: all slugs from community-aggregates.json
  *   (/communities/{slug}/).
  *
@@ -16,7 +15,7 @@
  * prerendered — the route is noindex (trust page for visitors, not a search
  * landing page), and a noindex URL must never appear in the sitemap
  * (conflicting crawl signals). If the route ever becomes indexable, add it
- * to STATIC_ROUTES above — never via a prerender-routes.txt conditional.
+ * to seo-routes.ts and indexable-pages.json — never via a prerender-routes.txt conditional.
  *
  * Each <url> carries <lastmod> = aggregates generatedAt, with per-route
  * changefreq/priority per SEO-02 AC2.
@@ -46,22 +45,23 @@
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { canonicalPath, loadIndexablePages } from './indexable-pages.js';
 
 const SCRIPT_DIR = dirname(fileURLToPath(import.meta.url));
 const AGGREGATES_PATH = join(SCRIPT_DIR, '..', 'src', 'content', 'data', 'community-aggregates.json');
 
-/** Static routes with their changefreq/priority (SEO-02 AC2). */
-const STATIC_ROUTES: ReadonlyArray<{ path: string; changefreq: string; priority: string }> = [
-  { path: '/', changefreq: 'weekly', priority: '1.0' },
-  { path: '/privacy/', changefreq: 'yearly', priority: '0.3' },
-  { path: '/terms/', changefreq: 'yearly', priority: '0.3' },
-  { path: '/how-it-works/', changefreq: 'monthly', priority: '0.8' },
-  { path: '/faq/', changefreq: 'monthly', priority: '0.8' },
-  { path: '/guides/cost-to-build-a-house-calgary/', changefreq: 'monthly', priority: '0.9' },
-  { path: '/guides/calgary-zoning-explained/', changefreq: 'monthly', priority: '0.9' },
-  { path: '/communities/', changefreq: 'weekly', priority: '0.9' },
-  { path: '/developers/', changefreq: 'monthly', priority: '0.5' },
-];
+/**
+ * Static routes with their changefreq/priority (SEO-02 AC2), from the shared
+ * indexable-pages manifest — the same list llms.txt and the prerender SEO
+ * check use, kept in parity with seo-routes.ts by indexable-pages.spec.ts.
+ */
+function staticRoutes(): ReadonlyArray<{ path: string; changefreq: string; priority: string }> {
+  return loadIndexablePages().map((p) => ({
+    path: canonicalPath(p.pattern),
+    changefreq: p.changefreq,
+    priority: p.priority,
+  }));
+}
 
 /** Response header every non-production response carries (#707). */
 export const NOINDEX_HEADER = 'noindex, nofollow';
@@ -104,7 +104,7 @@ function loadSitemapUrls(siteUrl: string): SitemapUrl[] {
   };
   const lastmod = aggregatesRaw.generatedAt.split('T')[0]; // YYYY-MM-DD
 
-  const urls: SitemapUrl[] = STATIC_ROUTES.map((r) => ({
+  const urls: SitemapUrl[] = staticRoutes().map((r) => ({
     loc: `${siteUrl}${r.path}`,
     lastmod,
     changefreq: r.changefreq,
@@ -114,7 +114,7 @@ function loadSitemapUrls(siteUrl: string): SitemapUrl[] {
   // /sample-report is NEVER in the sitemap: the route is noindex (trust
   // page for visitors, not a search landing page). Emitting a noindex URL
   // in the sitemap sends conflicting signals to crawlers. If the route
-  // ever becomes indexable, add it to STATIC_ROUTES — do not re-add a
+  // ever becomes indexable, add it to seo-routes.ts and indexable-pages.json — do not re-add a
   // prerender-routes.txt conditional here.
 
   // Community pages from the aggregates (source of truth for the 40 slugs).

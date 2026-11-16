@@ -37,7 +37,7 @@ rm -rf apps/web/dist
 step "dependency audit (high)" npm audit --audit-level=high
 step "build:configs" npm run build:configs --workspace @feasly/api
 step "tsc -b (root)" npx tsc -b
-# #816: the TECH_PLAN §16 and rate-limits.md tables are generated from the
+# #816/#848: the TECH_PLAN §16, rate-limits.md and route-audit.md tables are generated from the
 # route registry. Regenerate them before the tests so a stale table (e.g.
 # after merging main with another route-adding PR) is fixed locally instead
 # of failing. CI does NOT run this: the conformance test still fails on a

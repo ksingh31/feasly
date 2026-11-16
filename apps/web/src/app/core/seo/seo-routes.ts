@@ -258,3 +258,14 @@ export function findSeoRoute(path: string): SeoRouteConfig {
 export function noindexPatterns(): string[] {
   return [...TABLE.filter((entry) => entry.noindex).map((entry) => entry.pattern)];
 }
+
+/**
+ * Indexable, parameter-free patterns — the pages that must appear in the
+ * sitemap, llms.txt and the prerender SEO check. Mirrored by
+ * `indexable-pages.json`; `scripts/indexable-pages.spec.ts` asserts parity.
+ */
+export function indexablePatterns(): string[] {
+  return ROUTES.filter((entry) => !entry.noindex && !entry.pattern.includes(':') && !entry.pattern.includes('*')).map(
+    (entry) => entry.pattern,
+  );
+}
