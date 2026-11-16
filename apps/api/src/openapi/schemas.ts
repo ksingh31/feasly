@@ -617,7 +617,7 @@ export const MagicLinkEstimateItemSchema = z
     latest: z.boolean().describe('True for the newest estimate (first item)'),
     current: z
       .boolean()
-      .describe('True when the presented token already opens this report'),
+      .describe('True for the property the presented token itself covers (display only; open every item via POST /v1/magic-link/estimates/open)'),
   })
   .openapi('MagicLinkEstimateItem');
 

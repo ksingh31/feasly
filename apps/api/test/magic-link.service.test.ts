@@ -237,6 +237,7 @@ function makeService(opts?: {
   leads?: LeadStore;
   household?: FakeHousehold;
   householdListLimit?: number;
+  householdListEmailEnabled?: boolean;
   email?: EmailService & { sends: MagicLinkEmailInput[] };
   ttlSeconds?: number;
   reissueCooldownMs?: number;
@@ -252,6 +253,7 @@ function makeService(opts?: {
     leads,
     householdEstimates: household,
     householdListLimit: opts?.householdListLimit ?? 10,
+    householdListEmailEnabled: opts?.householdListEmailEnabled ?? true,
     email,
     unsubscribe: fakeUnsubscribe,
     appBaseUrl: APP_BASE_URL,
@@ -729,6 +731,23 @@ describe('#800 magic-link reissue — household link', () => {
     expect(household.calls[0]).toEqual({ email: 'sam@example.com', limit: 10 });
   });
 
+  it('keeps the single-report email copy while the list-email flag is off (web list not shipped)', async () => {
+    const magicLinks = fakeMagicLinks();
+    const email = fakeEmail();
+    const household = fakeHousehold(householdRows(3));
+    const { service } = makeService({
+      magicLinks,
+      email,
+      household,
+      householdListEmailEnabled: false,
+    });
+    expect(await service.reissue({ email: 'sam@example.com' })).toEqual({ sent: true });
+    // Still a household link (the list API ships dark), but no count → old copy.
+    expect(magicLinks.issuedArgs[0]).toMatchObject({ household: true, purpose: 'lead' });
+    expect(email.sends[0]!.estimateCount).toBeUndefined();
+    expect(household.calls).toHaveLength(0);
+  });
+
   it('keeps the single-report email when the household has one property', async () => {
     const email = fakeEmail();
     const { service } = makeService({ email, household: fakeHousehold(householdRows(1)) });
@@ -914,13 +933,14 @@ describe('#800 magic-link openEstimate', () => {
     expect(magicLinks.issuedArgs[0]!.ttlSeconds).toBe(3_600);
   });
 
-  it('returns the presented token for the property it already opens (no mint)', async () => {
+  it('mints a plain token even for the property the household token covers (no list loop, household token never in a report URL)', async () => {
     const { service, magicLinks } = setup();
-    expect(await service.openEstimate({ token: 'household-token', handle: LEAD_ID })).toEqual({
-      valid: true,
-      reportToken: 'household-token',
-    });
-    expect(magicLinks.issued).toBe(0);
+    const result = await service.openEstimate({ token: 'household-token', handle: LEAD_ID });
+    expect(result).toEqual({ valid: true, reportToken: '<redacted>' });
+    expect(result).not.toMatchObject({ reportToken: 'household-token' });
+    expect(magicLinks.issuedArgs).toHaveLength(1);
+    expect(magicLinks.issuedArgs[0]).toMatchObject({ leadId: LEAD_ID, purpose: 'lead' });
+    expect(magicLinks.issuedArgs[0]!.household).toBeUndefined();
   });
 
   it('rejects a non-household owner token (lead-submit tokens cannot open other leads)', async () => {

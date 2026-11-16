@@ -260,6 +260,14 @@ const EnvSchema = z.object({
   // #800: how many of a household's most recent estimates (one per
   // property) the emailed household link lists. Owner decision on #704: 10.
   MAGIC_LINK_HOUSEHOLD_LIST_LIMIT: z.coerce.number().int().positive().max(50).default(10),
+  // #800: whether the reissue email may say "your recent estimates" (N
+  // properties). Default OFF until the web list UI on /r/:token ships —
+  // otherwise the copy promises a list the app doesn't show yet. The web
+  // half of #800 flips this on.
+  MAGIC_LINK_HOUSEHOLD_LIST_EMAIL_ENABLED: z
+    .enum(['true', 'false'])
+    .default('false')
+    .transform((value) => value === 'true'),
   // #806: lifetime of the owner link minted for the erase-confirmation email
   // (POST /privacy/erase-requests). Short on purpose — it only has to survive
   // the trip to the inbox and one click. Default 24 h.
@@ -781,6 +789,12 @@ export interface AuthConfig {
    * link lists (from MAGIC_LINK_HOUSEHOLD_LIST_LIMIT).
    */
   readonly magicLinkHouseholdListLimit: number;
+  /**
+   * #800: send the "your recent estimates" reissue email copy (from
+   * MAGIC_LINK_HOUSEHOLD_LIST_EMAIL_ENABLED, default false until the web
+   * list UI ships).
+   */
+  readonly magicLinkHouseholdListEmailEnabled: boolean;
   /**
    * #806: lifetime of the fresh owner link emailed for erase confirmation
    * (from PRIVACY_ERASE_CONFIRM_LINK_TTL_SECONDS, default 24 h).
@@ -1836,6 +1850,7 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): ApiConfig {
       magicLinkReissueCooldownMs: e.MAGIC_LINK_REISSUE_COOLDOWN_MS,
       magicLinkMaxSendsPerHour: e.MAGIC_LINK_MAX_SENDS_PER_HOUR,
       magicLinkHouseholdListLimit: e.MAGIC_LINK_HOUSEHOLD_LIST_LIMIT,
+      magicLinkHouseholdListEmailEnabled: e.MAGIC_LINK_HOUSEHOLD_LIST_EMAIL_ENABLED,
       eraseConfirmLinkTtlSeconds: e.PRIVACY_ERASE_CONFIRM_LINK_TTL_SECONDS,
       adminApiKey: e.ADMIN_API_KEY,
       adminSessionTtlSeconds: e.ADMIN_SESSION_TTL_SECONDS,

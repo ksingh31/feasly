@@ -53,8 +53,10 @@ export interface MagicLinkEstimateItem {
   /** True for the newest estimate (the first item). */
   readonly latest: boolean;
   /**
-   * True when the presented token already opens this report — the UI can
-   * navigate with the token it holds instead of calling open.
+   * True for the property the presented token itself covers. Display
+   * only: to open any item from a list, call `POST …/estimates/open` —
+   * it mints a plain per-lead token, so `/r/{reportToken}` opens the report
+   * directly instead of re-rendering the household list.
    */
   readonly current: boolean;
 }

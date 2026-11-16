@@ -29,7 +29,8 @@
  *   other addresses.
  *
  * - `openEstimate({ token, handle })` — `POST /api/v1/magic-link/estimates/open`
- *   (#800). Mints a per-lead owner link for one list item, capped to the
+ *   (#800). Mints a plain (non-household) per-lead owner link for one list
+ *   item — including the household token's own property — capped to the
  *   household token's own expiry (opening never extends access). Other
  *   leads' tokens are never stored raw, so none can leak.
  *
@@ -89,6 +90,13 @@ export interface MagicLinkServiceDeps {
   readonly magicLinkTtlSeconds: number;
   /** #800: max estimates a household link lists (config, default 10). */
   readonly householdListLimit: number;
+  /**
+   * #800: whether the reissue email may use the "your recent estimates"
+   * copy (config MAGIC_LINK_HOUSEHOLD_LIST_EMAIL_ENABLED). Off until the
+   * web list UI ships, so the email never promises a list the app doesn't
+   * show. Omitted = off.
+   */
+  readonly householdListEmailEnabled?: boolean;
   /**
    * HRD-03: minimum ms between resend emails to the same address, keyed by
    * normalized email. Shared across instances when `reissueCooldown` is
@@ -285,6 +293,7 @@ export function createMagicLinkService(
     magicLinkTtlSeconds,
     householdEstimates,
     householdListLimit,
+    householdListEmailEnabled = false,
     magicLinkReissueCooldownMs,
     magicLinkMaxSendsPerHour,
     clock = () => new Date(),
@@ -404,11 +413,16 @@ export function createMagicLinkService(
         return { sent: false };
       }
       // #800: the email says "your recent estimates" when the link lists
-      // more than one property.
-      const listed = await householdEstimates.listByEmail({
-        email: lead.email,
-        limit: householdListLimit,
-      });
+      // more than one property — only once the web list UI is live
+      // (config flag); until then it keeps the single-report copy.
+      const estimateCount = householdListEmailEnabled
+        ? (
+            await householdEstimates.listByEmail({
+              email: lead.email,
+              limit: householdListLimit,
+            })
+          ).length
+        : undefined;
       const delivery = await issueAndSendMagicLink({
         magicLinks,
         email,
@@ -422,7 +436,7 @@ export function createMagicLinkService(
         // #800: reissue links are delivered ONLY by email — possession
         // proves control of the inbox, so they may list the household.
         household: true,
-        estimateCount: listed.length,
+        ...(estimateCount !== undefined ? { estimateCount } : {}),
         clock,
       });
       // Only a delivered resend starts the cooldown — a failed send leaves
@@ -470,10 +484,10 @@ export function createMagicLinkService(
       if (!target || target.email !== lead.email || target.quarantined) {
         return INVALID;
       }
-      if (target.addressKey === lead.addressKey) {
-        // Same property → same report: the presented token already opens it.
-        return { valid: true, reportToken: parsed.data.token };
-      }
+      // Always mint a plain (non-household) owner link — even for the
+      // property the household token itself covers. `/r/{reportToken}` then
+      // lists one item and opens the report directly (no list → list loop),
+      // and the household token never appears in a shareable report URL.
       // Never extend access: the minted link expires no later than the
       // household link that opened it.
       const now = clock();

@@ -59,6 +59,8 @@ describe('loadConfig', () => {
         magicLinkMaxSendsPerHour: 5,
         // #800: household link lists the 10 newest estimates.
         magicLinkHouseholdListLimit: 10,
+        // #800: recent-estimates email copy off until the web list ships.
+        magicLinkHouseholdListEmailEnabled: false,
         // #806: erase-confirmation link lifetime (default 24 h).
         eraseConfirmLinkTtlSeconds: 86_400,
         adminApiKey: undefined,

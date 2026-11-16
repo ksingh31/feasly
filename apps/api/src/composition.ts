@@ -1288,6 +1288,7 @@ export function createComposition(
     appBaseUrl: config.email.appBaseUrl,
     magicLinkTtlSeconds: config.auth.magicLinkTtlSeconds,
     householdListLimit: config.auth.magicLinkHouseholdListLimit,
+    householdListEmailEnabled: config.auth.magicLinkHouseholdListEmailEnabled,
     magicLinkReissueCooldownMs: config.auth.magicLinkReissueCooldownMs,
     magicLinkMaxSendsPerHour: config.auth.magicLinkMaxSendsPerHour,
     reissueCooldown: createSharedCooldown({

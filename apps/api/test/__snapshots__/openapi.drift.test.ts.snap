@@ -924,7 +924,7 @@ exports[`OpenAPI drift > generated spec matches the snapshot 1`] = `
             "type": "string",
           },
           "current": {
-            "description": "True when the presented token already opens this report",
+            "description": "True for the property the presented token itself covers (display only; open every item via POST /v1/magic-link/estimates/open)",
             "type": "boolean",
           },
           "handle": {
