@@ -643,6 +643,16 @@ export interface BuilderInvoiceDrawerCopy {
   pdfFilename: string;
   /** Toast after a method change: `{method}`. */
   methodChangedToast: string;
+  /** #867: primary button for an invoice waiting on the bank (`action_required`). */
+  confirmPaymentCta: string;
+  /** #867: the button while the confirm is in flight. */
+  confirmPaymentBusy: string;
+  /** #867: status note while waiting for the webhook to settle the invoice. */
+  confirmPaymentPending: string;
+  /** #867: the invoice still waits after the poll window — offer a re-check. */
+  confirmPaymentStalled: string;
+  /** #867: re-check button after the poll window. */
+  confirmPaymentCheckAgain: string;
   modalHeading: string;
   /** "Before" label in the modal. */
   modalBefore: string;
@@ -931,6 +941,13 @@ export interface AppConfig {
      * the minted invoice's own `reviewDueAt` is shown once it does.
      */
     chargeDelayDays: number;
+    /**
+     * #867: after the builder confirms a payment with their bank, the
+     * invoice drawer re-fetches the invoice every `confirmPollIntervalMs`
+     * (at most `confirmPollAttempts` times) until the webhook settles it.
+     */
+    confirmPollIntervalMs: number;
+    confirmPollAttempts: number;
   };
   /** Property-data wiring (FE1-002): autocomplete + property records. */
   propertyData: {
