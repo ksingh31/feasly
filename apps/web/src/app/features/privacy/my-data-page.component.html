@@ -23,7 +23,13 @@
       @if (erase() === 'pending') {
         <section class="panel" data-state="pending" aria-labelledby="pending-heading">
           <h2 id="pending-heading">{{ copy.pendingHeading }}</h2>
-          <p class="body">{{ confirmInPage ? copy.pendingBody : copy.pendingEmailBody }}</p>
+          @if (confirmInPage) {
+            <p class="body">{{ copy.pendingBody }}</p>
+          } @else if (emailNotSent()) {
+            <p class="body" role="status" data-state="email-not-sent">{{ copy.pendingEmailNotSentBody }}</p>
+          } @else {
+            <p class="body" data-state="email-sent">{{ copy.pendingEmailBody }}</p>
+          }
           <h3>{{ copy.consequencesHeading }}</h3>
           <ul class="consequences">
             @for (line of consequences(); track $index) {
@@ -34,6 +40,16 @@
             @if (confirmInPage) {
               <button type="button" class="cta danger" (click)="confirmErasure()">
                 {{ copy.confirmCta }}
+              </button>
+            } @else if (emailNotSent()) {
+              <button
+                type="button"
+                class="cta"
+                data-action="resend-email"
+                (click)="resendErasureEmail()"
+                [disabled]="eraseEmail() === 'resending'"
+              >
+                {{ eraseEmail() === 'resending' ? copy.resendEmailWorking : copy.resendEmailCta }}
               </button>
             }
             <button type="button" class="text-button" (click)="cancelErasure()">

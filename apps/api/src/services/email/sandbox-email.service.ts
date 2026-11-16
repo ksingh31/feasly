@@ -29,6 +29,7 @@ import type {
   ContractNeedsRecordingEmailInput,
   BuilderNewLeadEmailInput,
   BuilderNeedsYouDigestEmailInput,
+  ErasureConfirmationEmailInput,
 } from './email.service';
 
 export interface SandboxEmailServiceDeps {
@@ -86,5 +87,7 @@ export function createSandboxSuppressingEmailService(
       suppressed('sendBuilderNewLead', log),
     sendBuilderNeedsYouDigest: (_input: BuilderNeedsYouDigestEmailInput) =>
       suppressed('sendBuilderNeedsYouDigest', log),
+    sendErasureConfirmation: (_input: ErasureConfirmationEmailInput) =>
+      suppressed('sendErasureConfirmation', log),
   };
 }
