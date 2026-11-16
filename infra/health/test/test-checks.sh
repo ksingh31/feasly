@@ -255,6 +255,13 @@ echo "$out" | grep -q "OK: PITR-capable" \
   && ok "backup: young server prints OK" \
   || bad "backup within-window line: $out"
 
+# --- community-stats freshness: runner firewall fallback (#951) --------------
+# Own suite (stubbed az/psql); run here so CI's health-check step covers it.
+if bash "$(dirname "$0")/test-community-stats-freshness.sh" >/dev/null 2>&1; then
+  ok "community-stats freshness suite passes"
+else
+  bad "community-stats freshness suite failed (run infra/health/test/test-community-stats-freshness.sh)"
+fi
 
 # --- summary ------------------------------------------------------------------
 echo "---"
