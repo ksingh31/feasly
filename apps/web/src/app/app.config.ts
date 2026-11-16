@@ -14,6 +14,7 @@ import { providePropertyData } from './core/api/property-data.service';
 import { GlobalErrorHandler, connectivityInterceptor } from './core/errors';
 import { credentialsInterceptor } from './core/api/credentials.interceptor';
 import { ConfigService } from './core/config/config.service';
+import { WebTelemetryService } from './core/telemetry/web-telemetry.service';
 import { PartnersState } from './core/partners/partners.state';
 import { EmbedState } from './features/embed/embed.state';
 import { ComparisonState } from './features/compare/comparison.state';
@@ -64,7 +65,14 @@ export const appConfig: ApplicationConfig = {
     ),
     // Load /assets/config/app-config.json before first render (FE0-002).
     // Never rejects: ConfigService falls back to compiled defaults.
-    provideAppInitializer(() => inject(ConfigService).load()),
+    // #830: real-user monitoring starts once config is loaded (it reads the
+    // sample rate + API base); browser-only, sampled, never throws.
+    provideAppInitializer(() => {
+      const telemetry = inject(WebTelemetryService);
+      return inject(ConfigService)
+        .load()
+        .then(() => telemetry.start());
+    }),
     // First-party analytics route tracking (consumer/01 call-site handoff):
     // maps completed funnel navigations to analytics events. Consent-gated
     // inside AnalyticsService — pre-consent navigations emit nothing.

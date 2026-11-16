@@ -138,6 +138,7 @@ These need owner input and are not implemented yet:
 | GET | `/api/v1/properties/autocomplete` | none | 60/min per IP | live |
 | GET | `/api/v1/properties/lookup` | none | 60/min per IP | live |
 | POST | `/api/v1/events` | none | 300/min per IP (dedicated analytics limiter) | live |
+| POST | `/api/v1/telemetry` | none | 300/min per IP (dedicated analytics limiter) | live |
 | GET | `/api/v1/privacy/export` | magic-token | 100/min per IP | live |
 | POST | `/api/v1/privacy/erase-requests` | magic-token | 10/min per IP | live |
 | POST | `/api/v1/privacy/erase-requests/{requestId}/confirm` | magic-token | 10/min per IP | live |

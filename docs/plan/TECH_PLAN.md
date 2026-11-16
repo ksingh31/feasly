@@ -1280,6 +1280,7 @@ absorbed by Flex Consumption scale-out, not by raising limits silently.
 | GET | `/api/v1/properties/autocomplete` | none | — | 60/min per IP | live | Calgary address autocomplete (City of Calgary assessment roll). Free by design. |
 | GET | `/api/v1/properties/lookup` | none | — | 60/min per IP | live | Property record lookup (assessed value, lot, zoning). Deterministic multi-parcel selection. OUT_OF_COVERAGE for non-Calgary. |
 | POST | `/api/v1/events` | none | — | 300/min per IP (dedicated analytics limiter) | live | First-party analytics ingest (consent-gated funnel events). Payloads require a valid consent_ts. |
+| POST | `/api/v1/telemetry` | none | — | 300/min per IP (dedicated analytics limiter) | live | Real-user monitoring beacon (#830): sampled Core Web Vitals and JS errors, no PII. Written to App Insights traces, never stored. |
 | GET | `/api/v1/privacy/export` | magic-token | — | 100/min per IP | live | PIPEDA data export for the token holder. |
 | POST | `/api/v1/privacy/erase-requests` | magic-token | — | 10/min per IP | live | Request erasure; returns a requestId for confirmation. |
 | POST | `/api/v1/privacy/erase-requests/{requestId}/confirm` | magic-token | — | 10/min per IP | live | Confirm an erasure request (second factor via email link). |

@@ -19,6 +19,7 @@
       "Function.nudge-timer.User": "Information",
       "Function.sandbox-purge-timer.User": "Information",
       "Function.sheets-sync-timer.User": "Information",
+      "Function.telemetry.User": "Information",
       "Function.zoning-watch-timer.User": "Information"
     },
     "applicationInsights": {

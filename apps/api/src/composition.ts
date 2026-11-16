@@ -367,6 +367,11 @@ import {
   type UnsubscribeRoute,
 } from './routes/unsubscribe.route';
 import { createAnalyticsRoute, type AnalyticsRoute } from './routes/analytics.route';
+import { createWebTelemetryRoute, type WebTelemetryRoute } from './routes/web-telemetry.route';
+import {
+  createWebTelemetryService,
+  type WebTelemetryService,
+} from './services/web-telemetry.service';
 import { createPrivacyRoute, type PrivacyRoute } from './routes/privacy.route';
 import {
   createNarrativeRoute,
@@ -723,6 +728,9 @@ export interface AppComposition {
   readonly analyticsStore: AnalyticsStore;
   readonly analyticsService: AnalyticsService;
   readonly analyticsRoute: AnalyticsRoute;
+  /** #830: real-user monitoring beacon ingest (App Insights traces only). */
+  readonly webTelemetryService: WebTelemetryService;
+  readonly webTelemetryRoute: WebTelemetryRoute;
   /** The one email service — all send paths funnel through here. */
   readonly emailService: EmailService;
   readonly magicLinkStore: MagicLinkStore;
@@ -1240,6 +1248,15 @@ export function createComposition(
   });
   const analyticsRoute: AnalyticsRoute = createAnalyticsRoute({
     analytics: analyticsService,
+  });
+  // #830: browser vitals + JS errors → one JSON trace per item, queryable in
+  // App Insights as `traces | where message startswith '{"event":"web_'`
+  // (docs/ops/web-telemetry.md). Shares the analytics pipeline + limiter.
+  const webTelemetryService: WebTelemetryService = createWebTelemetryService({
+    onTrace: (trace) => console.info(JSON.stringify(trace)),
+  });
+  const webTelemetryRoute: WebTelemetryRoute = createWebTelemetryRoute({
+    webTelemetry: webTelemetryService,
   });
   // Transactional email (story email/01): provider chosen by config.
   // 'log' is dev/test-only and refuses production; 'postmark' fails closed
@@ -2490,6 +2507,8 @@ export function createComposition(
     analyticsStore,
     analyticsService,
     analyticsRoute,
+    webTelemetryService,
+    webTelemetryRoute,
     emailService,
     magicLinkStore,
     magicLinkService,

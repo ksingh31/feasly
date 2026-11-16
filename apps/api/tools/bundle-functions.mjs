@@ -63,6 +63,7 @@ const targets = [
   { entry: 'src/functions/magic-link-verify.ts', out: 'magic-link-verify/index.js' },
   { entry: 'src/functions/magic-link-reissue.ts', out: 'magic-link-reissue/index.js' },
   { entry: 'src/functions/events.ts', out: 'events/index.js' },
+  { entry: 'src/functions/telemetry.ts', out: 'telemetry/index.js' },
   { entry: 'src/functions/privacy-export.ts', out: 'privacy-export/index.js' },
   { entry: 'src/functions/privacy-erase.ts', out: 'privacy-erase/index.js' },
   {

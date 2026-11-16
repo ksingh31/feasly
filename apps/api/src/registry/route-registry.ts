@@ -245,6 +245,17 @@ export const ROUTE_REGISTRY: readonly ApiRouteEntry[] = [
       'require a valid consent_ts.',
   },
   {
+    method: 'POST',
+    path: '/api/v1/telemetry',
+    auth: 'none',
+    permissions: [] as const,
+    rateLimit: '300/min per IP (dedicated analytics limiter)',
+    status: 'live',
+    summary:
+      'Real-user monitoring beacon (#830): sampled Core Web Vitals and JS ' +
+      'errors, no PII. Written to App Insights traces, never stored.',
+  },
+  {
     method: 'GET',
     path: '/api/v1/privacy/export',
     auth: 'magic-token',
