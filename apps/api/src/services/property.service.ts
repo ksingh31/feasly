@@ -106,6 +106,16 @@ export interface PropertyService {
   getProperty(addressKey: string, options?: GetPropertyOptions): Promise<PropertyRecord>;
 }
 
+/**
+ * #822: the parcel's interior point for an exact address key, read through
+ * the same shared roll cache as `getProperty` (#756) — a page that already
+ * looked the address up causes no City call. Null when the parcel has no
+ * usable geometry. Throws exactly like `getProperty` on a miss / outage.
+ */
+export interface PropertyLocator {
+  getPropertyPoint(addressKey: string): Promise<LonLat | null>;
+}
+
 export interface GetPropertyOptions {
   /** Request correlation ID — included in the district-fallback warning. */
   readonly correlationId?: string;
@@ -419,7 +429,7 @@ function errorClass(error: unknown): string {
 export function createPropertyService(
   config: PropertyDataConfig,
   deps: PropertyServiceDeps = {},
-): PropertyService {
+): PropertyService & PropertyLocator {
   const resourceUrl = `${config.socrataBaseUrl}/resource/${config.datasetId}.json`;
   const searchCache = new Map<string, CacheEntry<AutocompleteResponse>>();
   const propertyCache = new Map<string, CacheEntry<RollEntry>>();
@@ -694,6 +704,38 @@ export function createPropertyService(
     return response;
   }
 
+  /** Roll entry for an exact key: memory, then the shared cache, then the City (#756). */
+  async function resolveRoll(addressKey: string, key: string): Promise<RollEntry> {
+    if (!key) miss(addressKey, '', deps.onLookupMiss);
+    // Reno/05: an explicit out-of-coverage key never hits Socrata.
+    if (detectCoverageSignal(key) === 'out-of-coverage') {
+      miss(key, key, deps.onLookupMiss);
+    }
+    const hit = cached(propertyCache, key);
+    if (hit) {
+      emit({ event: 'lookup', op: 'property', dataset: config.datasetId, source: 'memory' });
+      return hit;
+    }
+    const entry = await resolveShared<RollEntry>({
+      op: 'property',
+      dataset: config.datasetId,
+      key,
+      flights: rollFlights,
+      ttlMs: config.dbCacheTtlMs,
+      isPayload: isRollEntry,
+      fetch: async () => {
+        const params = new URLSearchParams({
+          $select: DETAIL_FIELDS.join(','),
+          $where: `address=${soqlString(key)}`,
+          $limit: String(config.searchRowLimit),
+        });
+        return toProperty(key, await fetchRows(params, 'property'));
+      },
+    });
+    store(propertyCache, key, entry);
+    return entry;
+  }
+
   return {
     async autocomplete(query: string): Promise<AutocompleteResponse> {
       const parsed = normalizeAddressQuery(query);
@@ -737,34 +779,12 @@ export function createPropertyService(
       options: GetPropertyOptions = {},
     ): Promise<PropertyRecord> {
       const key = addressKey.trim();
-      if (!key) miss(addressKey, '', deps.onLookupMiss);
-      // Reno/05: an explicit out-of-coverage key never hits Socrata.
-      if (detectCoverageSignal(key) === 'out-of-coverage') {
-        miss(key, key, deps.onLookupMiss);
-      }
-      const hit = cached(propertyCache, key);
-      if (hit) {
-        emit({ event: 'lookup', op: 'property', dataset: config.datasetId, source: 'memory' });
-        return withLandUse(key, withFreshDerived(hit, config.redevelopmentMinAgeYears), options);
-      }
-      const entry = await resolveShared<RollEntry>({
-        op: 'property',
-        dataset: config.datasetId,
-        key,
-        flights: rollFlights,
-        ttlMs: config.dbCacheTtlMs,
-        isPayload: isRollEntry,
-        fetch: async () => {
-          const params = new URLSearchParams({
-            $select: DETAIL_FIELDS.join(','),
-            $where: `address=${soqlString(key)}`,
-            $limit: String(config.searchRowLimit),
-          });
-          return toProperty(key, await fetchRows(params, 'property'));
-        },
-      });
-      store(propertyCache, key, entry);
+      const entry = await resolveRoll(addressKey, key);
       return withLandUse(key, withFreshDerived(entry, config.redevelopmentMinAgeYears), options);
+    },
+
+    async getPropertyPoint(addressKey: string): Promise<LonLat | null> {
+      return (await resolveRoll(addressKey, addressKey.trim())).point;
     },
   };
 }

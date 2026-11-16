@@ -2015,6 +2015,36 @@ export const amenities = pgTable(
 );
 
 /**
+ * #822: residential new-build building permits (BP) and development permits
+ * (DP) from City open data (PermitsProvider). Public permit data only — the
+ * applicant is never stored, and `builder` is kept only when the City lists a
+ * company. Dates are ISO `YYYY-MM-DD` text (sortable).
+ */
+export const permits = pgTable(
+  'permits',
+  {
+    ...neighbourhoodBaseColumns(),
+    /** 'building' | 'development'. */
+    kind: text('kind').notNull(),
+    permitNumber: text('permit_number').notNull(),
+    address: text('address'),
+    /** BP permit class group / DP category. */
+    permitType: text('permit_type'),
+    status: text('status'),
+    appliedOn: text('applied_on'),
+    /** BP issued date / DP decision date. */
+    decidedOn: text('decided_on'),
+    housingUnits: integer('housing_units'),
+    builder: text('builder'),
+  },
+  (t) => [
+    index('permits_provider_idx').on(t.provider),
+    index('permits_community_idx').on(t.communityCode),
+    index('permits_lat_lng_idx').on(t.lat, t.lng),
+  ],
+);
+
+/**
  * Per-community living metrics (CommuteProvider, ReviewsProvider). One row
  * per (source, community, metric); `metric` names the kind ('commute',
  * 'reviews').

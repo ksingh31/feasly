@@ -295,6 +295,8 @@ const EnvSchema = z.object({
   NEIGHBOURHOOD_REVIEWS_PROVIDER: z.enum(['none']).default('none'),
   NEIGHBOURHOOD_AMENITIES_PROVIDER: z.enum(['calgary-open-data', 'none']).default('calgary-open-data'),
   NEIGHBOURHOOD_COMMUTE_PROVIDER: z.enum(['straight-line', 'none']).default('straight-line'),
+  // #822: residential new-build building + development permits (City open data).
+  NEIGHBOURHOOD_PERMITS_PROVIDER: z.enum(['calgary-open-data', 'none']).default('calgary-open-data'),
   // City of Calgary open-data datasets behind the free implementations:
   // Schools, Community Services, Community Points.
   NEIGHBOURHOOD_SCHOOLS_DATASET_ID: z.string().min(1).default('fd9t-tdn2'),
@@ -363,6 +365,52 @@ const EnvSchema = z.object({
   // Per-address metrics: search radius, and how long a computed row is reused.
   NEIGHBOURHOOD_LOT_RADIUS_M: z.coerce.number().int().positive().default(1_000),
   NEIGHBOURHOOD_LOT_METRICS_TTL_MS: z.coerce.number().int().positive().default(2_592_000_000),
+  // #822: nearby permits. City "Building Permits" (c2es-76ed) and
+  // "Development Permits" (6933-unw5), established communities only (#690).
+  NEIGHBOURHOOD_BUILDING_PERMITS_DATASET_ID: z.string().regex(/^[a-z0-9]{4}-[a-z0-9]{4}$/).default('c2es-76ed'),
+  NEIGHBOURHOOD_DEVELOPMENT_PERMITS_DATASET_ID: z.string().regex(/^[a-z0-9]{4}-[a-z0-9]{4}$/).default('6933-unw5'),
+  // Building permits loaded: work class group 'New' in these permit class groups.
+  NEIGHBOURHOOD_PERMITS_BP_CLASS_GROUPS: z
+    .string()
+    .min(1)
+    .default('Single Family,Two Family,Townhouse,Additional Dwelling'),
+  // Development permits loaded: these categories.
+  NEIGHBOURHOOD_PERMITS_DP_CATEGORIES: z
+    .string()
+    .min(1)
+    .default(
+      'Residential - New Single / Semi / Duplex,Residential - Contextual Dwelling,' +
+        'Residential - Multi-Family - Minor and Rowhouses,Residential - Multi-Family',
+    ),
+  // Years of history loaded (from 1 January, this many years before the current year).
+  NEIGHBOURHOOD_PERMITS_HISTORY_YEARS: z.coerce.number().int().min(1).max(15).default(5),
+  // Per address: radius and lookback (since 1 January, this many years back).
+  NEIGHBOURHOOD_PERMITS_ADDRESS_RADIUS_M: z.coerce.number().int().positive().max(5_000).default(300),
+  NEIGHBOURHOOD_PERMITS_ADDRESS_LOOKBACK_YEARS: z.coerce.number().int().min(0).max(15).default(2),
+  // Most permits in the per-address list (nearest-in-time first).
+  NEIGHBOURHOOD_PERMITS_LIST_LIMIT: z.coerce.number().int().positive().max(100).default(10),
+  // Medians need at least this many samples, else they read null.
+  NEIGHBOURHOOD_PERMITS_MIN_SAMPLE: z.coerce.number().int().positive().default(3),
+  // A DP links to a BP at the same address applied within this many days after it.
+  NEIGHBOURHOOD_PERMITS_DP_BP_MAX_GAP_DAYS: z.coerce.number().int().positive().default(1_095),
+  // Link to the City's record; {permitNumber} is replaced (URL-encoded).
+  NEIGHBOURHOOD_PERMITS_RECORD_URL_TEMPLATE: z
+    .string()
+    .url()
+    .refine((v) => v.includes('{permitNumber}'), 'must contain {permitNumber}')
+    .default('https://dmap.calgary.ca/?find={permitNumber}'),
+  // A contractor name is shown only when it reads as a company (any of
+  // these whole words); otherwise it may be a person and is never stored.
+  NEIGHBOURHOOD_PERMITS_COMPANY_MARKERS: z
+    .string()
+    .min(1)
+    .default(
+      'INC,LTD,LIMITED,CORP,CORPORATION,ULC,LLP,CO,COMPANY,HOMES,HOME,BUILDERS,BUILDER,BUILD,' +
+        'CONSTRUCTION,CONTRACTING,CONTRACTORS,DEVELOPMENTS,DEVELOPMENT,GROUP,PROPERTIES,' +
+        'CUSTOM,DESIGN,DESIGNS,RENOVATIONS,INFILLS,INFILL,ENTERPRISES,PROJECTS,HOLDINGS,LUXURY',
+    ),
+  // How long computed address / community permit summaries are reused (shared cache, #756).
+  NEIGHBOURHOOD_PERMITS_SUMMARY_TTL_MS: z.coerce.number().int().positive().default(86_400_000),
 
   // JWT session lifetime is provisional — Karan has not confirmed magic-link-only V1
   // or the session lifetime. Revisit when the login ADR lands (BE-4).
@@ -1383,6 +1431,24 @@ export type SchoolRatingsImpl = 'none';
 export type ReviewsImpl = 'none';
 export type AmenitiesImpl = 'calgary-open-data' | 'none';
 export type CommuteImpl = 'straight-line' | 'none';
+export type PermitsImpl = 'calgary-open-data' | 'none';
+
+/** #822: nearby building + development permits. */
+export interface PermitsConfig {
+  readonly buildingPermitsDatasetId: string;
+  readonly developmentPermitsDatasetId: string;
+  readonly bpClassGroups: readonly string[];
+  readonly dpCategories: readonly string[];
+  readonly historyYears: number;
+  readonly addressRadiusM: number;
+  readonly addressLookbackYears: number;
+  readonly listLimit: number;
+  readonly minSample: number;
+  readonly dpBpMaxGapDays: number;
+  readonly recordUrlTemplate: string;
+  readonly companyMarkers: readonly string[];
+  readonly summaryTtlMs: number;
+}
 
 /**
  * #777: one amenity category the free `calgary-open-data` AmenitiesProvider
@@ -1416,6 +1482,7 @@ export interface NeighbourhoodDataConfig {
     readonly reviews: ReviewsImpl;
     readonly amenities: AmenitiesImpl;
     readonly commute: CommuteImpl;
+    readonly permits: PermitsImpl;
   };
   /** City open-data endpoint (shared with property data). */
   readonly socrataBaseUrl: string;
@@ -1447,6 +1514,8 @@ export interface NeighbourhoodDataConfig {
   readonly alertAfterFailureDays: number;
   readonly lotRadiusM: number;
   readonly lotMetricsTtlMs: number;
+  /** #822: nearby permits. */
+  readonly permits: PermitsConfig;
 }
 
 /**
@@ -1958,6 +2027,7 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): ApiConfig {
         reviews: e.NEIGHBOURHOOD_REVIEWS_PROVIDER,
         amenities: e.NEIGHBOURHOOD_AMENITIES_PROVIDER,
         commute: e.NEIGHBOURHOOD_COMMUTE_PROVIDER,
+        permits: e.NEIGHBOURHOOD_PERMITS_PROVIDER,
       },
       socrataBaseUrl: e.SOCRATA_BASE_URL,
       schoolsDatasetId: e.NEIGHBOURHOOD_SCHOOLS_DATASET_ID,
@@ -1982,6 +2052,21 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): ApiConfig {
       alertAfterFailureDays: e.NEIGHBOURHOOD_ALERT_AFTER_FAILURE_DAYS,
       lotRadiusM: e.NEIGHBOURHOOD_LOT_RADIUS_M,
       lotMetricsTtlMs: e.NEIGHBOURHOOD_LOT_METRICS_TTL_MS,
+      permits: {
+        buildingPermitsDatasetId: e.NEIGHBOURHOOD_BUILDING_PERMITS_DATASET_ID,
+        developmentPermitsDatasetId: e.NEIGHBOURHOOD_DEVELOPMENT_PERMITS_DATASET_ID,
+        bpClassGroups: csvToList(e.NEIGHBOURHOOD_PERMITS_BP_CLASS_GROUPS),
+        dpCategories: csvToList(e.NEIGHBOURHOOD_PERMITS_DP_CATEGORIES),
+        historyYears: e.NEIGHBOURHOOD_PERMITS_HISTORY_YEARS,
+        addressRadiusM: e.NEIGHBOURHOOD_PERMITS_ADDRESS_RADIUS_M,
+        addressLookbackYears: e.NEIGHBOURHOOD_PERMITS_ADDRESS_LOOKBACK_YEARS,
+        listLimit: e.NEIGHBOURHOOD_PERMITS_LIST_LIMIT,
+        minSample: e.NEIGHBOURHOOD_PERMITS_MIN_SAMPLE,
+        dpBpMaxGapDays: e.NEIGHBOURHOOD_PERMITS_DP_BP_MAX_GAP_DAYS,
+        recordUrlTemplate: e.NEIGHBOURHOOD_PERMITS_RECORD_URL_TEMPLATE,
+        companyMarkers: csvToList(e.NEIGHBOURHOOD_PERMITS_COMPANY_MARKERS).map((m) => m.toUpperCase()),
+        summaryTtlMs: e.NEIGHBOURHOOD_PERMITS_SUMMARY_TTL_MS,
+      },
     },
     backupCheck: {
       enabled: e.BACKUP_CHECK_ENABLED,

@@ -231,6 +231,18 @@ export const ROUTE_REGISTRY: readonly ApiRouteEntry[] = [
       'Property record lookup (assessed value, lot, zoning). Deterministic ' +
       'multi-parcel selection. OUT_OF_COVERAGE for non-Calgary.',
   },
+  {
+    method: 'GET',
+    path: '/api/v1/properties/permits',
+    auth: 'none',
+    permissions: [] as const,
+    rateLimit: '60/min per IP',
+    status: 'live',
+    summary:
+      'Recent residential new-build building + development permits near an ' +
+      'address (#822): summary counts, typical DP-to-BP weeks and a short ' +
+      'list. Served from monthly-refreshed City open data; never calls the City.',
+  },
 
   // ── Public v1: analytics + privacy ────────────────────────────────
   {
@@ -322,6 +334,18 @@ export const ROUTE_REGISTRY: readonly ApiRouteEntry[] = [
       'Living nearby for an established community (#777): nearest + counts ' +
       'within 500 m / 1 km per amenity category, and public-tree cover. ' +
       'Served from monthly-refreshed City open data; never calls a provider.',
+  },
+  {
+    method: 'GET',
+    path: '/api/v1/communities/{slug}/permits',
+    auth: 'none',
+    permissions: [] as const,
+    rateLimit: '100/min per IP',
+    status: 'live',
+    summary:
+      'Residential new-build permits per year and median approval times for ' +
+      'an established community (#822). Served from monthly-refreshed City ' +
+      'open data; never calls the City.',
   },
   {
     method: 'GET',
