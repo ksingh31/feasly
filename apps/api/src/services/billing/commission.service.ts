@@ -183,6 +183,7 @@ export interface CommissionInvoiceRecord {
    * dispute is live (retryCharge refuses); then won | lost | warning_closed.
    */
   readonly chargebackStatus: ChargebackStatus | null;
+  /**
    * #715: integer cents refunded (or claimed by an in-flight refund)
    * against this invoice. 0 when never refunded.
    */
@@ -617,6 +618,7 @@ export interface CommissionServiceDeps {
    * (or fails) the single resolved billing contact is used, as before.
    */
   readonly billingRecipients?: (tenantKey: string) => Promise<readonly string[]>;
+  /**
    * #715: admin_audit_log sink for admin money actions (refund, void,
    * contract correction, payment reversal). Optional so engine-only
    * callers and tests need not wire it.
