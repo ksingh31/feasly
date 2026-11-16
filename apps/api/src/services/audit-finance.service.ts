@@ -380,16 +380,10 @@ export function createAuditFinanceService(
         false,
       );
     }
-    const byId = new Map(rows.map((r) => [r.id, r]));
-    const refunded = new Map<string, number>();
-    for (const ev of await store.listRefunds(rows.map((r) => r.id))) {
-      const inv = byId.get(ev.invoiceId);
-      if (!inv) continue;
-      const total = invoiceTotalCents(inv);
-      const amount = ev.amountCents ?? total;
-      // A refund can never exceed what was charged.
-      refunded.set(ev.invoiceId, Math.min(total, (refunded.get(ev.invoiceId) ?? 0) + amount));
-    }
+    // The invoice's own running refunded total, never above what was charged.
+    const refunded = new Map<string, number>(
+      rows.map((r) => [r.id, Math.min(invoiceTotalCents(r), r.refundedCents)]),
+    );
     return { rows, refunded };
   }
 

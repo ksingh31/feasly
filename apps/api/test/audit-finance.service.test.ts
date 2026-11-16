@@ -38,6 +38,7 @@ function invoice(over: Partial<InvoiceExportRow> = {}): InvoiceExportRow {
     manualPaymentMethod: null,
     paidAt: new Date('2026-11-12T12:00:00Z'),
     stripePaymentIntentId: null,
+    refundedCents: 0,
     ...over,
   };
 }
@@ -46,7 +47,6 @@ function makeService(store: Partial<AuditFinanceStore> = {}, exportMaxRows = 2) 
   const fullStore: AuditFinanceStore = {
     listAuditRows: vi.fn().mockResolvedValue([]),
     listInvoicesForExport: vi.fn().mockResolvedValue([]),
-    listRefunds: vi.fn().mockResolvedValue([]),
     findBuilderIdByTenant: vi.fn().mockResolvedValue(null),
     ...store,
   };
@@ -118,16 +118,15 @@ describe('audit-finance service', () => {
     expect(row[12]).toBe('cheque'); // the recorded manual method wins
   });
 
-  it('caps refunds at the invoice total', async () => {
+  it('reports the invoice running refunded total, capped at the invoice total', async () => {
     const { service } = makeService({
-      listInvoicesForExport: vi.fn().mockResolvedValue([invoice({ status: 'void' })]),
-      listRefunds: vi.fn().mockResolvedValue([
-        { invoiceId: 'inv-1', amountCents: 300_000 },
-        { invoiceId: 'inv-1', amountCents: null },
+      listInvoicesForExport: vi.fn().mockResolvedValue([
+        invoice({ id: 'inv-1', status: 'void', refundedCents: 900_000 }),
+        invoice({ id: 'inv-2', refundedCents: 120_000 }),
       ]),
     });
     const summary = await service.financeSummary({});
-    expect(summary.refundedCents).toBe(500_000);
+    expect(summary.refundedCents).toBe(500_000 + 120_000);
   });
 
   it('rejects a malformed cursor with 400', async () => {

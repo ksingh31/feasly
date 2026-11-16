@@ -92,6 +92,13 @@ export interface InvoiceExportRow {
   readonly manualPaymentMethod: string | null;
   readonly paidAt: Date | null;
   readonly stripePaymentIntentId: string | null;
+  /**
+   * Running refunded total (`commission_invoices.refunded_cents`) — the one
+   * source of truth every refund path maintains (admin refund, Stripe
+   * webhook, dispute accept). Never sum refund events: they carry running
+   * totals.
+   */
+  readonly refundedCents: number;
 }
 
 export interface InvoiceExportFilter {
@@ -99,13 +106,6 @@ export interface InvoiceExportFilter {
   readonly tenantKey: string | null;
   readonly from: Date;
   readonly to: Date;
-}
-
-/** A refund recorded against an invoice in `billing_events`. */
-export interface InvoiceRefundEvent {
-  readonly invoiceId: string;
-  /** Explicit refunded amount when the event carries one, else null (= full total). */
-  readonly amountCents: number | null;
 }
 
 export interface AuditFinanceStore {
@@ -116,8 +116,6 @@ export interface AuditFinanceStore {
     filter: InvoiceExportFilter,
     limit: number,
   ): Promise<readonly InvoiceExportRow[]>;
-  /** Refund events for the given invoices. */
-  listRefunds(invoiceIds: readonly string[]): Promise<readonly InvoiceRefundEvent[]>;
   /** Builder id for a tenant key (activity scoping), or null. */
   findBuilderIdByTenant(tenantKey: string): Promise<string | null>;
 }
@@ -392,6 +390,7 @@ export function createDrizzleAuditFinanceStore(
           manualPaymentMethod: commissionInvoices.manualPaymentMethod,
           paidAt: commissionInvoices.paidAt,
           stripePaymentIntentId: commissionInvoices.stripePaymentIntentId,
+          refundedCents: commissionInvoices.refundedCents,
         })
         .from(commissionInvoices)
         .leftJoin(builders, eq(builders.tenantKey, commissionInvoices.tenantKey))
@@ -399,31 +398,6 @@ export function createDrizzleAuditFinanceStore(
         .orderBy(asc(commissionInvoices.createdAt), asc(commissionInvoices.invoiceNumber))
         .limit(limit);
       return rows.map((r) => ({ ...r, builderName: r.builderName ?? null }));
-    },
-
-    async listRefunds(invoiceIds) {
-      if (invoiceIds.length === 0) return [];
-      const rows = await db
-        .select({ entityId: billingEvents.entityId, payload: billingEvents.payload })
-        .from(billingEvents)
-        .where(
-          and(
-            eq(billingEvents.entityType, 'commission_invoice'),
-            inArray(billingEvents.entityId, [...invoiceIds]),
-            or(
-              sql`${billingEvents.payload}->>'creditNote' = 'stripe_refund'`,
-              eq(billingEvents.eventType, 'invoice.refunded'),
-            ),
-          ),
-        );
-      return rows.map((r) => {
-        const payload = (r.payload as Record<string, unknown> | null) ?? {};
-        const amount = payload['refundedCents'] ?? payload['amountCents'];
-        return {
-          invoiceId: r.entityId,
-          amountCents: typeof amount === 'number' && Number.isInteger(amount) ? amount : null,
-        };
-      });
     },
 
     async findBuilderIdByTenant(tenantKey) {

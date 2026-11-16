@@ -128,6 +128,8 @@ describe('audit-finance store (PGlite)', () => {
       status: 'paid',
       paidAt: NOV(12),
       stripePaymentIntentId: 'pi_paid_1',
+      // Two partial refunds ($20 then $30): the column is the running total.
+      refundedCents: 5_000,
     });
     ids.unpaid = await seedInvoice(testDb, ELITE.tenantKey, {
       commissionCents: 123_456,
@@ -140,6 +142,7 @@ describe('audit-finance store (PGlite)', () => {
       paidAt: NOV(11),
       commissionRateOverride: 1.5,
       paymentMethod: 'card',
+      refundedCents: 525_000,
     });
     // Outside the period.
     ids.october = await seedInvoice(testDb, ELITE.tenantKey, { createdAt: new Date(Date.UTC(2026, 9, 31, 23)) });
@@ -339,6 +342,7 @@ describe('audit-finance store (PGlite)', () => {
     });
     const paidRow = parsed.find((r) => r['stripe_payment_intent_id'] === 'pi_paid_1')!;
     expect(paidRow['paid_at']).toBe('2026-11-12T12:00:00.000Z');
+    expect(paidRow['refunded']).toBe('50.00');
 
     const summary = await service.financeSummary({ from: '2026-11-01', to: '2026-12-01' });
     const cents = (v: string) => Math.round(Number(v) * 100);
@@ -351,7 +355,7 @@ describe('audit-finance store (PGlite)', () => {
       invoicedCents: 525_000 + 129_629 + 525_000,
       collectedCents: 525_000 + 525_000,
       outstandingCents: 129_629,
-      refundedCents: 525_000,
+      refundedCents: 525_000 + 5_000,
       taxCents: 25_000 + 6_173 + 25_000,
       currency: 'CAD',
     });
