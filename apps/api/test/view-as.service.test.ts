@@ -248,6 +248,92 @@ describe('view-as activation (auth/04)', () => {
     expect(fx.states.get(HASH)?.viewAs).toBeNull();
   });
 
+  describe('builder targets are staff-only (#876)', () => {
+    it('builder_admin of another org cannot view-as a builder (403 + authz.denied)', async () => {
+      const fx = makeService();
+      const otherOrgAdmin = builderAdminCtx({
+        builderId: 'builder-2',
+        builderName: 'Other Org',
+        memberships: [
+          {
+            builderId: 'builder-2',
+            role: 'builder_admin' as const,
+            createdAt: NOW,
+          },
+        ],
+      });
+      const err = await fx.service
+        .activate(TOKEN, { builderId: 'builder-1' }, otherOrgAdmin)
+        .catch((e: unknown) => e);
+      expect(err).toBeInstanceOf(HttpError);
+      expect((err as HttpError).status).toBe(403);
+      expect(fx.states.get(HASH)?.viewAs).toBeNull();
+      expect(fx.audit.log).toHaveBeenCalledTimes(1);
+      const entry = fx.audit.log.mock.calls[0]![0] as {
+        action: string;
+        actorEmail: string;
+        detail: string;
+      };
+      expect(entry.action).toBe('authz.denied');
+      expect(entry.actorEmail).toBe('builderadmin@example.com');
+      expect(entry.detail).toBe(
+        'route=view-as target=builder:builder-1 reason=not-staff',
+      );
+    });
+
+    it('builder_admin cannot use the admin builder view-as even for their own org', async () => {
+      const fx = makeService();
+      const err = await fx.service
+        .activate(TOKEN, { builderId: 'builder-1' }, builderAdminCtx())
+        .catch((e: unknown) => e);
+      expect(err).toBeInstanceOf(HttpError);
+      expect((err as HttpError).status).toBe(403);
+      expect(fx.states.get(HASH)?.viewAs).toBeNull();
+    });
+
+    it('non-staff actor gets 403 (not 404) for an unknown builder — no existence oracle', async () => {
+      const fx = makeService();
+      const err = await fx.service
+        .activate(TOKEN, { builderId: 'builder-gone' }, builderAdminCtx())
+        .catch((e: unknown) => e);
+      expect(err).toBeInstanceOf(HttpError);
+      expect((err as HttpError).status).toBe(403);
+    });
+
+    it('an actor already viewing-as a builder cannot chain into another builder view-as', async () => {
+      const fx = makeService();
+      const viewingAs = builderAdminCtx({
+        viewAs: { builderId: 'builder-2' },
+        realUser: {
+          userId: 'user-admin',
+          email: 'admin@example.com',
+          name: 'Admin User',
+        },
+      });
+      const err = await fx.service
+        .activate(TOKEN, { builderId: 'builder-1' }, viewingAs)
+        .catch((e: unknown) => e);
+      expect(err).toBeInstanceOf(HttpError);
+      expect((err as HttpError).status).toBe(403);
+      const entry = fx.audit.log.mock.calls[0]![0] as { actorEmail: string };
+      expect(entry.actorEmail).toBe('admin@example.com');
+    });
+
+    it('super_admin can view-as a builder', async () => {
+      const fx = makeService();
+      const out = await fx.service.activate(
+        TOKEN,
+        { builderId: 'builder-1' },
+        adminCtx({
+          staffRole: 'super_admin',
+          permissions: effectivePermissions('super_admin', []),
+        }),
+      );
+      expect(out).toEqual({ active: true });
+      expect(fx.states.get(HASH)?.viewAs).toEqual({ builderId: 'builder-1' });
+    });
+  });
+
   it('builder_member cannot initiate view-as (403, no view_as permission)', async () => {
     const fx = makeService();
     const member = adminCtx({
