@@ -63,7 +63,7 @@ For each step, capture a screenshot and record the evidence in the table.
 | 2 | "Powered by Feasly" badge | Visible badge in the embed chrome | Screenshot (AC3) |
 | 3 | Complete address step (a Calgary address) | Autocomplete works; property card shows | Screenshot |
 | 4 | Walk through scope/details to the lead gate | Gate copy reads "Your details go to **Elite Craft Builders**, who may contact you about this estimate." | Screenshot |
-| 5 | Submit lead (use `karanbirsingh667@gmail.com` — the only approved test address) | Success state; no console errors | Lead ID: ___ |
+| 5 | Submit lead (use the owner's standing test address — the only approved one; ask the owner) | Success state; no console errors | Lead ID: ___ |
 | 6 | Admin: open `/admin/leads`, find the lead | Lead row shows `tenant_id = elite-craft-builders`, `source = 'embed'` | Screenshot |
 | 7 | Magic-link email → open report | Report renders with Elite branding context | Screenshot |
 | 8 | Console scan (all steps) | Zero errors, zero warnings attributable to the embed | Notes |

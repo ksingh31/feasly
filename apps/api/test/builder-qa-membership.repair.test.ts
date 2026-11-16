@@ -3,7 +3,7 @@
  * ("We couldn't find your Feasly builder account") — repair-guard edition.
  *
  * Migration 0042 grants the protected super_admin seed user
- * (karanbirsingh667@gmail.com) builder_admin on Elite Craft Builders, but
+ * (SEED_ADMIN_EMAIL) builder_admin on Elite Craft Builders, but
  * drizzle-kit silently skipped 0042 on dev while the journal claimed it
  * applied — so the membership row never materialized and the builder Entra
  * callback kept 403ing at the membership gate. The idempotent guard in
@@ -21,8 +21,9 @@ import { describe, expect, it, beforeAll, afterAll } from 'vitest';
 import { createTestDb, type TestDb } from './pglite-db';
 // @ts-expect-error: plain .mjs module without type declarations
 import { REPAIR_SQL } from '../tools/repair-sql.mjs';
+import { SEED_ADMIN_EMAIL } from '../src/config';
 
-const ADMIN_EMAIL = 'karanbirsingh667@gmail.com';
+const ADMIN_EMAIL = SEED_ADMIN_EMAIL;
 const TENANT_KEY = 'elite-craft-builders';
 
 describe('builder QA membership repair guard', () => {

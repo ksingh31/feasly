@@ -16,14 +16,22 @@ export interface McpPropertyService {
   getProperty(addressKey: string): Promise<unknown>;
 }
 
+/**
+ * Per-call write options (#793). `sandbox` mirrors the API key's flag:
+ * `feasly_test_` keys write sandbox rows and never send email.
+ */
+export interface McpWriteOptions {
+  readonly sandbox?: boolean;
+}
+
 /** Subset of EstimateService used by the estimate_project tool. */
 export interface McpEstimateService {
-  estimate(requestBody: unknown): Promise<unknown>;
+  estimate(requestBody: unknown, options?: McpWriteOptions): Promise<unknown>;
 }
 
 /** Subset of LeadService used by the submit_lead tool. */
 export interface McpLeadService {
-  submitLead(requestBody: unknown): Promise<unknown>;
+  submitLead(requestBody: unknown, options?: McpWriteOptions): Promise<unknown>;
 }
 
 export interface McpServerDeps {

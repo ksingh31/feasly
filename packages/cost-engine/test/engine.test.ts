@@ -158,7 +158,7 @@ describe('createEstimate — version pin', () => {
   it('pins the cost-data version and calibration flag on every estimate', () => {
     const result = createEstimate(standardInput(), CURRENT);
     expect(result.costDataVersion).toBe(CURRENT.version);
-    expect(result.costDataVersion).toBe('v0.4.0-unclibrated');
+    expect(result.costDataVersion).toBe('v0.4.1-uncalibrated');
     expect(result.calibrated).toBe(false);
     expect(createEstimate(standardInput(), DATA).costDataVersion).toBe('v0.3.0-unclibrated');
   });

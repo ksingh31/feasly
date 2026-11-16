@@ -430,6 +430,20 @@ const targets = [
     entry: 'src/functions/admin-billing-retry.ts',
     out: 'admin-billing-retry/index.js',
   },
+  // #753: simulated payment provider dev actions (404 unless
+  // PAYMENTS_PROVIDER=simulated).
+  {
+    entry: 'src/functions/billing-simulated-confirm-setup.ts',
+    out: 'billing-simulated-confirm-setup/index.js',
+  },
+  {
+    entry: 'src/functions/billing-simulated-authenticate.ts',
+    out: 'billing-simulated-authenticate/index.js',
+  },
+  {
+    entry: 'src/functions/admin-billing-simulated-event.ts',
+    out: 'admin-billing-simulated-event/index.js',
+  },
   // Manual invoice creation (admin, billing:manage).
   {
     entry: 'src/functions/admin-billing-create-invoice.ts',

@@ -14,7 +14,7 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { loadConfig } from '../src/config';
+import { loadConfig, SEED_ADMIN_EMAIL } from '../src/config';
 import { createComposition } from '../src/composition';
 import {
   createAcsEmailProvider,
@@ -730,7 +730,7 @@ describe('email config', () => {
     const config = loadConfig({ ...baseEnv });
     expect(config.email.provider).toBe('log');
     expect(config.email.fromAddress).toBe('noreply@feasly.example');
-    expect(config.email.opsInbox).toBe('karanbirsingh667@gmail.com');
+    expect(config.email.opsInbox).toBe(SEED_ADMIN_EMAIL);
     expect(config.email.logLinks).toBe(true);
   });
 

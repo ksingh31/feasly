@@ -40,8 +40,8 @@
  *   COMMUNITY_CITY        city key in the selection config (default: its defaultCity)
  *   SOCRATA_BASE_URL      overrides the city's socrataBaseUrl
  *   SOCRATA_DATASET       overrides the city's assessmentDataset
- *   COST_DATA_VERSION     frozen engine version (default v0.1.0-unclibrated,
- *                         placeholder until ENG-005 calibration freezes v1)
+ *   COST_DATA_VERSION     engine version label (default: the bundled engine
+ *                         table's version, PLACEHOLDER_COST_DATA.version)
  *
  * Usage: tsx apps/web/scripts/build-community-data.ts [--force]
  * Wired into the `@feasly/web` prebuild script.
@@ -58,6 +58,7 @@ import type {
   CommunityAggregate,
   CommunityAggregatesFile,
 } from './community-aggregates.schema.js';
+import { PLACEHOLDER_COST_DATA } from '@feasly/cost-engine';
 import { loadCitySelection } from './community-selection.schema.js';
 import type { CitySelection } from './community-selection.schema.js';
 
@@ -97,8 +98,8 @@ export function loadConfig(
     socrataBaseUrl: (process.env['SOCRATA_BASE_URL'] ?? selection.socrataBaseUrl).trim().replace(/\/+$/, ''),
     socrataDataset: (process.env['SOCRATA_DATASET'] ?? selection.assessmentDataset).trim(),
     boundariesDataset: selection.boundariesDataset,
-    // Placeholder until ENG-005 calibration freezes v1 — the field exists regardless.
-    costDataVersion: (process.env['COST_DATA_VERSION'] ?? 'v0.1.0-unclibrated').trim(),
+    // The engine table the published ranges come from (never a hand-typed literal).
+    costDataVersion: (process.env['COST_DATA_VERSION'] ?? PLACEHOLDER_COST_DATA.version).trim(),
     force: argv.includes('--force'),
   };
 }

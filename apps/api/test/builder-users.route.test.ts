@@ -77,6 +77,7 @@ function makeDeps() {
   const permissionGuard = {
     requirePermission: vi.fn(async () => ctx),
     requireBuilderId: vi.fn(async () => BUILDER_ID),
+    requireRecentAuth: vi.fn(async () => undefined),
     getAuthContext: vi.fn(),
     requirePermissions: vi.fn(),
   } as unknown as PermissionGuard;
@@ -304,6 +305,21 @@ describe('builder users route', () => {
       TARGET_ID,
       expect.any(Date),
     );
+  });
+
+  it('remove refuses targets outside the active org (#731 tenant isolation)', async () => {
+    vi.mocked(d.userService.findById).mockResolvedValue(
+      publicUser({
+        memberships: [
+          { builderId: 'cccccccc-cccc-4ccc-8ccc-cccccccccccc', role: 'builder_member', createdAt: new Date('2026-01-01T00:00:00Z') },
+        ],
+      }),
+    );
+    const route = createBuilderUsersRoute(d.deps);
+    const err = await route.remove(HEADERS, TARGET_ID).catch((e: unknown) => e);
+    expect((err as HttpError).status).toBe(403);
+    expect(d.userService.setMemberships).not.toHaveBeenCalled();
+    expect(d.builderSessions.revokeByUserId).not.toHaveBeenCalled();
   });
 
   it('remove refuses self-removal', async () => {

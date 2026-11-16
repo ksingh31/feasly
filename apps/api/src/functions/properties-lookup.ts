@@ -75,7 +75,7 @@ export async function propertiesLookupHandler(
       app.withApiKeyRateLimit(
         headers,
         correlationId,
-        { endpoint: '/api/v1/properties/lookup' },
+        { endpoint: '/api/v1/properties/lookup', requiredScope: 'property:read' },
         () => app.propertyRoute.lookup(addressKey, correlationId),
       ),
   );

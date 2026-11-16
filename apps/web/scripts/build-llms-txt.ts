@@ -7,7 +7,8 @@
  * ConfigService defaults). Both files are written to the SWA output root.
  *
  * - `llms.txt`: concise summary (< 50 KB) — what Feasly is, how it works,
- *   40 community summaries, FAQ pointers, canonical URLs.
+ *   every guide and indexable page (URL + one-line summary from the shared
+ *   indexable-pages manifest), every community page, FAQ pointers.
  * - `llms-full.txt`: full content (< 500 KB) — adds complete FAQ answers
  *   and the methodology note.
  *
@@ -36,6 +37,8 @@ import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { scanDenyList } from './community-aggregates.schema.js';
 import { DEFAULT_APP_CONFIG } from '../src/app/core/config/app-config.defaults.js';
+import { findSeoRoute } from '../src/app/core/seo/seo-routes.js';
+import { canonicalPath, loadIndexablePages } from './indexable-pages.js';
 
 const SCRIPT_DIR = dirname(fileURLToPath(import.meta.url));
 const AGGREGATES_PATH = join(SCRIPT_DIR, '..', 'src', 'content', 'data', 'community-aggregates.json');
@@ -77,6 +80,34 @@ export function loadConfig(): LlmsConfig {
   return { siteUrl, outputDir };
 }
 
+export interface PageLine {
+  readonly section: 'pages' | 'guides';
+  readonly label: string;
+  readonly url: string;
+  /** One-line factual summary: the page's own meta description (copy.seo). */
+  readonly summary: string;
+}
+
+/**
+ * Every indexable static page and guide, from the shared manifest, with its
+ * canonical URL and the meta description it ships with as the summary — the
+ * same words a search result shows, so llms.txt cannot drift from the page.
+ */
+export function pageLines(siteUrl: string): PageLine[] {
+  const seo = DEFAULT_APP_CONFIG.copy.seo as Record<string, string>;
+  return loadIndexablePages().map((p) => {
+    const summary = seo[findSeoRoute(p.pattern).descriptionKey] ?? '';
+    if (!summary) throw new Error(`build-llms-txt: no meta description for "${p.pattern}"`);
+    return { section: p.section, label: p.label, url: `${siteUrl}${canonicalPath(p.pattern)}`, summary };
+  });
+}
+
+function pageListLines(siteUrl: string, section: PageLine['section']): string[] {
+  return pageLines(siteUrl)
+    .filter((p) => p.section === section)
+    .map((p) => `- [${p.label}](${p.url}): ${p.summary}`);
+}
+
 function formatMoney(n: number): string {
   return '$' + Math.round(n).toLocaleString('en-US');
 }
@@ -101,9 +132,13 @@ function loadCommunities(): { communities: CommunitySummary[]; costDataVersion: 
   // Build-cost ranges (SEO-04, community-ranges.json). Shape: tiers.{standard,premium,luxury}
   // each with buildLow/buildHigh (build cost), landValue (assessed), totalLow/totalHigh.
   let tiersBySlug = new Map<string, CommunitySummary['tiers']>();
+  // The ranges file names the engine table its dollar figures came from —
+  // that is the version llms.txt states (the aggregates carry only a label).
+  let rangesVersion: string | undefined;
   if (existsSync(RANGES_PATH)) {
     try {
       const rangesRaw = JSON.parse(readFileSync(RANGES_PATH, 'utf-8')) as {
+        costDataVersion?: string;
         communities: Array<{
           slug: string;
           tiers: {
@@ -113,6 +148,7 @@ function loadCommunities(): { communities: CommunitySummary[]; costDataVersion: 
           };
         }>;
       };
+      rangesVersion = rangesRaw.costDataVersion;
       for (const c of rangesRaw.communities) {
         if (c.tiers?.standard && c.tiers?.premium && c.tiers?.luxury) {
           tiersBySlug.set(c.slug, c.tiers);
@@ -136,7 +172,7 @@ function loadCommunities(): { communities: CommunitySummary[]; costDataVersion: 
     };
   });
 
-  return { communities, costDataVersion: raw.costDataVersion };
+  return { communities, costDataVersion: rangesVersion ?? raw.costDataVersion };
 }
 
 function buildLlmsTxt(
@@ -162,7 +198,10 @@ function buildLlmsTxt(
   for (const step of howItWorks.steps.slice(0, 3)) {
     lines.push(`${step.n}. **${step.title}** — ${step.body}`);
   }
-  lines.push('', `Full walkthrough: ${siteUrl}/how-it-works`, '');
+  lines.push('', `Full walkthrough: ${siteUrl}/how-it-works/`, '');
+
+  lines.push('## Guides', '', ...pageListLines(siteUrl, 'guides'), '');
+  lines.push('## Pages', '', ...pageListLines(siteUrl, 'pages'), '');
 
   lines.push('## Calgary communities', '');
   lines.push(
@@ -181,25 +220,10 @@ function buildLlmsTxt(
 
   lines.push('', '## FAQs', '');
   for (const item of faq.items) {
-    lines.push(`- ${item.q} — ${siteUrl}/faq`);
+    lines.push(`- ${item.q} — ${siteUrl}/faq/`);
   }
 
-  lines.push(
-    '',
-    '## Canonical URLs',
-    '',
-    `- Home: ${siteUrl}/`,
-    `- How it works: ${siteUrl}/how-it-works`,
-    `- FAQ: ${siteUrl}/faq`,
-    `- Developers / API docs: ${siteUrl}/developers`,
-    `- Communities index: ${siteUrl}/communities/`,
-    `- Sample report: ${siteUrl}/sample-report`,
-    `- Privacy: ${siteUrl}/privacy`,
-    `- Terms: ${siteUrl}/terms`,
-    '',
-    `Full detail (all FAQ answers + methodology): ${siteUrl}/llms-full.txt`,
-    '',
-  );
+  lines.push('', `Full detail (all FAQ answers + methodology): ${siteUrl}/llms-full.txt`, '');
 
   return lines.join('\n');
 }
@@ -246,6 +270,9 @@ function buildLlmsFullTxt(
     '- No accuracy percentages are claimed until the cost model is calibrated against real builds.',
     '',
   );
+
+  lines.push('## Guides', '', ...pageListLines(siteUrl, 'guides'), '');
+  lines.push('## Pages', '', ...pageListLines(siteUrl, 'pages'), '');
 
   lines.push('## Calgary communities (all)', '');
   for (const c of communities) {

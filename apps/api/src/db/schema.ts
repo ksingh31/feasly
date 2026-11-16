@@ -1163,6 +1163,12 @@ export const adminSessions = pgTable(
      * real admin's identity is preserved for the audit trail.
      */
     viewAs: jsonb('view_as').$type<{ builderId?: string; userId?: string } | null>(),
+    /**
+     * #730: last time the session validated (throttled by
+     * SESSION_ACTIVITY_TOUCH_INTERVAL_SECONDS). Drives the idle timeout.
+     * Null for rows minted before the column — created_at stands in.
+     */
+    lastSeenAt: timestamp('last_seen_at', { withTimezone: true }),
     /** Null = active. Set on logout/expiry. */
     revokedAt: timestamp('revoked_at', { withTimezone: true }),
     expiresAt: timestamp('expires_at', { withTimezone: true }).notNull(),
@@ -1243,6 +1249,12 @@ export const builderSessions = pgTable(
     userId: uuid('user_id').references(() => users.id, {
       onDelete: 'cascade',
     }),
+    /**
+     * #730: last time the session validated (throttled by
+     * SESSION_ACTIVITY_TOUCH_INTERVAL_SECONDS). Drives the idle timeout.
+     * Null for rows minted before the column — created_at stands in.
+     */
+    lastSeenAt: timestamp('last_seen_at', { withTimezone: true }),
     /** Null = active. Set on logout. */
     revokedAt: timestamp('revoked_at', { withTimezone: true }),
     expiresAt: timestamp('expires_at', { withTimezone: true }).notNull(),
@@ -1650,6 +1662,44 @@ export const rateLimitCounters = pgTable(
     expiresAt: timestamp('expires_at', { withTimezone: true }).notNull(),
   },
   (t) => [index('rate_limit_counters_expires_at_idx').on(t.expiresAt)],
+);
+
+/**
+ * Simulated payment provider state (#753).
+ *
+ * The Stripe-shaped simulation (`PAYMENTS_PROVIDER=simulated`, dev only)
+ * keeps its customers, SetupIntents, payment methods, PaymentIntents,
+ * refunds, disputes and outgoing webhook events here — one row per object,
+ * keyed by its Stripe-style id (`cus_sim_…`, `pi_sim_…`, `evt_sim_…`).
+ * Postgres (not memory) so a saved test card survives Functions scale-to-
+ * zero. `data` holds the Stripe-shaped object; it never contains a real PAN
+ * (only Stripe's public test card last4/brand). Events stay undelivered
+ * (`delivered_at` NULL) until they go through the webhook handler.
+ */
+export const simulatedPaymentObjects = pgTable(
+  'simulated_payment_objects',
+  {
+    id: text('id').primaryKey(),
+    /** Stripe object type: customer | setup_intent | payment_method | … */
+    objectType: text('object_type').notNull(),
+    customerId: text('customer_id'),
+    data: jsonb('data').$type<Record<string, unknown>>().notNull(),
+    createdAt: timestamp('created_at', { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+    /** Events only: when the webhook handler accepted it. */
+    deliveredAt: timestamp('delivered_at', { withTimezone: true }),
+  },
+  (t) => [
+    index('simulated_payment_objects_customer_idx').on(
+      t.customerId,
+      t.objectType,
+    ),
+    index('simulated_payment_objects_type_delivered_idx').on(
+      t.objectType,
+      t.deliveredAt,
+    ),
+  ],
 );
 
 /**

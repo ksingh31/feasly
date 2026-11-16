@@ -229,6 +229,7 @@ tracked separately.
 | GET | `/api/v1/admin/funnels` | admin | 300/min per session | live |
 | GET | `/api/v1/admin/billing` | admin | 300/min per session | live |
 | POST | `/api/v1/admin/billing/invoices/{id}/retry` | admin | 300/min per session | live |
+| POST | `/api/v1/admin/billing/simulated/invoices/{id}/events` | admin | 300/min per session | live |
 | POST | `/api/v1/admin/billing/invoices/{id}/mark-paid` | admin | 300/min per session | live |
 | POST | `/api/v1/admin/billing/invoices/{id}/commission-rate` | admin | 300/min per session | live |
 | PUT | `/api/v1/admin/billing/invoices/{id}/payment-method` | admin | 300/min per session | live |
@@ -244,6 +245,8 @@ tracked separately.
 | POST | `/api/v1/stripe/webhooks` | stripe-signature | 100/min per IP | live |
 | POST | `/api/v1/billing/report-contract` | builder-session | 100/min per session | live |
 | POST | `/api/v1/billing/setup-intent` | builder-session | 100/min per session | live |
+| POST | `/api/v1/billing/simulated/confirm-setup` | builder-session | 100/min per session | live |
+| POST | `/api/v1/billing/simulated/authenticate` | builder-session | 100/min per session | live |
 | GET | `/api/v1/billing/card` | builder-session | 100/min per session | live |
 | GET | `/api/v1/billing/commission-rate` | builder-session | 100/min per session | live |
 | GET | `/api/v1/builder/billing/overview` | builder-session | 100/min per session | live |

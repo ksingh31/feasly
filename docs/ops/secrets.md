@@ -24,6 +24,10 @@
 - `AZURE_CLIENT_ID`, `AZURE_TENANT_ID`, `AZURE_SUBSCRIPTION_ID` — GitHub
   **variables** (not secrets). Azure auth is OIDC-federated; there is no
   `AZURE_CLIENT_SECRET` anywhere.
+- `PAYMENTS_PROVIDER`, `PAYMENTS_SIMULATED_WEBHOOK_DELAY_MS` and
+  `PAYMENTS_SIMULATED_WEBHOOK_SECRET` (#753). The simulated provider's
+  signing secret only signs dev-only simulated events and cannot move money.
+  It is optional: unset means a random secret per process.
 - `STRIPE_FLAT_PRICE_ID`, Socrata dataset IDs, queue names, rate-limit
   tunables — identifiers and configuration, not credentials.
 - Stripe *publishable* keys (`pk_…`) — safe for the client by design; none
@@ -45,8 +49,9 @@ workflow) → verify health → delete the old credential at the provider.
    confirm `stripe-signature` verification passes on the next event.
 4. **ACS connection string** — Azure portal → the Communication Services
    resource → Keys → regenerate → update `EMAIL_ACS_CONNECTION_STRING` →
-   restart → send a test email to `karanbirsingh667@gmail.com` (standing
-   test address; no other recipient without Karan's explicit request).
+   restart → send a test email to the owner's standing test address (the
+   `OPS_ALERT_EMAIL` default — ask the owner; no other recipient without the
+   owner's explicit request).
 5. **Unsubscribe token secret** — generate 32+ random bytes →
    update `UNSUBSCRIBE_TOKEN_SECRET` → restart. Outstanding unsubscribe
    links break (acceptable: 30-day TTL, users can re-request).

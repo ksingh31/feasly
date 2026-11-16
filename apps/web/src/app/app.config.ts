@@ -7,7 +7,7 @@ import {
   provideBrowserGlobalErrorListeners,
 } from '@angular/core';
 import { provideRouter } from '@angular/router';
-import { provideStore } from '@ngxs/store';
+import { provideStore, type NgxsModuleOptions } from '@ngxs/store';
 import { withNgxsStoragePlugin } from '@ngxs/storage-plugin';
 import { provideApi } from './core/api/api.service';
 import { providePropertyData } from './core/api/property-data.service';
@@ -30,6 +30,18 @@ import { BuilderTeamState } from './features/builder/builder-team.state';
 import { CommunityProfileState } from './features/communities/community-profile.state';
 import { AnalyticsTrackerService } from './features/consent/analytics-tracker.service';
 import { routes } from './app.routes';
+
+/**
+ * Root NGXS options. `strictContentSecurityPolicy` makes NGXS read state
+ * paths with a plain property walk instead of compiling getters with
+ * `new Function(...)`, so the SWA CSP can drop `'unsafe-eval'` from
+ * script-src (#797, #731 F-5). Removing this flag re-breaks every page
+ * under the CSP (EvalError) — check-security-headers.mjs forbids
+ * `'unsafe-eval'`, and app.config.spec.ts pins this option.
+ */
+export const NGXS_STORE_OPTIONS: NgxsModuleOptions = {
+  compatibility: { strictContentSecurityPolicy: true },
+};
 
 export const appConfig: ApplicationConfig = {
   providers: [
@@ -127,6 +139,7 @@ export const appConfig: ApplicationConfig = {
         // URL visit (community average only).
         CommunityProfileState,
       ],
+      NGXS_STORE_OPTIONS,
       withNgxsStoragePlugin({
         // CalibrationState is deliberately EXCLUDED from persistence:
         // calibration data is admin-internal and must never sit in

@@ -2,7 +2,7 @@
  * Regression test for the 2026-09-28 builder sign-in 403
  * ("We couldn't find your Feasly builder account").
  *
- * The protected super_admin seed user (karanbirsingh667@gmail.com) had no
+ * The protected super_admin seed user (SEED_ADMIN_EMAIL) had no
  * builder_memberships row: Entra sign-in succeeded, then the auth/05 callback
  * rejected with 403. Migration 0042 grants that user builder_admin on the
  * Elite Craft Builders tenant. This test pins, against the real applied
@@ -16,8 +16,9 @@ import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { describe, expect, it, beforeAll, afterAll } from 'vitest';
 import { createTestDb, type TestDb } from './pglite-db';
+import { SEED_ADMIN_EMAIL } from '../src/config';
 
-const ADMIN_EMAIL = 'karanbirsingh667@gmail.com';
+const ADMIN_EMAIL = SEED_ADMIN_EMAIL;
 const TENANT_KEY = 'elite-craft-builders';
 
 describe('0042 builder QA membership migration', () => {

@@ -18,8 +18,9 @@ import {
 } from '../src/services/user.store';
 import { users, builders, builderMemberships } from '../src/db/schema';
 import { createTestDb, type TestDb } from './pglite-db';
+import { SEED_ADMIN_EMAIL } from '../src/config';
 
-const KARAN_EMAIL = 'karanbirsingh667@gmail.com';
+const KARAN_EMAIL = SEED_ADMIN_EMAIL;
 
 describe('migration 0036 — auth user model (Entra)', () => {
   let testDb: TestDb;
