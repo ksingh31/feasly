@@ -953,8 +953,8 @@ export interface AppConfig {
   /**
    * Estimator eligibility by city (#685). The early coverage guard
    * (core/utils/coverage.ts) reads these lists; no district code literal
-   * lives in code. When the zoning catalogue story lands it becomes the
-   * single source and this key goes away.
+   * lives in code. Both lists are generated from the zoning catalogue
+   * (packages/zoning, #911), which is the single source of truth.
    */
   coverage: {
     /**
@@ -966,6 +966,14 @@ export interface AppConfig {
      * coverage-zoning-copy-drift.spec.ts.
      */
     singleFamilyDistricts: {
+      calgary: readonly string[];
+    };
+    /**
+     * Subset of `singleFamilyDistricts` where single-detached is a
+     * discretionary use (#911): still quoted, but the property card says it
+     * needs City approval. Derived from the zoning catalogue.
+     */
+    discretionarySingleFamilyDistricts: {
       calgary: readonly string[];
     };
   };
@@ -1415,6 +1423,11 @@ export interface AppConfig {
        * masquerade as City records (trust rule).
        */
       freshnessMock: string;
+      /**
+       * Shown under the zoning when single-detached is only discretionary
+       * for the parcel (#911). Never present it as a sure thing.
+       */
+      discretionaryZoningNote: string;
     };
     /**
      * Estimate report page copy. The hero is range-first (#504): the total
@@ -1907,6 +1920,31 @@ export interface AppConfig {
       summary: string;
       /** Explainer paragraphs, rendered in order. */
       paragraphs: string[];
+    };
+    /**
+     * Builder partner disclosure (#918). Shown at every lead capture point on
+     * Feasly's own site (lead gate, report callback) and as a section on How
+     * it works. Partner names come from `GET /api/v1/partners` (data, not
+     * copy); only the framing lives here. Embeds never render it — on a
+     * builder's own site the lead goes to that builder.
+     */
+    partners: {
+      /** Disclosure lead-in, followed by the linked partner names. */
+      disclosureLead: string;
+      /** Fallback lead-in while the list is unavailable, followed by a link to How it works. */
+      disclosureFallbackLead: string;
+      /** Link label for the How it works partners section. */
+      howItWorksLinkLabel: string;
+      /** Joins partner names, e.g. ", ". */
+      nameSeparator: string;
+      /** Screen-reader suffix on external partner links. */
+      newTabLabel: string;
+      /** How it works section heading. */
+      sectionTitle: string;
+      /** How it works section intro. */
+      sectionIntro: string;
+      /** Shown on How it works when the list can't be loaded. */
+      sectionUnavailable: string;
     };
     /**
      * Consent banner (story consumer/01). All user-facing banner copy lives

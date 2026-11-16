@@ -10,6 +10,7 @@ import type {
   ApiKeyRecordResponse,
   ApiKeyScope,
   AutocompleteResponse,
+  BuilderPartnerListResponse,
   CallbackRequest,
   CallbackResponse,
   CityDataFreshnessResponse,
@@ -106,6 +107,12 @@ export interface ApiService {
    * its "Live City data" fallback instead of a month.
    */
   getCityDataFreshness(): Observable<CityDataFreshnessResponse>;
+  /**
+   * Builder partner disclosure (#918): GET /api/v1/partners — active
+   * partner companies that receive leads from Feasly's own site, in display
+   * order. Read once per session through `PartnersState`.
+   */
+  getPartners(): Observable<BuilderPartnerListResponse>;
   /** Lead capture. The magic link travels by email in prod. */
   submitLead(request: LeadRequest): Observable<LeadResponse>;
   /** Resolves a magic-link token to a report token. */
@@ -292,6 +299,10 @@ class LazyApiService implements ApiService {
 
   getCityDataFreshness(): Observable<CityDataFreshnessResponse> {
     return this.resolve().getCityDataFreshness();
+  }
+
+  getPartners(): Observable<BuilderPartnerListResponse> {
+    return this.resolve().getPartners();
   }
 
   submitLead(request: LeadRequest): Observable<LeadResponse> {

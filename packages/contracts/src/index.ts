@@ -35,6 +35,7 @@ export * from './admin-estimates';
 export * from './admin-calibration';
 export * from './admin-search';
 export * from './admin-sheets';
+export * from './community-narratives';
 export * from './admin-users';
 export * from './zoning';
 export * from './partners';

@@ -13,6 +13,7 @@ import type {
   ApiKeyListResponse,
   ApiKeyRecordResponse,
   AutocompleteResponse,
+  BuilderPartnerListResponse,
   CallbackRequest,
   CallbackResponse,
   WaitlistRequest,
@@ -314,6 +315,24 @@ export class MockApiService implements ApiService {
    */
   getCityDataFreshness(): Observable<CityDataFreshnessResponse> {
     return this.roundTrip({ refreshedMonth: null });
+  }
+
+  /**
+   * Builder partner disclosure (#918): a contract-shaped sample list. No
+   * website (the mock never links to a real company site).
+   */
+  getPartners(): Observable<BuilderPartnerListResponse> {
+    return this.roundTrip<BuilderPartnerListResponse>({
+      partners: [
+        {
+          id: 'partner-mock-1',
+          name: 'Elite Craft Builders',
+          logoUrl: null,
+          websiteUrl: null,
+          description: 'Custom infill homes across Calgary.',
+        },
+      ],
+    });
   }
 
   submitLead(request: LeadRequest): Observable<LeadResponse> {

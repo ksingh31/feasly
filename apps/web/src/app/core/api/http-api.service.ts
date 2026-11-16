@@ -11,6 +11,7 @@ import type {
   ApiKeyListResponse,
   ApiKeyRecordResponse,
   AutocompleteResponse,
+  BuilderPartnerListResponse,
   CallbackRequest,
   CallbackResponse,
   WaitlistRequest,
@@ -129,6 +130,11 @@ export class HttpApiService implements ApiService {
     return this.call(
       this.http.get<CityDataFreshnessResponse>(`${this.base}/city-data/freshness`),
     );
+  }
+
+  /** Builder partner disclosure (#918): GET /api/v1/partners (public, cached). */
+  getPartners(): Observable<BuilderPartnerListResponse> {
+    return this.call(this.http.get<BuilderPartnerListResponse>(`${this.base}/partners`));
   }
 
   submitLead(request: LeadRequest): Observable<LeadResponse> {

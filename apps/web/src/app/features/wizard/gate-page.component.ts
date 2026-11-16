@@ -11,7 +11,8 @@ import { buildNewBuildRequest } from '../../core/api/build-estimate-request';
 import { cachedPreviewFor, previewRequestKey } from '../../core/api/preview-cache';
 import { ConfigService } from '../../core/config/config.service';
 import { SeoService } from '../../core/seo/seo.service';
-import { BuilderMatchingExplainerComponent, SiteFooterComponent, SiteNavComponent, WizardBackComponent, WizardStepsComponent } from '../../shared/components';
+import { LoadPartners, PartnersState } from '../../core/partners';
+import { BuilderMatchingExplainerComponent, PartnerDisclosureComponent, SiteFooterComponent, SiteNavComponent, WizardBackComponent, WizardStepsComponent } from '../../shared/components';
 import { EmbedState } from '../embed/embed.state';
 import { StoreLeadResult, StorePreviewEstimate, WizardState } from '../wizard';
 import type { WizardStep } from './wizard.actions';
@@ -48,6 +49,7 @@ type GateStatus = 'idle' | 'sending' | 'error';
     ReactiveFormsModule,
     RouterLink,
     BuilderMatchingExplainerComponent,
+    PartnerDisclosureComponent,
     SiteFooterComponent,
     SiteNavComponent,
     WizardBackComponent,
@@ -132,6 +134,18 @@ export class GatePageComponent implements OnInit {
     return this.embedConfig()?.display_name ?? '';
   }
 
+  /**
+   * #918: Feasly's own site (no embed tenant) — the lead goes to Feasly's
+   * builder partner(s), so the gate shows the partner disclosure. In an
+   * embed the lead goes to that builder (the EMB-03 consent line says so).
+   */
+  protected get isOwnSite(): boolean {
+    return this.embedTenantKey() === null;
+  }
+
+  /** #918: active partners for the disclosure (one request per session). */
+  protected readonly partners = this.store.selectSignal(PartnersState.partners);
+
   /** EMB-03 fail-closed: config failed to load → gate does not render. */
   protected get embedUnavailable(): boolean {
     return this.embedTenantKey() !== null && this.embedStatus() === 'error';
@@ -139,6 +153,9 @@ export class GatePageComponent implements OnInit {
 
   ngOnInit(): void {
     this.seo.setForRoute('estimate/gate');
+    if (this.isOwnSite) {
+      this.store.dispatch(new LoadPartners());
+    }
   }
 
   /**
