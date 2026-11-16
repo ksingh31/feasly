@@ -1,0 +1,46 @@
+// Dev-only 3DS step (#791). Tokens only.
+
+.sim-challenge {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  padding: var(--space-3);
+  background: var(--card);
+  border: 1px dashed var(--border);
+  border-radius: var(--radius-sm);
+}
+
+.sim-challenge__notice {
+  align-self: flex-start;
+  margin: 0;
+  padding: var(--space-1) var(--space-2);
+  font: var(--type-label);
+  color: var(--status-warning-fg);
+  background: var(--status-warning-bg);
+  border-radius: var(--radius-sm);
+}
+
+.sim-challenge__heading {
+  margin: 0;
+  font: var(--type-body);
+  font-weight: 600;
+  color: var(--text);
+}
+
+.sim-challenge__body {
+  margin: 0;
+  font: var(--type-body-sm);
+  color: var(--muted);
+}
+
+.sim-challenge__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
+
+.sim-challenge__error {
+  margin: 0;
+  font: var(--type-body-sm);
+  color: var(--status-danger-fg);
+}

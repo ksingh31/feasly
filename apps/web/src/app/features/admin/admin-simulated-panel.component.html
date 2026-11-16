@@ -1,0 +1,66 @@
+@if (visible()) {
+  <section class="sim-panel" aria-labelledby="sim-panel-heading" data-testid="simulated-dev-panel">
+    <h3 class="sim-panel__heading" id="sim-panel-heading">Dev panel · simulated payments</h3>
+    <p class="sim-panel__notice" role="note">{{ notice }}</p>
+    <p class="sim-panel__hint">Fires Stripe-shaped events through the real webhook.</p>
+
+    <div class="sim-panel__actions" role="group" aria-label="Simulated payment events">
+      <button
+        type="button"
+        ui-button
+        variant="secondary"
+        size="sm"
+        data-testid="sim-fire-dispute"
+        [loading]="busy() === 'dispute'"
+        [disabled]="busy() !== null"
+        (click)="fire('dispute')"
+      >
+        Fire dispute
+      </button>
+      <button
+        type="button"
+        ui-button
+        variant="secondary"
+        size="sm"
+        data-testid="sim-delayed-failure"
+        [loading]="busy() === 'delayed_failure'"
+        [disabled]="busy() !== null"
+        (click)="fire('delayed_failure')"
+      >
+        Delayed failure
+      </button>
+    </div>
+
+    <div class="sim-panel__refund">
+      <ui-text-field
+        label="Refund amount (cents)"
+        inputmode="numeric"
+        hint="Blank refunds the full charge."
+        [formControl]="refundAmount"
+        [error]="refundError()"
+      />
+      <button
+        type="button"
+        ui-button
+        variant="secondary"
+        size="sm"
+        data-testid="sim-refund"
+        [loading]="busy() === 'refund'"
+        [disabled]="busy() !== null || refundError() !== null"
+        (click)="fire('refund')"
+      >
+        Dashboard refund
+      </button>
+    </div>
+
+    <p class="sim-panel__result" role="status" aria-live="polite" data-testid="sim-result">
+      @if (result(); as r) {
+        @if (r.ok) {
+          Delivered <code>{{ r.eventType }}</code>
+        } @else {
+          <span class="sim-panel__error">{{ r.message }}</span>
+        }
+      }
+    </p>
+  </section>
+}
