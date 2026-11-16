@@ -3,7 +3,8 @@
  * text/plain (string) beacon bodies, defensive PII scrubbing, and one trace
  * per item through the injected sink.
  */
-import { describe, expect, it } from 'vitest';
+import { afterAll, describe, expect, it } from 'vitest';
+import { createComposition } from '../src/composition';
 import {
   createWebTelemetryService,
   scrubTelemetryText,
@@ -12,7 +13,7 @@ import {
   type WebTelemetryTrace,
 } from '../src/services/web-telemetry.service';
 import { createWebTelemetryRoute } from '../src/routes/web-telemetry.route';
-import { ErrorCodes, HttpError } from '../src/middleware/errors';
+import { ErrorCodes, HttpError, isProblemDetails } from '../src/middleware/errors';
 
 function setup() {
   const traces: WebTelemetryTrace[] = [];
@@ -116,5 +117,50 @@ describe('web telemetry service (#830)', () => {
     const route = createWebTelemetryRoute({ webTelemetry: service });
     await expect(route.handle({ items: [vital] })).resolves.toEqual({ accepted: 1 });
     expect(traces).toHaveLength(1);
+  });
+
+  it('drops items past the per-instance trace budget and resets after a minute', async () => {
+    const traces: WebTelemetryTrace[] = [];
+    let t = 1_000_000;
+    const service = createWebTelemetryService({
+      onTrace: (tr) => traces.push(tr),
+      maxTracesPerMinute: 3,
+      now: () => t,
+    });
+    await expect(service.ingest({ items: [vital, vital] })).resolves.toEqual({ accepted: 2 });
+    await expect(service.ingest({ items: [vital, vital] })).resolves.toEqual({ accepted: 1 });
+    await expect(service.ingest({ items: [vital] })).resolves.toEqual({ accepted: 0 });
+    expect(traces).toHaveLength(3);
+    t += 60_000;
+    await expect(service.ingest({ items: [vital] })).resolves.toEqual({ accepted: 1 });
+    expect(traces).toHaveLength(4);
+  });
+});
+
+describe('web telemetry pipeline (#830 review: own tight limiter)', () => {
+  const app = createComposition({
+    NODE_ENV: 'test',
+    DATABASE_URL: 'postgres://test:test@localhost:5432/feasly_test',
+  } as NodeJS.ProcessEnv);
+  afterAll(async () => {
+    await app.db.close();
+  });
+
+  it('defaults to 10/min per IP, separate from the analytics limiter', async () => {
+    const run = () =>
+      app.webTelemetryPipeline.run({ headers: {}, clientIp: '10.9.0.1' }, () =>
+        app.webTelemetryRoute.handle({ items: [vital] }),
+      );
+    for (let i = 0; i < 10; i++) {
+      expect(isProblemDetails(await run())).toBe(false);
+    }
+    const outcome = await run();
+    expect(isProblemDetails(outcome)).toBe(true);
+    if (isProblemDetails(outcome)) {
+      expect(outcome.status).toBe(429);
+      expect(outcome.code).toBe('RATE_LIMITED');
+    }
+    // The analytics limiter is untouched by telemetry traffic.
+    expect(app.webTelemetryRateLimiter).not.toBe(app.analyticsRateLimiter);
   });
 });

@@ -249,7 +249,7 @@ export const ROUTE_REGISTRY: readonly ApiRouteEntry[] = [
     path: '/api/v1/telemetry',
     auth: 'none',
     permissions: [] as const,
-    rateLimit: '300/min per IP (dedicated analytics limiter)',
+    rateLimit: '10/min per IP (dedicated telemetry limiter)',
     status: 'live',
     summary:
       'Real-user monitoring beacon (#830): sampled Core Web Vitals and JS ' +

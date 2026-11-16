@@ -10,7 +10,8 @@
  *  3. Scrub defensively: error messages and script paths have email
  *     addresses and query strings removed even though the client already
  *     strips them — a stray `?token=` must never reach the logs.
- *  4. Emit one structured JSON trace per item through the injected sink
+ *  4. Enforce a per-instance trace budget (items past it are dropped).
+ *  5. Emit one structured JSON trace per item through the injected sink
  *     (composition wires it to `console.info`, which the Functions host
  *     ships to App Insights `traces`). Queries: docs/ops/web-telemetry.md.
  *
@@ -79,7 +80,17 @@ export interface WebTelemetryService {
 export interface WebTelemetryServiceDeps {
   /** Trace sink — composition wires `console.info(JSON.stringify(trace))`. */
   readonly onTrace: (trace: WebTelemetryTrace) => void;
+  /**
+   * Per-instance cap on traces emitted per rolling minute (config
+   * `webTelemetry.maxTracesPerMinute`). Items over budget are dropped, so a
+   * flood can't exhaust the Log Analytics daily cap. Omitted = unbounded.
+   */
+  readonly maxTracesPerMinute?: number;
+  /** Clock — injectable for tests. */
+  readonly now?: () => number;
 }
+
+const TRACE_BUDGET_WINDOW_MS = 60_000;
 
 const EMAIL = /[^\s@]+@[^\s@]+\.[^\s@]+/g;
 const QUERY_OR_HASH = /[?#][^\s)'"]*/g;
@@ -121,6 +132,23 @@ function toTrace(item: WebTelemetryItem): WebTelemetryTrace {
 }
 
 export function createWebTelemetryService(deps: WebTelemetryServiceDeps): WebTelemetryService {
+  const now = deps.now ?? Date.now;
+  let windowStart = now();
+  let emittedInWindow = 0;
+
+  /** How many of `wanted` traces fit in the current budget window. */
+  function reserve(wanted: number): number {
+    if (deps.maxTracesPerMinute === undefined) return wanted;
+    const t = now();
+    if (t - windowStart >= TRACE_BUDGET_WINDOW_MS) {
+      windowStart = t;
+      emittedInWindow = 0;
+    }
+    const granted = Math.max(0, Math.min(wanted, deps.maxTracesPerMinute - emittedInWindow));
+    emittedInWindow += granted;
+    return granted;
+  }
+
   return {
     async ingest(requestBody: unknown): Promise<WebTelemetryAccepted> {
       const parsed = WebTelemetryBatchSchema.safeParse(parseBody(requestBody));
@@ -130,10 +158,12 @@ export function createWebTelemetryService(deps: WebTelemetryServiceDeps): WebTel
         // Field path only — never echo the submitted value.
         throw new HttpError(400, ErrorCodes.VALIDATION_FAILED, `Invalid telemetry batch at '${where}'.`);
       }
-      for (const item of parsed.data.items) {
+      const granted = reserve(parsed.data.items.length);
+      const accepted = parsed.data.items.slice(0, granted);
+      for (const item of accepted) {
         deps.onTrace(toTrace(item));
       }
-      return { accepted: parsed.data.items.length };
+      return { accepted: accepted.length };
     },
   };
 }

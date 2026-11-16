@@ -16,9 +16,13 @@ browser App Insights SDK.
    page is hidden (or a batch of `telemetry.maxBatchItems` fills) as a
    `text/plain` JSON body — a CORS-safelisted type, so no preflight.
 3. `POST /api/v1/telemetry` (`apps/api/src/functions/telemetry.ts`) runs on
-   the shared analytics pipeline (300/min per IP), validates the closed
-   `WebTelemetryBatch` contract, scrubs emails + query strings, and writes
-   **one JSON trace per item** with `console.info`. `host.json` keeps
+   its own pipeline with a tight limiter (`WEB_TELEMETRY_RATE_LIMIT_*`,
+   default 10/min per IP — a real page load sends 1–2 beacons), validates
+   the closed `WebTelemetryBatch` contract, scrubs emails + query strings,
+   and writes **one JSON trace per item** with `console.info`. A
+   per-instance budget (`WEB_TELEMETRY_MAX_TRACES_PER_MINUTE`, default 60)
+   drops items past it, so one client can't exhaust the 0.1 GB/day Log
+   Analytics cap and silence every server trace for the day. `host.json` keeps
    `Function.telemetry.User` at `Information` so the traces reach
    App Insights. Nothing is stored in Postgres.
 

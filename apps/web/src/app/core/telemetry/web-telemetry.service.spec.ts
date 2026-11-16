@@ -123,6 +123,30 @@ describe('WebTelemetryService', () => {
     ]);
   });
 
+  it('reports HttpErrorResponse-like objects by message with URLs reduced to masked paths', async () => {
+    const service = setup();
+    service.start();
+    service.recordError({
+      name: 'HttpErrorResponse',
+      message: 'Http failure response for https://api.x.test/api/v1/report/Ab3dEf9hIjKlMnOp?x=1: 500 Server Error',
+    });
+    service.recordError({
+      name: 'HttpErrorResponse',
+      message: 'Http failure response for https://api.x.test/api/v1/estimates/7f3c2a1b-0000-4000-8000-1234567890ab: 0 Unknown Error',
+    });
+    await waitForVitals();
+    hidePage();
+    const [batch] = await sentBatches();
+    expect(batch.items[0]).toMatchObject({
+      message: 'HttpErrorResponse: Http failure response for /api/v1/report/:id: 500 Server Error',
+    });
+    expect(batch.items[1]).toMatchObject({
+      message: 'HttpErrorResponse: Http failure response for /api/v1/estimates/:id: 0 Unknown Error',
+    });
+    expect(JSON.stringify(batch)).not.toContain('Ab3dEf9hIjKlMnOp');
+    expect(JSON.stringify(batch)).not.toContain('7f3c2a1b');
+  });
+
   it('truncates error messages', async () => {
     telemetryCfg = { ...telemetryCfg, maxMessageLength: 5 };
     const service = setup();

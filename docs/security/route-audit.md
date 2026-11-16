@@ -55,7 +55,7 @@ Related: [rate-limits.md](rate-limits.md) · [asvs-l1.md](asvs-l1.md) ·
 | GET | `/api/v1/properties/autocomplete` | none | — | 60/min per IP | live | SSRF surface: same fixed-host rule as lookup. |
 | GET | `/api/v1/properties/lookup` | none | — | 60/min per IP | live | SSRF surface: outbound calls go only to fixed City of Calgary hosts from config; the address is a query value, never a URL. |
 | POST | `/api/v1/events` | none | — | 300/min per IP (dedicated analytics limiter) | live | Anonymous analytics; dedicated limiter; schema-validated, no free-text PII fields. |
-| POST | `/api/v1/telemetry` | none | — | 300/min per IP (dedicated analytics limiter) | live |  |
+| POST | `/api/v1/telemetry` | none | — | 10/min per IP (dedicated telemetry limiter) | live |  |
 | GET | `/api/v1/privacy/export` | magic-token | — | 100/min per IP | live |  |
 | POST | `/api/v1/privacy/erase-requests` | magic-token | — | 10/min per IP | live |  |
 | POST | `/api/v1/privacy/erase-requests/{requestId}/confirm` | magic-token | — | 10/min per IP | live | Token must belong to the same identity as the request id: unknown id 404, cross-user id 403 + audit (ids are random UUIDs). |

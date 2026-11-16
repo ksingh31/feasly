@@ -2,10 +2,10 @@
  * Azure Functions v3 trigger adapter — POST /api/v1/telemetry (#830).
  *
  * Same adapter pattern as `events.ts`:
- *  1. It runs through `analyticsPipeline`, which carries the dedicated
- *     300/min per-IP rate limiter for public analytics ingest (the endpoint
- *     is unauthenticated by design — browser beacons from
- *     `navigator.sendBeacon`; abuse resistance comes from the limiter).
+ *  1. It runs through `webTelemetryPipeline`, which carries its own tight
+ *     10/min per-IP limiter (the endpoint is unauthenticated by design —
+ *     browser beacons from `navigator.sendBeacon`). The service adds a
+ *     per-instance trace budget so the Log Analytics daily cap is safe.
  *  2. It never logs the request body — the pipeline logger only ever sees
  *     service error messages, which reference field paths, never values.
  *
@@ -63,7 +63,7 @@ export async function telemetryHandler(
   }
   const correlationId = middleware.ensureCorrelationId(headers);
 
-  const result = await app.analyticsPipeline.run(
+  const result = await app.webTelemetryPipeline.run(
     {
       headers,
       clientIp: clientIpFrom(req),

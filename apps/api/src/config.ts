@@ -203,6 +203,13 @@ const EnvSchema = z.object({
   // general API traffic.
   ANALYTICS_RATE_LIMIT_WINDOW_MS: z.coerce.number().int().positive().default(60_000),
   ANALYTICS_RATE_LIMIT_MAX_REQUESTS: z.coerce.number().int().positive().default(300),
+  // #830 real-user-monitoring beacons: a real page load sends 1–2, and each
+  // item becomes one App Insights trace, so the limiter is tight (10/min per
+  // IP) and a per-instance trace budget caps the total — one client must not
+  // be able to burn the 0.1 GB/day Log Analytics cap and blind server traces.
+  WEB_TELEMETRY_RATE_LIMIT_WINDOW_MS: z.coerce.number().int().positive().default(60_000),
+  WEB_TELEMETRY_RATE_LIMIT_MAX_REQUESTS: z.coerce.number().int().positive().default(10),
+  WEB_TELEMETRY_MAX_TRACES_PER_MINUTE: z.coerce.number().int().positive().default(60),
 
   // Admin global search (⌘K palette): dedicated limiters — palettes fire
   // per keystroke, so they are separate from the general API budget.
@@ -919,6 +926,13 @@ export interface AnalyticsConfig {
   readonly rateLimit: Omit<RateLimitConfig, 'maxTrackedKeys'>;
 }
 
+export interface WebTelemetryConfig {
+  /** Tight per-IP limiter for POST /api/v1/telemetry (#830). */
+  readonly rateLimit: Omit<RateLimitConfig, 'maxTrackedKeys'>;
+  /** Per-instance cap on traces emitted per minute; excess items are dropped. */
+  readonly maxTracesPerMinute: number;
+}
+
 export interface AdminSearchConfig {
   /**
    * Primary per-IP limiter for GET /api/v1/admin/search. Keyed on the
@@ -1623,6 +1637,7 @@ export interface ApiConfig {
   readonly botChallenge: BotChallengeConfig;
   readonly estimate: EstimateConfig;
   readonly analytics: AnalyticsConfig;
+  readonly webTelemetry: WebTelemetryConfig;
   readonly adminSearch: AdminSearchConfig;
   readonly webhook: WebhookConfig;
   readonly auth: AuthConfig;
@@ -2068,6 +2083,13 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): ApiConfig {
         windowMs: e.ANALYTICS_RATE_LIMIT_WINDOW_MS,
         maxRequests: e.ANALYTICS_RATE_LIMIT_MAX_REQUESTS,
       },
+    },
+    webTelemetry: {
+      rateLimit: {
+        windowMs: e.WEB_TELEMETRY_RATE_LIMIT_WINDOW_MS,
+        maxRequests: e.WEB_TELEMETRY_RATE_LIMIT_MAX_REQUESTS,
+      },
+      maxTracesPerMinute: e.WEB_TELEMETRY_MAX_TRACES_PER_MINUTE,
     },
     adminSearch: {
       ipRateLimit: {

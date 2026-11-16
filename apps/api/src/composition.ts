@@ -698,6 +698,9 @@ export interface AppComposition {
   /** Generous limiter + pipeline for public analytics ingest. */
   readonly analyticsRateLimiter: RateLimiter;
   readonly analyticsPipeline: RequestPipeline;
+  /** Tight limiter + pipeline for real-user-monitoring beacons (#830). */
+  readonly webTelemetryRateLimiter: RateLimiter;
+  readonly webTelemetryPipeline: RequestPipeline;
   readonly healthService: HealthService;
   readonly healthRoute: HealthRoute;
   readonly estimateStore: EstimateStore;
@@ -1251,9 +1254,22 @@ export function createComposition(
   });
   // #830: browser vitals + JS errors → one JSON trace per item, queryable in
   // App Insights as `traces | where message startswith '{"event":"web_'`
-  // (docs/ops/web-telemetry.md). Shares the analytics pipeline + limiter.
+  // (docs/ops/web-telemetry.md). Own tight limiter (10/min per IP) plus a
+  // per-instance trace budget, so one client can't exhaust the Log
+  // Analytics daily cap and silence every server trace for the day.
+  const webTelemetryRateLimiter: RateLimiter = createRateLimiter({
+    windowMs: config.webTelemetry.rateLimit.windowMs,
+    maxRequests: config.webTelemetry.rateLimit.maxRequests,
+    maxTrackedKeys: config.rateLimit.maxTrackedKeys,
+  });
+  const webTelemetryPipeline: RequestPipeline = createRequestPipeline({
+    rateLimiter: webTelemetryRateLimiter,
+    csrf,
+    logger: options.logger,
+  });
   const webTelemetryService: WebTelemetryService = createWebTelemetryService({
     onTrace: (trace) => console.info(JSON.stringify(trace)),
+    maxTracesPerMinute: config.webTelemetry.maxTracesPerMinute,
   });
   const webTelemetryRoute: WebTelemetryRoute = createWebTelemetryRoute({
     webTelemetry: webTelemetryService,
@@ -2507,6 +2523,8 @@ export function createComposition(
     analyticsStore,
     analyticsService,
     analyticsRoute,
+    webTelemetryRateLimiter,
+    webTelemetryPipeline,
     webTelemetryService,
     webTelemetryRoute,
     emailService,

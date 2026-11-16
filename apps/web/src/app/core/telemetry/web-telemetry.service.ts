@@ -186,9 +186,45 @@ export class WebTelemetryService {
 }
 
 function describe(error: unknown): string {
-  if (error instanceof Error) return `${error.name}: ${error.message}`;
-  if (typeof error === 'string') return error;
+  if (error instanceof Error) return scrubUrls(`${error.name}: ${error.message}`);
+  if (typeof error === 'string') return scrubUrls(error);
+  // Angular's HttpErrorResponse (and similar) isn't an Error but carries a
+  // string `message` — which embeds the request URL, so URLs are scrubbed.
+  if (typeof error === 'object' && error !== null) {
+    const { name, message } = error as { name?: unknown; message?: unknown };
+    if (typeof message === 'string') {
+      return scrubUrls(typeof name === 'string' && name ? `${name}: ${message}` : message);
+    }
+  }
   return Object.prototype.toString.call(error);
+}
+
+// Trailing punctuation (`url: 500 …`) is left outside the match.
+const URL_IN_TEXT = /\b[a-z][a-z0-9+.-]*:\/\/[^\s'"<>]*[^\s'"<>.,:;)]/gi;
+/**
+ * Token-like path segment (ids, magic tokens, UUIDs): contains a digit, or
+ * mixes upper- and lower-case. API paths are lower-case kebab words.
+ */
+const TOKEN_SEGMENT = /^(?=.*\d)[A-Za-z0-9_.~-]{6,}$|^(?=.*[a-z])(?=.*[A-Z])[A-Za-z0-9_~-]{6,}$/;
+
+/**
+ * Replaces every URL in `text` with its path only — no origin, query or
+ * fragment — and masks token-like path segments as `:id`, so a report
+ * token in a failed request's URL never leaves the browser.
+ */
+export function scrubUrls(text: string): string {
+  return text.replace(URL_IN_TEXT, (raw) => {
+    let path: string;
+    try {
+      path = new URL(raw).pathname;
+    } catch {
+      return '[url]';
+    }
+    return path
+      .split('/')
+      .map((seg) => (TOKEN_SEGMENT.test(seg) ? ':id' : seg))
+      .join('/');
+  });
 }
 
 /** Script path only — no origin, query or fragment. */
