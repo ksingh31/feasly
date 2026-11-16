@@ -11,6 +11,7 @@
  * sees the opaque magic-link token from the email URL before that.
  */
 import type { BuilderPaymentMethod, CommissionInvoiceStatus } from './billing';
+import type { LeadCallbackSummary } from './callback';
 
 export interface BuilderAuthRequestBody {
   readonly email: string;
@@ -162,6 +163,11 @@ export interface BuilderLeadListItem {
    * recomputes it.
    */
   readonly needsRecording: boolean;
+  /**
+   * #836: the newest callback request on this lead (preferred day, time
+   * window, notes), null when none. Optional for older backends.
+   */
+  readonly latestCallback?: LeadCallbackSummary | null;
 }
 
 /**

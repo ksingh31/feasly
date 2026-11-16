@@ -806,6 +806,67 @@ describe('builder-leads status lock (2026-09-29)', () => {
   });
 });
 
+describe('builder-leads latest callback (#836)', () => {
+  const row = (id: string, createdAt: string, preferredDate: string | null) => ({
+    id,
+    leadId: 'lead-1',
+    name: 'Home Owner',
+    phone: '403-555-0100',
+    window: 'morning',
+    preferredDate,
+    notes: id === 'cb-new' ? 'Mornings only' : null,
+    status: 'pending',
+    createdAt: new Date(createdAt),
+  });
+
+  it('attaches the newest callback per lead in one store call', async () => {
+    const base = makeDeps();
+    const calls: Array<ReadonlyArray<string>> = [];
+    const service = createBuilderLeadsService({
+      leadStore: base.leadStore,
+      audit: base.audit,
+      builders: base.builders,
+      callbackSummaries: {
+        listByLeadIds: async (ids) => {
+          calls.push(ids);
+          // Store contract: newest first.
+          return [
+            row('cb-new', '2026-11-16T12:00:00Z', '2026-11-18'),
+            row('cb-old', '2026-11-10T12:00:00Z', null),
+          ];
+        },
+      },
+    });
+    const result = await service.listLeads('elite-craft');
+    const lead1 = result.leads.find((lead) => lead.id === 'lead-1');
+    expect(lead1?.latestCallback).toEqual({
+      id: 'cb-new',
+      window: 'morning',
+      preferredDate: '2026-11-18',
+      notes: 'Mornings only',
+      phone: '403-555-0100',
+      status: 'pending',
+      createdAt: '2026-11-16T12:00:00.000Z',
+    });
+    for (const other of result.leads.filter((lead) => lead.id !== 'lead-1')) {
+      expect(other.latestCallback).toBeNull();
+    }
+    expect(calls).toHaveLength(1);
+    expect(calls[0]).toContain('lead-1');
+  });
+
+  it('is null when no callback store is wired', async () => {
+    const base = makeDeps();
+    const service = createBuilderLeadsService({
+      leadStore: base.leadStore,
+      audit: base.audit,
+      builders: base.builders,
+    });
+    const result = await service.listLeads('elite-craft');
+    expect(result.leads[0]?.latestCallback).toBeNull();
+  });
+});
+
 describe('builder-leads comment summaries (notes section redesign)', () => {
   function makeServiceWithComments(
     summaries: ReadonlyMap<string, { count: number; latest: { authorId: string; authorKind: 'builder' | 'admin'; body: string; createdAt: Date } | null }>,

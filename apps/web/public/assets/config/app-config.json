@@ -267,21 +267,27 @@
       "callbackWindows": [
         {
           "id": "morning",
-          "label": "Morning"
+          "label": "Morning",
+          "range": "9 a.m.–12 p.m. MT",
+          "phrase": "in the morning"
         },
         {
           "id": "afternoon",
-          "label": "Afternoon"
+          "label": "Afternoon",
+          "range": "12–5 p.m. MT",
+          "phrase": "in the afternoon"
         },
         {
           "id": "evening",
-          "label": "Evening"
+          "label": "Evening",
+          "range": "5–8 p.m. MT",
+          "phrase": "in the evening"
         }
       ],
       "callbackCta": "Request callback",
-      "callbackSuccess": "Callback requested — we will call at your preferred time.",
+      "callbackSuccess": "We’ll aim to call you {day} {window}.",
       "callbackError": "We could not request the callback. Please try again in a moment.",
-      "callbackInvalid": "Enter your name and a phone number.",
+      "callbackInvalid": "Enter your name, a phone number and a preferred day.",
       "pdfCta": "Download PDF",
       "loadingLabel": "Loading your report…",
       "loadError": "We could not load your report. Please try again in a moment.",

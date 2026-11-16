@@ -411,7 +411,7 @@ describe('MockApiService', () => {
           window: 'morning',
         }),
       );
-      expect(res).toEqual({ ok: true, window: 'morning' });
+      expect(res).toEqual({ ok: true, window: 'morning', preferredDate: null });
     });
 
     it('joinWaitlist echoes the topic', async () => {

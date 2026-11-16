@@ -1769,6 +1769,11 @@ export function createComposition(
   // admin/02 — leads explorer. The store is injectable for tests.
   const adminLeadsStore: AdminLeadsStore =
     options.adminLeadsStore ?? createDrizzleAdminLeadsStore({ db: db.db });
+  // #639: built before the privacy service, which exports/erases it.
+  // #836: and before the admin/builder lead services, which show it.
+  const callbackRequestStore: CallbackRequestStore =
+    options.callbackRequestStore ??
+    createDrizzleCallbackRequestStore({ db: db.db });
   const adminLeadsService: AdminLeadsService = createAdminLeadsService({
     store: adminLeadsStore,
     leadStore,
@@ -1776,6 +1781,7 @@ export function createComposition(
     audit: adminAuditStore,
     maxExportRows: 10000,
     reassignments: leadAssignmentService,
+    callbacks: callbackRequestStore,
   });
   const adminLeadsRoute: AdminLeadsRoute = createAdminLeadsRoute({
     adminLeads: adminLeadsService,
@@ -1843,10 +1849,6 @@ export function createComposition(
   // #520: built before the privacy service, which exports/erases it.
   const waitlistStore: WaitlistStore =
     options.waitlistStore ?? createDrizzleWaitlistStore({ db: db.db });
-  // #639: built before the privacy service, which exports/erases it.
-  const callbackRequestStore: CallbackRequestStore =
-    options.callbackRequestStore ??
-    createDrizzleCallbackRequestStore({ db: db.db });
   const privacyService: PrivacyService = createPrivacyService({
     magicLinks: magicLinkStore,
     leads: leadStore,
@@ -2161,6 +2163,7 @@ export function createComposition(
     magicLinks: magicLinkStore,
     leads: leadStore,
     callbacks: callbackRequestStore,
+    dateWindowDays: config.lead.callbackDateWindowDays,
   });
   const callbackRoute: CallbackRoute = createCallbackRoute({
     callbacks: callbackService,
@@ -2356,6 +2359,7 @@ export function createComposition(
     billingHook: embedBillingHookService,
     invoiceSummaries: invoiceSummaryStore,
     commentSummaries: commentStore,
+    callbackSummaries: callbackRequestStore,
     users: userStore,
     // Issue #530: "Mark won" → email the org's admins to record the contract.
     memberships: membershipStore,

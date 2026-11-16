@@ -25,6 +25,7 @@ describe('loadConfig', () => {
         needsYouStaleDays: 7,
         needsYouScanLimit: 500,
         minSubmitMs: 2_000,
+        callbackDateWindowDays: 14,
       },
       botChallenge: {
         enabled: false,

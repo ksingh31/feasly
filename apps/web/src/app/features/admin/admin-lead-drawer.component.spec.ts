@@ -135,12 +135,13 @@ describe('AdminLeadDrawerComponent', () => {
     return root().querySelector<HTMLButtonElement>('.ui-drawer__footer-end button[type="submit"]');
   }
 
-  it('orders the sections Pipeline → Contact → Campaign → Property → Invoices → Notes → Comments → Activity → Record', async () => {
+  it('orders the sections Pipeline → Contact → Callback requests → Campaign → Property → Invoices → Notes → Comments → Activity → Record', async () => {
     await setup();
     const headings = Array.from(root().querySelectorAll('.lead-drawer__heading')).map((h) => h.textContent?.trim());
     expect(headings).toEqual([
       'Pipeline',
       'Contact',
+      'Callback requests',
       'Campaign',
       'Property & estimate',
       'Invoices',
@@ -165,6 +166,35 @@ describe('AdminLeadDrawerComponent', () => {
     expect(text).toContain('test');
     expect(text).toContain('gclid');
     expect(text).not.toContain('utm_medium');
+  });
+
+  it('#836: shows each callback request with preferred day, window range and notes', async () => {
+    await setup(undefined, {
+      ...DETAIL,
+      callbacks: [
+        {
+          id: 'cb-1',
+          window: 'evening',
+          preferredDate: '2026-11-20',
+          notes: 'After dinner works best',
+          phone: '403-555-0100',
+          status: 'pending',
+          createdAt: '2026-11-16T18:30:00.000Z',
+        },
+      ],
+    });
+    const list = root().querySelector('.lead-drawer__callback') as HTMLElement;
+    const text = list.textContent ?? '';
+    expect(text).toContain('Friday, Nov 20');
+    expect(text).toContain('Evening (5–8 p.m. MT)');
+    expect(text).toContain('After dinner works best');
+    expect(text).toContain('403-555-0100');
+  });
+
+  it('#836: says so when no callback was requested', async () => {
+    await setup(undefined, { ...DETAIL, callbacks: [] });
+    expect(root().querySelector('.lead-drawer__callback')).toBeNull();
+    expect(root().textContent).toContain('No callback requested.');
   });
 
   it('says so when the lead has no campaign attribution (#815)', async () => {

@@ -246,6 +246,39 @@ test.describe('consumer flow: WCAG 2.2 AA + iPhone Safari (#832)', () => {
     });
   }
 
+  for (const viewport of VIEWPORTS.filter((v) => v.label !== '375')) {
+    test(`#836 callback: preferred day + window + notes → confirmation @ ${viewport.label}`, async ({
+      page,
+      browserName,
+    }) => {
+      await page.setViewportSize({ width: viewport.width, height: viewport.height });
+      await mockSite(page);
+      await toPreview(page);
+      await page.locator('a.cta.unlock').click();
+      await expect(page.locator('h1.gate-heading')).toBeVisible();
+      await fillGate(page);
+      await page.locator('button.cta[type="submit"]').click();
+      await expect(page).toHaveURL(/\/estimate\/report$/);
+
+      const talk = page.locator('section.talk');
+      await talk.locator('input[formcontrolname="name"]').fill('Test Person');
+      await talk.locator('input[formcontrolname="phone"]').fill('4035551234');
+      const day = talk.locator('select[formcontrolname="preferredDate"]');
+      await day.selectOption({ index: 2 });
+      const dayLabel = (await day.locator('option:checked').textContent())?.trim() ?? '';
+      await talk.locator('select[formcontrolname="window"]').selectOption('afternoon');
+      await talk.locator('textarea[formcontrolname="notes"]').fill('Mornings are busy — afternoons are best.');
+      await talk.locator('textarea[formcontrolname="notes"]').scrollIntoViewIfNeeded();
+      await assertA11y(page, `callback-1-filled-${viewport.label}-${browserName}`, false);
+      await talk.getByRole('button', { name: 'Request callback' }).click();
+      await expect(talk.getByRole('status')).toHaveText(
+        `We’ll aim to call you ${dayLabel} in the afternoon (12–5 p.m. MT).`,
+      );
+      await talk.getByRole('status').scrollIntoViewIfNeeded();
+      await assertA11y(page, `callback-2-confirmed-${viewport.label}-${browserName}`, false);
+    });
+  }
+
   test('keyboard only: address → scope → preview → gate → report', async ({ page, browserName }) => {
     // WebKit only moves Tab focus to links/buttons with the macOS "full
     // keyboard access" preference, so the Tab walk runs on Chromium; the

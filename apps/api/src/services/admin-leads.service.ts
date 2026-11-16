@@ -34,6 +34,8 @@ import type {
 } from './admin-leads.store';
 import type { EstimateStore } from './estimate.store';
 import type { LeadStore } from './lead.store';
+import type { CallbackRequestStore } from './callback-request.store';
+import { toLeadCallbackSummary } from './callback.service';
 
 export const AdminLeadStatusSchema = z.enum([
   'new',
@@ -156,6 +158,8 @@ export interface AdminLeadsServiceDeps {
   readonly maxExportRows: number;
   /** #721: builder reassignment history for the lead detail. */
   readonly reassignments?: Pick<LeadAssignmentService, 'listForLead'>;
+  /** #836: callback requests (preferred day/window/notes) for the detail. */
+  readonly callbacks?: Pick<CallbackRequestStore, 'listByLeadId'>;
 }
 
 function toListItem(row: AdminLeadRow): AdminLeadListItem {
@@ -291,7 +295,15 @@ async function requireQuarantined(
 export function createAdminLeadsService(
   deps: AdminLeadsServiceDeps,
 ): AdminLeadsService {
-  const { store, leadStore, estimateStore, audit, maxExportRows, reassignments } = deps;
+  const {
+    store,
+    leadStore,
+    estimateStore,
+    audit,
+    maxExportRows,
+    reassignments,
+    callbacks,
+  } = deps;
 
   async function auditRead(
     adminEmail: string,
@@ -366,6 +378,8 @@ export function createAdminLeadsService(
       const statusHistory = await leadStore.getStatusHistory(id);
       const reassignmentHistory =
         reassignments === undefined ? [] : await reassignments.listForLead(id);
+      const callbackRows =
+        callbacks === undefined ? [] : await callbacks.listByLeadId(id);
 
       // Sheets sync timestamp — from the lead's metadata (null when never synced).
       // TODO: wire to the actual Sheets sync worker's tracking table when it lands.
@@ -406,6 +420,7 @@ export function createAdminLeadsService(
           changedBy: r.actorEmail,
           changedAt: r.reassignedAt.toISOString(),
         })),
+        callbacks: callbackRows.map(toLeadCallbackSummary),
       };
     },
 

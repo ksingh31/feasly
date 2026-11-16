@@ -33,6 +33,7 @@ import {
 } from '@app/shared/ui';
 import { formatCentsRangeToCad, formatCentsToCad } from '@app/shared/utils/money';
 import { formatEdmontonDateTime } from '@app/shared/utils/edmonton';
+import { formatCallbackDay } from '@app/shared/utils/callback-day';
 import {
   AddAdminLeadNote,
   ClearSelectedAdminLead,
@@ -102,6 +103,7 @@ export class AdminLeadDrawerComponent {
 
   protected readonly pageCopy = inject(ConfigService).get('copy').admin.leads;
   protected readonly copy = this.pageCopy.drawer;
+  private readonly callbackWindows = inject(ConfigService).get('copy').report.callbackWindows;
 
   protected readonly detail = this.store.selectSignal(AdminLeadsState.detail);
   protected readonly detailStatus = this.store.selectSignal(AdminLeadsState.detailStatus);
@@ -204,6 +206,23 @@ export class AdminLeadDrawerComponent {
       { label: l.clickIdType, value: source.click_id_type ?? null },
     ];
     return rows.filter((row) => row.value !== null);
+  });
+
+  /** #836: callback requests (newest first), each as a key/value block. */
+  protected readonly callbackRequests = computed(() => {
+    const requests = this.lead()?.callbacks ?? [];
+    const l = this.copy.callbackLabels;
+    return requests.map((request) => {
+      const w = this.callbackWindows.find((option) => option.id === request.window);
+      const items: KeyValueItem[] = [
+        { label: l.day, value: formatCallbackDay(request.preferredDate) ?? this.copy.callbackAnyDay },
+        { label: l.window, value: w ? `${w.label} (${w.range})` : request.window },
+        { label: l.phone, value: request.phone, href: `tel:${request.phone}` },
+        { label: l.notes, value: request.notes },
+        { label: l.requested, value: formatEdmontonDateTime(request.createdAt) },
+      ];
+      return { id: request.id, items: items.filter((item) => item.value !== null) };
+    });
   });
 
   protected readonly propertyItems = computed<readonly KeyValueItem[]>(() => {

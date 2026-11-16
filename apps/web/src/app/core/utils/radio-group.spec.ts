@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it } from 'vitest';
 import { handleRadioGroupKeydown, radioTabIndex } from './radio-group';
 
 const IDS = ['a', 'b', 'c'] as const;
@@ -23,6 +23,12 @@ function press(target: HTMLElement, key: string): KeyboardEvent {
   target.dispatchEvent(event);
   return event;
 }
+
+// Specs share one jsdom document: remove the attached groups (and the focus
+// they hold) so later specs start from a clean body.
+afterEach(() => {
+  document.querySelectorAll('[role="radiogroup"]').forEach((el) => el.remove());
+});
 
 describe('radioTabIndex (#937 roving tabindex)', () => {
   it('makes only the checked radio a Tab stop', () => {
