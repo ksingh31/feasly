@@ -1036,6 +1036,7 @@ export function createComposition(
           scope: 'bot-challenge:ip',
           cooldownMs: config.botChallenge.windowMs,
         }),
+        attempts: sharedLimiter('bot-challenge:verify', config.botChallenge.verifyRateLimit),
         verifier:
           options.challengeVerifier ??
           createTurnstileVerifier({

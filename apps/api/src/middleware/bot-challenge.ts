@@ -18,7 +18,7 @@
 import { BOT_CHALLENGE_HEADER } from '@feasly/contracts';
 import type { HeaderValue } from './correlation';
 import { ErrorCodes, HttpError, toProblemDetails, type ProblemDetails } from './errors';
-import type { SharedCooldown } from './shared-rate-limit';
+import type { AnyRateLimiter, SharedCooldown } from './shared-rate-limit';
 
 /** Server-side check of a challenge token. Must never throw for a bad token. */
 export interface ChallengeVerifier {
@@ -51,6 +51,14 @@ export interface BotChallengeGateDeps {
   readonly trips: SharedCooldown;
   readonly verifier: ChallengeVerifier;
   readonly siteKey: string;
+  /**
+   * Caps outbound verifier calls per key (#788 review): a tripped IP
+   * spraying junk tokens would otherwise trigger one siteverify round-trip
+   * per request before any limiter runs. Every verification attempt counts;
+   * over the cap the request is denied (`failed`) WITHOUT calling the
+   * verifier. Optional so unit tests can omit it; composition always sets it.
+   */
+  readonly attempts?: AnyRateLimiter;
 }
 
 /** Turnstile tokens are at most 2048 characters; anything longer is junk. */
@@ -73,21 +81,15 @@ export function readChallengeToken(
 /**
  * Agent-API callers authenticate with a Bearer API key and cannot solve a
  * browser challenge. Requests carrying `Authorization: Bearer …` skip the
- * gate (check AND trip marking); the IP limiter still applies to them, and
- * a forged Bearer value is rejected with 401 by the per-key middleware
- * before any handler work, so it buys a bot nothing.
+ * gate (check AND trip marking); the IP limiter still applies to them.
+ * This is the SAME predicate the per-key API middleware uses, so anything
+ * exempted here is guaranteed to be key-checked there (a forged value gets
+ * a 401 before any handler work). Never fork it (#788 review).
  */
-export function hasBearerCredential(headers: Record<string, HeaderValue>): boolean {
-  for (const [name, value] of Object.entries(headers)) {
-    if (name.toLowerCase() !== 'authorization') continue;
-    const raw = Array.isArray(value) ? value[0] : value;
-    return typeof raw === 'string' && /^Bearer\s+\S/i.test(raw.trim());
-  }
-  return false;
-}
+export { hasBearerCredential } from './session-token';
 
 export function createBotChallengeGate(deps: BotChallengeGateDeps): BotChallengeGate {
-  const { trips, verifier, siteKey } = deps;
+  const { trips, verifier, siteKey, attempts } = deps;
   return {
     siteKey,
     async check({ key, headers, clientIp }) {
@@ -95,6 +97,9 @@ export function createBotChallengeGate(deps: BotChallengeGateDeps): BotChallenge
       const token = readChallengeToken(headers);
       if (token === undefined) return { allowed: false, reason: 'missing' };
       if (token.length > MAX_TOKEN_LENGTH) return { allowed: false, reason: 'failed' };
+      if (attempts && !(await attempts.check(key)).allowed) {
+        return { allowed: false, reason: 'failed' }; // over the cap: no verifier call
+      }
       let ok = false;
       try {
         ok = await verifier.verify(token, clientIp);

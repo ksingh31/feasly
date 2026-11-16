@@ -74,7 +74,7 @@ const EnvSchema = z.object({
   // was on screen (`elapsedMs`). A submission faster than this is
   // quarantined exactly like the honeypot (201, no email, no signal).
   // 0 disables the check. The threshold lives here — never in the web app.
-  LEAD_MIN_SUBMIT_MS: z.coerce.number().int().nonnegative().default(3_000),
+  LEAD_MIN_SUBMIT_MS: z.coerce.number().int().nonnegative().default(2_000),
 
   // #788: Cloudflare Turnstile (managed/invisible) — required only from an
   // IP that tripped a shared money/mail rate limit, for BOT_CHALLENGE_WINDOW_MS
@@ -88,6 +88,10 @@ const EnvSchema = z.object({
     .default('https://challenges.cloudflare.com/turnstile/v0/siteverify'),
   TURNSTILE_VERIFY_TIMEOUT_MS: z.coerce.number().int().positive().default(5_000),
   BOT_CHALLENGE_WINDOW_MS: z.coerce.number().int().positive().default(86_400_000),
+  // Cap on outbound Turnstile verifications per tripped IP (#788 review):
+  // junk tokens past this budget are denied without a siteverify call.
+  BOT_CHALLENGE_VERIFY_MAX_ATTEMPTS: z.coerce.number().int().positive().default(10),
+  BOT_CHALLENGE_VERIFY_WINDOW_MS: z.coerce.number().int().positive().default(3_600_000),
 
   // Estimates are the most expensive endpoint to leave unthrottled. These
   // defaults are the FROZEN limits from the canonical API registry
@@ -645,6 +649,8 @@ export interface BotChallengeConfig {
   readonly verifyTimeoutMs: number;
   /** How long after a limit trip the IP must pass the challenge. */
   readonly windowMs: number;
+  /** Per-IP cap on verifier calls (every attempt counts). */
+  readonly verifyRateLimit: Omit<RateLimitConfig, 'maxTrackedKeys'>;
 }
 
 export interface EstimateConfig {
@@ -1568,6 +1574,10 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): ApiConfig {
       verifyUrl: e.TURNSTILE_VERIFY_URL,
       verifyTimeoutMs: e.TURNSTILE_VERIFY_TIMEOUT_MS,
       windowMs: e.BOT_CHALLENGE_WINDOW_MS,
+      verifyRateLimit: {
+        windowMs: e.BOT_CHALLENGE_VERIFY_WINDOW_MS,
+        maxRequests: e.BOT_CHALLENGE_VERIFY_MAX_ATTEMPTS,
+      },
     },
     sandboxPurge: {
       retentionDays: e.SANDBOX_PURGE_RETENTION_DAYS,

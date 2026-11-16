@@ -10,6 +10,7 @@ import {
   readChallengeToken,
   type ChallengeVerifier,
 } from '../src/middleware/bot-challenge';
+import { createApiKeyRateLimitMiddleware } from '../src/middleware/api-key-rate-limit';
 import { ErrorCodes, isProblemDetails } from '../src/middleware/errors';
 import { createRequestPipeline, type LogEntry } from '../src/middleware/pipeline';
 import { createRateLimiter } from '../src/middleware/rate-limit';
@@ -18,7 +19,9 @@ import {
   createSharedCooldown,
   type SharedCounterStore,
 } from '../src/middleware/shared-rate-limit';
+import type { ApiKeyService } from '../src/services/api-key.service';
 import { createTurnstileVerifier } from '../src/services/turnstile.service';
+import type { UsageService } from '../src/services/usage.service';
 
 const SITE_KEY = '0x4AAAAAAAtestsitekey';
 
@@ -84,8 +87,12 @@ describe('header helpers (#788)', () => {
   });
   it('detects a Bearer credential', () => {
     expect(hasBearerCredential({ authorization: 'Bearer feasly_live_x' })).toBe(true);
-    expect(hasBearerCredential({ Authorization: 'bearer abc' })).toBe(true);
+    expect(hasBearerCredential({ authorization: 'bearer abc' })).toBe(true);
     expect(hasBearerCredential({ authorization: 'Bearer ' })).toBe(false);
+    // Review #906: only the exact grammar the per-key API middleware
+    // accepts counts — a tab / NBSP separator is NOT an API-key request.
+    expect(hasBearerCredential({ authorization: 'Bearer\tfeasly_live_x' })).toBe(false);
+    expect(hasBearerCredential({ authorization: 'Bearer\u00a0feasly_live_x' })).toBe(false);
     expect(hasBearerCredential({ authorization: 'Basic abc' })).toBe(false);
     expect(hasBearerCredential({})).toBe(false);
   });
@@ -196,6 +203,61 @@ describe('pipeline + bot challenge (#788)', () => {
     // never challenged.
     const browser = await pipeline.run({ headers: {}, clientIp: '7.7.7.7' }, ok);
     expect(isProblemDetails(browser) && browser.code).toBe(ErrorCodes.RATE_LIMITED);
+  });
+
+  it('still challenges a tripped IP that sends a malformed (tab-separated) Bearer header', async () => {
+    const { pipeline } = gatedPipeline(verifierAccepting('good'), 1);
+    const req = { headers: { authorization: 'Bearer\tjunk' }, clientIp: '7.7.7.8' };
+    await pipeline.run(req, ok);
+    await pipeline.run(req, ok); // trips — not exempt, so it IS marked
+    const handler = vi.fn(ok);
+    const result = await pipeline.run(req, handler);
+    expect(isProblemDetails(result) && result.code).toBe(ErrorCodes.CHALLENGE_REQUIRED);
+    expect(handler).not.toHaveBeenCalled();
+  });
+
+  it('agrees with the per-key API middleware on what is an API-key request', async () => {
+    const authenticate = vi.fn(async () => {
+      throw new Error('authenticate should not be reached');
+    });
+    const withKey = createApiKeyRateLimitMiddleware({
+      apiKeys: { authenticate } as unknown as ApiKeyService,
+      usage: {} as unknown as UsageService,
+      logger: () => undefined,
+    });
+    for (const authorization of ['Bearer\tx', 'Bearer\u00a0x', 'Basic x', 'Bearer ']) {
+      const headers = { authorization };
+      const sawKey = await withKey(headers, 'cid', { endpoint: '/x', requiredScope: 'lead' }, async (auth) => auth !== null);
+      // Not an API-key request to the key middleware => never exempt here.
+      expect(sawKey).toBe(false);
+      expect(hasBearerCredential(headers)).toBe(false);
+    }
+  });
+
+  it('caps verifier calls per tripped key; over the cap denies without calling it', async () => {
+    const verifier = verifierAccepting('good');
+    let now = 0;
+    const gate = createBotChallengeGate({
+      trips: createInMemoryCooldown(86_400_000, () => now),
+      verifier,
+      siteKey: SITE_KEY,
+      attempts: createRateLimiter({ windowMs: 60_000, maxRequests: 2, maxTrackedKeys: 100, clock: () => now }),
+    });
+    await gate.markTripped('ip');
+    const junk = { key: 'ip', headers: { 'x-turnstile-token': 'junk' }, clientIp: 'ip' };
+    expect(await gate.check(junk)).toEqual({ allowed: false, reason: 'failed' });
+    expect(await gate.check(junk)).toEqual({ allowed: false, reason: 'failed' });
+    expect(verifier.calls).toHaveLength(2);
+    // Over the cap: even a valid token is refused and no outbound call is made.
+    const good = { ...junk, headers: { 'x-turnstile-token': 'good' } };
+    expect(await gate.check(good)).toEqual({ allowed: false, reason: 'failed' });
+    expect(verifier.calls).toHaveLength(2);
+    // A missing token never spends the budget.
+    expect(await gate.check({ ...junk, headers: {} })).toEqual({ allowed: false, reason: 'missing' });
+    // Once the attempt window frees, verification resumes.
+    now = 61_000;
+    expect(await gate.check(good)).toEqual({ allowed: true });
+    expect(verifier.calls).toHaveLength(3);
   });
 
   it('does not mark a trip for a secondary (per-tenant) limiter denial', async () => {

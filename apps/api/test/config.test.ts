@@ -24,7 +24,7 @@ describe('loadConfig', () => {
         dedupWindowDays: 90,
         needsYouStaleDays: 7,
         needsYouScanLimit: 500,
-        minSubmitMs: 3_000,
+        minSubmitMs: 2_000,
       },
       botChallenge: {
         enabled: false,
@@ -33,6 +33,7 @@ describe('loadConfig', () => {
         verifyUrl: 'https://challenges.cloudflare.com/turnstile/v0/siteverify',
         verifyTimeoutMs: 5_000,
         windowMs: 86_400_000,
+        verifyRateLimit: { windowMs: 3_600_000, maxRequests: 10 },
       },
       estimate: {
         rateLimit: { windowMs: 3_600_000, maxRequests: 20 },
@@ -286,12 +287,15 @@ describe('loadConfig', () => {
       TURNSTILE_SITE_KEY: 'site',
       TURNSTILE_SECRET_KEY: 'secret',
       BOT_CHALLENGE_WINDOW_MS: '3600000',
+      BOT_CHALLENGE_VERIFY_MAX_ATTEMPTS: '5',
+      BOT_CHALLENGE_VERIFY_WINDOW_MS: '600000',
     });
     expect(config.botChallenge).toMatchObject({
       enabled: true,
       siteKey: 'site',
       secretKey: 'secret',
       windowMs: 3_600_000,
+      verifyRateLimit: { windowMs: 600_000, maxRequests: 5 },
     });
   });
 
