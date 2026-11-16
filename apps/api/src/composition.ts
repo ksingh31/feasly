@@ -662,6 +662,15 @@ import {
   createBuilderNotificationsRoute,
   type BuilderNotificationsRoute,
 } from './routes/builder/notifications.route';
+import { createDrizzleBuilderSettingsStore } from './services/builder-settings.store';
+import {
+  createBuilderSettingsService,
+  type BuilderSettingsService,
+} from './services/builder-settings.service';
+import {
+  createBuilderSettingsRoute,
+  type BuilderSettingsRoute,
+} from './routes/builder/settings.route';
 import {
   createStripeWebhooksRoute,
   type StripeWebhooksRoute,
@@ -929,6 +938,10 @@ export interface AppComposition {
   readonly builderNotificationsService: BuilderNotificationsService;
   /** #725: thin route for /api/v1/builder/notifications/preferences. */
   readonly builderNotificationsRoute: BuilderNotificationsRoute;
+  /** #870: builder Settings — profile & branding, embed install check, origin requests. */
+  readonly builderSettingsService: BuilderSettingsService;
+  /** #870: thin route for /api/v1/builder/profile + /api/v1/builder/embed*. */
+  readonly builderSettingsRoute: BuilderSettingsRoute;
   /** billing/01 follow-on: dispute console backend (was OPS-009). */
   readonly disputeService: DisputeService;
   /** billing/01 follow-on: thin route for /api/v1/admin/disputes/*. */
@@ -1378,6 +1391,11 @@ export function createComposition(
     onLeadAssigned: (args) => builderNotificationsService.notifyNewLead(args),
     onBillingProfileChanged: async (builder) => {
       await syncStripeCustomer?.(builder);
+    },
+    // #870: late-bound — closes builder origin-change requests an admin
+    // update satisfied. Best-effort (builder.service logs failures).
+    onAllowedOriginsChanged: async (args) => {
+      await builderSettingsService.resolveSatisfiedOriginRequests(args);
     },
   });
   const leadService: LeadService = createLeadService({
@@ -2457,6 +2475,24 @@ export function createComposition(
       notifications: builderNotificationsService,
       builderGuard,
     });
+  // #870: builder Settings (profile & branding, embed install check,
+  // origin-change requests → admin task + team-inbox email).
+  const builderSettingsService: BuilderSettingsService =
+    createBuilderSettingsService({
+      builders: builderService,
+      store: createDrizzleBuilderSettingsStore({ db: db.db }),
+      audit: adminAuditStore,
+      email: emailService,
+      config: {
+        ...config.builderSettings,
+        opsInbox: config.email.opsInbox,
+        appBaseUrl: config.email.appBaseUrl,
+      },
+    });
+  const builderSettingsRoute: BuilderSettingsRoute = createBuilderSettingsRoute({
+    settings: builderSettingsService,
+    permissionGuard,
+  });
   // billing/05 lead comments: one service, two thin routes (builder/admin).
   const builderCommentsService: BuilderCommentsService =
     createBuilderCommentsService({
@@ -2717,6 +2753,8 @@ export function createComposition(
     builderBillingOverviewRoute,
     builderNotificationsService,
     builderNotificationsRoute,
+    builderSettingsService,
+    builderSettingsRoute,
     disputeService,
     adminDisputesRoute,
     adminBillingRoute,
