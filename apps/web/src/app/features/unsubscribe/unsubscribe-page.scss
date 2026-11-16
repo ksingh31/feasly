@@ -174,3 +174,15 @@
     padding: 32px 24px;
   }
 }
+
+/* #706: privacy self-service entry under the card. */
+.privacy-data-link {
+  margin: var(--space-5) 0 0;
+  font-size: var(--type-body-sm);
+}
+
+.privacy-data-link a {
+  color: var(--muted);
+  display: inline-block;
+  padding: var(--space-3) 0;
+}

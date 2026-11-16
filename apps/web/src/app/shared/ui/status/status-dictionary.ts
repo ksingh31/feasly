@@ -68,6 +68,8 @@ const INVOICE: Dictionary<CommissionInvoiceStatus> = {
   draft: { label: 'Draft', tone: 'neutral' },
   in_review: { label: 'In review', tone: 'warning' },
   finalized: { label: 'Finalized', tone: 'info' },
+  // #712: the bank wants the builder to confirm the charge (3DS).
+  action_required: { label: 'Needs your confirmation', tone: 'warning' },
   paid: { label: 'Paid', tone: 'success' },
   failed: { label: 'Failed', tone: 'danger' },
   disputed: { label: 'Disputed', tone: 'paused' },

@@ -224,6 +224,7 @@ function fakeEmailService(): EmailService {
     sendCommissionInvoiceReady: async () => result,
     sendCommissionPaymentReceived: async () => result,
     sendCommissionPaymentFailed: async () => result,
+    sendCommissionPaymentActionRequired: async () => result,
     sendContractNeedsRecording: async () => result,
     sendBuilderNewLead: async () => result,
     sendBuilderNeedsYouDigest: async () => result,

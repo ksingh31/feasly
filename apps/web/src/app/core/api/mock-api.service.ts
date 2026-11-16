@@ -5,6 +5,9 @@ import type {
   AnalyticsEvent,
   AnyEstimateRequest,
   ApiError,
+  ErasureConfirmResponse,
+  ErasureRequestResponse,
+  PrivacyExportResponse,
   ApiKeyIssueRequest,
   ApiKeyIssuedResponse,
   ApiKeyListResponse,
@@ -88,6 +91,9 @@ export class MockApiService implements ApiService {
   private readonly issuedTokens = new Map<string, { estimateId: string; leadId: string }>();
   /** Unsubscribe tokens already opted out (email/03 dev harness). */
   private readonly unsubscribedTokens = new Set<string>();
+  /** #706 dev harness: pending erasure request per token, and erased tokens. */
+  private readonly erasureRequests = new Map<string, string>();
+  private readonly erasedTokens = new Set<string>();
   /**
    * Granular mock consent per token for the preference page. Legacy
    * one-click sets emailOptOut only.
@@ -482,6 +488,80 @@ export class MockApiService implements ApiService {
   verifyPartnerShare(token: string): Observable<PartnerShareVerifyResponse> {
     void token;
     return this.roundTrip({ valid: false, reason: 'invalid' });
+  }
+
+  /** #706: the backend answers 401 UNAUTHENTICATED for unknown/expired/revoked tokens. */
+  private privacyDenied(): Observable<never> {
+    return this.roundTripError({
+      code: 'UNAUTHENTICATED',
+      message: 'A valid bearer token is required.',
+      retryable: false,
+    });
+  }
+
+  /** #706 dev harness: any non-empty, not-yet-erased token exports a sample payload. */
+  exportPrivacyData(reportToken: string): Observable<PrivacyExportResponse> {
+    if (!reportToken.trim() || this.erasedTokens.has(reportToken)) {
+      return this.privacyDenied();
+    }
+    const now = new Date().toISOString();
+    return this.roundTrip({
+      exportedAt: now,
+      email: 'you@example.com',
+      leads: [],
+      estimates: [],
+      magicLinks: [],
+      reportShares: [],
+      callbackRequests: [],
+      erasureRequests: [],
+      waitlistSignups: [],
+      retentionNotice: 'Mock retention notice.',
+    });
+  }
+
+  /** #706 dev harness: idempotent like the backend — one pending request per token. */
+  requestErasure(reportToken: string): Observable<ErasureRequestResponse> {
+    if (!reportToken.trim() || this.erasedTokens.has(reportToken)) {
+      return this.privacyDenied();
+    }
+    const requestId = this.erasureRequests.get(reportToken) ?? crypto.randomUUID();
+    this.erasureRequests.set(reportToken, requestId);
+    return this.roundTrip({
+      requestId,
+      status: 'requested',
+      consequences: ['Mock consequence statement.'],
+      createdAt: new Date().toISOString(),
+    });
+  }
+
+  /** #706 dev harness: completes once, then 409 like the backend; the token is revoked. */
+  confirmErasure(reportToken: string, requestId: string): Observable<ErasureConfirmResponse> {
+    if (this.erasedTokens.has(reportToken)) {
+      return this.roundTripError({
+        code: 'CONFLICT',
+        message: 'This erasure request has already been completed.',
+        retryable: false,
+      });
+    }
+    if (!reportToken.trim()) {
+      return this.privacyDenied();
+    }
+    if (this.erasureRequests.get(reportToken) !== requestId) {
+      return this.roundTripError({
+        code: 'NOT_FOUND',
+        message: 'Unknown erasure request.',
+        retryable: false,
+      });
+    }
+    this.erasedTokens.add(reportToken);
+    this.erasureRequests.delete(reportToken);
+    return this.roundTrip({
+      requestId,
+      status: 'completed',
+      confirmedAt: new Date().toISOString(),
+      revokedMagicLinks: 1,
+      deletedLeads: 1,
+    });
   }
 
   /**

@@ -147,6 +147,7 @@ These need owner input and are not implemented yet:
 | GET | `/api/v1/communities/{slug}/stats` | none | 100/min per IP | live |
 | GET | `/api/v1/city-data/freshness` | none | 100/min per IP | live |
 | GET | `/api/v1/zoning/districts` | none | 100/min per IP | live |
+| GET | `/api/v1/partners` | none | 100/min per IP | live |
 | GET | `/api/v1/embed/config` | none | 120/min per tenant key | live |
 | POST | `/api/v1/embed/session` | none | 30/min per tenant key | planned |
 | POST | `/api/v1/embed/relay/resend` | none | 60s per code · 30/min per IP | live |
@@ -209,6 +210,9 @@ These need owner input and are not implemented yet:
 | POST | `/api/v1/admin/builders` | admin | 60/min per session | live |
 | GET | `/api/v1/admin/builders/{id}` | admin | 300/min per session | live |
 | PATCH | `/api/v1/admin/builders/{id}` | admin | 60/min per session | live |
+| GET | `/api/v1/admin/partners` | admin | 300/min per session | live |
+| POST | `/api/v1/admin/partners` | admin | 60/min per session | live |
+| PATCH | `/api/v1/admin/partners/{id}` | admin | 60/min per session | live |
 | GET | `/api/v1/admin/estimates/{id}` | admin | 300/min per session | planned |
 | POST | `/api/v1/admin/estimates/{id}/narrative` | admin | 60/min per session | live |
 | GET | `/api/v1/admin/funnels` | admin | 300/min per session | live |
@@ -239,6 +243,7 @@ These need owner input and are not implemented yet:
 | GET | `/api/v1/billing/payment-method` | builder-session | 100/min per session | live |
 | PUT | `/api/v1/billing/payment-method` | builder-session | 100/min per session | live |
 | PUT | `/api/v1/billing/invoices/{id}/payment-method` | builder-session | 100/min per session | live |
+| POST | `/api/v1/billing/invoices/{id}/confirm-payment` | builder-session | 100/min per session | live |
 | GET | `/api/v1/billing/invoices/{id}` | builder-session | 100/min per session | live |
 | GET | `/api/v1/billing/invoices/{id}/pdf` | builder-session | 100/min per session | live |
 | GET | `/api/v1/billing/invoices` | builder-session | 100/min per session | live |

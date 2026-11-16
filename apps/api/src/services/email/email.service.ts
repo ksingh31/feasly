@@ -23,6 +23,7 @@ import {
   renderCallbackTeamEmail,
   renderCommissionInvoiceReadyEmail,
   renderCommissionPaymentFailedEmail,
+  renderCommissionPaymentActionRequiredEmail,
   renderCommissionPaymentReceivedEmail,
   renderBuilderNeedsYouDigestEmail,
   renderBuilderNewLeadEmail,
@@ -175,6 +176,17 @@ export interface CommissionPaymentFailedEmailInput {
   readonly tax?: CommissionEmailTax;
 }
 
+/** #712 input: the bank wants the builder to confirm the charge (3DS). */
+export interface CommissionPaymentActionRequiredEmailInput {
+  readonly to: string;
+  /** Invoice id — deep-links the invoice drawer. */
+  readonly invoiceId: string;
+  readonly invoiceRef: string;
+  readonly commissionCents: number;
+  readonly currency: string;
+  readonly tax?: CommissionEmailTax;
+}
+
 /**
  * Issue #530 input: a teammate marked a lead won; a builder admin is asked
  * to record the signed contract. Transactional org notice — no figures.
@@ -231,6 +243,10 @@ export interface EmailService {
   /** BILL-04: off-session charge failed (update-card CTA). */
   sendCommissionPaymentFailed(
     input: CommissionPaymentFailedEmailInput,
+  ): Promise<EmailDelivery>;
+  /** #712: off-session charge needs 3DS — "confirm this payment" CTA. */
+  sendCommissionPaymentActionRequired(
+    input: CommissionPaymentActionRequiredEmailInput,
   ): Promise<EmailDelivery>;
   /** Issue #530: lead marked won — ask an org admin to record the contract. */
   sendContractNeedsRecording(
@@ -485,6 +501,19 @@ export function createEmailService(deps: EmailServiceDeps): EmailService {
         commissionCents: input.commissionCents,
         currency: input.currency,
         updateWithinDays: input.updateWithinDays,
+        ...(input.tax ? { tax: input.tax } : {}),
+      });
+      return deliver({ ...rendered, to: input.to });
+    },
+
+    async sendCommissionPaymentActionRequired(
+      input: CommissionPaymentActionRequiredEmailInput,
+    ): Promise<EmailDelivery> {
+      const rendered = renderCommissionPaymentActionRequiredEmail(ctx, {
+        invoiceId: input.invoiceId,
+        invoiceRef: input.invoiceRef,
+        commissionCents: input.commissionCents,
+        currency: input.currency,
         ...(input.tax ? { tax: input.tax } : {}),
       });
       return deliver({ ...rendered, to: input.to });

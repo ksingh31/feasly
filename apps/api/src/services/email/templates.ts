@@ -671,6 +671,44 @@ ${fallbackLink(cardUrl)}`;
   return { subject, html: layout(ctx, 'Card declined', body), text };
 }
 
+/* ── #712: the bank wants the builder to confirm the charge (3DS / SCA) ──
+ *
+ * Sent once when an off-session charge comes back `requires_action`. Not a
+ * decline: the card is fine, the bank just needs the cardholder to approve
+ * the payment. The CTA opens the invoice in the builder portal, where the
+ * "Confirm payment with your bank" step runs.
+ */
+
+export interface CommissionPaymentActionRequiredTemplateInput {
+  /** Invoice id — deep-links the invoice drawer. */
+  readonly invoiceId: string;
+  readonly invoiceRef: string;
+  readonly commissionCents: number;
+  readonly currency: string;
+  readonly tax?: CommissionEmailTax;
+}
+
+export function renderCommissionPaymentActionRequiredEmail(
+  ctx: TemplateContext,
+  input: CommissionPaymentActionRequiredTemplateInput,
+): RenderedEmail {
+  const invoiceUrl = `${ctx.appBaseUrl}/builder/invoices?open=${encodeURIComponent(input.invoiceId)}`;
+  // #714: the amount awaiting confirmation is what we are charging (incl. tax).
+  const commission = formatMoney(input.tax?.totalCents ?? input.commissionCents);
+  const subject = `Your bank needs you to confirm this payment — invoice ${input.invoiceRef}`;
+  const body = `<p>Hi there,</p>
+<p>We tried to charge your card on file for commission invoice <strong>${esc(input.invoiceRef)}</strong> ($${commission} ${esc(input.currency)}). Your bank needs you to confirm this payment before it goes through.</p>
+<p>Your card was not declined. Open the invoice and choose <strong>Confirm payment with your bank</strong> to finish.</p>
+${ctaButton(invoiceUrl, 'Confirm payment')}
+${fallbackLink(invoiceUrl)}`;
+  const text =
+    `Hi there,\n\nWe tried to charge your card on file for commission invoice ${input.invoiceRef} ` +
+    `($${commission} ${input.currency}). Your bank needs you to confirm this payment before it goes through.\n\n` +
+    `Your card was not declined. Open the invoice and choose "Confirm payment with your bank" to finish.\n\n` +
+    `Confirm payment: ${invoiceUrl}\n\n— ${ctx.brandName}\nDeterministic cost math · not a contractor quote · cost data currently uncalibrated.`;
+  return { subject, html: layout(ctx, 'Confirm your payment', body), text };
+}
+
 /* ── Issue #530: "Mark won" → admin asked to record the contract ─────────
  *
  * Transactional org notice to a builder admin: a teammate marked a lead

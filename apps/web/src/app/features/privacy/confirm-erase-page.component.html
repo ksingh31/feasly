@@ -1,0 +1,65 @@
+<app-site-nav />
+<main class="privacy-data" id="main-content" tabindex="-1">
+  <div class="card" aria-live="polite">
+    @if (noCredential() || confirm() === 'expired') {
+      <div data-state="expired">
+        <h1>{{ copy.confirmExpiredHeading }}</h1>
+        <p class="body">{{ copy.confirmExpiredBody }}</p>
+        <a class="cta" routerLink="/privacy/my-data">{{ copy.myDataCta }}</a>
+      </div>
+    } @else if (confirm() === 'done') {
+      <div data-state="done">
+        <h1>{{ copy.confirmDoneHeading }}</h1>
+        <p class="body">{{ copy.confirmDoneBody }}</p>
+        <a class="cta" routerLink="/">{{ copy.homeCta }}</a>
+      </div>
+    } @else if (confirm() === 'already-done') {
+      <div data-state="already-done">
+        <h1>{{ copy.confirmAlreadyHeading }}</h1>
+        <p class="body">{{ copy.confirmAlreadyBody }}</p>
+        <a class="cta" routerLink="/">{{ copy.homeCta }}</a>
+      </div>
+    } @else if (confirm() === 'blocked') {
+      <div data-state="blocked">
+        <h1>{{ copy.confirmBlockedHeading }}</h1>
+        <p class="body">{{ copy.confirmBlockedBody }}</p>
+        <a class="cta" routerLink="/">{{ copy.homeCta }}</a>
+      </div>
+    } @else if (confirm() === 'invalid') {
+      <div data-state="invalid">
+        <h1>{{ copy.confirmInvalidHeading }}</h1>
+        <p class="body">{{ copy.confirmInvalidBody }}</p>
+        <a class="cta" routerLink="/privacy/my-data">{{ copy.myDataCta }}</a>
+      </div>
+    } @else if (confirm() === 'rate-limited') {
+      <div data-state="rate-limited">
+        <h1>{{ copy.rateLimitedHeading }}</h1>
+        <p class="body">{{ copy.rateLimitedBody }}</p>
+        <button type="button" class="cta" (click)="run()">{{ copy.retryLabel }}</button>
+      </div>
+    } @else if (confirm() === 'error') {
+      <div data-state="error">
+        <h1>{{ copy.errorHeading }}</h1>
+        <p class="body">{{ copy.errorBody }}</p>
+        <button type="button" class="cta" (click)="run()">{{ copy.retryLabel }}</button>
+      </div>
+    } @else if (confirm() === 'working') {
+      <div data-state="working">
+        <h1>{{ copy.confirmPromptHeading }}</h1>
+        <p class="status">{{ copy.confirmWorking }}</p>
+      </div>
+    } @else {
+      <div data-state="idle">
+        <h1>{{ copy.confirmPromptHeading }}</h1>
+        <p class="body">{{ copy.confirmPromptBody }}</p>
+        <div class="actions">
+          <button type="button" class="cta danger" data-action="confirm" (click)="run()">
+            {{ copy.confirmCta }}
+          </button>
+          <a class="text-button" routerLink="/privacy/my-data">{{ copy.cancelCta }}</a>
+        </div>
+      </div>
+    }
+  </div>
+</main>
+<app-site-footer />
