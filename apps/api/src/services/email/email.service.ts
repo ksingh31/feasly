@@ -59,6 +59,11 @@ export interface MagicLinkEmailInput {
   readonly address?: string;
   /** #703 (consumer only): the issued token's `expires_at`. */
   readonly expiresOn?: Date;
+  /**
+   * #823 (consumer only): the estimate's project type — the typical
+   * new-build timeline renders only for `'new_build'`.
+   */
+  readonly projectType?: string;
 }
 
 export interface PartnerShareEmailInput {

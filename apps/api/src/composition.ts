@@ -1298,6 +1298,7 @@ export function createComposition(
   const magicLinkService: MagicLinkService = createMagicLinkService({
     magicLinks: magicLinkStore,
     leads: leadStore,
+    estimates: estimateStore,
     email: emailService,
     unsubscribe: unsubscribeService,
     appBaseUrl: config.email.appBaseUrl,

@@ -294,7 +294,8 @@ describe('report email (#703)', () => {
 
 describe('report email: typical build timeline (#823)', () => {
   const CALGARY = BUILD_TIMELINES['calgary']!;
-  const withTimeline = renderMagicLinkEmail({ ...CTX, buildTimeline: CALGARY }, REPORT_INPUT);
+  const NEW_BUILD_INPUT = { ...REPORT_INPUT, projectType: 'new_build' };
+  const withTimeline = renderMagicLinkEmail({ ...CTX, buildTimeline: CALGARY }, NEW_BUILD_INPUT);
 
   it('carries the 12–16 month total, every phase and the pre-sale note (html + text)', () => {
     for (const body of [withTimeline.html, withTimeline.text]) {
@@ -318,19 +319,36 @@ describe('report email: typical build timeline (#823)', () => {
       totalMaxMonths: 11,
       phases: [{ id: 'x', label: 'Permit review', min: 3, max: 5, unit: 'weeks' }],
     };
-    const r = renderMagicLinkEmail({ ...CTX, buildTimeline: custom }, REPORT_INPUT);
+    const r = renderMagicLinkEmail({ ...CTX, buildTimeline: custom }, NEW_BUILD_INPUT);
     expect(r.text).toContain('Typical total: 9–11 months');
     expect(r.text).toContain('- Permit review: 3–5 weeks');
     expect(r.text).not.toContain('Development permit');
   });
 
   it('omits the block when no timeline is configured, and on team sign-in emails', () => {
-    expect(renderMagicLinkEmail(CTX, REPORT_INPUT).text).not.toContain('Typical total');
+    expect(renderMagicLinkEmail(CTX, NEW_BUILD_INPUT).text).not.toContain('Typical total');
     const builder = renderMagicLinkEmail(
       { ...CTX, buildTimeline: CALGARY },
       { magicLinkUrl: MAGIC_URL, expiresInDays: 7, audience: 'builder' },
     );
     expect(builder.text).not.toContain('Typical total');
+  });
+
+  it('omits the block for renovation reports and when the project type is unknown', () => {
+    for (const input of [
+      { ...REPORT_INPUT, projectType: 'renovation' },
+      { ...REPORT_INPUT, projectType: 'comparison' },
+      REPORT_INPUT,
+    ]) {
+      const r = renderMagicLinkEmail({ ...CTX, buildTimeline: CALGARY }, input);
+      for (const body of [r.html, r.text]) {
+        expect(body).not.toContain('Typical new-build timeline');
+        expect(body).not.toContain('Typical total');
+        expect(body).not.toContain('Demolition');
+      }
+      // The rest of the report email is unchanged.
+      expect(r.text).toContain('View my estimate');
+    }
   });
 
   it('stays clean: no dollar figures, no banned phrases', () => {
@@ -359,8 +377,14 @@ describe('report email: typical build timeline (#823)', () => {
       opsInbox: 'ops@feasly.example',
       buildTimeline: CALGARY,
     });
-    await service.sendMagicLink({ to: 'a@b.example', ...REPORT_INPUT });
+    await service.sendMagicLink({ to: 'a@b.example', ...NEW_BUILD_INPUT });
     expect(provider.sent[0]?.text).toContain('Typical total: 12–16 months');
+    await service.sendMagicLink({
+      to: 'a@b.example',
+      ...REPORT_INPUT,
+      projectType: 'renovation',
+    });
+    expect(provider.sent[1]?.text).not.toContain('Typical total');
   });
 });
 

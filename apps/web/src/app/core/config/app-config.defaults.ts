@@ -1276,13 +1276,6 @@ export const DEFAULT_APP_CONFIG: AppConfig = {
         },
       },
     },
-    // #878 (owner decision 2026-11-15, option (a)): partner-model disclosure.
-    // Status: draft-pending-lawyer — mirrored in docs/legal/approved-copy.md
-    // ("Builder-partner disclosure"); the FAQ answer "How do builder
-    // introductions work?" carries the same wording. Neutral-matching claims
-    // ("no paid placement", "project fit", …) are banned by
-    // tools/check-banned-phrases.mjs. Embedded estimators don't render this
-    // explainer: on a builder's own site the lead goes to that builder.
     buildTimeline: {
       title: 'Typical build timeline',
       intro: 'How long a custom infill home typically takes, from first drawings to moving in.',
@@ -1293,6 +1286,13 @@ export const DEFAULT_APP_CONFIG: AppConfig = {
         'Some phases overlap. Your builder can confirm a schedule once plans are drawn and permits are filed.',
       presaleNote: 'Buying a pre-sale or move-in-ready home follows a different timeline.',
     },
+    // #878 (owner decision 2026-11-15, option (a)): partner-model disclosure.
+    // Status: draft-pending-lawyer — mirrored in docs/legal/approved-copy.md
+    // ("Builder-partner disclosure"); the FAQ answer "How do builder
+    // introductions work?" carries the same wording. Neutral-matching claims
+    // ("no paid placement", "project fit", …) are banned by
+    // tools/check-banned-phrases.mjs. Embedded estimators don't render this
+    // explainer: on a builder's own site the lead goes to that builder.
     builderMatching: {
       summary: 'What does "builders associated with us" mean?',
       paragraphs: [

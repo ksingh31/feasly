@@ -40,7 +40,8 @@ export interface TemplateContext {
   readonly brandName: string;
   /**
    * #823: typical build timeline for the served city. When present, the
-   * consumer report email carries a compact timeline block.
+   * consumer report email for a NEW-BUILD estimate carries a compact
+   * timeline block (see `MagicLinkTemplateInput.projectType`).
    */
   readonly buildTimeline?: BuildTimeline;
 }
@@ -140,6 +141,13 @@ export interface MagicLinkTemplateInput {
    * (America/Edmonton); falls back to `expiresInDays` when absent.
    */
   readonly expiresOn?: Date;
+  /**
+   * #823 (consumer only): the estimate's project type. The typical
+   * new-build timeline renders only for `'new_build'` — renovation reports
+   * hide the timeline section on the web, so their email must too. Absent
+   * (unknown) → no timeline block.
+   */
+  readonly projectType?: string;
 }
 
 const TRUST_LINE_TEXT =
@@ -214,7 +222,9 @@ function renderConsumerReportEmail(
   const linkRules = `This link works ${until}. You can open it as often as you like, on any device.`;
   const freshLink =
     'After that, open the same link and enter your email address — we will send you a fresh one.';
-  const timeline = renderTimelineBlock(ctx.buildTimeline);
+  const timeline = renderTimelineBlock(
+    input.projectType === 'new_build' ? ctx.buildTimeline : undefined,
+  );
   const body = `<p>${greetingHtml}</p>
 <p>${introHtml}</p>
 <p style="margin:0 0 4px;">Your report includes:</p>

@@ -976,12 +976,6 @@ export interface AppConfig {
     estimateRoundingStep: number;
   };
   /**
-   * Estimator eligibility by city (#685). The early coverage guard
-   * (core/utils/coverage.ts) reads these lists; no district code literal
-   * lives in code. When the zoning catalogue story lands it becomes the
-   * single source and this key goes away.
-   */
-  /**
    * Typical custom-infill build timeline by city (#823, owner decision
    * 2026-11-15: 12–16 months design to completion). Rendered by the shared
    * BuildTimelineComponent on the report and address overview; the API's
@@ -992,6 +986,12 @@ export interface AppConfig {
     defaultCity: string;
     cities: Record<string, BuildTimelineCity>;
   };
+  /**
+   * Estimator eligibility by city (#685). The early coverage guard
+   * (core/utils/coverage.ts) reads these lists; no district code literal
+   * lives in code. When the zoning catalogue story lands it becomes the
+   * single source and this key goes away.
+   */
   coverage: {
     /**
      * Land-use districts where a single-detached dwelling is a listed use,
@@ -1929,13 +1929,6 @@ export interface AppConfig {
         groups: Record<'established' | 'newer', { heading: string; body: string }>;
       };
     };
-    /**
-     * Builder-matching explainer (UX audit 2026-09-28). The phrases
-     * "builders associated with us" / "matched builder" appear on the gate,
-     * report, and FAQ — this honest, buyer-grade explainer defines them in
-     * one place so every surface links the same definition. No marketplace
-     * promises: Feasly is an independent estimator.
-     */
     /** Typical build timeline section (#823). "Typical", never a promise. */
     buildTimeline: {
       title: string;
@@ -1950,6 +1943,13 @@ export interface AppConfig {
       /** Exact owner copy: pre-sale / move-in-ready homes differ. */
       presaleNote: string;
     };
+    /**
+     * Builder-matching explainer (UX audit 2026-09-28). The phrases
+     * "builders associated with us" / "matched builder" appear on the gate,
+     * report, and FAQ — this honest, buyer-grade explainer defines them in
+     * one place so every surface links the same definition. No marketplace
+     * promises: Feasly is an independent estimator.
+     */
     builderMatching: {
       /** Expander summary, e.g. `What does "builders associated with us" mean?` */
       summary: string;
