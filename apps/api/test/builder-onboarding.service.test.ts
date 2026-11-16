@@ -112,7 +112,7 @@ describe('builder onboarding service (#722)', () => {
     }
   });
 
-  it('payment: card on file, or a chosen manual method; false under flat', async () => {
+  it('payment: card on file, or a chosen manual method; satisfied under flat (nothing to set up)', async () => {
     expect(
       (await make({ hasCard: true }).service.getStatus(CTX, BUILDER_ID)).paymentMethodSet,
     ).toBe(true);
@@ -120,7 +120,7 @@ describe('builder onboarding service (#722)', () => {
     expect((await manual.service.getStatus(CTX, BUILDER_ID)).paymentMethodSet).toBe(true);
     expect(manual.getCard).not.toHaveBeenCalled();
     const flat = make({ model: 'flat', hasCard: true });
-    expect((await flat.service.getStatus(CTX, BUILDER_ID)).paymentMethodSet).toBe(false);
+    expect((await flat.service.getStatus(CTX, BUILDER_ID)).paymentMethodSet).toBe(true);
   });
 
   it('a Stripe failure shows the payment step as not done instead of failing', async () => {

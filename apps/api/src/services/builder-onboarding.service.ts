@@ -7,7 +7,7 @@
  *   contact email and contact phone (logo/colour stay optional).
  * - `paymentMethodSet` — commission model: a card on file in Stripe, or a
  *   deliberately chosen manual default method (cheque / e-transfer / bank
- *   draft). False under any other billing model.
+ *   draft). Always true under any other billing model (nothing to set up).
  * - `embedVerified` — proxy until #724 adds install verification: a
  *   non-sandbox lead captured through the embed for this builder, or an
  *   `embed_loaded` analytics event with the builder's tenant key.
@@ -61,7 +61,9 @@ export function createBuilderOnboardingService(
   } = deps;
 
   async function paymentMethodSet(tenantKey: string): Promise<boolean> {
-    if (billing.model !== 'commission') return false;
+    // No commission billing → there is no payment method to set up, so the
+    // step is satisfied (otherwise the checklist could never complete).
+    if (billing.model !== 'commission') return true;
     const defaultMethod = await commission.getDefaultPaymentMethod(tenantKey);
     if (defaultMethod !== 'card') return true;
     try {
