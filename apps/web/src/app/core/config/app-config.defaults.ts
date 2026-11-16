@@ -47,6 +47,10 @@ export const DEFAULT_APP_CONFIG: AppConfig = {
     stripePublishableKey: '',
     questionInvoiceHref: '',
     chargeDelayDays: 7,
+    // #867: re-fetch an invoice every 3s, up to 10 times, while the webhook
+    // settles a bank confirmation.
+    confirmPollIntervalMs: 3000,
+    confirmPollAttempts: 10,
   },
   propertyData: {
     source: 'backend',
