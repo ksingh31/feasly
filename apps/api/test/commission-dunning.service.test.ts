@@ -138,6 +138,7 @@ function fakeStripe(): StripeService & {
       status: 'requires_action',
       clientSecret: `${id}_secret`,
     }),
+    findRefundByMetadata: async () => null,
     refundPaymentIntent: async () => ({ id: 're_test', status: 'succeeded' }),
     verifyWebhook: () => {
       throw new Error('not used');

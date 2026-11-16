@@ -77,6 +77,7 @@ function fakeStripe(world: World, configured = true): StripeService {
     getPaymentIntentConfirmation: vi.fn(),
     createSubscription: vi.fn(),
     cancelSubscription: vi.fn(),
+    findRefundByMetadata: vi.fn(),
     refundPaymentIntent: vi.fn(),
     retrievePaymentIntent: vi.fn(),
     verifyWebhook: vi.fn(),

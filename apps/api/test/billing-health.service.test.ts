@@ -76,6 +76,7 @@ const fakeStripe: StripeService = {
   }),
   retrievePaymentIntent: async (id: string) => ({ id, status: 'processing' }),
   getPaymentIntentConfirmation: async (id: string) => ({ id, status: 'requires_action', clientSecret: `${id}_secret_test` }),
+  findRefundByMetadata: async () => null,
   refundPaymentIntent: async (paymentIntentId) => ({
     id: `re_test_${paymentIntentId}`,
     status: 'succeeded',

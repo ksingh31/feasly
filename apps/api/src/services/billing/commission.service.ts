@@ -88,9 +88,11 @@ import type { OffSessionChargeResult, StripeService } from './stripe.service';
 import {
   CHARGE_ATTEMPT_METADATA_KEY,
   INVOICE_METADATA_KEY,
+  REFUND_METADATA_KEY,
+  type ProviderRefund,
 } from './payment-provider';
 import type { CommissionEmailTax, EmailService } from '../email/email.service';
-import { ensureOpsAlertDelivered } from '../ops-alerts.service';
+import { ensureOpsAlertDelivered, type OpsAlertsService } from '../ops-alerts.service';
 import type { AdminAuditStore } from '../admin-audit.store';
 import type {
   InvoiceRefundMethod,
@@ -668,8 +670,10 @@ export interface CommissionService {
    *   third refund after the invoice was fully refunded).
    * - Idempotent on `idempotencyKey`: a repeat returns the first result
    *   (`replayed: true`) and never creates a second refund. A refund left
-   *   'pending' by a transient provider error is resumed with the same
-   *   provider idempotency key.
+   *   'pending' by a transient provider error is resumed: the provider is
+   *   first searched for a refund tagged with the row's id (#892 — the
+   *   idempotency key may have expired), and only when none exists is it
+   *   created, with the same provider idempotency key.
    *
    * The invoice stays 'paid'; `refundState` shows partially_refunded /
    * refunded. Writes billing_events + admin_audit_log.
@@ -711,6 +715,31 @@ export interface CommissionService {
     invoiceId: string,
     input: ReverseManualPaymentInput,
   ): Promise<ReverseManualPaymentResult>;
+  /**
+   * #892: sweep card refunds stuck 'pending' longer than
+   * `billing.pendingRefundAlertHours` (run by the daily invoice-reviewer
+   * timer). Each row is looked up on the provider by its
+   * `feasly_refund_id` metadata: a refund found there is adopted (succeeded
+   * / failed, same audit trail as an admin retry); a row with no provider
+   * refund stays pending — the sweep never moves money unattended — and an
+   * ops alert is raised so an admin retries it (the retry re-checks the
+   * provider before creating anything).
+   */
+  sweepStalePendingRefunds(at?: Date): Promise<PendingRefundSweepResult>;
+}
+
+/** #892: aggregate outcome of one stale-pending-refund sweep. */
+export interface PendingRefundSweepResult {
+  /** Stale pending card refunds examined. */
+  readonly checked: number;
+  /** Found on the provider and recorded as succeeded. */
+  readonly adopted: number;
+  /** Found on the provider as failed/canceled — claim released. */
+  readonly failed: number;
+  /** Still pending: no provider refund found (an admin must retry). */
+  readonly unresolved: number;
+  /** Per-row errors (lookup failures) — the row stays pending. */
+  readonly errors: readonly { refundId: string; message: string }[];
 }
 
 /** #873: what reopenAfterLostChargeback needs to key and audit the move. */
@@ -751,6 +780,11 @@ export interface CommissionServiceDeps {
    * callers and tests need not wire it.
    */
   readonly adminAudit?: Pick<AdminAuditStore, 'log'>;
+  /**
+   * #892: ops alert when the pending-refund sweep finds rows it cannot
+   * resolve. Optional so engine-only callers and tests need not wire it.
+   */
+  readonly opsAlerts?: Pick<OpsAlertsService, 'notifyFailure' | 'notifyRecovered'>;
 }
 
 const TERMINAL_STATUSES: ReadonlySet<CommissionInvoiceStatus> = new Set([
@@ -923,6 +957,15 @@ function isDefinitiveRefundRejection(error: unknown): boolean {
     statusCode !== 429
   );
 }
+
+/** #892: provider refund statuses that mean no money went back. */
+const FAILED_PROVIDER_REFUND_STATUSES: ReadonlySet<string> = new Set([
+  'failed',
+  'canceled',
+]);
+
+/** #892: default age (hours) after which a pending card refund is swept. */
+const DEFAULT_PENDING_REFUND_ALERT_HOURS = 24;
 
 /** Trimmed optional free text, or null when blank. */
 function optionalText(value: string | undefined): string | null {
@@ -1776,64 +1819,73 @@ export function createCommissionService(
   }
 
   /**
-   * #715: finish a claimed card refund on the provider. Success →
-   * 'succeeded' + the provider refund id. A definitive rejection → 'failed'
-   * and the claimed amount is released on the invoice. Any other error
-   * leaves the refund 'pending' (claim held) so a retry with the same key
-   * resumes it with the same provider idempotency key. `completed` is true
-   * only for the call whose conditional UPDATE moved the row pending →
-   * succeeded, so exactly one caller writes the refund audit trail.
+   * #715: mark a claimed card refund 'failed' and release its claimed
+   * amount on the invoice. Conditional on 'pending', so only one caller
+   * releases the claim and writes `invoice.refund_failed`.
    */
-  async function completeCardRefund(
+  async function failCardRefund(
     refund: typeof billingRefunds.$inferSelect,
-    paymentIntentId: string,
+    failureReason: string,
+  ): Promise<typeof billingRefunds.$inferSelect | undefined> {
+    const [failed] = await db
+      .update(billingRefunds)
+      .set({ status: 'failed', updatedAt: now() })
+      .where(
+        and(
+          eq(billingRefunds.id, refund.id),
+          eq(billingRefunds.status, 'pending'),
+        ),
+      )
+      .returning();
+    if (failed !== undefined) {
+      await db
+        .update(commissionInvoices)
+        .set({
+          refundedCents: sql`${commissionInvoices.refundedCents} - ${refund.amountCents}`,
+          updatedAt: now(),
+        })
+        .where(eq(commissionInvoices.id, refund.invoiceId));
+      await audit.append({
+        tenantKey: refund.tenantKey,
+        eventType: 'invoice.refund_failed',
+        entityType: 'commission_invoice',
+        entityId: refund.invoiceId,
+        payload: {
+          refundId: refund.id,
+          amountCents: refund.amountCents,
+          failureReason,
+        },
+      });
+    }
+    return failed;
+  }
+
+  /**
+   * #715/#892: record a provider refund against its pending row. A provider
+   * status of failed/canceled fails the row (claim released) and throws 409;
+   * anything else stores it as succeeded + the provider refund id.
+   * `completed` is true only for the call whose conditional UPDATE moved
+   * the row pending → succeeded, so exactly one caller writes the audit
+   * trail.
+   */
+  async function settleCardRefund(
+    refund: typeof billingRefunds.$inferSelect,
+    providerRefund: ProviderRefund,
   ): Promise<{
     row: typeof billingRefunds.$inferSelect;
     completed: boolean;
     providerStatus?: string;
   }> {
-    let providerRefund: { id: string; status: string };
-    try {
-      providerRefund = await stripe.refundPaymentIntent(
-        paymentIntentId,
-        `feasly:commission_invoices:${refund.invoiceId}:refund:${refund.idempotencyKey}`,
-        refund.amountCents,
+    if (FAILED_PROVIDER_REFUND_STATUSES.has(providerRefund.status)) {
+      await failCardRefund(
+        refund,
+        `Provider refund ${providerRefund.id} is '${providerRefund.status}'`,
       );
-    } catch (error) {
-      if (isDefinitiveRefundRejection(error)) {
-        const [failed] = await db
-          .update(billingRefunds)
-          .set({ status: 'failed', updatedAt: now() })
-          .where(
-            and(
-              eq(billingRefunds.id, refund.id),
-              eq(billingRefunds.status, 'pending'),
-            ),
-          )
-          .returning();
-        if (failed !== undefined) {
-          await db
-            .update(commissionInvoices)
-            .set({
-              refundedCents: sql`${commissionInvoices.refundedCents} - ${refund.amountCents}`,
-              updatedAt: now(),
-            })
-            .where(eq(commissionInvoices.id, refund.invoiceId));
-          await audit.append({
-            tenantKey: refund.tenantKey,
-            eventType: 'invoice.refund_failed',
-            entityType: 'commission_invoice',
-            entityId: refund.invoiceId,
-            payload: {
-              refundId: refund.id,
-              amountCents: refund.amountCents,
-              failureReason:
-                error instanceof Error ? error.message : String(error),
-            },
-          });
-        }
-      }
-      throw error;
+      throw new HttpError(
+        409,
+        ErrorCodes.CONFLICT,
+        `The payment provider reports this refund as '${providerRefund.status}' — check the invoice and retry with a new key.`,
+      );
     }
     const [succeeded] = await db
       .update(billingRefunds)
@@ -1868,6 +1920,59 @@ export function createCommissionService(
         })) ?? refund,
       completed: false,
     };
+  }
+
+  /**
+   * #715: finish a claimed card refund on the provider. Success →
+   * 'succeeded' + the provider refund id. A definitive rejection → 'failed'
+   * and the claimed amount is released on the invoice. Any other error
+   * leaves the refund 'pending' (claim held) so a retry with the same key
+   * resumes it.
+   *
+   * #892: the provider forgets idempotency keys (Stripe: ~24h), so a resume
+   * (`resume: true`) first looks the refund up by its `feasly_refund_id`
+   * metadata and adopts it when the first call's response was lost — it
+   * never creates a second refund. Every refund is created with that
+   * metadata.
+   */
+  async function completeCardRefund(
+    refund: typeof billingRefunds.$inferSelect,
+    paymentIntentId: string,
+    resume: boolean,
+  ): Promise<{
+    row: typeof billingRefunds.$inferSelect;
+    completed: boolean;
+    providerStatus?: string;
+  }> {
+    if (resume) {
+      // A lookup error propagates and leaves the row pending (claim held).
+      const existing = await stripe.findRefundByMetadata(
+        paymentIntentId,
+        refund.id,
+      );
+      if (existing !== null) return settleCardRefund(refund, existing);
+    }
+    let providerRefund: ProviderRefund;
+    try {
+      providerRefund = await stripe.refundPaymentIntent(
+        paymentIntentId,
+        `feasly:commission_invoices:${refund.invoiceId}:refund:${refund.idempotencyKey}`,
+        refund.amountCents,
+        {
+          [REFUND_METADATA_KEY]: refund.id,
+          feasly_invoice_id: refund.invoiceId,
+        },
+      );
+    } catch (error) {
+      if (isDefinitiveRefundRejection(error)) {
+        await failCardRefund(
+          refund,
+          error instanceof Error ? error.message : String(error),
+        );
+      }
+      throw error;
+    }
+    return settleCardRefund(refund, providerRefund);
   }
 
   /**
@@ -1951,6 +2056,7 @@ export function createCommissionService(
       const result = await completeCardRefund(
         existing,
         invoiceRow.stripePaymentIntentId,
+        true,
       );
       refundRow = result.row;
       // This retry finished the provider refund — it owns the audit trail.
@@ -3384,6 +3490,7 @@ export function createCommissionService(
         const result = await completeCardRefund(
           refundRow,
           row.stripePaymentIntentId as string,
+          false,
         );
         refundRow = result.row;
         providerStatus = result.providerStatus;
@@ -3650,6 +3757,82 @@ export function createCommissionService(
         `invoice=${invoice.id} method=${reversedPaymentMethod}`,
       );
       return { invoice, reversedPaymentMethod, reversedReference };
+    },
+
+    async sweepStalePendingRefunds(at?: Date): Promise<PendingRefundSweepResult> {
+      const atTime = at ?? now();
+      const thresholdHours =
+        billing.pendingRefundAlertHours ?? DEFAULT_PENDING_REFUND_ALERT_HOURS;
+      const cutoff = new Date(atTime.getTime() - thresholdHours * 3_600_000);
+      const stale = await db.query.billingRefunds.findMany({
+        where: and(
+          eq(billingRefunds.status, 'pending'),
+          eq(billingRefunds.method, 'stripe'),
+          lte(billingRefunds.createdAt, cutoff),
+        ),
+        orderBy: asc(billingRefunds.createdAt),
+      });
+      let adopted = 0;
+      let failed = 0;
+      let unresolved = 0;
+      let oldestUnresolved: Date | null = null;
+      const errors: { refundId: string; message: string }[] = [];
+      const markUnresolved = (row: typeof billingRefunds.$inferSelect): void => {
+        unresolved += 1;
+        if (oldestUnresolved === null) oldestUnresolved = row.createdAt;
+      };
+      for (const row of stale) {
+        try {
+          const invoice = await requireInvoice(row.invoiceId);
+          if (!invoice.stripePaymentIntentId) {
+            markUnresolved(row);
+            continue;
+          }
+          const found = await stripe.findRefundByMetadata(
+            invoice.stripePaymentIntentId,
+            row.id,
+          );
+          if (found === null) {
+            // No provider refund carries this row's id: leave it pending.
+            // An admin retry with the same key re-checks, then creates.
+            markUnresolved(row);
+            continue;
+          }
+          if (FAILED_PROVIDER_REFUND_STATUSES.has(found.status)) {
+            await failCardRefund(
+              row,
+              `Provider refund ${found.id} is '${found.status}'`,
+            );
+            failed += 1;
+            continue;
+          }
+          const result = await settleCardRefund(row, found);
+          if (result.completed) {
+            await recordRefunded(
+              result.row,
+              row.actorEmail,
+              true,
+              result.providerStatus,
+            );
+          }
+          adopted += 1;
+        } catch (error) {
+          markUnresolved(row);
+          errors.push({
+            refundId: row.id,
+            message: error instanceof Error ? error.message : String(error),
+          });
+        }
+      }
+      if (unresolved > 0 && oldestUnresolved !== null) {
+        await deps.opsAlerts?.notifyFailure('billing_refund_pending_stale', {
+          consecutiveFailures: unresolved,
+          firstFailureAt: oldestUnresolved,
+        });
+      } else {
+        await deps.opsAlerts?.notifyRecovered('billing_refund_pending_stale');
+      }
+      return { checked: stale.length, adopted, failed, unresolved, errors };
     },
   };
 }

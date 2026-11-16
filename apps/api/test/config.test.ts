@@ -212,6 +212,7 @@ describe('loadConfig', () => {
         isProduction: false,
         maxChargeRetries: 3,
         settlementThresholdHours: 24,
+        pendingRefundAlertHours: 24,
         dunningGraceDays: 7,
         cardExpiryWarningDays: 30,
         tax: {
@@ -520,6 +521,7 @@ describe('loadConfig', () => {
       isProduction: false,
       maxChargeRetries: 3,
       settlementThresholdHours: 24,
+      pendingRefundAlertHours: 24,
       dunningGraceDays: 7,
       cardExpiryWarningDays: 30,
       tax: {
@@ -574,6 +576,16 @@ describe('loadConfig', () => {
     expect(() =>
       loadConfig({ ...VALID_ENV, BILLING_SETTLEMENT_THRESHOLD_HOURS: '0' }),
     ).toThrow(/BILLING_SETTLEMENT_THRESHOLD_HOURS/);
+  });
+
+  it('reads BILLING_PENDING_REFUND_ALERT_HOURS (#892) and rejects non-positive values', () => {
+    expect(
+      loadConfig({ ...VALID_ENV, BILLING_PENDING_REFUND_ALERT_HOURS: '6' }).billing
+        .pendingRefundAlertHours,
+    ).toBe(6);
+    expect(() =>
+      loadConfig({ ...VALID_ENV, BILLING_PENDING_REFUND_ALERT_HOURS: '0' }),
+    ).toThrow(/BILLING_PENDING_REFUND_ALERT_HOURS/);
   });
 
   it('#725: BUILDER_DIGEST_TIMEZONE must be a real IANA zone', () => {

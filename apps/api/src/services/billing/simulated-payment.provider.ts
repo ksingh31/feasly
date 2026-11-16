@@ -28,6 +28,7 @@ import {
 import { ErrorCodes, HttpError } from '../../middleware/errors';
 import {
   normalizeStripeEvent,
+  REFUND_METADATA_KEY,
   type CardSummary,
   type NormalizedStripeEvent,
   type OffSessionChargeResult,
@@ -587,7 +588,23 @@ export function createSimulatedPaymentProvider(
       };
     },
 
-    async refundPaymentIntent(paymentIntentId, idempotencyKey, amountCents) {
+    async findRefundByMetadata(paymentIntentId, feaslyRefundId) {
+      const pi = await requireObject(paymentIntentId, 'payment_intent');
+      if (pi.customerId === null) return null;
+      const refunds = await store.listByCustomer(pi.customerId, 'refund');
+      const match = refunds.find(
+        (r) =>
+          r.data['payment_intent'] === paymentIntentId &&
+          (r.data['metadata'] as Record<string, unknown> | undefined)?.[
+            REFUND_METADATA_KEY
+          ] === feaslyRefundId,
+      );
+      return match
+        ? { id: match.id, status: str(match.data['status']) ?? 'unknown' }
+        : null;
+    },
+
+    async refundPaymentIntent(paymentIntentId, idempotencyKey, amountCents, metadata) {
       const id = keyedId('re', idempotencyKey);
       const existing = await store.get(id);
       if (existing) {
@@ -623,6 +640,7 @@ export function createSimulatedPaymentProvider(
         charge: chargeId,
         payment_intent: paymentIntentId,
         status: 'succeeded',
+        metadata: { ...(metadata ?? {}) },
       });
       await emit('charge.refunded', {
         id: chargeId,

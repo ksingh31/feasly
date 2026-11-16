@@ -11,6 +11,7 @@ const mocks = vi.hoisted(() => ({
   paymentIntentsCreate: vi.fn(),
   paymentIntentsRetrieve: vi.fn(),
   refundsCreate: vi.fn(),
+  refundsList: vi.fn(),
   constructEvent: vi.fn(),
   customersCreate: vi.fn(),
   customersRetrieve: vi.fn(),
@@ -21,7 +22,7 @@ vi.mock('stripe', () => {
   class FakeStripe {
     paymentMethods = { list: mocks.paymentMethodsList, detach: mocks.paymentMethodsDetach };
     paymentIntents = { create: mocks.paymentIntentsCreate, retrieve: mocks.paymentIntentsRetrieve };
-    refunds = { create: mocks.refundsCreate };
+    refunds = { create: mocks.refundsCreate, list: mocks.refundsList };
     webhooks = { constructEvent: mocks.constructEvent };
     customers = {
       create: mocks.customersCreate,
@@ -240,6 +241,32 @@ describe('StripePaymentProvider (createStripeSdkClient)', () => {
       { payment_intent: 'pi_1', amount: 250 },
       { idempotencyKey: 'k2' },
     );
+  });
+
+  it('#892: stores refund metadata on the Stripe refund', async () => {
+    mocks.refundsCreate.mockResolvedValue({ id: 're_1', status: 'pending' });
+    const client = createStripeSdkClient('sk_test_fake');
+    await expect(
+      client.refundPaymentIntent('pi_1', 'k1', 250, { feasly_refund_id: 'row-1', feasly_invoice_id: 'inv-1' }),
+    ).resolves.toEqual({ id: 're_1', status: 'pending' });
+    expect(mocks.refundsCreate).toHaveBeenCalledWith(
+      { payment_intent: 'pi_1', amount: 250, metadata: { feasly_refund_id: 'row-1', feasly_invoice_id: 'inv-1' } },
+      { idempotencyKey: 'k1' },
+    );
+  });
+
+  it('#892: finds a refund on the PaymentIntent by its feasly_refund_id metadata', async () => {
+    // The SDK list is async-iterable (auto-pagination).
+    async function* pages() {
+      yield { id: 're_other', status: 'succeeded', metadata: {} };
+      yield { id: 're_x', status: 'succeeded', metadata: { feasly_refund_id: 'row-2' } };
+      yield { id: 're_match', status: 'pending', metadata: { feasly_refund_id: 'row-1' } };
+    }
+    mocks.refundsList.mockImplementation(() => pages());
+    const client = createStripeSdkClient('sk_test_fake');
+    await expect(client.findRefundByMetadata('pi_1', 'row-1')).resolves.toEqual({ id: 're_match', status: 'pending' });
+    expect(mocks.refundsList).toHaveBeenCalledWith({ payment_intent: 'pi_1', limit: 100 });
+    await expect(client.findRefundByMetadata('pi_1', 'row-missing')).resolves.toBeNull();
   });
 
   it('normalizes verified webhook events with the shared normalizer', () => {

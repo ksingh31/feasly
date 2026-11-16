@@ -24,6 +24,10 @@ import {
 } from '../src/services/billing/attribution.service';
 import type { StripeService } from '../src/services/billing/stripe.service';
 import type { EmailService } from '../src/services/email/email.service';
+import type {
+  OpsAlertFailureContext,
+  OpsAlertType,
+} from '../src/services/ops-alerts.service';
 import {
   attributionEvents,
   builders,
@@ -60,18 +64,28 @@ interface ProviderRefund {
   readonly id: string;
   readonly paymentIntentId: string;
   readonly amountCents: number | undefined;
+  readonly metadata: Readonly<Record<string, string>>;
+  status: string;
 }
 
 /**
  * Stripe-like fake: refunds are keyed by idempotency key, exactly like
  * Stripe — a repeated key returns the first refund. `failNextRefund`
- * injects one provider error.
+ * injects one provider error. #892: `loseNextResponse` creates the refund
+ * but throws (the response was lost on the wire); `forgetIdempotencyKeys`
+ * simulates Stripe dropping keys after ~24h — the refunds themselves stay
+ * and `findRefundByMetadata` lists them like `refunds.list`.
  */
 function fakeStripe() {
   let pi = 0;
   const refunds = new Map<string, ProviderRefund>();
-  const refundCalls: { idempotencyKey: string; amountCents?: number }[] = [];
+  /** Every refund ever created — survives idempotency-key expiry. */
+  const allRefunds: ProviderRefund[] = [];
+  const refundCalls: { idempotencyKey: string; amountCents?: number; metadata?: Record<string, string> }[] = [];
+  const lookupCalls: { paymentIntentId: string; feaslyRefundId: string }[] = [];
   let failNextRefund: unknown = null;
+  let loseNextResponse = false;
+  let failNextLookup: unknown = null;
   const service: StripeService = {
     isConfigured: true,
     testMode: true,
@@ -91,22 +105,41 @@ function fakeStripe() {
     createSubscription: async () => ({ id: 'sub_1', status: 'active' }),
     cancelSubscription: async (id) => ({ id }),
     retrievePaymentIntent: async (id) => ({ id, status: 'processing' }),
-    refundPaymentIntent: async (paymentIntentId, idempotencyKey, amountCents) => {
-      refundCalls.push({ idempotencyKey, amountCents });
+    refundPaymentIntent: async (paymentIntentId, idempotencyKey, amountCents, metadata) => {
+      refundCalls.push({ idempotencyKey, amountCents, ...(metadata ? { metadata: { ...metadata } } : {}) });
       if (failNextRefund !== null) {
         const error = failNextRefund;
         failNextRefund = null;
         throw error;
       }
       const existing = refunds.get(idempotencyKey);
-      if (existing) return { id: existing.id, status: 'succeeded' };
-      const refund = {
-        id: `re_${refunds.size + 1}_${randomUUID().slice(0, 6)}`,
+      if (existing) return { id: existing.id, status: existing.status };
+      const refund: ProviderRefund = {
+        id: `re_${allRefunds.length + 1}_${randomUUID().slice(0, 6)}`,
         paymentIntentId,
         amountCents,
+        metadata: { ...(metadata ?? {}) },
+        status: 'succeeded',
       };
       refunds.set(idempotencyKey, refund);
+      allRefunds.push(refund);
+      if (loseNextResponse) {
+        loseNextResponse = false;
+        throw new Error('socket hang up');
+      }
       return { id: refund.id, status: 'succeeded' };
+    },
+    findRefundByMetadata: async (paymentIntentId, feaslyRefundId) => {
+      lookupCalls.push({ paymentIntentId, feaslyRefundId });
+      if (failNextLookup !== null) {
+        const error = failNextLookup;
+        failNextLookup = null;
+        throw error;
+      }
+      const match = allRefunds.find(
+        (r) => r.paymentIntentId === paymentIntentId && r.metadata['feasly_refund_id'] === feaslyRefundId,
+      );
+      return match ? { id: match.id, status: match.status } : null;
     },
     verifyWebhook: () => {
       throw new Error('not used');
@@ -117,9 +150,20 @@ function fakeStripe() {
   };
   return Object.assign(service, {
     refunds,
+    allRefunds,
     refundCalls,
+    lookupCalls,
     failNext(error: unknown) {
       failNextRefund = error;
+    },
+    loseNextResponse() {
+      loseNextResponse = true;
+    },
+    failNextLookup(error: unknown) {
+      failNextLookup = error;
+    },
+    forgetIdempotencyKeys() {
+      refunds.clear();
     },
   });
 }
@@ -150,12 +194,28 @@ function fakeAdminAudit() {
   };
 }
 
+function fakeOpsAlerts() {
+  const calls: { op: 'failure' | 'recovered'; type: string; context?: unknown }[] = [];
+  return {
+    calls,
+    notifyFailure: async (type: OpsAlertType, context: OpsAlertFailureContext) => {
+      calls.push({ op: 'failure', type, context });
+    },
+    notifyRecovered: async (type: OpsAlertType) => {
+      calls.push({ op: 'recovered', type });
+    },
+  };
+}
+
 interface Harness {
   commission: CommissionService;
   attribution: AttributionService;
   stripe: ReturnType<typeof fakeStripe>;
   email: ReturnType<typeof fakeEmail>;
   adminAudit: ReturnType<typeof fakeAdminAudit>;
+  opsAlerts: ReturnType<typeof fakeOpsAlerts>;
+  /** Mutable service clock (defaults to FIXED_NOW). */
+  clock: { now: Date };
 }
 
 describe('admin invoice corrections (#715)', () => {
@@ -172,6 +232,8 @@ describe('admin invoice corrections (#715)', () => {
     const stripe = fakeStripe();
     const email = fakeEmail();
     const adminAudit = fakeAdminAudit();
+    const opsAlerts = fakeOpsAlerts();
+    const clock = { now: new Date(FIXED_NOW) };
     const attribution = createAttributionService({
       db: testDb.db,
       billing: BILLING,
@@ -186,10 +248,11 @@ describe('admin invoice corrections (#715)', () => {
       stripe,
       email,
       opsInbox: 'ops@example.com',
-      now: () => new Date(FIXED_NOW),
+      now: () => new Date(clock.now),
       adminAudit,
+      opsAlerts,
     });
-    return { commission, attribution, stripe, email, adminAudit };
+    return { commission, attribution, stripe, email, adminAudit, opsAlerts, clock };
   }
 
   async function seedBuilder(): Promise<string> {
@@ -572,6 +635,196 @@ describe('admin invoice corrections (#715)', () => {
       await expectHttpError(h.commission.refundInvoice(paid.id, input), 409, /new key/);
       const ok = await h.commission.refundInvoice(paid.id, { ...input, idempotencyKey: key() });
       expect(ok.invoice.refundedCents).toBe(10_000);
+    });
+
+    describe('resume after the provider idempotency key expired (#892)', () => {
+      const refundInput = () => ({
+        amountCents: 10_000,
+        reason: 'billing_error' as const,
+        idempotencyKey: key(),
+        adminEmail: ADMIN,
+      });
+
+      it('tags every card refund with the refund row id as metadata', async () => {
+        const h = harness();
+        const paid = await cardPaidInvoice(h);
+        const result = await h.commission.refundInvoice(paid.id, refundInput());
+        expect(h.stripe.refundCalls).toHaveLength(1);
+        expect(h.stripe.refundCalls[0]?.metadata).toEqual({
+          feasly_refund_id: result.refund.id,
+          feasly_invoice_id: paid.id,
+        });
+        // A first attempt has nothing to look up.
+        expect(h.stripe.lookupCalls).toHaveLength(0);
+      });
+
+      it('a lost response retried after the key expired adopts the existing refund — no second refund', async () => {
+        const h = harness();
+        const paid = await cardPaidInvoice(h);
+        const input = refundInput();
+        h.stripe.loseNextResponse();
+        await expect(h.commission.refundInvoice(paid.id, input)).rejects.toThrow('socket hang up');
+        const pending = await h.commission.getById(paid.id);
+        const refundId = pending.refunds?.[0]?.id as string;
+        expect(pending.refunds?.[0]?.status).toBe('pending');
+        // The provider DID create the refund; then it forgot the key (>24h).
+        expect(h.stripe.allRefunds).toHaveLength(1);
+        h.stripe.forgetIdempotencyKeys();
+
+        const resumed = await h.commission.refundInvoice(paid.id, input);
+        expect(resumed.replayed).toBe(true);
+        expect(resumed.refund.status).toBe('succeeded');
+        expect(resumed.refund.stripeRefundId).toBe(h.stripe.allRefunds[0]?.id);
+        expect(resumed.invoice.refundedCents).toBe(10_000);
+        // Still exactly one provider refund, and no second create call.
+        expect(h.stripe.allRefunds).toHaveLength(1);
+        expect(h.stripe.refundCalls).toHaveLength(1);
+        expect(h.stripe.lookupCalls).toEqual([
+          { paymentIntentId: paid.stripePaymentIntentId, feaslyRefundId: refundId },
+        ]);
+        const refunded = (await events(paid.id)).filter((e) => e.event_type === 'invoice.refunded');
+        expect(refunded).toHaveLength(1);
+        expect(refunded[0]?.payload).toMatchObject({ refundId, resumed: true, adminEmail: ADMIN });
+      });
+
+      it('a resume that finds no provider refund creates it (with the same metadata) — once', async () => {
+        const h = harness();
+        const paid = await cardPaidInvoice(h);
+        const input = refundInput();
+        h.stripe.failNext(new Error('ECONNRESET'));
+        await expect(h.commission.refundInvoice(paid.id, input)).rejects.toThrow('ECONNRESET');
+        expect(h.stripe.allRefunds).toHaveLength(0);
+
+        const resumed = await h.commission.refundInvoice(paid.id, input);
+        expect(resumed.refund.status).toBe('succeeded');
+        expect(h.stripe.lookupCalls).toHaveLength(1);
+        expect(h.stripe.allRefunds).toHaveLength(1);
+        expect(h.stripe.allRefunds[0]?.metadata['feasly_refund_id']).toBe(resumed.refund.id);
+      });
+
+      it('a provider lookup error leaves the refund pending with its claim held', async () => {
+        const h = harness();
+        const paid = await cardPaidInvoice(h);
+        const input = refundInput();
+        h.stripe.failNext(new Error('ECONNRESET'));
+        await expect(h.commission.refundInvoice(paid.id, input)).rejects.toThrow();
+        h.stripe.failNextLookup(new HttpError(404, ErrorCodes.NOT_FOUND, 'lookup failed'));
+        await expect(h.commission.refundInvoice(paid.id, input)).rejects.toThrow('lookup failed');
+        const after = await h.commission.getById(paid.id);
+        expect(after.refunds?.[0]?.status).toBe('pending');
+        expect(after.refundedCents).toBe(10_000);
+        expect(h.stripe.allRefunds).toHaveLength(0);
+      });
+
+      it('an adopted provider refund that failed fails the row and releases the claim (409)', async () => {
+        const h = harness();
+        const paid = await cardPaidInvoice(h);
+        const input = refundInput();
+        h.stripe.loseNextResponse();
+        await expect(h.commission.refundInvoice(paid.id, input)).rejects.toThrow();
+        h.stripe.forgetIdempotencyKeys();
+        (h.stripe.allRefunds[0] as ProviderRefund).status = 'failed';
+
+        await expectHttpError(h.commission.refundInvoice(paid.id, input), 409, /new key/);
+        const after = await h.commission.getById(paid.id);
+        expect(after.refunds?.[0]?.status).toBe('failed');
+        expect(after.refundedCents).toBe(0);
+        expect(h.stripe.refundCalls).toHaveLength(1);
+        expect((await events(paid.id)).map((e) => e.event_type)).toContain('invoice.refund_failed');
+      });
+    });
+
+    describe('stale pending refund sweep (#892)', () => {
+      it('adopts old rows found on the provider, alerts on unresolved ones, skips fresh ones', async () => {
+        const h = harness();
+        // An epoch well before every other test's refunds (FIXED_NOW), so
+        // only this test's rows can be stale at `sweepAt`.
+        const t0 = new Date('2026-06-01T08:00:00.000Z');
+        const sweepAt = new Date(t0.getTime() + 25 * 3_600_000);
+
+        // A: provider created it, response lost — stale.
+        const paidA = await cardPaidInvoice(h);
+        h.clock.now = t0;
+        h.stripe.loseNextResponse();
+        await expect(h.commission.refundInvoice(paidA.id, { amountCents: 10_000, reason: 'billing_error', idempotencyKey: key(), adminEmail: ADMIN })).rejects.toThrow();
+        // B: the call never reached the provider — stale, nothing to adopt.
+        h.clock.now = new Date(FIXED_NOW);
+        const paidB = await cardPaidInvoice(h);
+        h.clock.now = t0;
+        const inputB = { amountCents: 20_000, reason: 'goodwill' as const, idempotencyKey: key(), adminEmail: ADMIN };
+        h.stripe.failNext(new Error('ECONNRESET'));
+        await expect(h.commission.refundInvoice(paidB.id, inputB)).rejects.toThrow();
+        // C: response lost 23h after t0 — only 2h old at sweepAt, so fresh.
+        h.clock.now = new Date(FIXED_NOW);
+        const paidC = await cardPaidInvoice(h);
+        h.clock.now = new Date(t0.getTime() + 23 * 3_600_000);
+        h.stripe.loseNextResponse();
+        await expect(h.commission.refundInvoice(paidC.id, { amountCents: 5_000, reason: 'billing_error', idempotencyKey: key(), adminEmail: ADMIN })).rejects.toThrow();
+        h.stripe.forgetIdempotencyKeys();
+        h.clock.now = sweepAt;
+        const createsBefore = h.stripe.refundCalls.length;
+
+        const result = await h.commission.sweepStalePendingRefunds(sweepAt);
+        expect(result).toEqual({ checked: 2, adopted: 1, failed: 0, unresolved: 1, errors: [] });
+        // The sweep never creates a refund.
+        expect(h.stripe.refundCalls).toHaveLength(createsBefore);
+
+        const a = await h.commission.getById(paidA.id);
+        expect(a.refunds?.[0]?.status).toBe('succeeded');
+        expect(a.refunds?.[0]?.stripeRefundId).toBe(h.stripe.allRefunds[0]?.id);
+        expect(a.refundedCents).toBe(10_000);
+        const refundedA = (await events(paidA.id)).filter((e) => e.event_type === 'invoice.refunded');
+        expect(refundedA).toHaveLength(1);
+        expect(refundedA[0]?.payload).toMatchObject({ resumed: true, adminEmail: ADMIN });
+
+        const b = await h.commission.getById(paidB.id);
+        expect(b.refunds?.[0]?.status).toBe('pending');
+        expect(b.refundedCents).toBe(20_000);
+        const c = await h.commission.getById(paidC.id);
+        expect(c.refunds?.[0]?.status).toBe('pending');
+
+        expect(h.opsAlerts.calls).toEqual([
+          {
+            op: 'failure',
+            type: 'billing_refund_pending_stale',
+            context: { consecutiveFailures: 1, firstFailureAt: t0 },
+          },
+        ]);
+
+        // A second sweep is a no-op for A (already final).
+        const again = await h.commission.sweepStalePendingRefunds(sweepAt);
+        expect(again).toMatchObject({ checked: 1, adopted: 0, unresolved: 1 });
+        expect((await events(paidA.id)).filter((e) => e.event_type === 'invoice.refunded')).toHaveLength(1);
+
+        // The admin retries B: lookup finds nothing, so it is created once.
+        const retried = await h.commission.refundInvoice(paidB.id, inputB);
+        expect(retried.refund.status).toBe('succeeded');
+        const cleared = await h.commission.sweepStalePendingRefunds(sweepAt);
+        expect(cleared).toEqual({ checked: 0, adopted: 0, failed: 0, unresolved: 0, errors: [] });
+        expect(h.opsAlerts.calls.at(-1)).toEqual({ op: 'recovered', type: 'billing_refund_pending_stale' });
+
+        // C becomes stale later and is adopted then.
+        const later = new Date(t0.getTime() + 48 * 3_600_000);
+        const swept = await h.commission.sweepStalePendingRefunds(later);
+        expect(swept).toMatchObject({ checked: 1, adopted: 1, unresolved: 0 });
+        expect((await h.commission.getById(paidC.id)).refunds?.[0]?.status).toBe('succeeded');
+      });
+
+      it('a provider refund found as canceled fails the row and releases the claim', async () => {
+        const h = harness();
+        const t0 = new Date('2026-05-01T08:00:00.000Z');
+        const paid = await cardPaidInvoice(h);
+        h.clock.now = t0;
+        h.stripe.loseNextResponse();
+        await expect(h.commission.refundInvoice(paid.id, { amountCents: 10_000, reason: 'billing_error', idempotencyKey: key(), adminEmail: ADMIN })).rejects.toThrow();
+        (h.stripe.allRefunds[0] as ProviderRefund).status = 'canceled';
+        // Before the first sweep test's epoch, so only this row is stale.
+        const result = await h.commission.sweepStalePendingRefunds(new Date(t0.getTime() + 25 * 3_600_000));
+        expect(result).toEqual({ checked: 1, adopted: 0, failed: 1, unresolved: 0, errors: [] });
+        const after = await h.commission.getById(paid.id);
+        expect(after.refunds?.[0]?.status).toBe('failed');
+        expect(after.refundedCents).toBe(0);
+      });
     });
 
     it('a manually paid invoice records an off-Stripe refund and requires a reference', async () => {

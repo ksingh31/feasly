@@ -22,6 +22,12 @@
  * runs even when the review cycle failed, and fails visibly the same way
  * (CARD REMINDER FAILED line + rethrow).
  *
+ * #892: then the stale-pending-refund sweep (`commissionService
+ * .sweepStalePendingRefunds`): card refunds stuck 'pending' past
+ * BILLING_PENDING_REFUND_ALERT_HOURS are looked up on Stripe by their
+ * refund-row metadata, adopted when found, and alerted to ops when not.
+ * Independent of the other two passes (REFUND SWEEP FAILED line + rethrow).
+ *
  * No PII is logged — only aggregate counts (finalized / failed).
  *
  * Bundled by `npm run bundle:functions` into `invoice-reviewer-timer/index.js`
@@ -53,7 +59,10 @@ function getApp(): AppComposition {
  * timer's path against PGlite with the real migrations applied.
  */
 export async function runInvoiceReviewerTimer(
-  app: Pick<AppComposition, 'invoiceReviewerService' | 'cardExpiryReminderService'>,
+  app: Pick<
+    AppComposition,
+    'invoiceReviewerService' | 'cardExpiryReminderService' | 'commissionService'
+  >,
   context: TimerFunctionContext,
 ): Promise<void> {
   const now = new Date();
@@ -71,8 +80,43 @@ export async function runInvoiceReviewerTimer(
   } catch (error) {
     reminderError = error;
   }
+  // #892: independent too — a stuck refund never blocks charges or reminders.
+  let sweepError: unknown;
+  try {
+    await runPendingRefundSweep(app, context, now);
+  } catch (error) {
+    sweepError = error;
+  }
   if (reviewError !== undefined) throw reviewError;
   if (reminderError !== undefined) throw reminderError;
+  if (sweepError !== undefined) throw sweepError;
+}
+
+/** #892: the stale-pending-refund sweep. Aggregates only in logs. */
+async function runPendingRefundSweep(
+  app: Pick<AppComposition, 'commissionService'>,
+  context: TimerFunctionContext,
+  now: Date,
+): Promise<void> {
+  let result;
+  try {
+    result = await app.commissionService.sweepStalePendingRefunds(now);
+  } catch (error) {
+    context.log(
+      `invoice-reviewer-timer: REFUND SWEEP FAILED (error=${sanitizeErrorMessage(error)})`,
+    );
+    throw error;
+  }
+  const { checked, adopted, failed, unresolved, errors } = result;
+  context.log(
+    `invoice-reviewer-timer: pending refund sweep complete (checked=${checked} adopted=${adopted} ` +
+      `failed=${failed} unresolved=${unresolved} errors=${errors.length})`,
+  );
+  for (const error of errors) {
+    context.log(
+      `invoice-reviewer-timer: refund sweep row failed: ${sanitizeErrorMessage(error.message)}`,
+    );
+  }
 }
 
 async function runReviewCycle(

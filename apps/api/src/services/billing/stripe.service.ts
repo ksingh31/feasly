@@ -30,6 +30,9 @@ import {
   type PaymentIntentConfirmation,
   type PaymentIntentStatus,
   type PaymentProvider,
+  type ProviderRefund,
+  type RefundMetadata,
+  REFUND_METADATA_KEY,
 } from './payment-provider';
 
 export type {
@@ -41,6 +44,8 @@ export type {
   PaymentIntentConfirmation,
   PaymentIntentStatus,
   PaymentProvider,
+  ProviderRefund,
+  RefundMetadata,
 } from './payment-provider';
 
 /**
@@ -114,7 +119,17 @@ export interface StripeService {
     idempotencyKey: string,
     /** Partial refund amount in cents; omit for a full refund. */
     amountCents?: number,
-  ): Promise<{ id: string; status: string }>;
+    /** #892: stored on the refund so a resume can find it later. */
+    metadata?: RefundMetadata,
+  ): Promise<ProviderRefund>;
+  /**
+   * #892: the refund on the PaymentIntent tagged with this Feasly refund
+   * id (metadata `feasly_refund_id`), or null. Read-only.
+   */
+  findRefundByMetadata(
+    paymentIntentId: string,
+    feaslyRefundId: string,
+  ): Promise<ProviderRefund | null>;
   /**
    * Read a PaymentIntent's current status (#711 reconciliation). Read-only —
    * never confirms, captures, or cancels.
@@ -332,15 +347,33 @@ export function createStripeSdkClient(secretKey: string): StripeClient {
       const subscription = await stripe.subscriptions.cancel(subscriptionId);
       return { id: subscription.id };
     },
-    async refundPaymentIntent(paymentIntentId, idempotencyKey, amountCents) {
+    async refundPaymentIntent(
+      paymentIntentId,
+      idempotencyKey,
+      amountCents,
+      metadata,
+    ) {
       const refund = await stripe.refunds.create(
         {
           payment_intent: paymentIntentId,
           ...(amountCents !== undefined ? { amount: amountCents } : {}),
+          ...(metadata ? { metadata: { ...metadata } } : {}),
         },
         { idempotencyKey },
       );
       return { id: refund.id, status: refund.status ?? 'unknown' };
+    },
+    async findRefundByMetadata(paymentIntentId, feaslyRefundId) {
+      // Auto-paginates: a PaymentIntent has a handful of refunds at most.
+      for await (const refund of stripe.refunds.list({
+        payment_intent: paymentIntentId,
+        limit: 100,
+      })) {
+        if (refund.metadata?.[REFUND_METADATA_KEY] === feaslyRefundId) {
+          return { id: refund.id, status: refund.status ?? 'unknown' };
+        }
+      }
+      return null;
     },
     async retrievePaymentIntent(paymentIntentId) {
       const intent = await stripe.paymentIntents.retrieve(paymentIntentId);
@@ -438,12 +471,15 @@ export function createStripeService(deps: StripeServiceDeps): StripeService {
       requireClient().createSubscription(input),
     cancelSubscription: (subscriptionId) =>
       requireClient().cancelSubscription(subscriptionId),
-    refundPaymentIntent: (paymentIntentId, idempotencyKey, amountCents) =>
+    refundPaymentIntent: (paymentIntentId, idempotencyKey, amountCents, metadata) =>
       requireClient().refundPaymentIntent(
         paymentIntentId,
         idempotencyKey,
         amountCents,
+        metadata,
       ),
+    findRefundByMetadata: (paymentIntentId, feaslyRefundId) =>
+      requireClient().findRefundByMetadata(paymentIntentId, feaslyRefundId),
     retrievePaymentIntent: (paymentIntentId) =>
       requireClient().retrievePaymentIntent(paymentIntentId),
     getPaymentIntentConfirmation: (paymentIntentId) =>

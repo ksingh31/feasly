@@ -417,6 +417,20 @@ describe('simulated payment provider — refunds, disputes, delayed failures', (
     ]);
   });
 
+  it('#892: finds a refund by its feasly_refund_id metadata', async () => {
+    const h = harness();
+    const customerId = await customerWithCard(h, CARD.ok);
+    const pi = await charge(h, customerId);
+    await h.runTimers();
+    expect(await h.provider.findRefundByMetadata(pi.id, 'row-1')).toBeNull();
+    const refund = await h.provider.refundPaymentIntent(pi.id, 'r1', 1_000, {
+      feasly_refund_id: 'row-1',
+    });
+    await h.provider.refundPaymentIntent(pi.id, 'r2', 1_000);
+    expect(await h.provider.findRefundByMetadata(pi.id, 'row-1')).toEqual(refund);
+    expect(await h.provider.findRefundByMetadata(pi.id, 'row-2')).toBeNull();
+  });
+
   it('only a succeeded charge can be refunded or disputed', async () => {
     const h = harness();
     const customerId = await customerWithCard(h, CARD.declined);

@@ -25,6 +25,7 @@ export const OPS_ALERT_TYPES = [
   'backup_missed',
   'billing_dispute_sla_breached',
   'neighbourhood_data_failed',
+  'billing_refund_pending_stale',
 ] as const;
 
 export type OpsAlertType = (typeof OPS_ALERT_TYPES)[number];
@@ -68,6 +69,11 @@ const ALERT_COPY: Record<OpsAlertType, AlertCopy> = {
   neighbourhood_data_failed: {
     name: 'Neighbourhood data refresh',
     detailsPath: '/admin/ops/neighbourhood-data',
+  },
+  // #892: card refunds stuck 'pending' past BILLING_PENDING_REFUND_ALERT_HOURS.
+  billing_refund_pending_stale: {
+    name: 'Pending card refunds',
+    detailsPath: '/admin/billing/invoices',
   },
 };
 

@@ -70,6 +70,7 @@ function fakeStripe(): StripeService {
     createOffSessionPaymentIntent: async () => ({ id: `pi_cb_${++piCounter}`, status: 'processing' }),
     createSubscription: async () => ({ id: 'sub_cb', status: 'active' }),
     cancelSubscription: async (id: string) => ({ id }),
+    findRefundByMetadata: async () => null,
     refundPaymentIntent: async () => ({ id: 're_cb', status: 'succeeded' }),
     retrievePaymentIntent: async (id: string) => ({ id, status: 'processing' }),
     verifyWebhook: (rawBody: Buffer, signature: string | undefined) => {

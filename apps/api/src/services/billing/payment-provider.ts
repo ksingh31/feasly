@@ -182,6 +182,21 @@ export interface OffSessionChargeInput {
   readonly metadata?: Readonly<Record<string, string>>;
 }
 
+/** #892: metadata key carrying the `billing_refunds.id` on a provider refund. */
+export const REFUND_METADATA_KEY = 'feasly_refund_id';
+
+/** #892: metadata Feasly stores on a provider refund. Ids only — never PII. */
+export interface RefundMetadata {
+  readonly [REFUND_METADATA_KEY]: string;
+  readonly feasly_invoice_id?: string;
+}
+
+/** A provider refund: id + status (`pending` | `succeeded` | `failed` | `canceled` | …). */
+export interface ProviderRefund {
+  readonly id: string;
+  readonly status: string;
+}
+
 export interface PaymentProvider {
   /** Which implementation this is. */
   readonly name: PaymentProviderName;
@@ -233,13 +248,27 @@ export interface PaymentProvider {
   ): Promise<PaymentIntentConfirmation>;
   /**
    * Refund a PaymentIntent — in full, or `amountCents` for a partial
-   * refund. Idempotent via the idempotency key — timer/retry safe.
+   * refund. Idempotent via the idempotency key — timer/retry safe — but
+   * only while the provider remembers the key (Stripe: ~24h). `metadata`
+   * is stored on the refund (#892: `feasly_refund_id`) so a later resume
+   * can find it with `findRefundByMetadata` after the key has expired.
    */
   refundPaymentIntent(
     paymentIntentId: string,
     idempotencyKey: string,
     amountCents?: number,
-  ): Promise<{ id: string; status: string }>;
+    metadata?: RefundMetadata,
+  ): Promise<ProviderRefund>;
+  /**
+   * #892: the refund on this PaymentIntent whose metadata carries
+   * `feasly_refund_id = feaslyRefundId`, or null when there is none.
+   * Read-only. Called before resuming a `pending` refund row so a refund
+   * whose first response was lost is adopted, never created twice.
+   */
+  findRefundByMetadata(
+    paymentIntentId: string,
+    feaslyRefundId: string,
+  ): Promise<ProviderRefund | null>;
   /**
    * Read a PaymentIntent's current status (#711 reconciliation). Read-only —
    * never confirms, captures, or cancels.
