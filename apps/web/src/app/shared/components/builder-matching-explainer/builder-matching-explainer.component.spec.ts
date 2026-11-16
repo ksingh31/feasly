@@ -1,5 +1,6 @@
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { describe, expect, it } from 'vitest';
+import { DEFAULT_APP_CONFIG } from '../../../core/config/app-config.defaults';
 import { ConfigService } from '../../../core/config/config.service';
 import { BuilderMatchingExplainerComponent } from './builder-matching-explainer.component';
 
@@ -50,5 +51,16 @@ describe('BuilderMatchingExplainerComponent', () => {
   it('uses a native details/summary disclosure', () => {
     setup();
     expect(fixture.nativeElement.querySelector('details.bm-explainer')).not.toBeNull();
+  });
+
+  // #878 (owner decision 2026-11-15): the shipped explainer discloses the
+  // partner model, matching the #847 disclosure on the same screen.
+  it('ships partner-model copy: referral commission, no obligation, no neutral-matching claims', () => {
+    const text = DEFAULT_APP_CONFIG.copy.builderMatching.paragraphs.join(' ');
+    expect(text).toContain('builder partner(s), listed on How it works');
+    expect(text).toContain('referral commission only if you sign a contract');
+    expect(text).toContain('never changes your estimate');
+    expect(text).toContain('never obliged to hire anyone');
+    expect(text).not.toMatch(/paid placement|favou?rites|project fit|hand[- ]?pick|rank/i);
   });
 });

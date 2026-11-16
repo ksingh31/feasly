@@ -933,7 +933,7 @@ export const DEFAULT_APP_CONFIG: AppConfig = {
           },
           {
             q: 'Is Feasly a home builder? Will you recommend one?',
-            a: 'No — Feasly is an independent estimator, not a builder, and we do not rank or recommend specific builders. With your permission, Feasly and builders associated with us may contact you about your estimate, and you can opt out anytime.',
+            a: 'No — Feasly is an independent estimator, not a builder. If you ask to be contacted, leads from Feasly’s own site go to our builder partner(s), listed on How it works. A partner pays Feasly a referral commission only if you sign a contract with them. You’re never obliged to hire anyone, and you can opt out anytime.',
           },
           {
             q: 'How long does it take to build a home in Calgary?',
@@ -956,8 +956,8 @@ export const DEFAULT_APP_CONFIG: AppConfig = {
             a: 'Feasly and builders associated with us may see your information so we can contact you about your estimate. Your email is also how we send you a link to reopen your report; we never sell your information, and you can opt out anytime. See our Privacy Policy for the full details.',
           },
           {
-            q: 'How does builder matching work?',
-            a: 'Feasly is an independent estimator — we don’t build homes, rank builders, or hand-pick who contacts you. When you’re ready, we can introduce you to builders in Calgary whose work fits your project and area. Our system matches on project fit — no favourites, no paid placement. It’s free, and only ever with your permission. You can opt out anytime.',
+            q: 'How do builder introductions work?',
+            a: 'Feasly is an independent estimator. We don’t build homes. If you ask to be contacted, leads from Feasly’s own site go to our builder partner(s), listed on How it works. A partner pays Feasly a referral commission only if you sign a contract with them. It never changes your estimate, and you’re never obliged to hire anyone. You can opt out anytime.',
           },
           {
             q: 'Do you support addresses outside Calgary?',
@@ -1239,12 +1239,19 @@ export const DEFAULT_APP_CONFIG: AppConfig = {
         },
       },
     },
+    // #878 (owner decision 2026-11-15, option (a)): partner-model disclosure.
+    // Status: draft-pending-lawyer — mirrored in docs/legal/approved-copy.md
+    // ("Builder-partner disclosure"); the FAQ answer "How do builder
+    // introductions work?" carries the same wording. Neutral-matching claims
+    // ("no paid placement", "project fit", …) are banned by
+    // tools/check-banned-phrases.mjs. Embedded estimators don't render this
+    // explainer: on a builder's own site the lead goes to that builder.
     builderMatching: {
       summary: 'What does "builders associated with us" mean?',
       paragraphs: [
-        'Feasly is an independent estimator — we don’t build homes, rank builders, or hand-pick who contacts you.',
-        'When you’re ready, we can introduce you to builders in Calgary whose work fits your project and area. Our system matches on project fit — no favourites, no paid placement.',
-        'It’s free, and only ever with your permission. You can opt out anytime.',
+        'Feasly is an independent estimator. We don’t build homes.',
+        'If you ask to be contacted, leads from Feasly’s own site go to our builder partner(s), listed on How it works. A partner pays Feasly a referral commission only if you sign a contract with them.',
+        'It never changes your estimate, and you’re never obliged to hire anyone. You can opt out anytime.',
       ],
     },
     consent: {
