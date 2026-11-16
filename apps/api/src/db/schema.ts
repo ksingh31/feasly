@@ -1689,3 +1689,25 @@ export const simulatedPaymentObjects = pgTable(
     ),
   ],
 );
+
+/**
+ * Shared City-data cache (#756).
+ *
+ * One row per (City dataset, lookup key): the assessment-roll record for an
+ * address, or the current land-use district resolved for it. Every instance
+ * and every route reads through `property.service`, so a City record is
+ * fetched once and reused until `expires_at` (per-dataset TTL in config).
+ * `key` is `<dataset_id>:<lookup key>`. Only public City open data is
+ * stored — no visitor data. Expired rows are overwritten on the next fetch.
+ */
+export const cityDataCache = pgTable(
+  'city_data_cache',
+  {
+    key: text('key').primaryKey(),
+    datasetId: text('dataset_id').notNull(),
+    payload: jsonb('payload').notNull(),
+    fetchedAt: timestamp('fetched_at', { withTimezone: true }).notNull().defaultNow(),
+    expiresAt: timestamp('expires_at', { withTimezone: true }).notNull(),
+  },
+  (t) => [index('city_data_cache_expires_at_idx').on(t.expiresAt)],
+);
