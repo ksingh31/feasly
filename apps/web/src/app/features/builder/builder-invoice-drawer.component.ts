@@ -10,7 +10,7 @@ import {
 } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { timer, type Subscription } from 'rxjs';
-import { take, takeWhile } from 'rxjs/operators';
+import { concatMap, take, takeWhile } from 'rxjs/operators';
 import { Store } from '@ngxs/store';
 import type { ConfirmInvoicePaymentResponse, SimulatedIntentResponse } from '@feasly/contracts';
 import {
@@ -55,6 +55,14 @@ import {
 import { BuilderInvoicesState } from './builder-invoices.state';
 import type { BuilderCommissionInvoice } from './builder-invoices-api.service';
 import type { BuilderPaymentMethod } from './builder-payment-methods';
+
+/**
+ * #867: a Stripe.js `confirmCardPayment` error that is the bank's answer
+ * (decline / failed 3DS), as opposed to a transport or request error.
+ */
+function isBankDecline(error: { type?: string; payment_intent?: { status?: string } }): boolean {
+  return error.type === 'card_error' || error.payment_intent?.status === 'requires_payment_method';
+}
 
 export interface BuilderInvoiceDrawerData {
   readonly invoiceId: string;
@@ -274,9 +282,20 @@ export class BuilderInvoiceDrawerComponent {
         confirmation.clientSecret,
         confirmation.paymentMethodId ? { payment_method: confirmation.paymentMethodId } : undefined,
       );
-      // A declined / abandoned check fails the PaymentIntent; the webhook
-      // moves the invoice to `failed`. Either way the server decides.
-      this.bankAnswered(!result.error);
+      if (!result.error) {
+        this.bankAnswered(true);
+        return;
+      }
+      // Only a real bank answer (a decline / failed or abandoned 3DS check —
+      // `card_error`, or the PaymentIntent back in `requires_payment_method`)
+      // fails the PaymentIntent; the webhook moves the invoice to `failed`.
+      // Anything else (network, rate limit, invalid request) leaves it in
+      // `requires_action` with no webhook coming — offer the retry instead.
+      if (isBankDecline(result.error)) {
+        this.bankAnswered(false);
+      } else {
+        this.confirmPhase.set('error');
+      }
     } catch {
       this.confirmPhase.set('error');
     }
@@ -310,11 +329,13 @@ export class BuilderInvoiceDrawerComponent {
     this.pollSub = timer(every, every)
       .pipe(
         take(attempts),
+        // Wait for each refresh to land before the next tick / completion, so
+        // the final poll's answer is in the store when `complete` decides.
+        concatMap(() => this.store.dispatch(new RefreshSelectedInvoice(this.data.invoiceId))),
         takeWhile(() => this.needsConfirm()),
         takeUntilDestroyed(this.destroyRef),
       )
       .subscribe({
-        next: () => this.store.dispatch(new RefreshSelectedInvoice(this.data.invoiceId)),
         complete: () => {
           if (this.needsConfirm()) {
             this.confirmPhase.set('stalled');

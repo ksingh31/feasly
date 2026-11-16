@@ -10,7 +10,7 @@ import { provideHttpClientTesting } from '@angular/common/http/testing';
 import { type ComponentFixture, TestBed } from '@angular/core/testing';
 import { provideRouter } from '@angular/router';
 import { Store, provideStore } from '@ngxs/store';
-import { NEVER, Subject, of, throwError } from 'rxjs';
+import { NEVER, Subject, map, of, throwError, timer } from 'rxjs';
 import type { Observable } from 'rxjs';
 import type { ConfirmInvoicePaymentResponse, SimulatedIntentResponse } from '@feasly/contracts';
 import type { Stripe } from '@stripe/stripe-js';
@@ -606,6 +606,49 @@ describe('BuilderInvoiceDrawerComponent (#533)', () => {
         expect(q(el, 'invoice-update-card')).not.toBeNull();
       });
 
+      it('a non-decline Stripe.js error (network / rate limit) shows the retry, not a failed-payment toast', async () => {
+        let calls = 0;
+        const stripe = {
+          confirmCardPayment: vi.fn(async () =>
+            ++calls === 1
+              ? { error: { type: 'api_connection_error', message: 'offline' } }
+              : { paymentIntent: { status: 'succeeded' } },
+          ),
+        };
+        const { el, fixture, toasts } = await setup({
+          invoice: waiting(),
+          confirm: stripeConfirm('pm_saved'),
+          stripe,
+          billing: stripeBilling,
+        });
+        await settle(fixture);
+        q(el, 'invoice-confirm-cta')!.click();
+        await until(fixture, () => q(el, 'invoice-confirm-error') !== null);
+        expect(toasts.show).not.toHaveBeenCalled();
+        q(el, 'invoice-confirm-cta')!.click();
+        await until(fixture, () => q(el, 'invoice-confirm-pending') !== null);
+        expect(stripe.confirmCardPayment).toHaveBeenCalledTimes(2);
+        expect(toasts.show).toHaveBeenCalledWith({ message: COPY.simulated.paymentCompletedToast, tone: 'success' });
+      });
+
+      it('treats a PaymentIntent back in requires_payment_method as the bank declining', async () => {
+        const stripe = {
+          confirmCardPayment: vi.fn(async () => ({
+            error: { type: 'invalid_request_error', payment_intent: { status: 'requires_payment_method' } },
+          })),
+        };
+        const { el, fixture, toasts } = await setup({
+          invoice: waiting(),
+          confirm: stripeConfirm('pm_saved'),
+          stripe,
+          billing: stripeBilling,
+        });
+        await settle(fixture);
+        q(el, 'invoice-confirm-cta')!.click();
+        await until(fixture, () => q(el, 'invoice-confirm-pending') !== null);
+        expect(toasts.show).toHaveBeenCalledWith({ message: COPY.simulated.paymentFailedToast, tone: 'danger' });
+      });
+
       it('shows an error with a retry when Stripe.js fails to load', async () => {
         const { el, fixture } = await setup({
           invoice: waiting(),
@@ -669,6 +712,44 @@ describe('BuilderInvoiceDrawerComponent (#533)', () => {
       await settle(fixture);
       expect(q(el, 'invoice-confirm-pending')).not.toBeNull();
       await until(fixture, () => api.getInvoice.mock.calls.length > gets);
+    });
+
+    it('waits for the last poll to land: settled on the final attempt reloads the list, never shows stalled', async () => {
+      const { el, fixture, api } = await setup({
+        invoice: waiting(),
+        confirm: simConfirm,
+        billing: { confirmPollIntervalMs: 5, confirmPollAttempts: 1 },
+      });
+      await settle(fixture);
+      q(el, 'invoice-confirm-cta')!.click();
+      await settle(fixture);
+      // The webhook lands while the (slow) final poll is in flight.
+      const paid = invoice({ status: 'paid', reviewDueAt: null, paidAt: iso(0) });
+      api.getInvoice.mockImplementation(() => timer(20).pipe(map(() => paid)));
+      q(el, 'simulated-challenge-complete')!.click();
+      await settle(fixture);
+      const lists = api.listInvoices.mock.calls.length;
+      await until(fixture, () => q(el, 'invoice-confirm-payment') === null || q(el, 'invoice-confirm-stalled') !== null);
+      expect(q(el, 'invoice-confirm-stalled')).toBeNull();
+      await until(fixture, () => api.listInvoices.mock.calls.length > lists);
+    });
+
+    it('the stalled state also offers the confirm button again', async () => {
+      const { el, fixture, billingApi } = await setup({
+        invoice: waiting(),
+        confirm: simConfirm,
+        billing: shortPoll,
+      });
+      await settle(fixture);
+      q(el, 'invoice-confirm-cta')!.click();
+      await settle(fixture);
+      q(el, 'simulated-challenge-complete')!.click();
+      await until(fixture, () => q(el, 'invoice-confirm-stalled') !== null);
+      expect(q(el, 'invoice-confirm-cta')?.textContent).toContain(T.confirmPaymentCta);
+      q(el, 'invoice-confirm-cta')!.click();
+      await settle(fixture);
+      expect(billingApi.confirmInvoicePayment).toHaveBeenCalledTimes(2);
+      expect(q(el, 'simulated-challenge')).not.toBeNull();
     });
   });
 });

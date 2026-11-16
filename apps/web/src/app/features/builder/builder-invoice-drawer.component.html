@@ -37,9 +37,14 @@
           }
           @case ('stalled') {
             <p class="invoice-drawer__note" role="status" data-testid="invoice-confirm-stalled">{{ t.confirmPaymentStalled }}</p>
-            <button type="button" ui-button variant="secondary" data-testid="invoice-confirm-check-again" (click)="pollUntilSettled()">
-              {{ t.confirmPaymentCheckAgain }}
-            </button>
+            <div class="invoice-drawer__actions">
+              <button type="button" ui-button data-testid="invoice-confirm-cta" (click)="startConfirm()">
+                {{ t.confirmPaymentCta }}
+              </button>
+              <button type="button" ui-button variant="secondary" data-testid="invoice-confirm-check-again" (click)="pollUntilSettled()">
+                {{ t.confirmPaymentCheckAgain }}
+              </button>
+            </div>
           }
           @default {
             @if (confirmPhase() === 'error') {
