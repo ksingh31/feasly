@@ -25,6 +25,9 @@
             <dd>{{ p.yearBuilt ?? '—' }}</dd>
           </div>
         </dl>
+        @if (needsApproval()) {
+          <p class="pcard-zoning-note">{{ discretionaryZoningNote }}</p>
+        }
         @if (showLandNote()) {
           <p class="pcard-land-note">{{ landHouseNote }}</p>
         }

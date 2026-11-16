@@ -953,8 +953,8 @@ export interface AppConfig {
   /**
    * Estimator eligibility by city (#685). The early coverage guard
    * (core/utils/coverage.ts) reads these lists; no district code literal
-   * lives in code. When the zoning catalogue story lands it becomes the
-   * single source and this key goes away.
+   * lives in code. Both lists are generated from the zoning catalogue
+   * (packages/zoning, #911), which is the single source of truth.
    */
   coverage: {
     /**
@@ -966,6 +966,14 @@ export interface AppConfig {
      * coverage-zoning-copy-drift.spec.ts.
      */
     singleFamilyDistricts: {
+      calgary: readonly string[];
+    };
+    /**
+     * Subset of `singleFamilyDistricts` where single-detached is a
+     * discretionary use (#911): still quoted, but the property card says it
+     * needs City approval. Derived from the zoning catalogue.
+     */
+    discretionarySingleFamilyDistricts: {
       calgary: readonly string[];
     };
   };
@@ -1415,6 +1423,11 @@ export interface AppConfig {
        * masquerade as City records (trust rule).
        */
       freshnessMock: string;
+      /**
+       * Shown under the zoning when single-detached is only discretionary
+       * for the parcel (#911). Never present it as a sure thing.
+       */
+      discretionaryZoningNote: string;
     };
     /**
      * Estimate report page copy. The hero is range-first (#504): the total

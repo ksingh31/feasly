@@ -160,6 +160,20 @@ export interface AdminLeadDetail extends AdminLeadListItem {
   readonly builderId: string | null;
   readonly notes: readonly AdminLeadNote[];
   readonly statusHistory: readonly AdminLeadStatusHistoryEntry[];
+  /**
+   * #721: every builder reassignment of this lead, oldest first. The API
+   * always sends it; optional only so older admin builds keep compiling.
+   */
+  readonly reassignments?: readonly AdminLeadReassignmentEntry[];
+}
+
+/** One builder reassignment (#721). Null builder id = unassigned. */
+export interface AdminLeadReassignmentEntry {
+  readonly fromBuilderId: string | null;
+  readonly toBuilderId: string | null;
+  /** Admin email that made the move. */
+  readonly changedBy: string;
+  readonly changedAt: string;
 }
 
 /** One append-only note. */

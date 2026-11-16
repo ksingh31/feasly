@@ -1,4 +1,4 @@
--- #822: nearby permits (mirrors migration 0060_permits).
+-- #822: nearby permits (mirrors migration 0061_permits).
 CREATE TABLE IF NOT EXISTS "permits" (
 	"id" text PRIMARY KEY NOT NULL,
 	"provider" text NOT NULL,
