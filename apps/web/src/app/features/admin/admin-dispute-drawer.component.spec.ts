@@ -9,9 +9,9 @@ import { provideLocationMocks } from '@angular/common/testing';
 import { TestBed } from '@angular/core/testing';
 import { provideRouter } from '@angular/router';
 import { Store, provideStore } from '@ngxs/store';
-import { of, throwError } from 'rxjs';
+import { NEVER, of, throwError } from 'rxjs';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import type { DisputeDetailResponse } from '@feasly/contracts';
+import type { BillingHealthResponse, DisputeDetailResponse } from '@feasly/contracts';
 import { UiConfirmService, UiToastService, type UiConfirmOptions, type UiToastOptions } from '@app/shared/ui';
 import { AdminDisputeDrawerComponent } from './admin-dispute-drawer.component';
 import { AdminDisputesApiService } from './admin-disputes-api.service';
@@ -19,6 +19,9 @@ import { SelectAdminDispute } from './admin-disputes.actions';
 import { AdminDisputesState } from './admin-disputes.state';
 import { AdminAuthState } from './admin-auth.state';
 import { ADMIN_PERMISSIONS } from './admin-permissions';
+import { AdminBillingApiService } from './admin-billing-api.service';
+import { AdminLeadsApiService } from './admin-leads-api.service';
+import { BillingHealthState } from './billing-health.state';
 
 const DETAIL: DisputeDetailResponse = {
   id: 'd1',
@@ -66,7 +69,31 @@ const DETAIL: DisputeDetailResponse = {
   ],
 };
 
+/** #872: a Stripe bank chargeback on a paid invoice. */
+const CHARGEBACK: DisputeDetailResponse = {
+  ...DETAIL,
+  reason: 'fraudulent',
+  source: 'chargeback',
+  stripeDisputeId: 'dp_123',
+  stripeReason: 'fraudulent',
+  stripeStatus: 'needs_response',
+  amountCents: 990000,
+  evidenceDueAt: '2026-10-06T23:59:59.000Z',
+  evidenceDaysRemaining: 4,
+  businessDaysRemaining: 2,
+  outcome: null,
+  livemode: true,
+  evidenceSnapshot: { ...DETAIL.evidenceSnapshot, status: 'paid' },
+};
+
+function health(provider?: 'stripe' | 'simulated'): BillingHealthResponse {
+  return { stripe: { configured: true, testMode: false, ...(provider ? { provider } : {}) } } as BillingHealthResponse;
+}
+
 interface SetupOptions {
+  readonly detail?: DisputeDetailResponse;
+  /** Billing health provider; 'unloaded' = the health request never answers. */
+  readonly provider?: 'stripe' | 'simulated' | 'unloaded';
   readonly permissions?: string[];
   readonly confirm?: boolean;
   readonly acceptFails?: boolean;
@@ -76,11 +103,18 @@ interface SetupOptions {
 async function setup(options: SetupOptions = {}) {
   const api = {
     listDisputes: vi.fn(() => of({ disputes: [] })),
-    getDispute: vi.fn(() => (options.detailFails ? throwError(() => ({ message: 'Boom' })) : of(DETAIL))),
+    getDispute: vi.fn(() =>
+      options.detailFails ? throwError(() => ({ message: 'Boom' })) : of(options.detail ?? DETAIL),
+    ),
     acceptDispute: vi.fn(() =>
       options.acceptFails ? throwError(() => ({ message: 'Stripe refund failed' })) : of(DETAIL),
     ),
     rejectDispute: vi.fn(() => of(DETAIL)),
+  };
+  const billingApi = {
+    getBillingHealth: vi.fn(() =>
+      options.provider === 'unloaded' ? NEVER : of(health(options.provider ?? 'stripe')),
+    ),
   };
   const confirms = { confirm: vi.fn((_o: UiConfirmOptions) => of(options.confirm ?? true)) };
   const toasts = {
@@ -92,8 +126,10 @@ async function setup(options: SetupOptions = {}) {
       { provide: DIALOG_DATA, useValue: { disputeId: 'd1' } },
       provideRouter([{ path: '**', children: [] }]),
       provideLocationMocks(),
-      provideStore([AdminDisputesState, AdminAuthState]),
+      provideStore([AdminDisputesState, AdminAuthState, BillingHealthState]),
       { provide: AdminDisputesApiService, useValue: api },
+      { provide: AdminBillingApiService, useValue: billingApi },
+      { provide: AdminLeadsApiService, useValue: {} },
       { provide: UiConfirmService, useValue: confirms },
       { provide: UiToastService, useValue: toasts },
       {
@@ -112,7 +148,7 @@ async function setup(options: SetupOptions = {}) {
   const fixture = TestBed.createComponent(AdminDisputeDrawerComponent);
   fixture.autoDetectChanges();
   await fixture.whenStable();
-  return { api, confirms, toasts, store, fixture, el: fixture.nativeElement as HTMLElement };
+  return { api, billingApi, confirms, toasts, store, fixture, el: fixture.nativeElement as HTMLElement };
 }
 
 /** Poll (with a deadline) for an async UI state — never a fixed sleep. */
@@ -222,5 +258,64 @@ describe('AdminDisputeDrawerComponent (#545)', () => {
     expect(q(el, 'drawer-error')).not.toBeNull();
     (q(el, 'drawer-error')?.querySelector('button') as HTMLButtonElement).click();
     expect(api.getDispute).toHaveBeenCalledTimes(2);
+  });
+});
+
+describe('AdminDisputeDrawerComponent — chargebacks (#872)', () => {
+  it('marks a chargeback with a distinct chip, heading and evidence deadline', async () => {
+    const { el } = await setup({ detail: CHARGEBACK });
+    expect(el.querySelector('.ui-drawer__title')?.textContent?.trim()).toBe('Chargeback · elite-craft');
+    expect(q(el, 'drawer-chargeback-chip')?.textContent?.trim()).toBe('Chargeback');
+    expect(q(el, 'drawer-sla')?.textContent?.trim()).toBe('Evidence due in 4 days');
+    expect(el.querySelector('.ui-drawer__sub')?.textContent).toContain('Evidence due');
+  });
+
+  it('summarises the disputed amount, Stripe reason and status', async () => {
+    const { el } = await setup({ detail: CHARGEBACK });
+    const text = el.textContent ?? '';
+    expect(text).toContain('Disputed amount');
+    expect(text).toContain('$9,900');
+    expect(text).toContain('Fraudulent');
+    expect(text).toContain('Needs response');
+  });
+
+  it('hides Accept/Reject and links to the live Stripe dashboard instead', async () => {
+    const { el } = await setup({ detail: CHARGEBACK });
+    expect(q(el, 'drawer-accept')).toBeNull();
+    expect(q(el, 'drawer-reject')).toBeNull();
+    expect(q(el, 'drawer-footer')).toBeNull();
+    const link = q(el, 'drawer-view-in-stripe') as HTMLAnchorElement;
+    expect(link.getAttribute('href')).toBe('https://dashboard.stripe.com/disputes/dp_123');
+    expect(link.getAttribute('target')).toBe('_blank');
+    expect(link.getAttribute('rel')).toContain('noopener');
+  });
+
+  it('uses the test-mode dashboard path when livemode is false', async () => {
+    const { el } = await setup({ detail: { ...CHARGEBACK, livemode: false } });
+    expect(q(el, 'drawer-view-in-stripe')?.getAttribute('href')).toBe(
+      'https://dashboard.stripe.com/test/disputes/dp_123',
+    );
+  });
+
+  it('hides the Stripe link for the simulated provider', async () => {
+    const { el } = await setup({ detail: CHARGEBACK, provider: 'simulated' });
+    expect(q(el, 'drawer-chargeback-footer')).not.toBeNull();
+    expect(q(el, 'drawer-view-in-stripe')).toBeNull();
+  });
+
+  it('loads billing health once and hides the link until the provider is known', async () => {
+    const { el, billingApi } = await setup({ detail: CHARGEBACK, provider: 'unloaded' });
+    expect(billingApi.getBillingHealth).toHaveBeenCalledTimes(1);
+    expect(q(el, 'drawer-view-in-stripe')).toBeNull();
+  });
+
+  it('read-only staff still get the Stripe link (no decision needed)', async () => {
+    const { el } = await setup({ detail: CHARGEBACK, permissions: [] });
+    expect(q(el, 'drawer-view-in-stripe')).not.toBeNull();
+  });
+
+  it('lists the Stripe dispute id under Technical IDs only', async () => {
+    const { el } = await setup({ detail: CHARGEBACK });
+    expect(q(el, 'drawer-technical-ids')?.textContent).toContain('dp_123');
   });
 });

@@ -120,6 +120,26 @@
       />
     </section>
 
+    @if (recovery(); as r) {
+      <section class="invoice-drawer__section" aria-labelledby="invoice-drawer-recovery" data-testid="invoice-recovery">
+        <h3 id="invoice-drawer-recovery" class="invoice-drawer__heading">{{ t.recoveryHeading }}</h3>
+        <dl class="invoice-drawer__rows">
+          @if (r.chargebackStatus; as cb) {
+            <div data-testid="invoice-chargeback">
+              <dt>{{ t.chargebackLabel }}</dt>
+              <dd><ui-status-chip domain="chargeback" [status]="cb" /></dd>
+            </div>
+          }
+          @if (r.refunded; as refunded) {
+            <div data-testid="invoice-refunded">
+              <dt>{{ t.refundedLabel }}</dt>
+              <dd>{{ refunded }}</dd>
+            </div>
+          }
+        </dl>
+      </section>
+    }
+
     @if (inv.status === 'paid') {
       <section class="invoice-drawer__section" aria-labelledby="invoice-drawer-receipt">
         <h3 id="invoice-drawer-receipt" class="invoice-drawer__heading">{{ copy.invoicesReceiptHeading }}</h3>

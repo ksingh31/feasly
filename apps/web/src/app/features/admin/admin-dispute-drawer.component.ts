@@ -1,5 +1,5 @@
 import { DIALOG_DATA } from '@angular/cdk/dialog';
-import { Component, DestroyRef, computed, inject, signal } from '@angular/core';
+import { Component, DestroyRef, OnInit, computed, inject, signal } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { Router } from '@angular/router';
 import { Store } from '@ngxs/store';
@@ -24,11 +24,14 @@ import { formatEdmontonDateTime } from '../../shared/utils/edmonton';
 import { formatCentsToCad } from '../../shared/utils/money';
 import {
   acceptConfirmOptions,
+  chargebackSummaryItems,
   disputeEvidenceItems,
   disputeSlaChip,
   disputeTechnicalIds,
   disputeTimeline,
+  isChargeback,
   rejectConfirmOptions,
+  stripeDisputeUrl,
 } from './admin-disputes-view';
 import {
   AcceptAdminDispute,
@@ -38,6 +41,8 @@ import {
 import { AdminDisputesState } from './admin-disputes.state';
 import { ADMIN_PERMISSIONS, adminCan } from './admin-permissions';
 import { openAdminEntity } from './admin-entity-routes';
+import { LoadBillingHealth } from './billing-health.actions';
+import { BillingHealthState } from './billing-health.state';
 
 export interface AdminDisputeDrawerData {
   readonly disputeId: string;
@@ -56,6 +61,12 @@ const NOTE_MAX_LENGTH = 2000;
  *   timeline with humanised payloads ("Contract value $980,000").
  * - Sticky footer (billing:manage only): Note + [Reject] [Accept…], both
  *   through ConfirmDialog. Accept states the void and the refund amount.
+ *
+ * #872: a Stripe chargeback gets a "Chargeback" chip, its disputed
+ * amount, Stripe reason and evidence deadline. It is resolved in the
+ * Stripe dashboard (the API answers 409 to accept/reject), so the footer
+ * swaps the decision for a "View in Stripe" link — hidden while the
+ * simulated payment provider is active (there is no real dispute).
  *
  * Reads the detail from AdminDisputesState; every write is an action.
  */
@@ -76,7 +87,7 @@ const NOTE_MAX_LENGTH = 2000;
   templateUrl: './admin-dispute-drawer.component.html',
   styleUrl: './admin-dispute-drawer.component.scss',
 })
-export class AdminDisputeDrawerComponent {
+export class AdminDisputeDrawerComponent implements OnInit {
   private readonly store = inject(Store);
   private readonly router = inject(Router);
   private readonly destroyRef = inject(DestroyRef);
@@ -87,6 +98,8 @@ export class AdminDisputeDrawerComponent {
 
   /** EntityLink + Technical IDs copy (#538). */
   protected readonly entityCopy = inject(ConfigService).get('copy').admin.entities;
+  /** #872: Stripe dashboard origin for the "View in Stripe" link. */
+  private readonly stripeDashboardBaseUrl = inject(ConfigService).get('billing').stripeDashboardBaseUrl;
 
   protected readonly disputeId = this.data.disputeId;
   protected readonly noteMaxLength = NOTE_MAX_LENGTH;
@@ -98,6 +111,7 @@ export class AdminDisputeDrawerComponent {
   protected readonly resolving = this.store.selectSignal(AdminDisputesState.resolving);
   protected readonly resolveError = this.store.selectSignal(AdminDisputesState.resolveError);
   private readonly disputes = this.store.selectSignal(AdminDisputesState.disputes);
+  private readonly billingHealth = this.store.selectSignal(BillingHealthState.health);
 
   /** Accept/reject are money actions (`billing:manage`). */
   protected readonly canManage = adminCan(this.store, ADMIN_PERMISSIONS.billingManage);
@@ -120,9 +134,28 @@ export class AdminDisputeDrawerComponent {
     () => this.disputes().find((d) => d.id === this.disputeId) ?? null,
   );
 
+  /** #872: a Stripe bank chargeback (resolved in Stripe, not here). */
+  protected readonly chargeback = computed(() => {
+    const item = this.detail() ?? this.listItem();
+    return item !== null && isChargeback(item);
+  });
+
   protected readonly heading = computed(() => {
     const item = this.detail() ?? this.listItem();
-    return item ? `Dispute · ${item.tenantKey}` : 'Dispute';
+    if (!item) return 'Dispute';
+    return `${isChargeback(item) ? 'Chargeback' : 'Dispute'} · ${item.tenantKey}`;
+  });
+
+  /**
+   * #872: "View in Stripe" — only once billing health confirms the Stripe
+   * provider (never for the simulated one, whose disputes don't exist in
+   * the dashboard).
+   */
+  protected readonly stripeUrl = computed(() => {
+    const d = this.detail();
+    const health = this.billingHealth();
+    if (!d || !health || health.stripe.provider === 'simulated') return null;
+    return stripeDisputeUrl(d, this.stripeDashboardBaseUrl);
   });
 
   protected readonly sla = computed(() => {
@@ -133,12 +166,16 @@ export class AdminDisputeDrawerComponent {
   protected readonly meta = computed(() => {
     const item = this.detail() ?? this.listItem();
     if (!item) return '';
+    if (isChargeback(item)) {
+      return `Opened ${formatEdmontonDateTime(item.openedAt)} · Evidence due ${formatEdmontonDateTime(item.evidenceDueAt ?? item.slaDueAt)}`;
+    }
     return `Opened ${formatEdmontonDateTime(item.openedAt)} · SLA due ${formatEdmontonDateTime(item.slaDueAt)}`;
   });
 
   protected readonly summary = computed(() => {
     const d = this.detail();
     if (!d) return [];
+    if (isChargeback(d)) return chargebackSummaryItems(d);
     return [
       { label: 'Builder', value: d.tenantKey },
       { label: 'Commission', value: formatCentsToCad(d.commissionCents) },
@@ -168,6 +205,14 @@ export class AdminDisputeDrawerComponent {
   /** An unsent note → Esc / × / scrim / Back ask first. */
   protected readonly dirty = computed(() => this.note().trim().length > 0);
 
+  ngOnInit(): void {
+    // #872: the provider decides whether "View in Stripe" shows. Opened
+    // straight from /admin/disputes the health payload may not be loaded.
+    if (this.store.selectSnapshot(BillingHealthState.loadStatus) === 'idle') {
+      this.store.dispatch(new LoadBillingHealth());
+    }
+  }
+
   protected onNote(event: Event): void {
     this.note.set((event.target as HTMLTextAreaElement).value);
   }
@@ -186,7 +231,7 @@ export class AdminDisputeDrawerComponent {
 
   protected accept(): void {
     const d = this.detail();
-    if (!d || this.resolving()) return;
+    if (!d || isChargeback(d) || this.resolving()) return;
     this.confirms
       .confirm(acceptConfirmOptions(d))
       .pipe(filter(Boolean), takeUntilDestroyed(this.destroyRef))
@@ -197,7 +242,7 @@ export class AdminDisputeDrawerComponent {
 
   protected reject(): void {
     const d = this.detail();
-    if (!d || this.resolving()) return;
+    if (!d || isChargeback(d) || this.resolving()) return;
     this.confirms
       .confirm(rejectConfirmOptions(d))
       .pipe(filter(Boolean), takeUntilDestroyed(this.destroyRef))

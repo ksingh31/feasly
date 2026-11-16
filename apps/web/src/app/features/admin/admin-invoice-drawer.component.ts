@@ -15,6 +15,7 @@ import {
   UiModalService,
 } from '@app/shared/ui';
 import { formatInvoiceTax } from '../../shared/utils/invoice-tax';
+import { invoiceRecoveryState } from '../../shared/utils/invoice-recovery';
 import { ClearAdminInvoiceDetail, LoadAdminInvoiceDetail, LoadAdminInvoices } from './admin-invoices.actions';
 import { AdminInvoicesState } from './admin-invoices.state';
 import { ADMIN_PERMISSIONS, adminCan } from './admin-permissions';
@@ -101,6 +102,12 @@ export class AdminInvoiceDrawerComponent implements OnInit {
   protected readonly tax = computed(() => {
     const invoice = this.invoice();
     return invoice ? formatInvoiceTax(invoice, 'Tax') : null;
+  });
+
+  /** #872: refund total + bank chargeback state; null when neither applies. */
+  protected readonly recovery = computed(() => {
+    const invoice = this.invoice();
+    return invoice ? invoiceRecoveryState(invoice) : null;
   });
 
   protected readonly canAct = computed(() => {
