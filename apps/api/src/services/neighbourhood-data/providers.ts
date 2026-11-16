@@ -12,10 +12,12 @@
  * (test/neighbourhood-data.read.test.ts asserts zero provider calls).
  *
  * Free implementations:
- * - `calgary-open-data` — City of Calgary open data (Socrata): Schools, and
- *   for amenities one dataset per configured category (parks, playgrounds,
- *   pathways, rec centres, pools, libraries, off-leash areas — #777) plus
- *   per-community public-tree cover.
+ * - `free-public` (#774) — school directory merged from City Schools, the
+ *   Alberta school authority list and OpenStreetMap (`school-directory.ts`).
+ * - `calgary-open-data` — City of Calgary open data (Socrata): Schools (+
+ *   authority list, no OSM call), and for amenities one dataset per configured
+ *   category (parks, playgrounds, pathways, rec centres, pools, libraries,
+ *   off-leash areas — #777) plus per-community public-tree cover.
  * - `straight-line` — straight-line distance from each established community
  *   (#690 rule, Community Points dataset) to a configured destination.
  *   A distance, never a travel time.
@@ -33,6 +35,7 @@ import type {
   SchoolDirectoryImpl,
   SchoolRatingsImpl,
 } from '../../config';
+import type { SchoolType } from '@feasly/contracts';
 import {
   haversineMeters,
   lineRepresentativePoint,
@@ -41,6 +44,7 @@ import {
 } from '../../lib/geo';
 import { toSlug } from '../community-stats/socrata-aggregates';
 import { TREE_COVER_CATEGORY } from './categories';
+import { buildSchoolDirectory, type OsmElement } from './school-directory';
 
 /** Provider interface keys — also the admin path segment and state key. */
 export const NEIGHBOURHOOD_PROVIDER_NAMES = [
@@ -76,6 +80,8 @@ export interface SchoolRecord extends NeighbourhoodRecordBase {
   readonly name: string;
   readonly board: string | null;
   readonly grades: string | null;
+  /** #774: every directory school has a type. */
+  readonly schoolType: SchoolType;
 }
 
 export interface SchoolDesignationRecord extends NeighbourhoodRecordBase {
@@ -221,39 +227,83 @@ function pointOf(row: Record<string, unknown>): { lat: number; lng: number } | n
 
 // ── Free implementations ─────────────────────────────────────────────────
 
-/** City of Calgary "Schools" dataset → school directory. */
-export function createCalgarySchoolDirectoryProvider(
-  fetchRows: SocrataRowsFetcher,
-  datasetId: string,
-): SchoolDirectoryProvider {
-  return {
-    implementation: 'calgary-open-data',
-    async fetchAll() {
-      const rows = await fetchRows(datasetId);
-      const out: SchoolRecord[] = [];
-      for (const row of rows) {
-        const externalId = str(row['global_id']);
-        const name = str(row['name']);
-        if (!externalId || !name) continue;
-        const point = pointOf(row);
-        out.push({
-          externalId,
-          name,
-          board: str(row['board']),
-          grades: str(row['grades']),
-          lat: point?.lat ?? null,
-          lng: point?.lng ?? null,
-          data: {
-            address: str(row['address_ab']),
-            postalCode: str(row['postal_cod']),
-            elementary: row['elem'] === 'Y',
-            juniorHigh: row['junior_h'] === 'Y',
-            seniorHigh: row['senior_h'] === 'Y',
-            postSecondary: row['postsecond'] === 'Y',
-          },
-        });
+/** Fetches OSM elements for an Overpass QL query. */
+export type OverpassFetcher = (query: string) => Promise<readonly OsmElement[]>;
+
+export interface OverpassClientDeps {
+  readonly overpassUrl: string;
+  readonly httpTimeoutMs: number;
+  readonly fetchImpl?: FetchLike;
+}
+
+export function createOverpassFetcher(deps: OverpassClientDeps): OverpassFetcher {
+  const fetchImpl: FetchLike = deps.fetchImpl ?? (fetch as unknown as FetchLike);
+  return async (query) => {
+    const url = `${deps.overpassUrl}?data=${encodeURIComponent(query)}`;
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), deps.httpTimeoutMs);
+    try {
+      const res = await fetchImpl(url, {
+        signal: controller.signal,
+        headers: { Accept: 'application/json', 'user-agent': 'feasly-neighbourhood-refresh/1.0' },
+      });
+      if (!res.ok) throw new Error(`Overpass request failed: ${res.status}`);
+      const body = (await res.json()) as { elements?: unknown };
+      if (typeof body !== 'object' || body === null || !Array.isArray(body.elements)) {
+        throw new Error('Overpass response had no elements array');
       }
-      return out;
+      return body.elements.filter(
+        (el): el is OsmElement =>
+          typeof el === 'object' &&
+          el !== null &&
+          typeof (el as OsmElement).type === 'string' &&
+          typeof (el as OsmElement).id === 'number',
+      );
+    } finally {
+      clearTimeout(timer);
+    }
+  };
+}
+
+/** Overpass QL: every amenity=school in the bbox (south,west,north,east). */
+export function osmSchoolsQuery(bbox: string, timeoutS: number): string {
+  return `[out:json][timeout:${timeoutS}];nwr["amenity"="school"](${bbox});out center tags;`;
+}
+
+export interface SchoolDirectoryProviderDeps {
+  readonly fetchRows: SocrataRowsFetcher;
+  readonly schoolsDatasetId: string;
+  readonly communityBoundariesDatasetId: string;
+  readonly dedupeRadiusM: number;
+  /** Absent → City + authority list only (no OSM call). */
+  readonly osm?: { readonly fetch: OverpassFetcher; readonly query: string };
+}
+
+/**
+ * #774 school directory: City Schools + Alberta authority list (+ OSM when
+ * configured), merged by `buildSchoolDirectory`. Any source failing fails
+ * the refresh (the job keeps the previous directory) — a partial merge
+ * would silently drop or retype schools.
+ */
+export function createSchoolDirectoryProvider<TImpl extends 'free-public' | 'calgary-open-data'>(
+  implementation: TImpl,
+  deps: SchoolDirectoryProviderDeps,
+): NeighbourhoodProvider<SchoolRecord, TImpl> {
+  return {
+    implementation,
+    async fetchAll() {
+      const [cityRows, boundaries, osmElements] = await Promise.all([
+        deps.fetchRows(deps.schoolsDatasetId),
+        deps.fetchRows(deps.communityBoundariesDatasetId),
+        deps.osm ? deps.osm.fetch(deps.osm.query) : Promise.resolve([] as readonly OsmElement[]),
+      ]);
+      if (cityRows.length === 0) throw new Error('City Schools dataset returned no rows');
+      return buildSchoolDirectory({
+        cityRows,
+        osmElements,
+        boundaries,
+        dedupeRadiusM: deps.dedupeRadiusM,
+      });
     },
   };
 }
@@ -503,11 +553,30 @@ export function createNeighbourhoodProviders(
     ...(deps.fetchImpl ? { fetchImpl: deps.fetchImpl } : {}),
   });
   const p = config.providers;
+  const schoolDeps: SchoolDirectoryProviderDeps = {
+    fetchRows,
+    schoolsDatasetId: config.schoolsDatasetId,
+    communityBoundariesDatasetId: config.communityBoundariesDatasetId,
+    dedupeRadiusM: config.schoolDedupeRadiusM,
+  };
+  const overpass = createOverpassFetcher({
+    overpassUrl: config.osmOverpassUrl,
+    httpTimeoutMs: config.osmHttpTimeoutMs,
+    ...(deps.fetchImpl ? { fetchImpl: deps.fetchImpl } : {}),
+  });
   return {
     schoolDirectory:
-      p.schoolDirectory === 'calgary-open-data'
-        ? createCalgarySchoolDirectoryProvider(fetchRows, config.schoolsDatasetId)
-        : noneProvider(),
+      p.schoolDirectory === 'free-public'
+        ? createSchoolDirectoryProvider('free-public', {
+            ...schoolDeps,
+            osm: {
+              fetch: overpass,
+              query: osmSchoolsQuery(config.osmBbox, Math.ceil(config.osmHttpTimeoutMs / 1000)),
+            },
+          })
+        : p.schoolDirectory === 'calgary-open-data'
+          ? createSchoolDirectoryProvider('calgary-open-data', schoolDeps)
+          : noneProvider(),
     schoolDesignation: noneProvider(),
     schoolRatings: noneProvider(),
     reviews: noneProvider(),

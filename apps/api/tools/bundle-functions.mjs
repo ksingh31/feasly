@@ -96,6 +96,14 @@ const targets = [
     out: 'partners/index.js',
   },
   {
+    entry: 'src/functions/schools-list.ts',
+    out: 'schools-list/index.js',
+  },
+  {
+    entry: 'src/functions/schools-get.ts',
+    out: 'schools-get/index.js',
+  },
+  {
     entry: 'src/functions/unsubscribe-get.ts',
     out: 'unsubscribe-get/index.js',
   },

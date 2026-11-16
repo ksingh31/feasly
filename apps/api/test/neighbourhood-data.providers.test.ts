@@ -18,7 +18,7 @@ const BASE_ENV = {
 
 const SCHOOL_ROWS = [
   {
-    board: 'Calgary Board of Education',
+    board: 'The Calgary School Division',
     name: 'Altadore School',
     address_ab: '4506 16 ST SW',
     postal_cod: 'T2T4H9',
@@ -85,11 +85,15 @@ const COMMUNITY_ROWS = [
   },
 ];
 
+const OVERPASS = { elements: [] };
+
 function fakeFetch(byDataset: Record<string, unknown>): { fetchImpl: FetchLike; urls: string[] } {
   const urls: string[] = [];
   const fetchImpl: FetchLike = async (url) => {
     urls.push(url);
-    const dataset = Object.keys(byDataset).find((id) => url.includes(`/resource/${id}.json`));
+    const dataset = Object.keys(byDataset).find(
+      (id) => url.includes(`/resource/${id}.json`) || (id === 'overpass' && url.includes('overpass')),
+    );
     return {
       ok: dataset !== undefined,
       status: dataset ? 200 : 404,
@@ -145,25 +149,32 @@ const DATASETS = {
     { comm_code: 'CRA', name: 'CRANSTON', multipolygon: ALT_BOUNDARY },
   ],
   'tfs4-3wwa': [{ comm_code: 'ALT', trees: '4000' }, { comm_code: 'CRA', trees: '10' }, { trees: '5' }],
+  overpass: OVERPASS,
 };
 
 describe('neighbourhood providers — free implementations (#773)', () => {
   it('school directory: maps City Schools rows, drops rows without an id, keeps no contact details', async () => {
+    // #774: the default 'free-public' directory also types each school and
+    // finds its community.
     const { fetchImpl, urls } = fakeFetch(DATASETS);
     const providers = createNeighbourhoodProviders(loadConfig(BASE_ENV).neighbourhoodData, { fetchImpl });
     const rows = await providers.schoolDirectory.fetchAll();
     expect(rows).toHaveLength(1);
     expect(rows[0]).toMatchObject({
-      externalId: '{A1}',
+      externalId: 'city-a1',
       name: 'Altadore School',
       board: 'Calgary Board of Education',
       grades: 'Elementary',
+      schoolType: 'public_cbe',
+      communityCode: 'ALT',
       lat: 51.012,
       lng: -114.098,
       data: { address: '4506 16 ST SW', elementary: true, juniorHigh: false },
     });
     expect(JSON.stringify(rows)).not.toMatch(/@|403\)/);
     expect(urls[0]).toBe('https://data.calgary.ca/resource/fd9t-tdn2.json?$limit=50000');
+    expect(urls[1]).toBe('https://data.calgary.ca/resource/surr-xmvs.json?$limit=50000');
+    expect(urls[2]).toMatch(/^https:\/\/overpass-api\.de\/api\/interpreter\?data=/);
   });
 
   it('amenities: every configured category plus per-community tree cover (#777)', async () => {
@@ -293,7 +304,7 @@ describe('neighbourhood providers — free implementations (#773)', () => {
 describe('neighbourhood providers — config-only switch (#773 AC2)', () => {
   it('defaults: free implementations for directory, amenities, commute; none for the rest', () => {
     const providers = createNeighbourhoodProviders(loadConfig(BASE_ENV).neighbourhoodData);
-    expect(providers.schoolDirectory.implementation).toBe('calgary-open-data');
+    expect(providers.schoolDirectory.implementation).toBe('free-public');
     expect(providers.amenities.implementation).toBe('calgary-open-data');
     expect(providers.commute.implementation).toBe('straight-line');
     expect(providers.schoolDesignation.implementation).toBe('none');
@@ -319,7 +330,7 @@ describe('neighbourhood providers — config-only switch (#773 AC2)', () => {
 
   it('dataset ids come from config, not code', async () => {
     const env = { ...BASE_ENV, NEIGHBOURHOOD_SCHOOLS_DATASET_ID: 'zzzz-0000' } as NodeJS.ProcessEnv;
-    const { fetchImpl, urls } = fakeFetch({ 'zzzz-0000': SCHOOL_ROWS });
+    const { fetchImpl, urls } = fakeFetch({ ...DATASETS, 'zzzz-0000': SCHOOL_ROWS });
     const providers = createNeighbourhoodProviders(loadConfig(env).neighbourhoodData, { fetchImpl });
     expect(await providers.schoolDirectory.fetchAll()).toHaveLength(1);
     expect(urls[0]).toContain('/resource/zzzz-0000.json');

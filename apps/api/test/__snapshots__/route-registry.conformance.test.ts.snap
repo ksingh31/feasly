@@ -363,6 +363,22 @@ exports[`route registry > exhaustive role x route permission matrix (auth/04 acc
     "builder_member",
     "none",
   ],
+  "GET /api/v1/schools": [
+    "super_admin",
+    "admin",
+    "viewer",
+    "builder_admin",
+    "builder_member",
+    "none",
+  ],
+  "GET /api/v1/schools/{id}": [
+    "super_admin",
+    "admin",
+    "viewer",
+    "builder_admin",
+    "builder_member",
+    "none",
+  ],
   "GET /api/v1/shares/verify": [
     "super_admin",
     "admin",

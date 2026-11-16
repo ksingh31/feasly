@@ -299,7 +299,7 @@ describe('loadConfig', () => {
       },
       neighbourhoodData: {
         providers: {
-          schoolDirectory: 'calgary-open-data',
+          schoolDirectory: 'free-public',
           schoolDesignation: 'none',
           schoolRatings: 'none',
           reviews: 'none',
@@ -324,6 +324,10 @@ describe('loadConfig', () => {
         amenityCountRadiiM: [500, 1_000],
         communityMetricsTtlMs: 86_400_000,
         communityPointsDatasetId: 'j9ps-fyst',
+        osmOverpassUrl: 'https://overpass-api.de/api/interpreter',
+        osmBbox: '50.84,-114.32,51.22,-113.85',
+        osmHttpTimeoutMs: 90_000,
+        schoolDedupeRadiusM: 300,
         communityClass: 'Residential',
         communityStructures: ['INNER CITY', '1950s', '1960s/1970s'],
         commuteDestination: { name: 'Downtown', lat: 51.0453, lng: -114.0581 },

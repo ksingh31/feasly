@@ -41,4 +41,5 @@ export * from './community-narratives';
 export * from './admin-users';
 export * from './zoning';
 export * from './partners';
+export * from './schools';
 export * from './web-telemetry';

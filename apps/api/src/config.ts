@@ -348,7 +348,12 @@ const EnvSchema = z.object({
   // #773: neighbourhood data (Community Match epic). Each outside source is
   // a provider interface; these pick the implementation (free now, paid
   // later — config-only switch). 'none' writes nothing and calls nothing.
-  NEIGHBOURHOOD_SCHOOL_DIRECTORY_PROVIDER: z.enum(['calgary-open-data', 'none']).default('calgary-open-data'),
+  // #774: 'free-public' = City Schools + Alberta school authority list +
+  // OpenStreetMap (private schools, websites); 'calgary-open-data' = City
+  // Schools + authority list only (no OSM call).
+  NEIGHBOURHOOD_SCHOOL_DIRECTORY_PROVIDER: z
+    .enum(['free-public', 'calgary-open-data', 'none'])
+    .default('free-public'),
   NEIGHBOURHOOD_SCHOOL_DESIGNATION_PROVIDER: z.enum(['none']).default('none'),
   NEIGHBOURHOOD_SCHOOL_RATINGS_PROVIDER: z.enum(['none']).default('none'),
   NEIGHBOURHOOD_REVIEWS_PROVIDER: z.enum(['none']).default('none'),
@@ -384,6 +389,7 @@ const EnvSchema = z.object({
   // Boundaries". Level thresholds are public trees per hectare
   // ("low,high": below low = low, at/above high = high, else moderate).
   NEIGHBOURHOOD_PUBLIC_TREES_DATASET_ID: z.string().min(1).default('tfs4-3wwa'),
+  // Also #774: each school's community code is a point-in-polygon test against these.
   NEIGHBOURHOOD_COMMUNITY_BOUNDARIES_DATASET_ID: z.string().min(1).default('surr-xmvs'),
   NEIGHBOURHOOD_TREE_COVER_THRESHOLDS: z
     .string()
@@ -402,6 +408,18 @@ const EnvSchema = z.object({
   // How long computed community metrics are reused from the shared cache.
   NEIGHBOURHOOD_COMMUNITY_METRICS_TTL_MS: z.coerce.number().int().positive().default(86_400_000),
   NEIGHBOURHOOD_COMMUNITY_POINTS_DATASET_ID: z.string().min(1).default('j9ps-fyst'),
+  // #774: OpenStreetMap Overpass endpoint and the Calgary bounding box
+  // (south,west,north,east) queried for amenity=school.
+  NEIGHBOURHOOD_OSM_OVERPASS_URL: z.string().url().default('https://overpass-api.de/api/interpreter'),
+  NEIGHBOURHOOD_OSM_BBOX: z
+    .string()
+    .regex(/^-?\d+(\.\d+)?(,-?\d+(\.\d+)?){3}$/)
+    .default('50.84,-114.32,51.22,-113.85'),
+  // #774: an OSM school within this distance of a City school with a
+  // matching name is the same school (de-duplicated, fields merged).
+  // Overpass answers city-wide queries slowly; its own (longer) timeout.
+  NEIGHBOURHOOD_OSM_HTTP_TIMEOUT_MS: z.coerce.number().int().positive().default(90_000),
+  NEIGHBOURHOOD_SCHOOL_DEDUPE_RADIUS_M: z.coerce.number().int().positive().default(300),
   // Established infill communities only (#690 rule): residential
   // communities whose City "community structure" is one of these.
   NEIGHBOURHOOD_COMMUNITY_CLASS: z.string().min(1).default('Residential'),
@@ -1613,7 +1631,7 @@ export interface CommunityStatsRefreshConfig {
 }
 
 /** #773: neighbourhood provider implementation names (config-selected). */
-export type SchoolDirectoryImpl = 'calgary-open-data' | 'none';
+export type SchoolDirectoryImpl = 'free-public' | 'calgary-open-data' | 'none';
 export type SchoolDesignationImpl = 'none';
 export type SchoolRatingsImpl = 'none';
 export type ReviewsImpl = 'none';
@@ -1660,6 +1678,7 @@ export interface NeighbourhoodDataConfig {
   readonly amenityCategories: readonly AmenityCategoryConfig[];
   /** #777: public-tree cover per community. */
   readonly publicTreesDatasetId: string;
+  /** City community boundaries: tree-cover area (#777), school → community code (#774). */
   readonly communityBoundariesDatasetId: string;
   /** Public trees per hectare: [low, high]. */
   readonly treeCoverThresholds: readonly [number, number];
@@ -1667,6 +1686,12 @@ export interface NeighbourhoodDataConfig {
   readonly amenityCountRadiiM: readonly number[];
   readonly communityMetricsTtlMs: number;
   readonly communityPointsDatasetId: string;
+  /** #774: OpenStreetMap Overpass endpoint + Calgary bbox (S,W,N,E). */
+  readonly osmOverpassUrl: string;
+  readonly osmBbox: string;
+  readonly osmHttpTimeoutMs: number;
+  /** #774: same-school match radius across sources (metres). */
+  readonly schoolDedupeRadiusM: number;
   /** #690: residential class + established community structures. */
   readonly communityClass: string;
   readonly communityStructures: readonly string[];
@@ -2312,6 +2337,10 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): ApiConfig {
       amenityCountRadiiM: [...e.NEIGHBOURHOOD_AMENITY_COUNT_RADII_M].sort((a, b) => a - b),
       communityMetricsTtlMs: e.NEIGHBOURHOOD_COMMUNITY_METRICS_TTL_MS,
       communityPointsDatasetId: e.NEIGHBOURHOOD_COMMUNITY_POINTS_DATASET_ID,
+      osmOverpassUrl: e.NEIGHBOURHOOD_OSM_OVERPASS_URL,
+      osmBbox: e.NEIGHBOURHOOD_OSM_BBOX,
+      osmHttpTimeoutMs: e.NEIGHBOURHOOD_OSM_HTTP_TIMEOUT_MS,
+      schoolDedupeRadiusM: e.NEIGHBOURHOOD_SCHOOL_DEDUPE_RADIUS_M,
       communityClass: e.NEIGHBOURHOOD_COMMUNITY_CLASS,
       communityStructures: csvToList(e.NEIGHBOURHOOD_COMMUNITY_STRUCTURES),
       commuteDestination: {

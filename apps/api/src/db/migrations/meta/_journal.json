@@ -477,6 +477,13 @@
 			"when": 1797206400000,
 			"tag": "0070_community_lots",
 			"breakpoints": true
+		},
+		{
+			"idx": 68,
+			"version": "7",
+			"when": 1797292800000,
+			"tag": "0071_schools_directory",
+			"breakpoints": true
 		}
 	]
 }

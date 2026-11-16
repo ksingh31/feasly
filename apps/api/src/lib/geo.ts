@@ -153,6 +153,30 @@ export function haversineMeters(a: LonLat, b: LonLat): number {
 }
 
 /**
+ * True when the point lies inside a GeoJSON Polygon or MultiPolygon (#774):
+ * inside some polygon's outer ring and in none of that polygon's holes.
+ * False for missing or malformed geometry.
+ */
+export function pointInGeometry(point: LonLat, geometry: unknown): boolean {
+  if (typeof geometry !== 'object' || geometry === null) return false;
+  const { type, coordinates } = geometry as { type?: unknown; coordinates?: unknown };
+  if (!Array.isArray(coordinates)) return false;
+  const polygons: unknown[] =
+    type === 'MultiPolygon' ? coordinates : type === 'Polygon' ? [coordinates] : [];
+  for (const polygon of polygons) {
+    if (!Array.isArray(polygon)) continue;
+    const outer = toRing(polygon[0]);
+    if (!outer || !pointInRing(point, outer)) continue;
+    const inHole = polygon.slice(1).some((hole) => {
+      const ring = toRing(hole);
+      return ring !== null && pointInRing(point, ring);
+    });
+    if (!inHole) return true;
+  }
+  return false;
+}
+
+/**
  * Approximate area in square metres of a GeoJSON Polygon/MultiPolygon (#777):
  * outer rings minus holes, each projected equirectangularly at its own mean
  * latitude. Accurate to well under 1% at community scale. 0 when malformed.

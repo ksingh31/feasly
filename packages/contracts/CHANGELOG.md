@@ -12,6 +12,16 @@ real backend. Changing them has a cost, so:
 - **Never** widen a type to `any` to "unblock" something — the no-`any` lint exists
   precisely to stop that.
 
+## Unreleased — 2026-11-16 (additive) — schools directory
+
+Issue #774 (Community Match epic):
+
+- **Added** `schools.ts`: `School`, `SchoolType` (+ `SCHOOL_TYPES`),
+  `SchoolProgram`, `SchoolSourceId`, `SchoolAttributedField`,
+  `SchoolSourceAttribution`, `SchoolsListResponse` (GET /api/v1/schools) and
+  `SchoolResponse` (GET /api/v1/schools/{id}). New types only — nothing
+  existing changed.
+
 ## Unreleased — 2026-11-16 (additive) — builder settings (#870)
 
 - **Added** builder Settings contracts: `BuilderProfile`,

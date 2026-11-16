@@ -56,8 +56,8 @@ describe('neighbourhood reads never call a provider (#773 AC3)', () => {
   it('serves lot and community metrics from our tables with zero provider calls', async () => {
     const spies = {
       schoolDirectory: spy('fake', [
-        { externalId: 'near', name: 'Near School', board: 'CBE', grades: 'K-6', lat: 51.0164, lng: -114.0983, data: {} },
-        { externalId: 'far', name: 'Far School', board: 'CBE', grades: '7-9', lat: 51.06, lng: -114.06, data: {} },
+        { externalId: 'near', name: 'Near School', board: 'CBE', grades: 'K-6', schoolType: 'public_cbe', lat: 51.0164, lng: -114.0983, data: {} },
+        { externalId: 'far', name: 'Far School', board: 'CBE', grades: '7-9', schoolType: 'public_cbe', lat: 51.06, lng: -114.06, data: {} },
       ]),
       schoolDesignation: spy('fake', [] as never[]),
       schoolRatings: spy('fake', [] as never[]),

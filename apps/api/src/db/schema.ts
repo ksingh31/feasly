@@ -2141,10 +2141,17 @@ export const schools = pgTable(
     name: text('name').notNull(),
     board: text('board'),
     grades: text('grades'),
+    /**
+     * #774: 'public_cbe' | 'catholic_ccsd' | 'francophone' | 'charter' |
+     * 'private' | 'alternative'. Nullable (expand-only); the free directory
+     * provider always sets it.
+     */
+    schoolType: text('school_type'),
   },
   (t) => [
     index('schools_provider_idx').on(t.provider),
     index('schools_community_idx').on(t.communityCode),
+    index('schools_type_idx').on(t.schoolType),
   ],
 );
 

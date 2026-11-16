@@ -433,6 +433,11 @@ import {
   type CityDataFreshnessService,
 } from './services/city-data-freshness.service';
 import { createZoningRoute, type ZoningRoute } from './routes/zoning.route';
+import { createSchoolsRoute, type SchoolsRoute } from './routes/schools.route';
+import {
+  createSchoolDirectoryReadService,
+  type SchoolDirectoryReadService,
+} from './services/neighbourhood-data/school-directory-read.service';
 import { createZoningService, type ZoningService } from './services/zoning.service';
 import {
   createZoningWatchService,
@@ -922,6 +927,10 @@ export interface AppComposition {
   readonly neighbourhoodRefreshService: NeighbourhoodRefreshService;
   /** #773: request-path neighbourhood reads (tables only, no providers). */
   readonly neighbourhoodReadService: NeighbourhoodReadService;
+  /** #774: schools directory reads (tables only, no providers). */
+  readonly schoolDirectoryReadService: SchoolDirectoryReadService;
+  /** #774: GET /api/v1/schools and /api/v1/schools/{id}. */
+  readonly schoolsRoute: SchoolsRoute;
   readonly adminNeighbourhoodDataRoute: AdminNeighbourhoodDataRoute;
   /** #777: public community living-nearby metrics. */
   readonly communityLivingRoute: CommunityLivingRoute;
@@ -2152,6 +2161,11 @@ export function createComposition(
   const communityLivingRoute: CommunityLivingRoute = createCommunityLivingRoute({
     neighbourhood: neighbourhoodReadService,
   });
+  // #774: schools directory — reads the stored directory only.
+  const schoolDirectoryReadService: SchoolDirectoryReadService = createSchoolDirectoryReadService({
+    store: neighbourhoodDataStore,
+  });
+  const schoolsRoute: SchoolsRoute = createSchoolsRoute({ schools: schoolDirectoryReadService });
   const adminNeighbourhoodDataRoute: AdminNeighbourhoodDataRoute =
     createAdminNeighbourhoodDataRoute({
       refresh: neighbourhoodRefreshService,
@@ -2828,6 +2842,8 @@ export function createComposition(
     communityStatsRefreshRoute,
     neighbourhoodRefreshService,
     neighbourhoodReadService,
+    schoolDirectoryReadService,
+    schoolsRoute,
     adminNeighbourhoodDataRoute,
     communityLivingRoute,
     adminAuditStore,
