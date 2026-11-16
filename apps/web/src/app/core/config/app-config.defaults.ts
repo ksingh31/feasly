@@ -231,6 +231,12 @@ export const DEFAULT_APP_CONFIG: AppConfig = {
     maxMessageLength: 300,
     maxBatchItems: 25,
   },
+  // #905: loaded on demand only after a challenge 403. 30s covers a slow
+  // script load plus a managed challenge that needs one click.
+  botChallenge: {
+    turnstileScriptUrl: 'https://challenges.cloudflare.com/turnstile/v0/api.js?render=explicit',
+    timeoutMs: 30000,
+  },
   admin: {
     defaultRateLimit: 60,
     rateLimitMax: 10000,

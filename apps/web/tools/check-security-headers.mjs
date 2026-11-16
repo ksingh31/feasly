@@ -123,6 +123,9 @@ for (const [directive, token] of [
   ['style-src', 'https://fonts.googleapis.com'],
   ['font-src', 'https://fonts.gstatic.com'],
   ['connect-src', 'https://data.calgary.ca'],
+  // #905: the on-demand Turnstile challenge (script + widget iframe).
+  ['script-src', 'https://challenges.cloudflare.com'],
+  ['frame-src', 'https://challenges.cloudflare.com'],
   ['form-action', "'self'"],
   ['base-uri', "'self'"],
   ['object-src', "'none'"],

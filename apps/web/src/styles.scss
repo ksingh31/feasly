@@ -307,3 +307,15 @@ app-terms-page > main {
 .disclosure-heading {
   display: inline-block;
 }
+
+/* #905: host for the on-demand Turnstile widget. Empty (invisible) unless
+   Cloudflare asks for a click; then it floats above sticky CTAs and modals,
+   centred at the bottom so it never covers form inputs on mobile. */
+.feasly-turnstile-host {
+  position: fixed;
+  left: 50%;
+  bottom: var(--space-4);
+  transform: translateX(-50%);
+  z-index: var(--z-toast);
+  max-width: calc(100vw - 2 * var(--space-4));
+}
