@@ -3,7 +3,7 @@
       <app-wizard-back [label]="copy.scopeBackLabel" [link]="'/'" [step]="1" />
       <app-wizard-steps [current]="2" />
       @if (property(); as p) {
-        <app-property-card [property]="p" />
+        <app-property-card [property]="p" [addressAsHeading]="false" />
 
         <h1 class="scope-heading">{{ copy.scopeHeading }}</h1>
 

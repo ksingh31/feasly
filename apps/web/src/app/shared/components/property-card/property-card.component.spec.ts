@@ -114,6 +114,26 @@ describe('PropertyCardComponent freshness line', () => {
     expect(el.querySelector('.pcard-land-note')?.textContent?.trim()).toBe(landHouseNote);
   });
 
+  // #938: the address is an h2 by default; pages that place the card above
+  // their h1 render it as a plain paragraph instead (same class/styling).
+  it('renders the address as an h2 by default', async () => {
+    const fixture = await setup('live');
+    const address = fixture.nativeElement.querySelector('.pcard-address');
+    expect(address?.tagName).toBe('H2');
+    expect(address?.textContent?.trim()).toBe(fakeProperty.address);
+  });
+
+  it('renders the address as a non-heading when addressAsHeading is false', async () => {
+    const fixture = await setup('live');
+    fixture.componentRef.setInput('addressAsHeading', false);
+    fixture.detectChanges();
+    const el: HTMLElement = fixture.nativeElement;
+    expect(el.querySelector('h1, h2, h3, h4, h5, h6')).toBeNull();
+    const address = el.querySelector('.pcard-address');
+    expect(address?.tagName).toBe('P');
+    expect(address?.textContent?.trim()).toBe(fakeProperty.address);
+  });
+
   it('hides the teardown note when showLandNote is false (renovations)', async () => {
     const fixture = await setup('live', false);
     expect(fixture.nativeElement.querySelector('.pcard-land-note')).toBeNull();
