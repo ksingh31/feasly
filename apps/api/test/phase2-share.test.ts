@@ -56,6 +56,8 @@ function fakeStores(opts?: {
   recentShares?: number;
   /** Shares recorded for the lead older than the 24h cap window (never counted). */
   staleShares?: number;
+  /** #840: the lead was captured via a sandbox (test) API key. */
+  sandbox?: boolean;
 }) {
   const live = opts?.live ?? true;
   const partnerLive = opts?.partnerLive ?? true;
@@ -65,6 +67,7 @@ function fakeStores(opts?: {
   const persisted: NewPartnerShare[] = [];
   const sentEmails: { to: string; shareUrl: string; expiresInDays?: number }[] = [];
   const issuedLinkIds: string[] = [];
+  const issuedSandboxFlags: (boolean | undefined)[] = [];
   // The service clock is fixed at 2026-09-26T05:00:00Z: "recent" shares sit
   // inside the 24h cap window, "stale" shares sit outside it.
   const recentShareRows: PartnerShareRecord[] = Array.from(
@@ -121,8 +124,9 @@ function fakeStores(opts?: {
       }
       return null;
     },
-    issue: async (): Promise<IssuedMagicLink> => {
+    issue: async (args: { sandbox?: boolean }): Promise<IssuedMagicLink> => {
       issuedLinkIds.push('issued');
+      issuedSandboxFlags.push(args.sandbox);
       return {
         id: PARTNER_LINK_ID,
         token: PARTNER_TOKEN,
@@ -139,6 +143,7 @@ function fakeStores(opts?: {
             addressKey: 'calgary:123-elm-st',
             email: 'homeowner@example.com',
             name: 'Home Owner',
+            sandbox: opts?.sandbox ?? false,
           }
         : null,
     findNewestEstimateIdByEmailAndAddress: async () =>
@@ -198,12 +203,31 @@ function fakeStores(opts?: {
     magicLinkTtlSeconds: 604800,
     clock: () => new Date('2026-09-26T05:00:00Z'),
   });
-  return { service, persisted, sentEmails, issuedLinkIds };
+  return { service, persisted, sentEmails, issuedLinkIds, issuedSandboxFlags };
 }
 
 const VALID_BODY = { reportToken: OWNER_TOKEN, partnerEmail: 'partner@example.com' };
 
 describe('share service', () => {
+  it('a sandbox lead routes the partner email through the no-send decorator (#840)', async () => {
+    const { service, sentEmails, persisted, issuedSandboxFlags } = fakeStores({
+      sandbox: true,
+    });
+    const result = await service.shareWithPartner(VALID_BODY);
+    expect(result).toEqual({ sent: true, sharedTo: 'partner@example.com' });
+    // The real email service is never called.
+    expect(sentEmails).toHaveLength(0);
+    // The partner link is sandbox-flagged so the purge removes it.
+    expect(issuedSandboxFlags).toEqual([true]);
+    expect(persisted).toHaveLength(1);
+  });
+
+  it('a live lead issues a non-sandbox partner link', async () => {
+    const { service, issuedSandboxFlags } = fakeStores();
+    await service.shareWithPartner(VALID_BODY);
+    expect(issuedSandboxFlags).toEqual([false]);
+  });
+
   it('mints a fresh partner link, emails it, and records the audit row', async () => {
     const { service, persisted, sentEmails } = fakeStores();
     const result = await service.shareWithPartner(VALID_BODY);
