@@ -125,6 +125,17 @@ const EnvSchema = z.object({
   SANDBOX_PURGE_RETENTION_DAYS: z.coerce.number().int().positive().default(30),
   SANDBOX_PURGE_DRY_RUN: z.coerce.boolean().default(true),
 
+  // #765 (go-live AC6/AC8): API-key auth posture.
+  // AUTH_CACHE_TTL_SECONDS — per-instance cache of successful key lookups.
+  // Capped at 60 so a revoked key is rejected on every instance within one
+  // minute. 0 (default) = no cache: every request re-reads the key row.
+  // ACCEPTED_MODES — which keys this deployment accepts: `all` (default —
+  // live + sandbox side by side, sandbox writes flagged), `live` (a
+  // production-only deployment rejects sandbox keys) or `sandbox` (a
+  // sandbox-only deployment rejects live keys).
+  API_KEY_AUTH_CACHE_TTL_SECONDS: z.coerce.number().int().min(0).max(60).default(0),
+  API_KEY_ACCEPTED_MODES: z.enum(['all', 'live', 'sandbox']).default('all'),
+
   // #703: one post-report follow-up email ("Questions about your
   // estimate?"), marketing-consent leads only. Off by default — flip per
   // environment once the copy is approved. DELAY_HOURS counts from the
@@ -970,6 +981,14 @@ export interface FollowUpEmailConfig {
   readonly delayHours: number;
 }
 
+/** #765: API-key auth posture (revocation lag + live/sandbox isolation). */
+export interface ApiKeyAuthConfig {
+  /** Per-instance auth cache TTL, seconds (0–60; 0 = no cache). */
+  readonly authCacheTtlSeconds: number;
+  /** Which keys this deployment accepts. */
+  readonly acceptedModes: 'all' | 'live' | 'sandbox';
+}
+
 export interface SandboxPurgeConfig {
   readonly retentionDays: number;
   readonly dryRun: boolean;
@@ -1140,6 +1159,7 @@ export interface ApiConfig {
   /** #753: which payment provider billing talks to. */
   readonly payments: PaymentsConfig;
   readonly sandboxPurge: SandboxPurgeConfig;
+  readonly apiKeyAuth: ApiKeyAuthConfig;
   readonly followUpEmail: FollowUpEmailConfig;
   readonly sheets: SheetsConfig;
   readonly narrative: NarrativeConfig;
@@ -1449,6 +1469,10 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): ApiConfig {
     sandboxPurge: {
       retentionDays: e.SANDBOX_PURGE_RETENTION_DAYS,
       dryRun: e.SANDBOX_PURGE_DRY_RUN,
+    },
+    apiKeyAuth: {
+      authCacheTtlSeconds: e.API_KEY_AUTH_CACHE_TTL_SECONDS,
+      acceptedModes: e.API_KEY_ACCEPTED_MODES,
     },
     payments: {
       provider: resolvePaymentsProvider(

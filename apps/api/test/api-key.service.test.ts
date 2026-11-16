@@ -15,8 +15,16 @@ import {
   hashApiKey,
   DEFAULT_API_KEY_RATE_LIMIT,
   DEFAULT_API_KEY_SCOPES,
+  MAX_API_KEY_AUTH_CACHE_TTL_SECONDS,
 } from '../src/services/api-key.service';
+import { loadConfig } from '../src/config';
+
+const BASE_ENV = {
+  NODE_ENV: 'test',
+  DATABASE_URL: 'postgresql://user:pass@localhost:5432/feasly',
+} as NodeJS.ProcessEnv;
 import type {
+  ApiKeyServiceDeps,
   ApiKeyAuditStore,
   ApiKeyRecord,
   ApiKeyStore,
@@ -26,13 +34,18 @@ import { HttpError } from '../src/middleware/errors';
 interface World {
   records: Map<string, ApiKeyRecord & { keyHash: string }>;
   audits: Array<{ apiKeyId: string | null; action: string; detail?: string }>;
+  /** Number of store hash lookups (proves cache / no-cache behaviour). */
+  lookups: number;
 }
 
 function makeWorld(): World {
-  return { records: new Map(), audits: [] };
+  return { records: new Map(), audits: [], lookups: 0 };
 }
 
-function makeService(world: World) {
+function makeService(
+  world: World,
+  extra: Partial<Omit<ApiKeyServiceDeps, 'keys' | 'audit'>> = {},
+) {
   const keys: ApiKeyStore = {
     insert: async (record) => {
       const full = {
@@ -54,6 +67,7 @@ function makeService(world: World) {
       return rest;
     },
     findActiveByHash: async (keyHash) => {
+      world.lookups += 1;
       for (const r of world.records.values()) {
         if (r.keyHash === keyHash && !r.revokedAt) {
           const { keyHash: _h, ...rest } = r;
@@ -107,7 +121,7 @@ function makeService(world: World) {
       });
     },
   };
-  return createApiKeyService({ keys, audit });
+  return createApiKeyService({ keys, audit, ...extra });
 }
 
 describe('api-key service (api-mcp/01)', () => {
@@ -338,5 +352,178 @@ describe('api-key service (api-mcp/01)', () => {
     expect(keys).toHaveLength(1);
     expect(keys[0]!.keyPrefix).toMatch(/…/);
     expect(JSON.stringify(keys)).not.toContain(plaintext);
+  });
+});
+
+/**
+ * #765 (go-live AC6): revoking a key takes effect within one minute across
+ * instances. Two service instances share one store (= two Function App
+ * instances sharing Postgres); the key is revoked through instance A and
+ * must be rejected by instance B.
+ */
+describe('api-key revocation propagation across instances (#765 AC6)', () => {
+  async function authStatus(
+    service: ReturnType<typeof makeService>,
+    plaintext: string,
+  ): Promise<number> {
+    try {
+      await service.authenticate(plaintext);
+      return 200;
+    } catch (e) {
+      return (e as HttpError).status;
+    }
+  }
+
+  it('default config has no auth cache — every request re-reads the key row', async () => {
+    const world = makeWorld();
+    const ttl = loadConfig(BASE_ENV)
+      .apiKeyAuth.authCacheTtlSeconds;
+    expect(ttl).toBe(0);
+    const a = makeService(world, { authCacheTtlSeconds: ttl });
+    const b = makeService(world, { authCacheTtlSeconds: ttl });
+    const { key, plaintext } = await a.issue({ name: 'Two instances' });
+
+    expect(await authStatus(b, plaintext)).toBe(200);
+    expect(await authStatus(b, plaintext)).toBe(200);
+    expect(world.lookups).toBe(2);
+
+    await a.revoke(key.id);
+    // Instance B rejects on the very next request — no lag at all.
+    expect(await authStatus(b, plaintext)).toBe(401);
+  });
+
+  it('config rejects an auth cache TTL above 60 seconds', () => {
+    const base = BASE_ENV;
+    expect(
+      loadConfig({ ...base, API_KEY_AUTH_CACHE_TTL_SECONDS: '60' }).apiKeyAuth
+        .authCacheTtlSeconds,
+    ).toBe(60);
+    expect(() =>
+      loadConfig({ ...base, API_KEY_AUTH_CACHE_TTL_SECONDS: '61' }),
+    ).toThrow();
+    expect(MAX_API_KEY_AUTH_CACHE_TTL_SECONDS).toBe(60);
+  });
+
+  it('with the maximum cache TTL, another instance rejects a revoked key within 60s', async () => {
+    const world = makeWorld();
+    let now = new Date('2026-11-16T12:00:00Z').getTime();
+    const clock = () => new Date(now);
+    const a = makeService(world, { clock, authCacheTtlSeconds: 60 });
+    const b = makeService(world, { clock, authCacheTtlSeconds: 60 });
+    const { key, plaintext } = await a.issue({ name: 'Cached' });
+
+    // B caches the successful lookup.
+    expect(await authStatus(b, plaintext)).toBe(200);
+    const lookupsAfterWarm = world.lookups;
+    expect(await authStatus(b, plaintext)).toBe(200);
+    expect(world.lookups).toBe(lookupsAfterWarm); // served from cache
+
+    await a.revoke(key.id);
+    // The revoking instance rejects immediately (its cache is evicted).
+    expect(await authStatus(a, plaintext)).toBe(401);
+
+    // B may still accept from cache until the TTL lapses — never longer.
+    now += 59_000;
+    expect(await authStatus(b, plaintext)).toBe(200);
+    now += 1_000; // exactly 60s after B cached the record
+    expect(await authStatus(b, plaintext)).toBe(401);
+  });
+
+  it('an out-of-range TTL passed directly is clamped to 60s', async () => {
+    const world = makeWorld();
+    let now = new Date('2026-11-16T12:00:00Z').getTime();
+    const clock = () => new Date(now);
+    const a = makeService(world, { clock });
+    const b = makeService(world, { clock, authCacheTtlSeconds: 3_600 });
+    const { key, plaintext } = await a.issue({ name: 'Clamp' });
+    expect(await authStatus(b, plaintext)).toBe(200);
+    await a.revoke(key.id);
+    now += 60_000;
+    expect(await authStatus(b, plaintext)).toBe(401);
+  });
+
+  it('scope updates evict the cache on the updating instance', async () => {
+    const world = makeWorld();
+    const service = makeService(world, { authCacheTtlSeconds: 60 });
+    const { key, plaintext } = await service.issue({ name: 'Scopes' });
+    await service.authenticate(plaintext);
+    await service.update(key.id, { scopes: ['property:read'] });
+    const record = await service.authenticate(plaintext);
+    expect(record.scopes).toEqual(['property:read']);
+  });
+});
+
+/**
+ * #765 (go-live AC8): a sandbox key is rejected by a production (live-only)
+ * deployment and a live key is rejected by a sandbox-only deployment.
+ */
+describe('api-key live/sandbox isolation (#765 AC8)', () => {
+  async function issueBoth(world: World) {
+    const issuer = makeService(world);
+    const live = await issuer.issue({ name: 'Live' });
+    const sandbox = await issuer.issue({ name: 'Sandbox', sandbox: true });
+    return { live, sandbox };
+  }
+
+  it('production (live-only) rejects a sandbox key with a uniform 401', async () => {
+    const world = makeWorld();
+    const { live, sandbox } = await issueBoth(world);
+    const prod = makeService(world, { acceptedModes: 'live' });
+
+    expect((await prod.authenticate(live.plaintext)).id).toBe(live.key.id);
+    const err = await prod.authenticate(sandbox.plaintext).catch((e) => e);
+    expect(err).toBeInstanceOf(HttpError);
+    expect(err.status).toBe(401);
+    expect(err.code).toBe('INVALID_API_KEY');
+    expect(err.message).toBe('Invalid API key.');
+    expect(world.audits.at(-1)).toEqual({
+      apiKeyId: sandbox.key.id,
+      action: 'auth_failed',
+      detail: 'mode-mismatch:live',
+    });
+  });
+
+  it('sandbox-only deployment rejects a live key with a uniform 401', async () => {
+    const world = makeWorld();
+    const { live, sandbox } = await issueBoth(world);
+    const sbx = makeService(world, { acceptedModes: 'sandbox' });
+
+    expect((await sbx.authenticate(sandbox.plaintext)).id).toBe(sandbox.key.id);
+    const err = await sbx.authenticate(live.plaintext).catch((e) => e);
+    expect(err).toBeInstanceOf(HttpError);
+    expect(err.status).toBe(401);
+    expect(err.code).toBe('INVALID_API_KEY');
+  });
+
+  it('mode isolation also holds when the record is served from the auth cache', async () => {
+    const world = makeWorld();
+    const { sandbox } = await issueBoth(world);
+    const prod = makeService(world, {
+      acceptedModes: 'live',
+      authCacheTtlSeconds: 60,
+    });
+    for (let i = 0; i < 2; i += 1) {
+      const err = await prod.authenticate(sandbox.plaintext).catch((e) => e);
+      expect(err.status).toBe(401);
+    }
+  });
+
+  it("default ('all') keeps today's behaviour — both keys authenticate", async () => {
+    const world = makeWorld();
+    const { live, sandbox } = await issueBoth(world);
+    const mode = loadConfig(BASE_ENV)
+      .apiKeyAuth.acceptedModes;
+    expect(mode).toBe('all');
+    const svc = makeService(world, { acceptedModes: mode });
+    expect((await svc.authenticate(live.plaintext)).sandbox).toBe(false);
+    expect((await svc.authenticate(sandbox.plaintext)).sandbox).toBe(true);
+  });
+
+  it('config accepts only all | live | sandbox', () => {
+    const base = BASE_ENV;
+    expect(
+      loadConfig({ ...base, API_KEY_ACCEPTED_MODES: 'live' }).apiKeyAuth.acceptedModes,
+    ).toBe('live');
+    expect(() => loadConfig({ ...base, API_KEY_ACCEPTED_MODES: 'prod' })).toThrow();
   });
 });
