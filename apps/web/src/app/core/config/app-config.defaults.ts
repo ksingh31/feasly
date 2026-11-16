@@ -1805,6 +1805,12 @@ export const DEFAULT_APP_CONFIG: AppConfig = {
         'If we have details for that email, a fresh link is on its way. It can take a few minutes.',
       pendingEmailBody:
         'Nothing has been deleted yet. We’ve emailed you a link — open it to confirm the deletion.',
+      // #806: confirmationEmailSent=false — a duplicate inside the resend
+      // cooldown, a spent send budget, or a failed send (the API doesn't say which).
+      pendingEmailNotSentBody:
+        'Nothing has been deleted yet. We couldn’t send a new confirmation email just now. If you asked in the last few minutes, check your inbox for our earlier email. Otherwise, send it again.',
+      resendEmailCta: 'Send the email again',
+      resendEmailWorking: 'Sending…',
       confirmPromptHeading: 'Delete your data?',
       confirmPromptBody:
         'This deletes your lead records and revokes your report links. It can’t be undone.',

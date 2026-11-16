@@ -2458,6 +2458,9 @@ export interface AppConfig {
       linkSentHeading: string;
       linkSentBody: string;
       pendingEmailBody: string;
+      pendingEmailNotSentBody: string;
+      resendEmailCta: string;
+      resendEmailWorking: string;
       confirmPromptHeading: string;
       confirmPromptBody: string;
       confirmWorking: string;

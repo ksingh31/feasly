@@ -413,6 +413,13 @@ describe('#806 erase-confirmation email', () => {
     expect(r.html).not.toContain('<b>x</b>');
     expect(r.text).toContain('1 hour)');
   });
+
+  it('does not claim single use — the link works until it expires (#806 review)', () => {
+    const r = renderErasureConfirmationEmail(CTX, { confirmUrl: CONFIRM_URL, expiresInHours: 24 });
+    expect(r.html).toContain('The link expires in 24 hours.');
+    expect(r.text).toContain('the link expires in 24 hours');
+    expect(`${r.html}${r.text}`).not.toMatch(/works once/i);
+  });
 });
 
 describe('callback + ops-alert paths', () => {

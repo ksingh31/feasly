@@ -349,11 +349,11 @@ export function renderErasureConfirmationEmail(
   const subject = `Confirm you want to delete your ${ctx.brandName} data`;
   const body = `<p>${greeting}</p>
 <p>We got a request to delete the data ${esc(ctx.brandName)} holds about you. Nothing has been deleted yet.</p>
-<p>To go ahead, open this link and confirm. It works once and expires in ${hours}.</p>
+<p>To go ahead, open this link and confirm. The link expires in ${hours}.</p>
 ${ctaButton(input.confirmUrl, 'Review and confirm deletion')}
 ${fallbackLink(input.confirmUrl)}
 <p style="font-size:13px;color:#8a8378;">Didn't ask for this? Ignore this email and your data stays as it is.</p>`;
-  const text = `${input.name ? `Hi ${input.name},` : 'Hi there,'}\n\nWe got a request to delete the data ${ctx.brandName} holds about you. Nothing has been deleted yet.\n\nTo go ahead, open this link and confirm (it works once and expires in ${hours}):\n${input.confirmUrl}\n\nDidn't ask for this? Ignore this email and your data stays as it is.\n\n— ${ctx.brandName}`;
+  const text = `${input.name ? `Hi ${input.name},` : 'Hi there,'}\n\nWe got a request to delete the data ${ctx.brandName} holds about you. Nothing has been deleted yet.\n\nTo go ahead, open this link and confirm (the link expires in ${hours}):\n${input.confirmUrl}\n\nDidn't ask for this? Ignore this email and your data stays as it is.\n\n— ${ctx.brandName}`;
   return { subject, html: layout(ctx, 'Confirm your data deletion', body), text };
 }
 
