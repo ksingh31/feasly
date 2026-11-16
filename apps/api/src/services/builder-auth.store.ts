@@ -35,6 +35,7 @@ function toSessionRecord(
     revokedAt: row.revokedAt,
     expiresAt: row.expiresAt,
     createdAt: row.createdAt,
+    lastSeenAt: row.lastSeenAt ?? null,
   };
 }
 
@@ -86,6 +87,13 @@ export function createDrizzleBuilderSessionStore(
         .limit(1);
       const row = rows[0];
       return row ? toSessionRecord(row) : null;
+    },
+
+    async touch(sessionTokenHash: string, at: Date): Promise<void> {
+      await db
+        .update(builderSessions)
+        .set({ lastSeenAt: at })
+        .where(eq(builderSessions.sessionTokenHash, sessionTokenHash));
     },
 
     async revokeByHash(

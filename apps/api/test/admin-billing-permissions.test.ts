@@ -26,6 +26,7 @@ import type { BuilderRole, StaffRole } from '../src/services/user.service';
 const MARK_PAID = '/api/v1/admin/billing/invoices/{id}/mark-paid';
 const SET_RATE = '/api/v1/admin/billing/invoices/{id}/commission-rate';
 const HEADERS = { authorization: 'Bearer <redacted>' };
+const NOW = new Date('2026-11-16T12:00:00Z');
 
 function ctxFor(
   staffRole: StaffRole | null,
@@ -46,6 +47,8 @@ function ctxFor(
     })),
     viewAs: null,
     realUser: null,
+    // #730: a fresh sign-in — mark-paid is a recent-auth route.
+    authenticatedAt: NOW,
   };
 }
 
@@ -58,6 +61,8 @@ function makeHarness(ctx: AuthContext | null) {
   };
   const guard = createPermissionGuard({
     authContext: authContext as unknown as PermissionGuardDeps['authContext'],
+    reauthWindowSeconds: 1_800,
+    clock: () => NOW,
   });
   return { guard, auditDenied };
 }

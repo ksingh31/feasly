@@ -48,7 +48,12 @@ describe('loadConfig', () => {
         // P1-6: max magic-link sends per email per hour (default 5).
         magicLinkMaxSendsPerHour: 5,
         adminApiKey: undefined,
-        adminSessionTtlSeconds: 604_800,
+        adminSessionTtlSeconds: 43_200,
+        adminSessionIdleTimeoutSeconds: 3_600,
+        builderSessionTtlSeconds: 604_800,
+        builderSessionIdleTimeoutSeconds: 86_400,
+        sessionActivityTouchIntervalSeconds: 60,
+        sessionReauthWindowSeconds: 1_800,
         // AUTH-01: Entra invitations expire after 7 days.
         invitationTtlSeconds: 604_800,
       },
@@ -131,6 +136,10 @@ describe('loadConfig', () => {
         searchRowLimit: 50,
         suggestionLimit: 8,
         redevelopmentMinAgeYears: 25,
+        // #756: durable shared cache + HTTP cache lifetime.
+        dbCacheTtlMs: 604_800_000,
+        dbCacheTimeoutMs: 1_500,
+        httpCacheMaxAgeSeconds: 3_600,
       },
       // #686: current land-use district from the City's Land Use Districts
       // dataset; falls back to the roll value on timeout/error/no hit.
@@ -139,6 +148,7 @@ describe('loadConfig', () => {
         socrataBaseUrl: 'https://data.calgary.ca',
         datasetId: 'qe6k-p9nh',
         cacheTtlMs: 86_400_000,
+        dbCacheTtlMs: 604_800_000,
         httpTimeoutMs: 3_000,
       },
       // #687: zoning rules catalogue city + public cache lifetime.
