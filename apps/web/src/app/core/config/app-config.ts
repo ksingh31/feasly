@@ -495,10 +495,48 @@ export interface BuilderCopy {
   cardModalClose: string;
   /** #791: test-mode (simulated payment provider) card picker + 3DS step. */
   simulated: BuilderSimulatedPaymentsCopy;
+  /** #879: card lifecycle — expiry notices, replace and remove card. */
+  cardLifecycle: BuilderCardLifecycleCopy;
   /** #871: builder Settings page (Profile & branding, Embed, Help). */
   settings: BuilderSettingsCopy;
   /** #861: the "Your account is paused" screen (403 BUILDER_PAUSED). */
   paused: BuilderPausedCopy;
+}
+
+/**
+ * #879 card lifecycle copy (Money + Billing pages, card modal). The expiry
+ * window itself is server-side (BILLING_CARD_EXPIRY_WARNING_DAYS) — the
+ * client only renders the API's `expiresSoon` / `expired` flags.
+ */
+export interface BuilderCardLifecycleCopy {
+  /** Notice heading when the card expires within the warning window. */
+  expiresSoonHeading: string;
+  /** Notice body: {last4} = card last 4, {exp} = MM/YY. */
+  expiresSoonBody: string;
+  /** Notice heading when the card's expiry month has ended. */
+  expiredHeading: string;
+  /** Notice body: {last4} = card last 4, {exp} = MM/YY. */
+  expiredBody: string;
+  /** Notice action: opens the card modal. */
+  replace: string;
+  /** Builder-admin action that starts the remove confirm step. */
+  remove: string;
+  /** Confirm step heading. */
+  removeConfirmHeading: string;
+  /** Confirm step body. */
+  removeConfirmBody: string;
+  /** Confirm step: go ahead. */
+  removeConfirm: string;
+  /** Confirm step: back out. */
+  removeCancel: string;
+  /** Confirm button while the DELETE is in flight. */
+  removing: string;
+  /** Toast after removal. */
+  removed: string;
+  /** Any non-409 removal failure. */
+  removeFailed: string;
+  /** Card modal: saving a card replaces the one on file (one card per builder). */
+  modalReplaceNote: string;
 }
 
 /** #861: shown instead of a generic error when the org's account is paused. */

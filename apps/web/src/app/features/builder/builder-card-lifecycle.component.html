@@ -1,0 +1,72 @@
+@if (notice(); as n) {
+  <div
+    class="card-lifecycle__notice"
+    [class.card-lifecycle__notice--expired]="n.kind === 'expired'"
+    role="note"
+    [attr.data-notice]="n.kind"
+  >
+    <p class="card-lifecycle__heading">{{ n.heading }}</p>
+    <p class="card-lifecycle__body">{{ n.body }}</p>
+    <button
+      type="button"
+      ui-button
+      [variant]="n.kind === 'expired' ? 'primary' : 'secondary'"
+      size="sm"
+      class="card-lifecycle__replace"
+      (click)="replace.emit()"
+    >
+      {{ copy.replace }}
+    </button>
+  </div>
+}
+
+@if (canRemove() && hasCard()) {
+  @if (!confirming()) {
+    <button
+      #removeButton
+      type="button"
+      ui-button
+      variant="ghost"
+      size="sm"
+      class="card-lifecycle__remove"
+      (click)="startRemove()"
+    >
+      {{ copy.remove }}
+    </button>
+  } @else {
+    <div class="card-lifecycle__confirm" role="group" aria-labelledby="card-lifecycle-confirm-heading">
+      <p id="card-lifecycle-confirm-heading" class="card-lifecycle__heading">{{ copy.removeConfirmHeading }}</p>
+      <p class="card-lifecycle__body">{{ copy.removeConfirmBody }}</p>
+      @if (removeStatus() === 'error') {
+        <p class="card-lifecycle__error" role="alert" data-testid="remove-card-error">
+          {{ removeError() ?? copy.removeFailed }}
+        </p>
+      }
+      <div class="card-lifecycle__actions">
+        <button
+          type="button"
+          ui-button
+          variant="danger"
+          size="sm"
+          class="card-lifecycle__confirm-remove"
+          [loading]="removeStatus() === 'removing'"
+          (click)="confirmRemove()"
+        >
+          {{ removeStatus() === 'removing' ? copy.removing : copy.removeConfirm }}
+        </button>
+        <button
+          #keepButton
+          type="button"
+          ui-button
+          variant="secondary"
+          size="sm"
+          class="card-lifecycle__keep"
+          [disabled]="removeStatus() === 'removing'"
+          (click)="cancelRemove()"
+        >
+          {{ copy.removeCancel }}
+        </button>
+      </div>
+    </div>
+  }
+}
