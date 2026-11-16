@@ -161,6 +161,11 @@
   font-weight: 600;
 }
 
+/* #901: manual-method invoice past its due date. */
+.builder-invoices__overdue {
+  color: var(--status-danger-fg);
+}
+
 .builder-invoices__method {
   display: inline-block;
   padding: 0.125rem 0.625rem;

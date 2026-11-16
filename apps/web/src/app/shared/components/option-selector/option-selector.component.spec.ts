@@ -103,4 +103,38 @@ describe('OptionSelectorComponent', () => {
     comp.onKeydown(new KeyboardEvent('keydown', { key: 'ArrowLeft', bubbles: true }));
     expect(emitted).toBe('finished');
   });
+
+  it('is one Tab stop: only the checked card has tabindex 0 (#937)', async () => {
+    const { fixture } = await setup(TIER_OPTIONS, 'premium' as FinishTier);
+    const el: HTMLElement = fixture.nativeElement;
+    const tabIndexes = TIER_OPTIONS.map((o) =>
+      el.querySelector(`[data-option="${o.id}"]`)?.getAttribute('tabindex'),
+    );
+    expect(tabIndexes).toEqual(['-1', '0', '-1']);
+  });
+
+  it('with nothing checked, the first card is the Tab stop (#937)', async () => {
+    const { fixture } = await setup(TIER_OPTIONS, null);
+    const el: HTMLElement = fixture.nativeElement;
+    expect(el.querySelector('[data-option="standard"]')?.getAttribute('tabindex')).toBe('0');
+    expect(el.querySelector('[data-option="luxury"]')?.getAttribute('tabindex')).toBe('-1');
+  });
+
+  it('arrow keys move focus with the selection, and the Tab stop follows (#937)', async () => {
+    const { fixture, comp } = await setup(TIER_OPTIONS, 'standard' as FinishTier);
+    document.body.appendChild(fixture.nativeElement);
+    comp.selectedChange.subscribe((v) => {
+      fixture.componentRef.setInput('selected', v);
+    });
+    const el: HTMLElement = fixture.nativeElement;
+    const standard = el.querySelector('[data-option="standard"]') as HTMLElement;
+    standard.focus();
+    standard.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowRight', bubbles: true }));
+    fixture.detectChanges();
+    const premium = el.querySelector('[data-option="premium"]') as HTMLElement;
+    expect(document.activeElement).toBe(premium);
+    expect(premium.getAttribute('tabindex')).toBe('0');
+    expect(standard.getAttribute('tabindex')).toBe('-1');
+    fixture.nativeElement.remove();
+  });
 });

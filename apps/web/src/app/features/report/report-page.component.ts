@@ -8,12 +8,17 @@ import type { CallbackWindow, CostRange, FinishTier, ApiError } from '@feasly/co
 import { API_SERVICE } from '../../core/api/api.service';
 import { ConfigService } from '../../core/config/config.service';
 import { SeoService } from '../../core/seo/seo.service';
+import { LoadPartners, PartnersState } from '../../core/partners';
 import {
   BrandMarkComponent,
+  BuildTimelineComponent,
+  EstimateScopeComponent,
   SiteFooterComponent,
   SiteNavComponent,
   BuilderMatchingExplainerComponent,
   OptionSelectorComponent,
+  PartnerDisclosureComponent,
+  PrivacyDataLinkComponent,
 } from '../../shared/components';
 import type { TierOption } from '../../shared/components';
 import { aggregateCostBuckets, type CostBucket } from '../../shared/cost-buckets';
@@ -27,8 +32,10 @@ import {
 } from '../../shared/utils/money';
 import { narrativeDisplayParagraphs } from '../../shared/utils/narrative-display';
 import { parseDeepLinkAddress } from '../../shared/utils/deep-link';
+import { callbackDayOptions, formatCallbackDay } from '../../shared/utils/callback-day';
 import { UpdateInputs, WizardState, LeadState, ClearLead, ResetWizard } from '../wizard';
 import { AnalyticsService } from '../consent';
+import { EmbedState } from '../embed/embed.state';
 import { ClearReport, LoadLeadEstimate, LoadPreview, ReviseReport, UnlockReport } from './report.actions';
 import { ReportState } from './report.state';
 // NOTE: ReportPdfService is intentionally NOT statically imported — it is
@@ -110,7 +117,11 @@ const SHARE_LINK_SOURCE = 'share';
     RouterLink,
     BrandMarkComponent,
     BuilderMatchingExplainerComponent,
+    BuildTimelineComponent,
+    EstimateScopeComponent,
     OptionSelectorComponent,
+    PartnerDisclosureComponent,
+    PrivacyDataLinkComponent,
     SiteFooterComponent,
     SiteNavComponent,
   ],
@@ -129,6 +140,8 @@ export class ReportPageComponent implements OnInit {
 
   /** Report copy (config-owned). */
   protected readonly copy = this.config.get('copy').report;
+  /** Typical build timeline section title (#823); the body is the shared component. */
+  protected readonly timelineCopy = this.config.get('copy').buildTimeline;
   /** Print-only brand header (#509): the site name beside the brand mark. */
   protected readonly siteName = this.config.get('site').name;
   /**
@@ -152,6 +165,17 @@ export class ReportPageComponent implements OnInit {
    * callback form.
    */
   protected readonly partnerView = this.store.selectSignal(ReportState.partnerView);
+
+  /**
+   * #918: Feasly's own site (no embed tenant). Own-site callbacks go to
+   * Feasly's builder partner(s), so the callback block shows the partner
+   * disclosure; in an embed the lead goes to that builder instead.
+   */
+  private readonly embedTenantKey = this.store.selectSignal(EmbedState.tenantKey);
+  protected readonly isOwnSite = computed(() => this.embedTenantKey() === null);
+
+  /** #918: active partners for the disclosure (one request per session). */
+  protected readonly partners = this.store.selectSignal(PartnersState.partners);
   protected readonly status = this.store.selectSignal(ReportState.status);
   protected readonly loadError = this.store.selectSignal(ReportState.error);
   protected readonly leadEmail = this.store.selectSignal(LeadState.email);
@@ -442,12 +466,34 @@ export class ReportPageComponent implements OnInit {
     email: new FormControl('', { nonNullable: true, validators: [Validators.required, Validators.email] }),
   });
 
+  /** #836: preferred-day choices — weekdays from tomorrow through the config window. */
+  protected readonly callbackDays = callbackDayOptions(
+    this.config.get('limits').callbackDateWindowDays,
+  );
+  protected readonly callbackNotesMaxLength = this.config.get('limits').callbackNotesMaxLength;
+
   protected readonly callbackForm = new FormGroup({
     name: new FormControl('', { nonNullable: true, validators: [Validators.required] }),
     phone: new FormControl('', { nonNullable: true, validators: [Validators.required] }),
+    // #836: defaults to the next weekday so the form stays one tap.
+    preferredDate: new FormControl(this.callbackDays[0]?.value ?? '', {
+      nonNullable: true,
+      validators: [Validators.required],
+    }),
     window: new FormControl<CallbackWindow>('morning', { nonNullable: true }),
+    notes: new FormControl('', {
+      nonNullable: true,
+      validators: [Validators.maxLength(this.callbackNotesMaxLength)],
+    }),
   });
   protected readonly callbackStatus = signal<FormStatus>('idle');
+  /** #836: "We'll aim to call you <day> <window>." — set from the API echo. */
+  protected readonly callbackConfirmation = signal('');
+
+  /** "Morning (9 a.m.–12 p.m. MT)". */
+  protected callbackWindowOption(w: { label: string; range: string }): string {
+    return `${w.label} (${w.range})`;
+  }
 
   constructor() {
     // Keep the stepper draft in sync with re-runs without clobbering a
@@ -474,6 +520,9 @@ export class ReportPageComponent implements OnInit {
 
   ngOnInit(): void {
     this.seo.setForRoute('estimate/report');
+    if (this.isOwnSite()) {
+      this.store.dispatch(new LoadPartners());
+    }
     // Reno reports step the affected area, not the new-build living area:
     // seed the draft from the reno inputs when in the renovation flow.
     if (this.isReno()) {
@@ -565,7 +614,13 @@ export class ReportPageComponent implements OnInit {
 
   protected get callbackDetailsInvalid(): boolean {
     const controls = this.callbackForm.controls;
-    return this.callbackForm.touched && (controls.name.invalid || controls.phone.invalid);
+    return (
+      this.callbackForm.touched &&
+      (controls.name.invalid ||
+        controls.phone.invalid ||
+        controls.preferredDate.invalid ||
+        controls.notes.invalid)
+    );
   }
 
   /** Always-on stepper: every tap updates the draft immediately and queues a debounced revise. */
@@ -722,18 +777,41 @@ export class ReportPageComponent implements OnInit {
       return;
     }
     this.callbackStatus.set('sending');
-    const { name, phone, window } = this.callbackForm.getRawValue();
+    const { name, phone, window, preferredDate, notes } = this.callbackForm.getRawValue();
+    const trimmedNotes = notes.trim();
     this.api
-      .requestCallback({ reportToken: token, name, phone, window })
+      .requestCallback({
+        reportToken: token,
+        name,
+        phone,
+        window,
+        preferredDate,
+        ...(trimmedNotes ? { notes: trimmedNotes } : {}),
+      })
       .pipe(takeUntilDestroyed(this.destroyRef))
       .subscribe({
-        next: () => {
+        next: (response) => {
+          this.callbackConfirmation.set(
+            this.callbackConfirmationText(response.window, response.preferredDate ?? preferredDate),
+          );
           this.callbackStatus.set('sent');
           // Consent-gated inside AnalyticsService.
           this.analytics.track('callback_request');
         },
         error: () => this.callbackStatus.set('error'),
       });
+  }
+
+  /** #836: fill "We'll aim to call you {day} {window}." from the config windows. */
+  private callbackConfirmationText(windowId: CallbackWindow, preferredDate: string): string {
+    const w = this.copy.callbackWindows.find((option) => option.id === windowId);
+    const windowText = w ? `${w.phrase} (${w.range})` : '';
+    const day = formatCallbackDay(preferredDate) ?? '';
+    return this.copy.callbackSuccess
+      .replace('{day}', day)
+      .replace('{window}', windowText)
+      .replace(/\s+/g, ' ')
+      .replace(' .', '.');
   }
 
   /** Download-PDF button state: idle → generating → idle, or error with retry. */

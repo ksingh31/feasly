@@ -6,8 +6,10 @@ import {
   signal,
   viewChild,
   ChangeDetectorRef,
+  DestroyRef,
   ViewContainerRef,
 } from '@angular/core';
+import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import {
   ActivatedRoute,
   Router,
@@ -33,6 +35,7 @@ import {
 } from './community-profile.actions';
 import { CommunityProfileState } from './community-profile.state';
 import { toDisplayName } from './community-names';
+import { fillScopePlaceholders } from '../../core/utils/estimate-scope';
 
 interface TierRow {
   key: 'standard' | 'premium' | 'luxury';
@@ -171,6 +174,7 @@ export class CommunityPageComponent implements OnInit {
   private readonly meta = inject(Meta);
   private readonly config = inject(ConfigService);
   private readonly store = inject(Store);
+  private readonly destroyRef = inject(DestroyRef);
 
   /** Static page copy (config-owned). */
   readonly copy = this.config.get('copy').communities;
@@ -214,13 +218,40 @@ export class CommunityPageComponent implements OnInit {
   /** Build sqft the ranges assume (from the page-data JSON, not hardcoded). */
   buildSqft = 0;
 
-  /** FAQ items from config (short alias for the template). */
-  get faqs(): { q: string; a: string }[] {
-    return this.copy.faqItems;
-  }
+  /** FAQ items from config, scope lists filled from the engine (#824). */
+  readonly faqs: readonly { q: string; a: string }[] = this.copy.faqItems.map((item) => ({
+    q: item.q,
+    a: fillScopePlaceholders(item.a, this.config.get('estimateScope')),
+  }));
 
   ngOnInit(): void {
-    const resolved = this.route.snapshot.data['pageData'] as CommunityPageResolved | null;
+    // #783: the nav search can open another community from this page. The
+    // router reuses this component for `/communities/:slug` → another slug,
+    // so render from every resolved `data` emission, not the first snapshot.
+    // `data` replays the current value synchronously, so prerender/SSR still
+    // renders during ngOnInit.
+    this.route.data.pipe(takeUntilDestroyed(this.destroyRef)).subscribe((data) => {
+      this.render((data['pageData'] as CommunityPageResolved | null | undefined) ?? null);
+      // Plain fields changed outside an input/event — refresh the view.
+      this.cdr.markForCheck();
+    });
+  }
+
+  /** Clears whatever the previous slug rendered (reused component, #783). */
+  private reset(): void {
+    this.profileHost()?.clear();
+    this.community = null;
+    this.profileView = null;
+    this.profileCopy = null;
+    this.propertyContext.set(null);
+    this.assessmentYear = '';
+    this.costDataVersion = '';
+    this.calibrated = false;
+    this.buildSqft = 0;
+  }
+
+  private render(resolved: CommunityPageResolved | null): void {
+    this.reset();
     const pageData = resolved?.pageData ?? null;
     if (!pageData) {
       // Unknown slug — the branded 404 route (path is a route, not a tunable).
@@ -269,7 +300,7 @@ export class CommunityPageComponent implements OnInit {
     this.meta.updateTag({ name: 'feasly:cost-data-version', content: this.costDataVersion });
     // SEO-06: FAQPage + LocalBusiness JSON-LD for rich results.
     const pagePath = `/communities/${view.slug}/`;
-    this.seo.setJsonLdScript('faq', buildFaqPageSchema(this.copy.faqItems));
+    this.seo.setJsonLdScript('faq', buildFaqPageSchema(this.faqs));
     this.seo.setJsonLdScript(
       'business',
       buildLocalBusinessSchema(this.seo.getSiteUrl(), `${this.seo.getSiteUrl()}${pagePath}`),

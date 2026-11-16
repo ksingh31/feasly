@@ -17,6 +17,11 @@ import {
   type ProblemDetails,
 } from './errors';
 import type { AnyRateLimiter } from './shared-rate-limit';
+import {
+  challengeRequiredProblem,
+  hasBearerCredential,
+  type BotChallengeGate,
+} from './bot-challenge';
 
 export interface PipelineRequest {
   readonly headers: Record<string, HeaderValue>;
@@ -107,6 +112,16 @@ export interface RequestPipelineDeps {
     readonly allowlist: readonly string[];
     readonly onDenied?: (denial: CsrfDenial) => Promise<void>;
   };
+  /**
+   * #788: invisible bot challenge. When set, a request whose PRIMARY key
+   * recently tripped a limiter (this pipeline's or another gated one) must
+   * carry a verified Turnstile token, else 403 CHALLENGE_REQUIRED /
+   * CHALLENGE_FAILED before any limiter or handler runs. A denial by the
+   * PRIMARY limiter marks the primary key as tripped (extra dimensions such
+   * as per-tenant do not — they aggregate many users). Absent =
+   * no challenge ever (the pre-#788 behavior).
+   */
+  readonly challenge?: BotChallengeGate;
 }
 
 const UNKNOWN_CLIENT = 'unknown';
@@ -127,6 +142,7 @@ export function createRequestPipeline(deps: RequestPipelineDeps): RequestPipelin
     extraLimiters = [],
     logger = (entry) => console[entry.level](entry.message),
     csrf,
+    challenge: challengeGate,
   } = deps;
 
   return {
@@ -137,8 +153,46 @@ export function createRequestPipeline(deps: RequestPipelineDeps): RequestPipelin
       const correlationId = ensureCorrelationId(request.headers);
       const ctx: PipelineContext = { correlationId, clientIp: request.clientIp };
 
-      const verdict = await rateLimiter.check(keyFor(request));
+      const primaryKey = keyFor(request);
+      // #788: a key that recently tripped a limit must pass the invisible
+      // challenge first. Fails closed (see bot-challenge.ts). Bearer
+      // (agent-API) requests are exempt — they can't run a browser widget.
+      const challenge =
+        challengeGate && !hasBearerCredential(request.headers) ? challengeGate : undefined;
+      if (challenge) {
+        const outcome = await challenge.check({
+          key: primaryKey,
+          headers: request.headers,
+          clientIp: request.clientIp,
+        });
+        if (!outcome.allowed) {
+          logger({
+            level: 'warn',
+            message: `bot-challenge reason=${outcome.reason} clientIpHash=${hashClientIp(
+              request.clientIp ?? UNKNOWN_CLIENT,
+            )}`,
+            correlationId,
+          });
+          return challengeRequiredProblem(correlationId, outcome.reason, challenge.siteKey);
+        }
+      }
+      const markTripped = async (): Promise<void> => {
+        if (!challenge) return;
+        try {
+          await challenge.markTripped(primaryKey);
+        } catch (error) {
+          // Never turn a 429 into a 500 — the limiter already holds the line.
+          logger({
+            level: 'warn',
+            message: `bot-challenge trip mark failed: ${error instanceof Error ? error.message : String(error)}`,
+            correlationId,
+          });
+        }
+      };
+
+      const verdict = await rateLimiter.check(primaryKey);
       if (!verdict.allowed) {
+        await markTripped();
         logger({
           level: 'warn',
           message: `rate-limited clientIpHash=${hashClientIp(
@@ -155,6 +209,8 @@ export function createRequestPipeline(deps: RequestPipelineDeps): RequestPipelin
         if (key === undefined) continue;
         const extraVerdict = await extra.limiter.check(key);
         if (!extraVerdict.allowed) {
+          // Not a trip for #788: secondary dimensions (e.g. per-tenant)
+          // aggregate many users, so one IP must not be marked for them.
           logger({
             level: 'warn',
             // Hash the dimension key: tenant keys are builder credentials and

@@ -55,8 +55,10 @@ Mounted at `POST /api/mcp/v1` in the Azure Functions app.
 8. **estimate_project**: call with a `new_build` payload (see REST contract
    fixtures). Verify the estimate matches `POST /api/v1/estimate`.
 9. **submit_lead**: call with `{"estimateId": "<id>", "email": "test@example.com",
-   "idempotencyKey": "smoke-001"}`. Call twice with the same key — verify one
-   lead row (check the `leads` table or the response `leadId` matches).
+   "name": "Test Person", "timeline": "exploring", "consent": true,
+   "consentVersion": "<API_LEAD_CONSENT_VERSION>", "idempotencyKey": "smoke-001"}`.
+   Call twice with the same key and check that there is one lead row (check
+   the `leads` table, or that the response `leadId` matches).
 
 ### Streamable HTTP transport
 
@@ -78,3 +80,23 @@ Mounted at `POST /api/mcp/v1` in the Azure Functions app.
 `submit_lead` accepts an `idempotencyKey` tool argument. The key is stripped
 before calling `LeadService`; dedupe matches REST (90-day window on email +
 address). Same payload + key twice → one lead row.
+
+## Consent attestation and review (#738)
+
+Over HTTP, `submit_lead` acts for a person, so the caller has to attest their
+consent: `consent: true` plus `consentVersion` equal to the current
+`API_LEAD_CONSENT_VERSION` (`apps/api/src/lib/legal-copy.ts`; wording in
+`docs/legal/approved-copy.md` "API lead consent attestation"). The tool
+schema rejects a missing attestation. `LeadService` rejects a stale version
+with 400 `CONSENT_REQUIRED` and stores the version, the calling key and the
+time on the lead. During the invite-only beta, API leads go to the admin
+quarantine queue (`API_KEY_LEADS_QUARANTINE`, default `true`). Nobody is
+emailed and no report token is returned. Sandbox-key leads are never
+emailed. A repeat for an existing lead never changes it.
+
+Every HTTP MCP call also goes through the per-key limiter like the REST
+endpoints: the per-minute window plus the daily and monthly quotas, with
+usage metered in `api_usage`. Only `tools/call` requests are metered and
+count against the quotas; protocol housekeeping (`initialize`, `tools/list`,
+notifications) is authenticated but free. See `docs/api/developers.md`.
+

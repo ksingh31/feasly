@@ -4,6 +4,7 @@
     { "pattern": "", "label": "Home: Calgary build-cost estimator", "section": "pages", "changefreq": "weekly", "priority": "1.0", "jsonLd": null },
     { "pattern": "how-it-works", "label": "How it works", "section": "pages", "changefreq": "monthly", "priority": "0.8", "jsonLd": null },
     { "pattern": "faq", "label": "Frequently asked questions", "section": "pages", "changefreq": "monthly", "priority": "0.8", "jsonLd": "faq" },
+    { "pattern": "help", "label": "Help and contact", "section": "pages", "changefreq": "monthly", "priority": "0.6", "jsonLd": null },
     { "pattern": "guides/cost-to-build-a-house-calgary", "label": "How much does it cost to build a house in Calgary?", "section": "guides", "changefreq": "monthly", "priority": "0.9", "jsonLd": "guide" },
     { "pattern": "guides/calgary-zoning-explained", "label": "Calgary zoning explained", "section": "guides", "changefreq": "monthly", "priority": "0.9", "jsonLd": "guide" },
     { "pattern": "communities", "label": "Calgary community guides (index)", "section": "pages", "changefreq": "weekly", "priority": "0.9", "jsonLd": null },

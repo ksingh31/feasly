@@ -34,6 +34,9 @@
  *   the payment method on one of their invoices (billing/12). Unpaid
  *   invoices only; choosing a manual method pauses the Stripe auto-charge.
  *   Builder-gated; tenant-scoped (403 for another tenant's invoice).
+ * - `POST /api/v1/billing/invoices/{id}/pay` — builder Pay now (#718):
+ *   charge a failed card invoice against the card on file right away.
+ *   Builder-gated; tenant-scoped. Double submission → one charge.
  *
  * Hard rules (enforced by test/boundaries.test.ts):
  * - a route NEVER imports from src/db/
@@ -57,6 +60,7 @@ import type {
   CommissionCardStatus,
 } from '../services/billing/commission-card.service';
 import type { CommissionInvoiceRecord } from '../services/billing/commission.service';
+import type { ConfirmInvoicePaymentResponse } from '@feasly/contracts';
 import type {
   InvoicePdfResult,
   InvoicePdfService,
@@ -143,6 +147,16 @@ export interface BillingRoute {
     id: unknown,
     body: unknown,
   ): Promise<CommissionInvoiceRecord>;
+  /** POST /api/v1/billing/invoices/{id}/confirm-payment (#712) */
+  confirmInvoicePayment(
+    headers: Record<string, string | string[] | undefined>,
+    id: unknown,
+  ): Promise<ConfirmInvoicePaymentResponse>;
+  /** POST /api/v1/billing/invoices/{id}/pay (#718) */
+  payInvoice(
+    headers: Record<string, string | string[] | undefined>,
+    id: unknown,
+  ): Promise<CommissionInvoiceRecord>;
 }
 
 const uuidSchema = z.string().trim().uuid();
@@ -152,6 +166,7 @@ const invoiceStatusFilterSchema = z.enum([
   'draft',
   'in_review',
   'finalized',
+  'action_required',
   'paid',
   'failed',
   'disputed',
@@ -355,6 +370,25 @@ export function createBillingRoute(deps: BillingRouteDeps): BillingRoute {
         session.tenantKey,
         parsed.data.method,
       );
+    },
+
+    async confirmInvoicePayment(
+      headers: Record<string, string | string[] | undefined>,
+      id: unknown,
+    ): Promise<ConfirmInvoicePaymentResponse> {
+      const session = await requireBuilderSession(builderGuard, headers);
+      return billing.confirmInvoicePayment(
+        parseInvoiceId(id),
+        session.tenantKey,
+      );
+    },
+
+    async payInvoice(
+      headers: Record<string, string | string[] | undefined>,
+      id: unknown,
+    ): Promise<CommissionInvoiceRecord> {
+      const session = await requireBuilderSession(builderGuard, headers);
+      return billing.payInvoice(parseInvoiceId(id), session.tenantKey);
     },
 
     async createSetupIntent(

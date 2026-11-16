@@ -316,15 +316,16 @@ describe('ReportPdfService', () => {
     expect(text).toContain('the figures above are the complete estimate');
   });
 
-  it('includes the coverage framing and the landscaping-only exclusion', async () => {
+  it('lists what the estimate includes (engine line items) and what it leaves out (#824)', async () => {
     const service = TestBed.inject(ReportPdfService);
     const text = norm(await extractPdfText(await service.generate(input())));
-    expect(text).toContain('60+ line items');
-    expect(text).toContain("What's not in this estimate");
-    // Landscaping is the only exclusion (Karan 2026-09-28).
-    expect(text).toContain('Landscaping');
-    expect(text).not.toContain('Demolition of any existing home');
-    expect(text).not.toContain('Financing costs');
+    expect(text).toContain('What this estimate includes');
+    expect(text).toContain('Site preparation');
+    expect(text).toContain('Contingency');
+    expect(text).toContain('Not included');
+    expect(text).toContain('Demolition of an existing home');
+    expect(text).toContain('GST');
+    expect(text).not.toContain('60+ line items');
   });
 
   it('omits the new-build exclusions on a renovation snapshot', async () => {
@@ -341,9 +342,8 @@ describe('ReportPdfService', () => {
     );
     // New-build coverage framing must not leak onto reno PDFs.
     expect(text).toContain('Permit and contingency allowances are estimates');
-    expect(text).not.toContain('60+ line items');
-    expect(text).not.toContain("What's not in this estimate");
-    expect(text).not.toContain('Demolition of any existing home');
+    expect(text).not.toContain('What this estimate includes');
+    expect(text).not.toContain('Demolition of an existing home');
   });
 
   it('strips unencodable characters so no UTF-16BE (NUL-interleaved) text is emitted', async () => {
@@ -405,8 +405,12 @@ describe('ReportPdfService', () => {
     expect(text).toContain('$86,000'); // 26k+7k+52,803, rounded to $1k (#504)
     // No per-row dump, and no land breakdown row duplicating the summary's.
     expect(text).not.toContain('Land (assessed value)');
-    expect(text).not.toContain('Framing & structure');
-    expect(text).not.toContain('Interior finishes');
+    // #824: line-item NAMES appear once each, in the "includes" list, with
+    // no per-row figure — the row amounts are never printed.
+    expect(text.split('Framing & structure').length - 1).toBe(1);
+    expect(text.split('Interior finishes').length - 1).toBe(1);
+    expect(text).not.toContain('$90,000');
+    expect(text).not.toContain('$120,000');
     // Land keeps its own fixed figure via the shared land label (eyebrows
     // render uppercased, like the sample report page's text-transform).
     expect(text).toContain(reportCopy().landLabel.toUpperCase());

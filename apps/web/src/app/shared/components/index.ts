@@ -1,7 +1,10 @@
 /** @shared/components barrel — import shared UI from here to keep import paths short. */
 export { AddressAutocompleteComponent } from './address-autocomplete';
+export type { AddressSearchOutcome } from './address-autocomplete';
 export { BrandMarkComponent } from './brand-mark';
 export { BuilderMatchingExplainerComponent } from './builder-matching-explainer';
+export { BuildTimelineComponent } from './build-timeline';
+export { EstimateScopeComponent } from './estimate-scope';
 // Note (BILL-06): comment-thread's RUNTIME values (CommentThreadComponent,
 // BUILDER_COMMENT_THREAD_CONFIG, DEFAULT_COMMENT_THREAD_LABELS,
 // formatCommentTimestamp) are intentionally NOT re-exported here. They are
@@ -20,6 +23,8 @@ export type {
 } from './comment-thread';
 export { LegalReviewBannerComponent } from './legal-review-banner';
 export { InfoTooltipComponent } from './info-tooltip';
+export { PartnerDisclosureComponent } from './partner-disclosure';
+export { PrivacyDataLinkComponent } from './privacy-data-link';
 export { PropertyCardComponent } from './property-card';
 export { SiteFooterComponent } from './site-footer';
 export { SiteNavComponent } from './site-nav';

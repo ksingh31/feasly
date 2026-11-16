@@ -895,3 +895,39 @@ describe('BuilderInvoices invoice-number column + filter', () => {
   });
 
 });
+
+describe('BuilderInvoices Due column — next retry + overdue (#901)', () => {
+  async function render(patches: Partial<BuilderCommissionInvoice>[]) {
+    const [first] = testInvoices();
+    const invoices = patches.map((patch, i) => ({ ...first, id: `inv-${i}`, ...patch }) as BuilderCommissionInvoice);
+    const { fixture } = await setupWithInvoices({ invoices, total: invoices.length, page: 1, pageSize: 10 });
+    fixture.detectChanges();
+    await fixture.whenStable();
+    fixture.detectChanges();
+    return Array.from((fixture.nativeElement as HTMLElement).querySelectorAll('tbody tr')).map(
+      (row) => row.querySelector('[data-testid="invoice-due-note"]') as HTMLElement | null,
+    );
+  }
+
+  it('shows the next automatic retry for a failed card invoice', async () => {
+    const [note] = await render([{ status: 'failed', nextRetryAt: '2026-11-23T15:00:00.000Z' }]);
+    expect(note?.textContent?.trim()).toBe('Retries Nov 23, 2026');
+    expect(note?.classList.contains('builder-invoices__overdue')).toBe(false);
+  });
+
+  it('marks a manual-method invoice past its due date as overdue', async () => {
+    const [many, one] = await render([
+      { paymentMethod: 'cheque', dueAt: '2026-11-10T07:00:00.000Z', overdueDays: 6 },
+      { paymentMethod: 'e_transfer', dueAt: '2026-11-15T07:00:00.000Z', overdueDays: 1 },
+    ]);
+    expect(many?.textContent?.trim()).toBe('Overdue 6 days');
+    expect(many?.classList.contains('builder-invoices__overdue')).toBe(true);
+    expect(one?.textContent?.trim()).toBe('Overdue 1 day');
+  });
+
+  it('keeps the review countdown when nothing is overdue or scheduled', async () => {
+    const [inReview, failedNoRetry] = await render([{}, { status: 'failed', nextRetryAt: null }]);
+    expect(inReview).toBeNull();
+    expect(failedNoRetry).toBeNull();
+  });
+});

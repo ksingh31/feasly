@@ -14,6 +14,7 @@
  */
 import { describe, expect, it, beforeAll, afterAll } from 'vitest';
 import { randomUUID } from 'node:crypto';
+import { eq } from 'drizzle-orm';
 import {
   createBillingHealthService,
   type BillingHealthService,
@@ -74,6 +75,7 @@ const fakeStripe: StripeService = {
     status: 'requires_capture',
   }),
   retrievePaymentIntent: async (id: string) => ({ id, status: 'processing' }),
+  getPaymentIntentConfirmation: async (id: string) => ({ id, status: 'requires_action', clientSecret: `${id}_secret_test` }),
   refundPaymentIntent: async (paymentIntentId) => ({
     id: `re_test_${paymentIntentId}`,
     status: 'succeeded',
@@ -578,5 +580,63 @@ describe('billing-health service', () => {
     const health = await makeService('commission').getHealth();
     expect(health.stripe).toEqual({ configured: true, testMode: true });
     expect(health.generatedAt).toBe(FIXED_NOW.toISOString());
+  });
+
+  it('#718: shows the retry schedule, sorts collections to the top, and ages manual invoices past due', async () => {
+    const parents = await seedParents();
+    const collectionsAt = hoursAgo(5);
+    const flaggedId = await seedInvoice(parents, {
+      status: 'failed',
+      commissionCents: 7_000,
+      createdAt: hoursAgo(20),
+      updatedAt: hoursAgo(5),
+    });
+    const nextRetryAt = new Date(FIXED_NOW.getTime() + 48 * HOUR_MS);
+    const scheduledId = await seedInvoice(parents, {
+      status: 'failed',
+      commissionCents: 8_000,
+      createdAt: hoursAgo(400),
+      updatedAt: hoursAgo(300),
+    });
+    await testDb.db
+      .update(commissionInvoices)
+      .set({ collectionsAt, retryCount: 3, dunningState: 'active' })
+      .where(eq(commissionInvoices.id, flaggedId));
+    await testDb.db
+      .update(commissionInvoices)
+      .set({ nextRetryAt, retryGraceDays: 4, dunningState: 'paused' })
+      .where(eq(commissionInvoices.id, scheduledId));
+    // Manual invoice: review ended 10 days ago, default 7-day grace → 3 days overdue.
+    const manualId = await seedInvoice(parents, {
+      status: 'in_review',
+      commissionCents: 9_000,
+      createdAt: hoursAgo(17 * 24),
+      reviewDueAt: hoursAgo(10 * 24),
+      paymentMethod: 'e_transfer',
+    });
+
+    const health = await makeService('commission').getHealth();
+
+    // Collections first, even though the other failure is far older.
+    expect(health.dunning[0]).toMatchObject({
+      id: flaggedId,
+      collectionsAt: collectionsAt.toISOString(),
+      nextRetryAt: null,
+    });
+    const scheduled = health.dunning.find((row) => row.id === scheduledId);
+    expect(scheduled).toMatchObject({
+      nextRetryAt: nextRetryAt.toISOString(),
+      dunningState: 'paused',
+      retryGraceDays: 4,
+      collectionsAt: null,
+    });
+    const manual = health.inReviewInvoices.find((row) => row.id === manualId);
+    expect(manual).toMatchObject({
+      paymentMethod: 'e_transfer',
+      dueAt: new Date(hoursAgo(10 * 24).getTime() + 7 * 24 * HOUR_MS).toISOString(),
+      overdueDays: 3,
+    });
+    const card = health.inReviewInvoices.find((row) => row.paymentMethod === 'card');
+    expect(card).toMatchObject({ dueAt: null, overdueDays: 0 });
   });
 });

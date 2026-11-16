@@ -12,6 +12,9 @@ import { firstValueFrom } from 'rxjs';
 import { BUILDER_COPY } from './builder-copy';
 import { SeoService } from '../../core/seo/seo.service';
 import { injectCardModal } from './builder-card-modal.component';
+import { cardLifecycleNotice } from './builder-card-lifecycle';
+import { BuilderCardLifecycleComponent } from './builder-card-lifecycle.component';
+import { BuilderState } from './builder.state';
 import {
   BUILDER_PAYMENT_METHODS,
   isBuilderPaymentMethod,
@@ -38,7 +41,7 @@ import { BuilderBillingState } from './builder-billing.state';
 @Component({
   selector: 'app-builder-billing',
   standalone: true,
-  imports: [],
+  imports: [BuilderCardLifecycleComponent],
   templateUrl: './builder-billing.component.html',
   styleUrls: ['./builder-billing.component.scss'],
 })
@@ -66,6 +69,17 @@ export class BuilderBillingComponent implements OnInit {
   protected readonly defaultMethodSaveStatus = this.store.selectSignal(
     BuilderBillingState.defaultMethodSaveStatus,
   );
+
+  /** #879: only builder admins may remove the card (the API 403s members). */
+  protected readonly isAdmin = this.store.selectSignal(BuilderState.isBuilderAdmin);
+
+  /**
+   * #879: an expiry notice is showing — its "Replace card" stands in for
+   * the plain "Update card" button so the panel never offers both.
+   */
+  protected hasExpiryNotice(): boolean {
+    return cardLifecycleNotice(this.card(), this.copy.cardLifecycle) !== null;
+  }
 
   /** Opens the shared card modal (#534). */
   private readonly openCardModal = injectCardModal();

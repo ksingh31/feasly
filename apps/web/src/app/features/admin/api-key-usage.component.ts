@@ -2,10 +2,10 @@ import { Component, DestroyRef, computed, effect, inject, input, untracked } fro
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { Store } from '@ngxs/store';
 import { KitCountPipe } from '@app/shared/ui';
-import { ConfigService } from '../../core/config/config.service';
 import { LoadApiKeyUsage } from './api-keys.actions';
 import { ApiKeysState } from './api-keys.state';
 import { fill, usageByDay } from './api-keys-view';
+import { injectAdminCopy } from './admin-copy';
 
 /**
  * Usage panel for one API key (api-mcp/07; redesign #546, review S13): a
@@ -24,7 +24,7 @@ export class ApiKeyUsageComponent {
 
   private readonly store = inject(Store);
   private readonly destroyRef = inject(DestroyRef);
-  protected readonly copy = inject(ConfigService).get('copy').admin.apiKeys;
+  protected readonly copy = injectAdminCopy().apiKeys;
 
   protected readonly usage = this.store.selectSignal(ApiKeysState.usage);
   protected readonly loading = this.store.selectSignal(ApiKeysState.usageLoading);

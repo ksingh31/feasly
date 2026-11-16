@@ -6,7 +6,11 @@ import type {
   BuilderBillingOverviewResponse,
   CardOnFileStatus,
   CommissionRateResponse,
+  ConfirmInvoicePaymentResponse,
   SetupIntentResponse,
+  SimulatedAuthenticateRequest,
+  SimulatedConfirmSetupRequest,
+  SimulatedIntentResponse,
 } from '@feasly/contracts';
 import type { BuilderPaymentMethod } from './builder-payment-methods';
 import { ConfigService } from '../../core/config/config.service';
@@ -96,6 +100,20 @@ export class BuilderBillingApiService {
   }
 
   /**
+   * DELETE /api/v1/billing/card (#716): a builder admin removes the card on
+   * file. Resolves `{ hasCard: false }`. 409 CONFLICT (ApiError `message`
+   * names the blocking invoice) while an unpaid invoice is set to be
+   * charged to the card; 403 for builder members.
+   */
+  removeCard(): Observable<CardOnFileStatus> {
+    return this.call(
+      this.http.delete<CardOnFileStatus>(`${this.billingBase}/card`, {
+        withCredentials: true,
+      }),
+    );
+  }
+
+  /**
    * Create a SetupIntent for the Stripe Elements card form. Idempotent:
    * the backend ensures the tenant's Stripe customer first. Returns the
    * client secret for `stripe.confirmCardSetup`.
@@ -108,6 +126,43 @@ export class BuilderBillingApiService {
         { withCredentials: true },
       ),
     );
+  }
+
+  /**
+   * #753/#791 simulated provider only: save one of `SIMULATED_TEST_CARDS`
+   * against the SetupIntent (the stand-in for Stripe Elements). The number
+   * is a public Stripe test number, never a real PAN. 404 unless the API
+   * runs the simulated provider.
+   */
+  simulatedConfirmSetup(body: SimulatedConfirmSetupRequest): Observable<SimulatedIntentResponse> {
+    return this.call(
+      this.http.post<SimulatedIntentResponse>(`${this.billingBase}/simulated/confirm-setup`, body, {
+        withCredentials: true,
+      }),
+    );
+  }
+
+  /**
+   * #753/#791 simulated provider only: complete or fail the dev-only 3D
+   * Secure challenge on a SetupIntent (`seti_…`) or PaymentIntent (`pi_…`).
+   */
+  simulatedAuthenticate(body: SimulatedAuthenticateRequest): Observable<SimulatedIntentResponse> {
+    return this.call(
+      this.http.post<SimulatedIntentResponse>(`${this.billingBase}/simulated/authenticate`, body, {
+        withCredentials: true,
+      }),
+    );
+  }
+
+  /**
+   * POST /api/v1/billing/invoices/{id}/confirm-payment (#712): the
+   * PaymentIntent behind an invoice waiting for bank confirmation, and the
+   * provider that issued it. 409 when the invoice no longer needs it.
+   */
+  confirmInvoicePayment(invoiceId: string): Observable<ConfirmInvoicePaymentResponse> {
+    const id = encodeURIComponent(invoiceId);
+    const url = this.billingBase + '/invoices/' + id + '/confirm-payment';
+    return this.call(this.http.post<ConfirmInvoicePaymentResponse>(url, {}, { withCredentials: true }));
   }
 
   /**

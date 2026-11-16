@@ -37,6 +37,8 @@ export class UnsubscribePageComponent implements OnInit {
   private readonly destroyRef = inject(DestroyRef);
 
   protected readonly copy = this.config.get('copy').unsubscribe;
+  /** #706: entry to the privacy self-service page. */
+  protected readonly privacyDataLinkLabel = this.config.get('copy').privacyData.entryLinkLabel;
   protected readonly view = signal<UnsubscribeView>('loading');
   protected readonly submitting = signal(false);
   /** Toggle state: true = the lead still wants this channel. */

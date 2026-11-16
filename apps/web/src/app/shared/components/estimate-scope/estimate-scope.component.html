@@ -1,0 +1,36 @@
+<div class="es">
+  @if (showIncludes()) {
+    <section class="es-block es-includes" [attr.aria-label]="copy.includesTitle">
+      @if (showTitles()) {
+        @if (headingLevel() === 2) {
+          <h2 class="es-title">{{ copy.includesTitle }}</h2>
+        } @else {
+          <h3 class="es-title">{{ copy.includesTitle }}</h3>
+        }
+      }
+      <p class="es-intro">{{ copy.includesIntro }}</p>
+      <ul class="es-list">
+        @for (item of includes(); track item.key) {
+          <li class="es-item es-in">{{ item.label }}</li>
+        }
+      </ul>
+    </section>
+  }
+  @if (showExcluded()) {
+    <section class="es-block es-excluded" [attr.aria-label]="copy.notIncludedTitle">
+      @if (showTitles()) {
+        @if (headingLevel() === 2) {
+          <h2 class="es-title">{{ copy.notIncludedTitle }}</h2>
+        } @else {
+          <h3 class="es-title">{{ copy.notIncludedTitle }}</h3>
+        }
+      }
+      <p class="es-intro">{{ copy.notIncludedIntro }}</p>
+      <ul class="es-list">
+        @for (item of notIncluded(); track item.key) {
+          <li class="es-item es-out">{{ item.label }}</li>
+        }
+      </ul>
+    </section>
+  }
+</div>

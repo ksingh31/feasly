@@ -10,6 +10,7 @@ import type {
   ApiKeyRecordResponse,
   ApiKeyScope,
   AutocompleteResponse,
+  BuilderPartnerListResponse,
   CallbackRequest,
   CallbackResponse,
   CityDataFreshnessResponse,
@@ -32,6 +33,9 @@ import type {
   TierRevisionRequest,
   TierRevisionResponse,
   UnsubscribePreferencesInput,
+  ErasureConfirmResponse,
+  ErasureRequestResponse,
+  PrivacyExportResponse,
   UnsubscribeResultResponse,
   UnsubscribeStateResponse,
   WaitlistRequest,
@@ -103,6 +107,12 @@ export interface ApiService {
    * its "Live City data" fallback instead of a month.
    */
   getCityDataFreshness(): Observable<CityDataFreshnessResponse>;
+  /**
+   * Builder partner disclosure (#918): GET /api/v1/partners — active
+   * partner companies that receive leads from Feasly's own site, in display
+   * order. Read once per session through `PartnersState`.
+   */
+  getPartners(): Observable<BuilderPartnerListResponse>;
   /** Lead capture. The magic link travels by email in prod. */
   submitLead(request: LeadRequest): Observable<LeadResponse>;
   /** Resolves a magic-link token to a report token. */
@@ -170,6 +180,19 @@ export interface ApiService {
     token: string,
     prefs: UnsubscribePreferencesInput,
   ): Observable<UnsubscribeResultResponse>;
+  /**
+   * Privacy self-service (#706): GET /api/v1/privacy/export — everything
+   * Feasly holds for the magic-link bearer. The token travels in the
+   * Authorization header only (never the URL, never logged).
+   */
+  exportPrivacyData(reportToken: string): Observable<PrivacyExportResponse>;
+  /**
+   * Privacy self-service (#706): POST /api/v1/privacy/erase-requests.
+   * Idempotent server-side; nothing is deleted until the confirm step.
+   */
+  requestErasure(reportToken: string): Observable<ErasureRequestResponse>;
+  /** Privacy self-service (#706): confirms (executes) a pending erasure request. */
+  confirmErasure(reportToken: string, requestId: string): Observable<ErasureConfirmResponse>;
   /** First-party analytics event. Fire-and-forget. */
   trackEvent(event: AnalyticsEvent): Observable<void>;
   /**
@@ -206,8 +229,16 @@ export interface ApiKeyUpdatePatch {
   readonly rate_limit_per_min?: number;
 }
 
-/** DI token for the ApiService. Inject this, never a concrete class. */
-export const API_SERVICE = new InjectionToken<ApiService>('feasly.api-service');
+/**
+ * DI token for the ApiService. Inject this, never a concrete class.
+ * #783: the token also carries a root default (the same lazy, per-call
+ * implementation `provideApi()` wires), so shared chrome such as the nav
+ * search can inject it on any page without every host providing it.
+ */
+export const API_SERVICE = new InjectionToken<ApiService>('feasly.api-service', {
+  providedIn: 'root',
+  factory: () => new LazyApiService(),
+});
 
 /**
  * Wires the ApiService implementation from config: `api.useMockApi` selects
@@ -270,6 +301,10 @@ class LazyApiService implements ApiService {
     return this.resolve().getCityDataFreshness();
   }
 
+  getPartners(): Observable<BuilderPartnerListResponse> {
+    return this.resolve().getPartners();
+  }
+
   submitLead(request: LeadRequest): Observable<LeadResponse> {
     return this.resolve().submitLead(request);
   }
@@ -326,6 +361,18 @@ class LazyApiService implements ApiService {
     prefs: UnsubscribePreferencesInput,
   ): Observable<UnsubscribeResultResponse> {
     return this.resolve().saveUnsubscribePreferences(token, prefs);
+  }
+
+  exportPrivacyData(reportToken: string): Observable<PrivacyExportResponse> {
+    return this.resolve().exportPrivacyData(reportToken);
+  }
+
+  requestErasure(reportToken: string): Observable<ErasureRequestResponse> {
+    return this.resolve().requestErasure(reportToken);
+  }
+
+  confirmErasure(reportToken: string, requestId: string): Observable<ErasureConfirmResponse> {
+    return this.resolve().confirmErasure(reportToken, requestId);
   }
 
   trackEvent(event: AnalyticsEvent): Observable<void> {

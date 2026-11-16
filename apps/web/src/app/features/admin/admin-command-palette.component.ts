@@ -18,6 +18,7 @@ import { ConfigService } from '../../core/config/config.service';
 import { ClearAdminSearch, SearchAdmin } from './admin-search.actions';
 import { AdminSearchState } from './admin-search.state';
 import { openAdminEntity } from './admin-entity-routes';
+import { injectAdminCopy } from './admin-copy';
 
 /** One rendered group of hits (kind order is the server's). */
 interface PaletteGroup {
@@ -51,7 +52,7 @@ export class AdminCommandPaletteComponent {
   private readonly destroyRef = inject(DestroyRef);
   private readonly dialogRef = inject<DialogRef<void>>(DialogRef, { optional: true });
 
-  protected readonly copy = this.config.get('copy').admin.shell.palette;
+  protected readonly copy = injectAdminCopy().shell.palette;
   /** Server-side query cap (GET /api/v1/admin/search rejects longer). */
   protected readonly maxQuery = this.config.get('admin').searchMaxQueryLength;
 

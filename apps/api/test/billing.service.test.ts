@@ -24,6 +24,7 @@ import type { EmbedBillingHookService } from '../src/services/billing/embed-bill
 import type { CommissionService } from '../src/services/billing/commission.service';
 import type { LeadStore } from '../src/services/lead.store';
 import type { BuilderService } from '../src/services/builder.service';
+import { BUILDER_STATUSES, BUILDER_STATUS_POLICY } from '@feasly/contracts';
 
 const ELITE_BUILDER_ID = 'builder-elite-id';
 const OTHER_BUILDER_ID = 'builder-other-id';
@@ -33,7 +34,7 @@ const OTHER_BUILDER_ID = 'builder-other-id';
  * assigned to Elite via builder_id but has tenant_key NULL — the exact
  * divergence that used to 403 a builder-visible lead.
  */
-function makeDeps() {
+function makeDeps(builderStatus = 'active') {
   const leads = new Map([
     [
       'lead-1',
@@ -85,7 +86,7 @@ function makeDeps() {
         return {
           id: ELITE_BUILDER_ID,
           tenantKey: 'elite-craft',
-          status: 'active',
+          status: builderStatus,
         };
       }
       return null;
@@ -114,6 +115,13 @@ function makeDeps() {
     }),
     disputeInvoice: vi.fn(async () => ({ ...invoice, status: 'disputed' })),
     resolveDispute: vi.fn(async () => ({ ...invoice, status: 'in_review' })),
+    payNow: vi.fn(async () => ({ ...invoice, status: 'finalized' })),
+    createPaymentConfirmation: vi.fn(async (id: string) => ({
+      invoiceId: id,
+      paymentIntentId: 'pi_1',
+      clientSecret: 'pi_1_secret_x',
+      provider: 'stripe' as const,
+    })),
   } as unknown as CommissionService;
 
   const deps: BillingServiceDeps = {
@@ -238,6 +246,34 @@ describe('billing service facade', () => {
     expect(commission.disputeInvoice).not.toHaveBeenCalled();
   });
 
+  it('confirmInvoicePayment 403s for another tenant invoice and asks the provider for nothing (#712)', async () => {
+    const { service, commission } = makeDeps();
+    await expect(
+      service.confirmInvoicePayment('inv-1', 'other-builder'),
+    ).rejects.toMatchObject({ status: 403 });
+    expect(commission.createPaymentConfirmation).not.toHaveBeenCalled();
+  });
+
+  it('confirmInvoicePayment checks the tenant then returns the confirmation (#712)', async () => {
+    const { service, commission } = makeDeps();
+    await expect(
+      service.confirmInvoicePayment('inv-1', 'elite-craft'),
+    ).resolves.toMatchObject({ invoiceId: 'inv-1', clientSecret: 'pi_1_secret_x' });
+    expect(commission.createPaymentConfirmation).toHaveBeenCalledWith('inv-1');
+  });
+
+  it('payInvoice 403s for another tenant invoice and charges nothing (#718)', async () => {
+    const { service, commission } = makeDeps();
+    await expect(service.payInvoice('inv-1', 'other-builder')).rejects.toMatchObject({ status: 403 });
+    expect(commission.payNow).not.toHaveBeenCalled();
+  });
+
+  it('payInvoice checks the tenant then pays now (#718)', async () => {
+    const { service, commission } = makeDeps();
+    await expect(service.payInvoice('inv-1', 'elite-craft')).resolves.toMatchObject({ status: 'finalized' });
+    expect(commission.payNow).toHaveBeenCalledWith('inv-1');
+  });
+
   it('disputeInvoice checks the tenant then disputes', async () => {
     const { service, commission } = makeDeps();
     const result = await service.disputeInvoice(
@@ -253,5 +289,35 @@ describe('billing service facade', () => {
     const { service, commission } = makeDeps();
     await service.resolveDispute('inv-1', 'void');
     expect(commission.resolveDispute).toHaveBeenCalledWith('inv-1', 'void');
+  });
+});
+
+// #860: billing enforcement point — one test per status. Reporting a
+// contract is a portal write; choosing how to pay follows payInvoices.
+describe.each(BUILDER_STATUSES)('billing policy — %s builder', (status) => {
+  it('reportContract follows portalWrite', async () => {
+    const { service, billingHook } = makeDeps(status);
+    const p = service.reportContract({
+      tenantKey: 'elite-craft',
+      leadId: 'lead-1',
+      contractValueCents: 50_000_000,
+      contractSignedAt: new Date('2026-09-20T10:00:00.000Z'),
+    });
+    if (BUILDER_STATUS_POLICY[status].portalWrite) {
+      await expect(p).resolves.toBeDefined();
+    } else {
+      await expect(p).rejects.toMatchObject({ status: 403, code: 'BUILDER_PAUSED' });
+      expect(billingHook.recordBillableEvent).not.toHaveBeenCalled();
+    }
+  });
+
+  it('setDefaultPaymentMethod follows payInvoices', async () => {
+    const { service, commission } = makeDeps(status);
+    (commission as unknown as Record<string, unknown>)['setDefaultPaymentMethod'] = vi.fn(
+      async (_t: string, m: string) => m,
+    );
+    const p = service.setDefaultPaymentMethod('elite-craft', 'cheque');
+    if (BUILDER_STATUS_POLICY[status].payInvoices) await expect(p).resolves.toBe('cheque');
+    else await expect(p).rejects.toMatchObject({ status: 403, code: 'BUILDER_PAUSED' });
   });
 });

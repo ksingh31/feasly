@@ -5,6 +5,7 @@ import { Component } from '@angular/core';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { ErrorRecoveryService } from './error-recovery.service';
 import { GlobalErrorHandler } from './global-error.handler';
+import { WebTelemetryService } from '../telemetry/web-telemetry.service';
 
 @Component({ template: '' })
 class StubErrorPageComponent {}
@@ -20,6 +21,7 @@ describe('GlobalErrorHandler', () => {
   let handler: ErrorHandler;
   let router: Router;
   let recovery: ErrorRecoveryService;
+  const recordError = vi.fn();
 
   /** Polls for a terminal router state — navigation is async (no fixed sleeps). */
   async function waitForUrl(url: string): Promise<void> {
@@ -38,6 +40,7 @@ describe('GlobalErrorHandler', () => {
     TestBed.configureTestingModule({
       providers: [
         { provide: ErrorHandler, useClass: GlobalErrorHandler },
+        { provide: WebTelemetryService, useValue: { recordError } },
         provideRouter([
           { path: '', component: StubHomeComponent },
           { path: 'error', component: StubErrorPageComponent },
@@ -57,6 +60,12 @@ describe('GlobalErrorHandler', () => {
     handler.handleError(new Error('boom'));
     await waitForUrl('/error');
     expect(router.url).toBe('/error');
+  });
+
+  it('reports the error to real-user monitoring (#830)', () => {
+    const err = new Error('boom');
+    handler.handleError(err);
+    expect(recordError).toHaveBeenCalledWith(err);
   });
 
   it('captures a retry action so the error page can offer "Try again"', () => {

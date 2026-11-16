@@ -1,7 +1,7 @@
 import { HttpHeaders, HttpParams } from '@angular/common/http';
 import { HttpClient } from '@angular/common/http';
 import { inject, Injectable } from '@angular/core';
-import { catchError, timeout } from 'rxjs';
+import { catchError, switchMap, throwError, timeout } from 'rxjs';
 import type { Observable } from 'rxjs';
 import type {
   AnalyticsEvent,
@@ -11,6 +11,7 @@ import type {
   ApiKeyListResponse,
   ApiKeyRecordResponse,
   AutocompleteResponse,
+  BuilderPartnerListResponse,
   CallbackRequest,
   CallbackResponse,
   WaitlistRequest,
@@ -35,13 +36,18 @@ import type {
   TierRevisionRequest,
   TierRevisionResponse,
   UnsubscribePreferencesInput,
+  ErasureConfirmResponse,
+  ErasureRequestResponse,
+  PrivacyExportResponse,
   UnsubscribeResultResponse,
   UnsubscribeStateResponse,
 } from '@feasly/contracts';
+import { BOT_CHALLENGE_HEADER } from '@feasly/contracts';
 import type { FunnelQuery, FunnelReport } from './funnel.types';
 import { ConfigService } from '../config/config.service';
 import type { ApiKeyUpdatePatch, ApiKeyUsageAggregate, ApiService, CommunityStats } from './api.service';
-import { toApiError } from './api-error';
+import { challengeSiteKey, toApiError } from './api-error';
+import { TurnstileChallengeService } from './turnstile-challenge.service';
 import { PROPERTY_DATA_SERVICE } from './property-data.service';
 
 /**
@@ -61,6 +67,7 @@ export class HttpApiService implements ApiService {
   private readonly http = inject(HttpClient);
   private readonly config = inject(ConfigService);
   private readonly propertyData = inject(PROPERTY_DATA_SERVICE);
+  private readonly botChallenge = inject(TurnstileChallengeService);
 
   private get base(): string {
     return `${this.config.get('api').baseUrl}/api/v1`;
@@ -75,6 +82,38 @@ export class HttpApiService implements ApiService {
     return request.pipe(timeout(effectiveTimeoutMs), catchError(toApiError));
   }
 
+  /**
+   * #905: like {@link call}, for the lead and estimate routes that may
+   * answer 403 CHALLENGE_REQUIRED / CHALLENGE_FAILED (#788). On that 403
+   * the invisible Turnstile challenge runs with the site key from the
+   * response, then the request is retried exactly once with the token. If
+   * the challenge can't complete, the original 403 surfaces; a failed retry
+   * surfaces as-is. Each attempt gets its own timeout; the challenge has its
+   * own (`botChallenge.timeoutMs`).
+   */
+  private callWithChallenge<T>(
+    send: (headers?: HttpHeaders) => Observable<T>,
+    timeoutMs?: number,
+  ): Observable<T> {
+    const effectiveTimeoutMs = timeoutMs ?? this.config.get('api').timeoutMs;
+    return send().pipe(
+      timeout(effectiveTimeoutMs),
+      catchError((error: unknown) => {
+        const siteKey = challengeSiteKey(error);
+        if (siteKey === null) return throwError(() => error);
+        return this.botChallenge.solve(siteKey).pipe(
+          catchError(() => throwError(() => error)),
+          switchMap((token) =>
+            send(new HttpHeaders().set(BOT_CHALLENGE_HEADER, token)).pipe(
+              timeout(effectiveTimeoutMs),
+            ),
+          ),
+        );
+      }),
+      catchError(toApiError),
+    );
+  }
+
   autocomplete(query: string): Observable<AutocompleteResponse> {
     return this.propertyData.autocomplete(query);
   }
@@ -84,8 +123,10 @@ export class HttpApiService implements ApiService {
   }
 
   getPreviewEstimate(request: AnyEstimateRequest): Observable<PreviewEstimateResponse> {
-    return this.call(
-      this.http.post<PreviewEstimateResponse>(`${this.base}/estimates/preview`, request),
+    return this.callWithChallenge((headers) =>
+      this.http.post<PreviewEstimateResponse>(`${this.base}/estimates/preview`, request, {
+        headers,
+      }),
     );
   }
 
@@ -94,7 +135,9 @@ export class HttpApiService implements ApiService {
    * (singular — the function adapter discriminates on `projectType`).
    */
   getEstimate(request: AnyEstimateRequest): Observable<EstimateResponse> {
-    return this.call(this.http.post<EstimateResponse>(`${this.base}/estimate`, request));
+    return this.callWithChallenge((headers) =>
+      this.http.post<EstimateResponse>(`${this.base}/estimate`, request, { headers }),
+    );
   }
 
   /**
@@ -104,8 +147,8 @@ export class HttpApiService implements ApiService {
   getComparisonEstimate(
     request: ComparisonEstimateRequest,
   ): Observable<ComparisonEstimateResponse> {
-    return this.call(
-      this.http.post<ComparisonEstimateResponse>(`${this.base}/estimate`, request),
+    return this.callWithChallenge((headers) =>
+      this.http.post<ComparisonEstimateResponse>(`${this.base}/estimate`, request, { headers }),
     );
   }
 
@@ -128,12 +171,17 @@ export class HttpApiService implements ApiService {
     );
   }
 
+  /** Builder partner disclosure (#918): GET /api/v1/partners (public, cached). */
+  getPartners(): Observable<BuilderPartnerListResponse> {
+    return this.call(this.http.get<BuilderPartnerListResponse>(`${this.base}/partners`));
+  }
+
   submitLead(request: LeadRequest): Observable<LeadResponse> {
     // The gate submit waits on the synchronous email send (worst case ~20s
     // with in-code retries), so it uses the gate-specific timeout — the
     // global api.timeoutMs stays tight for every other call.
-    return this.call(
-      this.http.post<LeadResponse>(`${this.base}/leads`, request),
+    return this.callWithChallenge(
+      (headers) => this.http.post<LeadResponse>(`${this.base}/leads`, request, { headers }),
       this.config.get('api').gateTimeoutMs,
     );
   }
@@ -203,6 +251,41 @@ export class HttpApiService implements ApiService {
     );
   }
 
+  /** #706: the magic-link token is the privacy endpoints' Bearer credential. */
+  private bearer(reportToken: string): HttpHeaders {
+    return new HttpHeaders().set('Authorization', `Bearer ${reportToken}`);
+  }
+
+  exportPrivacyData(reportToken: string): Observable<PrivacyExportResponse> {
+    return this.call(
+      this.http.get<PrivacyExportResponse>(`${this.base}/privacy/export`, {
+        headers: this.bearer(reportToken),
+      }),
+    );
+  }
+
+  requestErasure(reportToken: string): Observable<ErasureRequestResponse> {
+    return this.call(
+      this.http.post<ErasureRequestResponse>(
+        `${this.base}/privacy/erase-requests`,
+        {},
+        { headers: this.bearer(reportToken) },
+      ),
+    );
+  }
+
+  confirmErasure(reportToken: string, requestId: string): Observable<ErasureConfirmResponse> {
+    const id = encodeURIComponent(requestId);
+    const path = `/privacy/erase-requests/${id}/confirm`;
+    return this.call(
+      this.http.post<ErasureConfirmResponse>(
+        `${this.base}${path}`,
+        {},
+        { headers: this.bearer(reportToken) },
+      ),
+    );
+  }
+
   /** Token travels in the path (never logged); encoded like the backend's buildUnsubscribeUrl. */
   private unsubscribePath(token: string): string {
     return `/unsubscribe/${encodeURIComponent(token)}`;
@@ -259,6 +342,13 @@ export class HttpApiService implements ApiService {
     // would fail the min(1) validation).
     if (query.tenant !== 'all') {
       params = params.set('tenant_key', query.tenant);
+    }
+    // #815: exact-match campaign filters; omitted = any.
+    if (query.utmSource) {
+      params = params.set('utm_source', query.utmSource);
+    }
+    if (query.utmCampaign) {
+      params = params.set('utm_campaign', query.utmCampaign);
     }
     return this.call(
       this.http.get<FunnelReport>(`${this.base}/admin/funnels`, {

@@ -16,6 +16,8 @@ import {
   renderCommissionInvoiceReadyEmail,
   renderCommissionPaymentReceivedEmail,
   renderCommissionPaymentFailedEmail,
+  renderCommissionPaymentActionRequiredEmail,
+  renderCommissionInvoiceOverdueEmail,
   type TemplateContext,
 } from '../src/services/email/templates';
 
@@ -88,6 +90,147 @@ describe('commission-payment-failed template (BILL-04)', () => {
     expect(rendered.html).toContain('Update card');
     expect(rendered.html).toContain('7 days');
     expect(rendered.text).toContain('7 days');
+  });
+
+  it('#873: the chargeback_lost variant says the payment was reversed, not declined', () => {
+    const rendered = renderCommissionPaymentFailedEmail(CTX, {
+      invoiceRef: 'INV-2026-001',
+      commissionCents: 500_000,
+      currency: 'CAD',
+      updateWithinDays: 7,
+      reason: 'chargeback_lost',
+    });
+    expect(rendered.subject).toBe(
+      'Your bank reversed a payment — invoice INV-2026-001 is unpaid again',
+    );
+    for (const body of [rendered.html, rendered.text]) {
+      expect(body).toContain('INV-2026-001');
+      expect(body).toContain('$5,000.00');
+      expect(body).toContain('chargeback');
+      expect(body).toContain('still owed');
+      expect(body).not.toContain('declined');
+    }
+    expect(rendered.html).toContain('https://app.feasly.example/builder/billing');
+  });
+
+  it('#977: with no automatic retry scheduled, the chargeback_lost variant asks for Pay now', () => {
+    const rendered = renderCommissionPaymentFailedEmail(CTX, {
+      invoiceRef: 'INV-2026-001',
+      commissionCents: 500_000,
+      currency: 'CAD',
+      updateWithinDays: 7,
+      nextRetryAt: null,
+      reason: 'chargeback_lost',
+    });
+    for (const body of [rendered.html, rendered.text]) {
+      expect(body).toContain('still owed');
+      expect(body).toContain('Pay now');
+      expect(body).not.toMatch(/collect the payment again/i);
+    }
+  });
+
+  it('#977: with an automatic retry scheduled, the chargeback_lost variant says it will collect again', () => {
+    const rendered = renderCommissionPaymentFailedEmail(CTX, {
+      invoiceRef: 'INV-2026-001',
+      commissionCents: 500_000,
+      currency: 'CAD',
+      updateWithinDays: 7,
+      nextRetryAt: new Date('2026-11-20T17:00:00Z'),
+      reason: 'chargeback_lost',
+    });
+    expect(rendered.text).toContain("We'll collect the payment again");
+    expect(rendered.text).not.toContain('Pay now');
+  });
+});
+
+describe('commission-payment-failed dunning copy (#718)', () => {
+  const base = {
+    invoiceRef: 'INV-0718',
+    commissionCents: 500_000,
+    currency: 'CAD',
+    updateWithinDays: 7,
+  };
+
+  it('names the next automatic retry date and the Pay now option', () => {
+    const rendered = renderCommissionPaymentFailedEmail(CTX, {
+      ...base,
+      nextRetryAt: new Date('2026-11-23T18:00:00.000Z'),
+    });
+    expect(rendered.subject).toContain('declined');
+    for (const body of [rendered.html, rendered.text]) {
+      expect(body).toContain('try the charge again on');
+      expect(body).toContain('2026');
+      expect(body).toContain('Pay now');
+      expect(body).not.toContain('7 days');
+    }
+  });
+
+  it('sends a final notice once the retry budget is used up', () => {
+    const rendered = renderCommissionPaymentFailedEmail(CTX, {
+      ...base,
+      nextRetryAt: null,
+      finalNotice: true,
+    });
+    expect(rendered.subject).toBe('Final notice: invoice INV-0718 is unpaid');
+    expect(rendered.text).toContain("We won't try this charge again automatically.");
+    // Pay now attempts share the budget — never claim an automatic attempt ran.
+    expect(rendered.text).not.toContain('last automatic attempt');
+    expect(rendered.html).toContain('Pay now');
+    expect(rendered.text).not.toContain('try the charge again');
+  });
+
+  it('with no retry scheduled, asks for Pay now without promising a retry', () => {
+    const rendered = renderCommissionPaymentFailedEmail(CTX, { ...base, nextRetryAt: null });
+    expect(rendered.text).toContain('choose Pay now on your billing page');
+    expect(rendered.text).not.toContain('retry the charge automatically');
+  });
+});
+
+describe('commission-invoice-overdue template (#718)', () => {
+  it('states the due date and amount and offers the card switch', () => {
+    const rendered = renderCommissionInvoiceOverdueEmail(CTX, {
+      invoiceRef: 'INV-0719',
+      commissionCents: 500_000,
+      currency: 'CAD',
+      dueAt: new Date('2026-11-20T18:00:00.000Z'),
+    });
+    expect(rendered.subject).toBe('Invoice INV-0719 is past due');
+    for (const body of [rendered.html, rendered.text]) {
+      expect(body).toContain('INV-0719');
+      expect(body).toContain('$5,000.00');
+      expect(body).toContain('2026');
+      expect(body).toContain('https://app.feasly.example/builder/billing');
+    }
+    expect(rendered.text).toContain('switch this invoice to your card on file');
+  });
+});
+
+describe('commission-payment-action-required template (#712)', () => {
+  it('asks the builder to confirm with their bank and deep-links the invoice', () => {
+    const rendered = renderCommissionPaymentActionRequiredEmail(CTX, {
+      invoiceId: '00000000-0000-4000-8000-000000000042',
+      invoiceRef: 'INV-0042',
+      commissionCents: 500_000,
+      currency: 'CAD',
+    });
+    expect(rendered.subject).toBe('Your bank needs you to confirm this payment — invoice INV-0042');
+    expect(rendered.html).toContain('$5,000.00');
+    expect(rendered.html).toContain('Confirm payment with your bank');
+    expect(rendered.html).toContain('not declined');
+    const url = 'https://app.feasly.example/builder/invoices?open=00000000-0000-4000-8000-000000000042';
+    expect(rendered.html).toContain(url);
+    expect(rendered.text).toContain(`Confirm payment: ${url}`);
+  });
+
+  it('shows the amount charged including tax', () => {
+    const rendered = renderCommissionPaymentActionRequiredEmail(CTX, {
+      invoiceId: 'inv-1',
+      invoiceRef: 'INV-0043',
+      commissionCents: 1_875_000,
+      currency: 'CAD',
+      tax: { label: 'GST', ratePercent: 5, taxCents: 93_750, totalCents: 1_968_750, registrationNumber: '123456789RT0001' },
+    });
+    expect(rendered.text).toContain('$19,687.50 CAD');
   });
 });
 

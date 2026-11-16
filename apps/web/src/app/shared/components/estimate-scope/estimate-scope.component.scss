@@ -1,0 +1,53 @@
+:host {
+  display: block;
+}
+
+.es-block + .es-block {
+  margin-top: 1rem;
+}
+
+.es-title {
+  margin: 0 0 0.5rem;
+  font-size: 1.0625rem;
+}
+
+.es-intro {
+  margin: 0 0 0.5rem;
+  color: var(--muted);
+  line-height: 1.5;
+}
+
+.es-list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 15rem), 1fr));
+  gap: 0.25rem 1.25rem;
+}
+
+.es-item {
+  position: relative;
+  padding: 0.25rem 0 0.25rem 1.5rem;
+  line-height: 1.4;
+  overflow-wrap: anywhere;
+
+  &::before {
+    position: absolute;
+    left: 0;
+    top: 0.25rem;
+    width: 1.1rem;
+    text-align: center;
+    font-weight: 700;
+  }
+}
+
+.es-in::before {
+  content: '✓' / '';
+  color: var(--accent-text);
+}
+
+.es-out::before {
+  content: '–' / '';
+  color: var(--muted);
+}

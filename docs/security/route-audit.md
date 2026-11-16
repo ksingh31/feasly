@@ -52,18 +52,27 @@ Related: [rate-limits.md](rate-limits.md) · [asvs-l1.md](asvs-l1.md) ·
 | POST | `/api/v1/waitlist` | none | — | 10/min per IP | live |  |
 | POST | `/api/v1/shares` | magic-token | — | 10/min per IP | live |  |
 | GET | `/api/v1/shares/verify` | magic-token | — | 100/min per IP | live |  |
+| POST | `/api/v1/shares/link` | magic-token | — | 10/min per IP | live |  |
+| POST | `/api/v1/shares/link/list` | magic-token | — | 10/min per IP | live |  |
+| POST | `/api/v1/shares/link/revoke` | magic-token | — | 10/min per IP | live |  |
 | GET | `/api/v1/properties/autocomplete` | none | — | 60/min per IP | live | SSRF surface: same fixed-host rule as lookup. |
 | GET | `/api/v1/properties/lookup` | none | — | 60/min per IP | live | SSRF surface: outbound calls go only to fixed City of Calgary hosts from config; the address is a query value, never a URL. |
 | POST | `/api/v1/events` | none | — | 300/min per IP (dedicated analytics limiter) | live | Anonymous analytics; dedicated limiter; schema-validated, no free-text PII fields. |
+| POST | `/api/v1/telemetry` | none | — | 10/min per IP (dedicated telemetry limiter) | live |  |
 | GET | `/api/v1/privacy/export` | magic-token | — | 100/min per IP | live |  |
 | POST | `/api/v1/privacy/erase-requests` | magic-token | — | 10/min per IP | live |  |
 | POST | `/api/v1/privacy/erase-requests/{requestId}/confirm` | magic-token | — | 10/min per IP | live | Token must belong to the same identity as the request id: unknown id 404, cross-user id 403 + audit (ids are random UUIDs). |
-| POST | `/api/v1/estimates/{estimateId}/narrative` | magic-token | — | 100/min per IP + 5/day per estimate (cost guard) | live | LLM cost surface: per-estimate daily cap; LLM writes narrative only, never dollar figures. |
+| POST | `/api/v1/estimates/{estimateId}/narrative` | magic-token | — | 100/min per IP | live | No LLM call per request (#759): reads the stored monthly community narrative; dollar figures come from the engine only. |
 | GET | `/api/v1/unsubscribe/{token}` | magic-token | — | 100/min per IP | live | Signed token; GET is read-only (mail scanners prefetch links), POST performs the opt-out. |
 | POST | `/api/v1/unsubscribe/{token}` | magic-token | — | 10/min per IP | live |  |
 | GET | `/api/v1/communities/{slug}/stats` | none | — | 100/min per IP | live |  |
+| GET | `/api/v1/communities/{slug}/lots` | none | — | 100/min per IP | live |  |
+| GET | `/api/v1/communities/{slug}/living` | none | — | 100/min per IP | live |  |
 | GET | `/api/v1/city-data/freshness` | none | — | 100/min per IP | live |  |
 | GET | `/api/v1/zoning/districts` | none | — | 100/min per IP | live |  |
+| GET | `/api/v1/schools` | none | — | 100/min per IP | live |  |
+| GET | `/api/v1/schools/{id}` | none | — | 100/min per IP | live |  |
+| GET | `/api/v1/partners` | none | — | 100/min per IP | live |  |
 | GET | `/api/v1/embed/config` | none | — | 120/min per tenant key | live | Public tenant config only; rates/margins never serialized (secret-leak test). |
 | POST | `/api/v1/embed/session` | none | — | 30/min per tenant key | planned | Not live yet. Must get origin-allowlist and tenant-key checks before going live. |
 | POST | `/api/v1/embed/relay/resend` | none | — | 60s per code · 30/min per IP | live |  |
@@ -98,6 +107,13 @@ Related: [rate-limits.md](rate-limits.md) · [asvs-l1.md](asvs-l1.md) ·
 | DELETE | `/api/v1/builder/users/{id}` | builder-session | builder:users:manage | 60/min per session | live |  |
 | GET | `/api/v1/builder/leads` | builder-session | builder:leads:read | 100/min per session | live |  |
 | GET | `/api/v1/builder/leads/needs-you` | builder-session | builder:leads:read | 100/min per session | live |  |
+| GET | `/api/v1/builder/notifications/preferences` | builder-session | builder:leads:read | 100/min per session | live |  |
+| PUT | `/api/v1/builder/notifications/preferences` | builder-session | builder:leads:read | 100/min per session | live |  |
+| GET | `/api/v1/builder/profile` | builder-session | builder:leads:read | 100/min per session | live |  |
+| PUT | `/api/v1/builder/profile` | builder-session | builder:settings:manage | 100/min per session | live |  |
+| GET | `/api/v1/builder/embed` | builder-session | builder:leads:read | 100/min per session | live |  |
+| POST | `/api/v1/builder/embed/origin-requests` | builder-session | builder:settings:manage | 100/min per session | live |  |
+| POST | `/api/v1/builder/account/close-request` | builder-session | builder:settings:manage | 100/min per session | live |  |
 | PATCH | `/api/v1/builder/leads/{id}` | builder-session | builder:leads:manage | 100/min per session | live |  |
 | POST | `/api/v1/builder/leads/{id}/mark-won` | builder-session | builder:leads:manage | 100/min per session | live |  |
 | GET | `/api/v1/builder/leads/{leadId}/comments` | builder-session | builder:leads:read | 100/min per session | live |  |
@@ -125,26 +141,41 @@ Related: [rate-limits.md](rate-limits.md) · [asvs-l1.md](asvs-l1.md) ·
 | POST | `/api/v1/admin/builders` | admin | builders:manage | 60/min per session | live |  |
 | GET | `/api/v1/admin/builders/{id}` | admin | builders:read | 300/min per session | live |  |
 | PATCH | `/api/v1/admin/builders/{id}` | admin | builders:manage | 60/min per session | live |  |
+| POST | `/api/v1/admin/builders/{id}/status` | admin | builders:manage | 60/min per session | live |  |
+| GET | `/api/v1/admin/builders/{id}/offboarding-blockers` | admin | builders:manage | 60/min per session | live |  |
+| GET | `/api/v1/admin/builders/{id}/export.csv` | admin | builders:manage | 10/min per session | live |  |
+| GET | `/api/v1/admin/partners` | admin | builders:read | 300/min per session | live |  |
+| POST | `/api/v1/admin/partners` | admin | builders:manage | 60/min per session | live |  |
+| PATCH | `/api/v1/admin/partners/{id}` | admin | builders:manage | 60/min per session | live |  |
 | GET | `/api/v1/admin/estimates/{id}` | admin | estimates:read | 300/min per session | planned |  |
 | POST | `/api/v1/admin/estimates/{id}/narrative` | admin | estimates:read | 60/min per session | live |  |
 | GET | `/api/v1/admin/funnels` | admin | analytics:read | 300/min per session | live |  |
 | GET | `/api/v1/admin/billing` | admin | billing:read | 300/min per session | live |  |
 | POST | `/api/v1/admin/billing/invoices/{id}/retry` | admin | billing:manage | 300/min per session | live |  |
+| POST | `/api/v1/admin/billing/invoices/{id}/dunning` | admin | billing:manage | 300/min per session | live |  |
 | POST | `/api/v1/admin/billing/simulated/invoices/{id}/events` | admin | billing:manage | 300/min per session | live |  |
 | POST | `/api/v1/admin/billing/invoices/{id}/mark-paid` | admin | billing:manage | 300/min per session | live |  |
 | POST | `/api/v1/admin/billing/invoices/{id}/commission-rate` | admin | billing:manage | 300/min per session | live |  |
 | PUT | `/api/v1/admin/billing/invoices/{id}/payment-method` | admin | billing:manage | 300/min per session | live |  |
+| POST | `/api/v1/admin/billing/invoices/{id}/refund` | admin | billing:manage | 300/min per session | live |  |
+| POST | `/api/v1/admin/billing/invoices/{id}/void` | admin | billing:manage | 300/min per session | live |  |
+| POST | `/api/v1/admin/billing/invoices/{id}/correct-contract` | admin | billing:manage | 300/min per session | live |  |
+| POST | `/api/v1/admin/billing/invoices/{id}/reverse-payment` | admin | billing:manage | 300/min per session | live |  |
 | POST | `/api/v1/admin/billing/invoices` | admin | billing:manage | 300/min per session | live |  |
 | GET | `/api/v1/admin/billing/summary` | admin | finance:export | 300/min per session | live |  |
 | GET | `/api/v1/admin/billing/invoices/export.csv` | admin | finance:export | 10/min per session | live |  |
 | POST | `/api/v1/admin/community-stats/refresh` | admin | ops:manage | 10/min per session | live |  |
+| POST | `/api/v1/admin/neighbourhood-data/{provider}/refresh` | admin | ops:manage | 10/min per session | live |  |
+| GET | `/api/v1/admin/community-narratives` | admin | ops:manage | 300/min per session | live |  |
+| POST | `/api/v1/admin/community-narratives/regenerate` | admin | ops:manage | 10/min per session | live |  |
 | GET | `/api/v1/admin/usage` | admin | usage:read | 300/min per session | planned |  |
 | GET | `/api/v1/admin/calibration` | admin | calibration:read | 300/min per session | live |  |
 | GET | `/api/v1/admin/ops/sheets-status` | admin | ops:manage | 300/min per session | live |  |
+| GET | `/api/v1/admin/ops/jobs` | admin | ops:manage | 300/min per session | live |  |
 | POST | `/api/v1/admin/ops/sheets-sync-now` | admin | ops:manage | 10/min per session | live |  |
 | POST | `/api/v1/builder/agreement/accept` | none | — | 10/min per IP | planned | Not live yet. Planned as `auth: none`; must bind acceptance to a builder session or a single-use token before going live. |
 | GET | `/api/v1/builder/leads/{id}` | builder-session | builder:leads:read | 300/min per session | planned |  |
-| POST | `/api/mcp/v1` | api-key | — | 100/min per key | live | API-key scopes are the authorization; per-key limit; same engine as the public API. |
+| POST | `/api/mcp/v1` | api-key | — | 100/min per key · 100/day + 2,000/month per key (config, #738) | live | API-key scopes are the authorization; per-key limit; same engine as the public API. |
 | POST | `/api/v1/stripe/webhooks` | stripe-signature | — | 100/min per IP | live | Stripe-Signature verified with timestamp tolerance; processed event ids are stored, so a replayed event is a no-op. |
 | POST | `/api/v1/billing/report-contract` | builder-session | builder:billing | 100/min per session | live |  |
 | POST | `/api/v1/billing/setup-intent` | builder-session | builder:billing | 100/min per session | live |  |
@@ -158,6 +189,8 @@ Related: [rate-limits.md](rate-limits.md) · [asvs-l1.md](asvs-l1.md) ·
 | GET | `/api/v1/billing/payment-method` | builder-session | builder:billing | 100/min per session | live |  |
 | PUT | `/api/v1/billing/payment-method` | builder-session | builder:billing | 100/min per session | live |  |
 | PUT | `/api/v1/billing/invoices/{id}/payment-method` | builder-session | builder:billing | 100/min per session | live |  |
+| POST | `/api/v1/billing/invoices/{id}/confirm-payment` | builder-session | builder:billing | 100/min per session | live |  |
+| POST | `/api/v1/billing/invoices/{id}/pay` | builder-session | builder:billing | 100/min per session | live |  |
 | GET | `/api/v1/billing/invoices/{id}` | builder-session | builder:billing | 100/min per session | live |  |
 | GET | `/api/v1/billing/invoices/{id}/pdf` | builder-session | builder:billing | 100/min per session | live |  |
 | GET | `/api/v1/billing/invoices` | builder-session | builder:billing | 100/min per session | live |  |

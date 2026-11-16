@@ -17,6 +17,11 @@
  * Monitor to alert on, then rethrows so the host records the invocation
  * failure and retries on schedule.
  *
+ * #880: the same daily run then sends the one-time card-expiry reminder
+ * (`cardExpiryReminderService`) — no new timer, no new Azure resource. It
+ * runs even when the review cycle failed, and fails visibly the same way
+ * (CARD REMINDER FAILED line + rethrow).
+ *
  * No PII is logged — only aggregate counts (finalized / failed).
  *
  * Bundled by `npm run bundle:functions` into `invoice-reviewer-timer/index.js`
@@ -48,12 +53,36 @@ function getApp(): AppComposition {
  * timer's path against PGlite with the real migrations applied.
  */
 export async function runInvoiceReviewerTimer(
+  app: Pick<AppComposition, 'invoiceReviewerService' | 'cardExpiryReminderService'>,
+  context: TimerFunctionContext,
+): Promise<void> {
+  const now = new Date();
+  let reviewError: unknown;
+  try {
+    await runReviewCycle(app, context, now);
+  } catch (error) {
+    reviewError = error;
+  }
+  // #880: independent of the review cycle — a charge-path failure must not
+  // stop the card reminder, and vice versa.
+  let reminderError: unknown;
+  try {
+    await runCardExpiryReminders(app, context, now);
+  } catch (error) {
+    reminderError = error;
+  }
+  if (reviewError !== undefined) throw reviewError;
+  if (reminderError !== undefined) throw reminderError;
+}
+
+async function runReviewCycle(
   app: Pick<AppComposition, 'invoiceReviewerService'>,
   context: TimerFunctionContext,
+  now: Date,
 ): Promise<void> {
   let result;
   try {
-    result = await app.invoiceReviewerService.runReviewCycle(new Date());
+    result = await app.invoiceReviewerService.runReviewCycle(now);
   } catch (error) {
     // Structured failure line: if the cycle dies before completing (e.g.
     // the `commission_invoices` SELECT or the `billing_events` INSERT fails
@@ -73,16 +102,47 @@ export async function runInvoiceReviewerTimer(
     reconciledPaid,
     reconciledFailed,
     stillPending,
+    retried,
+    overdueReminded,
     errors,
   } = result;
   // Aggregates only — never invoice ids, tenant keys, or amounts.
   context.log(
     `invoice-reviewer-timer: cycle complete (finalized=${finalized} failed=${failed} skipped=${skipped} ` +
-      `reconciledPaid=${reconciledPaid} reconciledFailed=${reconciledFailed} stillPending=${stillPending})`,
+      `reconciledPaid=${reconciledPaid} reconciledFailed=${reconciledFailed} stillPending=${stillPending} ` +
+      `retried=${retried} overdueReminded=${overdueReminded})`,
   );
   for (const error of errors) {
     context.log(
       `invoice-reviewer-timer: invoice failed: ${sanitizeErrorMessage(error.message)}`,
+    );
+  }
+}
+
+/** #880: the one-time card-expiry reminder pass. Aggregates only in logs. */
+async function runCardExpiryReminders(
+  app: Pick<AppComposition, 'cardExpiryReminderService'>,
+  context: TimerFunctionContext,
+  now: Date,
+): Promise<void> {
+  let result;
+  try {
+    result = await app.cardExpiryReminderService.runReminderCycle(now);
+  } catch (error) {
+    context.log(
+      `invoice-reviewer-timer: CARD REMINDER FAILED (error=${sanitizeErrorMessage(error)})`,
+    );
+    throw error;
+  }
+  const { checked, reminded, emailsSent, alreadyReminded, skipped, errors } =
+    result;
+  context.log(
+    `invoice-reviewer-timer: card reminders complete (checked=${checked} reminded=${reminded} ` +
+      `emailsSent=${emailsSent} alreadyReminded=${alreadyReminded} skipped=${skipped} failed=${errors.length})`,
+  );
+  for (const error of errors) {
+    context.log(
+      `invoice-reviewer-timer: card reminder failed: ${sanitizeErrorMessage(error.message)}`,
     );
   }
 }

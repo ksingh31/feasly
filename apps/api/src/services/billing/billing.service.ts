@@ -33,11 +33,15 @@ import type {
   CommissionInvoiceRecord,
   CommissionService,
 } from './commission.service';
-import type { BuilderPaymentMethod } from '@feasly/contracts';
+import type {
+  BuilderPaymentMethod,
+  ConfirmInvoicePaymentResponse,
+} from '@feasly/contracts';
 import type { DisputeService } from './dispute.service';
 import type { LeadStore } from '../lead.store';
 import type { BuilderService } from '../builder.service';
 import { ErrorCodes, HttpError } from '../../middleware/errors';
+import { requireBuilderCapability } from '../../lib/builder-status-policy';
 
 export interface ReportContractInput {
   readonly tenantKey: string;
@@ -118,6 +122,26 @@ export interface BillingService {
     tenantKey: string,
     method: BuilderPaymentMethod,
   ): Promise<CommissionInvoiceRecord>;
+  /**
+   * #712 SCA recovery: client secret + card for the builder to confirm an
+   * `action_required` invoice's payment with their bank. Builders may only
+   * confirm their own tenant's invoices (403 otherwise); 409 when the
+   * invoice is not waiting for confirmation.
+   */
+  confirmInvoicePayment(
+    invoiceId: string,
+    tenantKey: string,
+  ): Promise<ConfirmInvoicePaymentResponse>;
+  /**
+   * #718 Pay now: charge a failed card invoice against the card on file
+   * right away. Builders may only pay their own tenant's invoices (403
+   * otherwise). Double submission returns the invoice as it is — one
+   * charge. 409 unless the card payment failed.
+   */
+  payInvoice(
+    invoiceId: string,
+    tenantKey: string,
+  ): Promise<CommissionInvoiceRecord>;
 }
 
 export interface BillingServiceDeps {
@@ -149,11 +173,17 @@ export function createBillingService(
    * builder. Unknown (or inactive) tenant key → 404 (no builder to
    * scope to). Matches BuilderLeadsService.requireBuilder.
    */
-  async function requireBuilder(tenantKey: string) {
+  async function requireBuilder(
+    tenantKey: string,
+    capability: 'portalWrite' | 'payInvoices',
+  ) {
     const builder = await builders.getByTenantKey(tenantKey);
-    if (builder === null || builder.status !== 'active') {
+    if (builder === null) {
       throw new HttpError(404, ErrorCodes.NOT_FOUND, 'Builder not found.');
     }
+    // #860 policy: reporting a contract is a portal write (refused while
+    // suspended); choosing how to pay stays open wherever paying is.
+    requireBuilderCapability(builder.status, capability);
     return builder;
   }
 
@@ -169,6 +199,19 @@ export function createBillingService(
         'This invoice belongs to a different builder.',
       );
     }
+    // #715: builders see their refunds, but not which staff member issued
+    // them nor the admin's internal free-text note — both stay in the
+    // admin-side audit trail.
+    if (tenantKey !== null && invoice.refunds !== undefined) {
+      return {
+        ...invoice,
+        refunds: invoice.refunds.map((refund) => ({
+          ...refund,
+          actorEmail: null,
+          note: null,
+        })),
+      };
+    }
     return invoice;
   }
 
@@ -176,7 +219,7 @@ export function createBillingService(
     async reportContract(
       input: ReportContractInput,
     ): Promise<BillableEventResult> {
-      const builder = await requireBuilder(input.tenantKey);
+      const builder = await requireBuilder(input.tenantKey, 'portalWrite');
       // auth/04 (iron rule): the lead is scoped by (id, builder_id)
       // resolved from session state — never by the lead row's tenant_key,
       // which can legitimately diverge (NULL or stale on builder-scoped
@@ -283,7 +326,7 @@ export function createBillingService(
       tenantKey: string,
       method: BuilderPaymentMethod,
     ): Promise<BuilderPaymentMethod> {
-      await requireBuilder(tenantKey);
+      await requireBuilder(tenantKey, 'payInvoices');
       return commission.setDefaultPaymentMethod(tenantKey, method);
     },
 
@@ -296,6 +339,22 @@ export function createBillingService(
       // commission.setInvoicePaymentMethod: 403 for another tenant's
       // invoice, 404 for an unknown invoice.
       return commission.setInvoicePaymentMethod(tenantKey, invoiceId, method);
+    },
+
+    async confirmInvoicePayment(
+      invoiceId: string,
+      tenantKey: string,
+    ): Promise<ConfirmInvoicePaymentResponse> {
+      await requireTenantInvoice(invoiceId, tenantKey);
+      return commission.createPaymentConfirmation(invoiceId);
+    },
+
+    async payInvoice(
+      invoiceId: string,
+      tenantKey: string,
+    ): Promise<CommissionInvoiceRecord> {
+      await requireTenantInvoice(invoiceId, tenantKey);
+      return commission.payNow(invoiceId);
     },
   };
 }

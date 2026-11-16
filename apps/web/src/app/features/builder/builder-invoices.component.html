@@ -113,7 +113,14 @@
                 >
               </td>
               <td [attr.data-label]="copy.invoicesColDue">
-                @if (reviewCountdown(invoice); as countdown) {
+                @if (dueNote(invoice); as note) {
+                  <span
+                    class="builder-invoices__countdown"
+                    [class.builder-invoices__overdue]="note.overdue"
+                    data-testid="invoice-due-note"
+                    >{{ note.text }}</span
+                  >
+                } @else if (reviewCountdown(invoice); as countdown) {
                   <span class="builder-invoices__countdown">{{ countdown }}</span>
                 } @else {
                   {{ formatEdmontonDate(invoice.reviewDueAt) }}

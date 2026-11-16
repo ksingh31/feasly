@@ -18,6 +18,10 @@ import { AdminCreateInvoiceComponent } from './admin-create-invoice.component';
 import { AdminInvoiceDrawerComponent } from './admin-invoice-drawer.component';
 import { AdminInvoicePaymentModalComponent } from './admin-invoice-payment-modal.component';
 import { ADMIN_PERMISSIONS } from './admin-permissions';
+import { AdminDunningGraceModalComponent } from './admin-dunning-grace-modal.component';
+import { DEFAULT_ADMIN_COPY } from './admin-copy.defaults';
+
+const D = DEFAULT_ADMIN_COPY.dunning;
 
 const HEALTH: BillingHealthResponse = {
   model: 'commission',
@@ -102,7 +106,11 @@ interface Harness {
   fixture: ComponentFixture<AdminBillingComponent>;
   store: Store;
   el: HTMLElement;
-  api: { getBillingHealth: ReturnType<typeof vi.fn>; retryInvoiceCharge: ReturnType<typeof vi.fn> };
+  api: {
+    getBillingHealth: ReturnType<typeof vi.fn>;
+    retryInvoiceCharge: ReturnType<typeof vi.fn>;
+    updateInvoiceDunning: ReturnType<typeof vi.fn>;
+  };
   confirms: { confirm: ReturnType<typeof vi.fn>; answer: Subject<boolean> };
   modals: { open: ReturnType<typeof vi.fn> };
   drawers: { open: ReturnType<typeof vi.fn>; openDrawer: null };
@@ -115,6 +123,9 @@ async function setup(opts: { health?: BillingHealthResponse; permissions?: strin
   const api = {
     getBillingHealth: vi.fn().mockReturnValue(of(opts.health ?? HEALTH)),
     retryInvoiceCharge: vi.fn().mockReturnValue(of({ invoiceId: 'inv-1', status: 'finalized', retryCount: 2 })),
+    updateInvoiceDunning: vi.fn().mockReturnValue(
+      of({ invoiceId: 'inv-1', status: 'failed', dunningState: 'paused', retryGraceDays: 7, nextRetryAt: null }),
+    ),
   };
   const answer = new Subject<boolean>();
   const confirms = { confirm: vi.fn(() => answer.asObservable()), answer };
@@ -282,6 +293,146 @@ describe('AdminBillingComponent (#544 Billing overview)', () => {
       const retry = document.querySelector('.row-actions__item[data-action="retry"]') as HTMLButtonElement;
       expect(retry.getAttribute('aria-disabled')).toBe('true');
       expect(retry.textContent).toContain('All retries used');
+    });
+  });
+
+  describe('dunning schedule controls (#901)', () => {
+    const scheduled = (patch: Partial<BillingHealthResponse['dunning'][number]> = {}) => ({
+      ...HEALTH.dunning[0],
+      nextRetryAt: '2026-11-23T15:00:00.000Z',
+      dunningState: 'active' as const,
+      retryGraceDays: 7,
+      collectionsAt: null,
+      ...patch,
+    });
+
+    async function openMenu(h: Harness, rowIndex = 0): Promise<HTMLButtonElement[]> {
+      const triggers = h.el.querySelectorAll('[data-testid="dunning-queue"] .row-actions__trigger');
+      (triggers[rowIndex] as HTMLButtonElement).click();
+      await h.fixture.whenStable();
+      return Array.from(document.querySelectorAll('.row-actions__item')) as HTMLButtonElement[];
+    }
+
+    it('shows the schedule: state, next retry and grace days', async () => {
+      const { el } = await setup({ health: { ...HEALTH, dunning: [scheduled()] } });
+      const text = q(el, 'dunning-queue')?.textContent ?? '';
+      expect(text).toContain(D.columns.state);
+      expect(text).toContain(D.stateActive);
+      expect(text).toContain('Nov 23, 2026');
+      expect(text).toContain('7 days');
+    });
+
+    it('says none scheduled for a paused invoice', async () => {
+      const { el } = await setup({
+        health: { ...HEALTH, dunning: [scheduled({ dunningState: 'paused', nextRetryAt: null })] },
+      });
+      const text = q(el, 'dunning-queue')?.textContent ?? '';
+      expect(text).toContain(D.statePaused);
+      expect(text).toContain(D.noRetry);
+    });
+
+    it('puts collections rows at the top with their age', async () => {
+      vi.useFakeTimers({ toFake: ['Date'], now: new Date('2026-11-16T12:00:00.000Z') });
+      try {
+        const { el } = await setup({
+          health: {
+            ...HEALTH,
+            dunning: [
+              scheduled({ id: 'inv-a', commissionCents: 11_100 }),
+              scheduled({ id: 'inv-b', commissionCents: 22_200, collectionsAt: '2026-11-12T12:00:00.000Z' }),
+            ],
+          },
+        });
+        const rows = Array.from(el.querySelectorAll('[data-testid="dunning-queue"] tbody tr'));
+        expect(rows[0]?.textContent).toContain('$222');
+        expect(rows[0]?.textContent).toContain('Collections · 4 days');
+        expect(rows[1]?.textContent).toContain('$111');
+      } finally {
+        vi.useRealTimers();
+      }
+    });
+
+    it('offers Pause, Cancel and Edit grace days on an active row; Resume on a paused one', async () => {
+      let h = await setup({ health: { ...HEALTH, dunning: [scheduled()] } });
+      let ids = (await openMenu(h)).map((b) => b.dataset['action']);
+      expect(ids).toEqual(expect.arrayContaining(['dunning-pause', 'dunning-cancel', 'dunning-grace']));
+      expect(ids).not.toContain('dunning-resume');
+      document.querySelectorAll('.cdk-overlay-container').forEach((c) => (c.innerHTML = ''));
+      h = await setup({ health: { ...HEALTH, dunning: [scheduled({ dunningState: 'cancelled', nextRetryAt: null })] } });
+      ids = (await openMenu(h)).map((b) => b.dataset['action']);
+      expect(ids).toContain('dunning-resume');
+      expect(ids).not.toContain('dunning-pause');
+      expect(ids).not.toContain('dunning-cancel');
+    });
+
+    it('Pause posts the action, toasts, and reloads the queue', async () => {
+      const h = await setup({ health: { ...HEALTH, dunning: [scheduled()] } });
+      const loads = h.api.getBillingHealth.mock.calls.length;
+      await pickRowAction(h, 'dunning-queue', 'dunning-pause');
+      await until(() => h.toasts.show.mock.calls.length > 0, 'toast shown');
+      expect(h.api.updateInvoiceDunning).toHaveBeenCalledWith('inv-1', { action: 'pause' });
+      expect(h.toasts.show).toHaveBeenCalledWith({ message: D.pausedToast, tone: 'success' });
+      expect(h.api.getBillingHealth.mock.calls.length).toBeGreaterThan(loads);
+    });
+
+    it('Resume posts resume', async () => {
+      const h = await setup({ health: { ...HEALTH, dunning: [scheduled({ dunningState: 'paused', nextRetryAt: null })] } });
+      await pickRowAction(h, 'dunning-queue', 'dunning-resume');
+      await until(() => h.toasts.show.mock.calls.length > 0, 'toast shown');
+      expect(h.api.updateInvoiceDunning).toHaveBeenCalledWith('inv-1', { action: 'resume' });
+      expect(h.toasts.show).toHaveBeenCalledWith({ message: D.resumedToast, tone: 'success' });
+    });
+
+    it('Cancel confirms with the builder and amount first, then posts cancel', async () => {
+      const h = await setup({ health: { ...HEALTH, dunning: [scheduled()] } });
+      await pickRowAction(h, 'dunning-queue', 'dunning-cancel');
+      await until(() => h.confirms.confirm.mock.calls.length === 1, 'confirm opened');
+      const options = h.confirms.confirm.mock.calls[0][0] as UiConfirmOptions;
+      expect(options.title).toContain('Test Builder');
+      expect(options.body).toContain('$150');
+      expect(options.verb).toBe(D.cancelVerb);
+      expect(options.tone).toBe('danger');
+      expect(h.api.updateInvoiceDunning).not.toHaveBeenCalled();
+      h.confirms.answer.next(true);
+      h.confirms.answer.complete();
+      await until(() => h.api.updateInvoiceDunning.mock.calls.length === 1, 'cancel posted');
+      expect(h.api.updateInvoiceDunning).toHaveBeenCalledWith('inv-1', { action: 'cancel' });
+    });
+
+    it('a refused change (409) toasts the conflict copy', async () => {
+      const h = await setup({ health: { ...HEALTH, dunning: [scheduled()] } });
+      h.api.updateInvoiceDunning.mockReturnValue(
+        throwError(() => ({ code: 'CONFLICT', message: 'x', retryable: false })),
+      );
+      await pickRowAction(h, 'dunning-queue', 'dunning-pause');
+      await until(() => h.toasts.show.mock.calls.length > 0, 'toast shown');
+      expect(h.toasts.show).toHaveBeenCalledWith({ message: D.conflictError, tone: 'danger' });
+    });
+
+    it('Edit grace days opens the focused modal with the row', async () => {
+      const h = await setup({ health: { ...HEALTH, dunning: [scheduled({ retryGraceDays: 10 })] } });
+      await pickRowAction(h, 'dunning-queue', 'dunning-grace');
+      expect(h.modals.open).toHaveBeenCalledWith(
+        AdminDunningGraceModalComponent,
+        expect.objectContaining({
+          data: { invoiceId: 'inv-1', builderName: 'Test Builder', commissionCents: 15_000, graceDays: 10 },
+        }),
+      );
+    });
+
+    it('shows "awaiting manual payment — N days" on overdue manual in-review rows', async () => {
+      const { el } = await setup({
+        health: {
+          ...HEALTH,
+          inReviewInvoices: [{ ...HEALTH.inReviewInvoices[0], dueAt: '2026-11-10T07:00:00.000Z', overdueDays: 6 }],
+        },
+      });
+      expect(q(el, 'in-review-queue')?.textContent).toContain('Awaiting manual payment — 6 days');
+    });
+
+    it('hides the schedule controls from viewers', async () => {
+      const { el } = await setup({ health: { ...HEALTH, dunning: [scheduled()] }, permissions: [] });
+      expect(el.querySelectorAll('[data-testid="dunning-queue"] .row-actions__trigger').length).toBe(0);
     });
   });
 

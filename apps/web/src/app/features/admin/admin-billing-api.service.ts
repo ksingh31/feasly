@@ -12,6 +12,10 @@ import type {
   MarkInvoicePaidRequest,
   MarkInvoicePaidResponse,
   SetCommissionRateResponse,
+  SimulatedInvoiceEventRequest,
+  SimulatedInvoiceEventResponse,
+  UpdateInvoiceDunningRequest,
+  UpdateInvoiceDunningResponse,
 } from '@feasly/contracts';
 import { BUILDER_PAYMENT_METHODS } from '../builder/builder-payment-methods';
 import { ConfigService } from '../../core/config/config.service';
@@ -99,6 +103,24 @@ export class AdminBillingApiService {
   }
 
   /**
+   * POST /api/v1/admin/billing/invoices/{id}/dunning (#718/#901) — pause,
+   * resume or cancel an invoice's automatic retries, or set its grace
+   * days. Admin-gated, `billing:manage`; audited server-side.
+   */
+  updateInvoiceDunning(
+    invoiceId: string,
+    body: UpdateInvoiceDunningRequest,
+  ): Observable<UpdateInvoiceDunningResponse> {
+    return this.call(
+      this.http.post<UpdateInvoiceDunningResponse>(
+        this.billingBase + '/invoices/' + encodeURIComponent(invoiceId) + '/dunning',
+        body,
+        { withCredentials: true },
+      ),
+    );
+  }
+
+  /**
    * POST /api/v1/admin/billing/invoices/{id}/mark-paid — record an
    * off-Stripe payment for a commission invoice. Admin-gated,
    * `billing:manage`. Marks the invoice paid AND cancels the scheduled
@@ -154,6 +176,27 @@ export class AdminBillingApiService {
         this.billingBase + '/invoices/' + encodeURIComponent(invoiceId) +
           '/payment-method',
         { method },
+        { withCredentials: true },
+      ),
+    );
+  }
+
+  /**
+   * POST /api/v1/admin/billing/simulated/invoices/{id}/events (#753/#791)
+   * — the admin dev panel fires a dispute, a dashboard refund (optional
+   * partial `amountCents`) or a delayed failure against the invoice's
+   * simulated PaymentIntent. 404 unless the simulated provider is active;
+   * 409 when the action does not apply to the invoice.
+   */
+  fireSimulatedInvoiceEvent(
+    invoiceId: string,
+    body: SimulatedInvoiceEventRequest,
+  ): Observable<SimulatedInvoiceEventResponse> {
+    return this.call(
+      this.http.post<SimulatedInvoiceEventResponse>(
+        this.billingBase + '/simulated/invoices/' + encodeURIComponent(invoiceId) +
+          '/events',
+        body,
         { withCredentials: true },
       ),
     );

@@ -8,6 +8,11 @@
  * Paid invoices carry a receipt block (amount, charge date, card used or
  * the manual method + reference).
  *
+ * Refunds (#715): a paid invoice with refunds adds a credit-note block —
+ * one line per refund (date, amount, reference for off-Stripe refunds),
+ * the refunded total and the net paid. Read from the same record; the
+ * lines add up to `refundedCents` to the cent.
+ *
  * Sales tax (#714): an invoice with a snapshotted tax rate also shows the
  * supplier's legal name, address and GST/HST registration number, and a
  * subtotal / tax / total breakdown (also on the receipt). Untaxed invoices
@@ -59,11 +64,18 @@ export const INVOICE_PDF_COPY = {
   receiptCard: 'Card used',
   receiptPaidBy: 'Paid by',
   receiptReference: 'Reference',
+  refundsHeading: 'Refunds (credit note)',
+  refundLabel: 'Refund',
+  refundProcessing: 'processing',
+  refundTotalLabel: 'Total refunded',
+  refundNetLabel: 'Net paid',
+  refundMoreLabel: (count: number) => `${count} more refunds`,
   none: '—',
   statuses: {
     draft: 'Draft',
     in_review: 'In review',
     finalized: 'Finalized',
+    action_required: 'Needs your confirmation',
     paid: 'Paid',
     failed: 'Failed',
     disputed: 'Disputed',
@@ -128,6 +140,12 @@ function formatDate(date: Date | null): string {
     day: 'numeric',
   }).format(date);
 }
+
+/**
+ * #715: refund lines that fit on the single page below a fully populated
+ * taxed receipt; more refunds fold into one summed line.
+ */
+const MAX_REFUND_LINES = 2;
 
 /** Inputs to the pure layout — everything already resolved. */
 export interface InvoicePdfModel {
@@ -223,6 +241,37 @@ export function layoutInvoicePdf(model: InvoicePdfModel): PdfOp[] {
       if (inv.paymentReference) row(c.receiptReference, inv.paymentReference);
     } else {
       row(c.receiptCard, model.card ?? c.none);
+    }
+
+    // #715: credit note. Failed refund attempts gave nothing back and are
+    // left out; a pending one is shown as processing (its amount is
+    // already counted in refundedCents).
+    const refunds = (inv.refunds ?? []).filter((r) => r.status !== 'failed');
+    if (refunds.length > 0) {
+      heading(c.refundsHeading);
+      // Single-page layout: past MAX_REFUND_LINES the later refunds fold
+      // into one summed line, so the block never runs off the page and the
+      // lines still add up to the refunded total.
+      const shown =
+        refunds.length > MAX_REFUND_LINES
+          ? refunds.slice(0, MAX_REFUND_LINES - 1)
+          : refunds;
+      for (const refund of shown) {
+        const label =
+          `${c.refundLabel} ${formatDate(refund.createdAt)}` +
+          (refund.status === 'pending' ? ` (${c.refundProcessing})` : '') +
+          (refund.reference ? ` — ${refund.reference}` : '');
+        row(label, formatInvoiceCad(-refund.amountCents));
+      }
+      const folded = refunds.slice(shown.length);
+      if (folded.length > 0) {
+        row(
+          c.refundMoreLabel(folded.length),
+          formatInvoiceCad(-folded.reduce((sum, r) => sum + r.amountCents, 0)),
+        );
+      }
+      row(c.refundTotalLabel, formatInvoiceCad(-inv.refundedCents));
+      row(c.refundNetLabel, formatInvoiceCad(inv.totalCents - inv.refundedCents), true);
     }
   }
   return ops;

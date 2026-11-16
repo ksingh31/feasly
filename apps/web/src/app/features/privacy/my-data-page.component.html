@@ -1,0 +1,137 @@
+<app-site-nav />
+<main class="privacy-data" id="main-content" tabindex="-1">
+  <div class="card">
+    <h1>{{ copy.heading }}</h1>
+    <p class="body">{{ copy.intro }}</p>
+
+    <div class="live" aria-live="polite">
+      @if (rateLimited()) {
+        <div class="notice" role="status" data-state="rate-limited">
+          <h2>{{ copy.rateLimitedHeading }}</h2>
+          <p>{{ copy.rateLimitedBody }}</p>
+        </div>
+      } @else if (failed()) {
+        <div class="notice" role="status" data-state="error">
+          <h2>{{ copy.errorHeading }}</h2>
+          <p>{{ copy.errorBody }}</p>
+          <button type="button" class="text-button" (click)="retry()">{{ copy.retryLabel }}</button>
+        </div>
+      }
+    </div>
+
+    @if (hasUsableToken()) {
+      @if (erase() === 'pending') {
+        <section class="panel" data-state="pending" aria-labelledby="pending-heading">
+          <h2 id="pending-heading">{{ copy.pendingHeading }}</h2>
+          @if (confirmInPage) {
+            <p class="body">{{ copy.pendingBody }}</p>
+          } @else if (emailNotSent()) {
+            <p class="body" role="status" data-state="email-not-sent">{{ copy.pendingEmailNotSentBody }}</p>
+          } @else {
+            <p class="body" data-state="email-sent">{{ copy.pendingEmailBody }}</p>
+          }
+          <h3>{{ copy.consequencesHeading }}</h3>
+          <ul class="consequences">
+            @for (line of consequences(); track $index) {
+              <li>{{ line }}</li>
+            }
+          </ul>
+          <div class="actions">
+            @if (confirmInPage) {
+              <button type="button" class="cta danger" (click)="confirmErasure()">
+                {{ copy.confirmCta }}
+              </button>
+            } @else if (emailNotSent()) {
+              <button
+                type="button"
+                class="cta"
+                data-action="resend-email"
+                (click)="resendErasureEmail()"
+                [disabled]="eraseEmail() === 'resending'"
+              >
+                {{ eraseEmail() === 'resending' ? copy.resendEmailWorking : copy.resendEmailCta }}
+              </button>
+            }
+            <button type="button" class="text-button" (click)="cancelErasure()">
+              {{ copy.cancelCta }}
+            </button>
+          </div>
+        </section>
+      } @else {
+        <section class="panel" aria-labelledby="download-heading">
+          <h2 id="download-heading">{{ copy.downloadHeading }}</h2>
+          <p class="body">{{ copy.downloadBody }}</p>
+          <button
+            type="button"
+            class="cta"
+            data-action="download"
+            (click)="downloadData()"
+            [disabled]="download() === 'working'"
+          >
+            {{ download() === 'working' ? copy.downloadWorking : copy.downloadCta }}
+          </button>
+          @if (download() === 'done') {
+            <p class="status" role="status" data-state="download-done">{{ copy.downloadDone }}</p>
+          }
+        </section>
+
+        <section class="panel" aria-labelledby="delete-heading">
+          <h2 id="delete-heading">{{ copy.deleteHeading }}</h2>
+          <p class="body">{{ copy.deleteBody }}</p>
+          <button
+            type="button"
+            class="cta outline"
+            data-action="delete"
+            (click)="startErasure()"
+            [disabled]="erase() === 'working'"
+          >
+            {{ erase() === 'working' ? copy.deleteWorking : copy.deleteCta }}
+          </button>
+        </section>
+      }
+    } @else {
+      <section class="panel" aria-labelledby="link-heading">
+        @if (link() === 'sent') {
+          <div role="status" data-state="link-sent">
+            <h2 id="link-heading">{{ copy.linkSentHeading }}</h2>
+            <p class="body">{{ copy.linkSentBody }}</p>
+          </div>
+        } @else {
+          @if (linkExpired()) {
+            <h2 id="link-heading" data-state="expired">{{ copy.expiredHeading }}</h2>
+            <p class="body">{{ copy.expiredBody }}</p>
+          } @else {
+            <h2 id="link-heading" data-state="no-token">{{ copy.noTokenHeading }}</h2>
+            <p class="body">{{ copy.noTokenBody }}</p>
+          }
+          <form class="email-form" (submit)="$event.preventDefault(); sendLink()" novalidate>
+            <label for="privacy-email">{{ copy.emailLabel }}</label>
+            <input
+              id="privacy-email"
+              type="email"
+              autocomplete="email"
+              inputmode="email"
+              [formControl]="email"
+              [attr.aria-invalid]="showEmailError()"
+              [attr.aria-describedby]="showEmailError() ? 'privacy-email-error' : null"
+            />
+            @if (showEmailError()) {
+              <p id="privacy-email-error" class="field-error">{{ copy.emailInvalid }}</p>
+            }
+            @if (link() === 'rate-limited') {
+              <p class="field-error" role="status" data-state="link-rate-limited">{{ copy.rateLimitedBody }}</p>
+            } @else if (link() === 'error') {
+              <p class="field-error" role="status" data-state="link-error">{{ copy.errorBody }}</p>
+            }
+            <button type="submit" class="cta" [disabled]="link() === 'working'">
+              {{ link() === 'working' ? copy.sendLinkWorking : copy.sendLinkCta }}
+            </button>
+          </form>
+        }
+      </section>
+    }
+
+    <p class="draft">{{ copy.draftNotice }}</p>
+  </div>
+</main>
+<app-site-footer />

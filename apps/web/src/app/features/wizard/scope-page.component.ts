@@ -4,6 +4,7 @@ import { Store } from '@ngxs/store';
 import type { AnalyticsEventName, BasementOption, FinishTier, GarageOption } from '@feasly/contracts';
 import { SeoService } from '../../core/seo/seo.service';
 import { ConfigService } from '../../core/config/config.service';
+import { handleRadioGroupKeydown, radioTabIndex } from '../../core/utils/radio-group';
 import { ChooseProjectType, GoToStep, MarkSteerApplied, UpdateInputs, WizardState, type ProjectType } from '../wizard';
 import { AnalyticsService } from '../consent';
 import {
@@ -165,21 +166,20 @@ export class ScopePageComponent implements OnInit {
     this.chooseProjectType('new-build');
   }
 
-  /**
-   * Radio-group arrow keys: moves the selection between the cards.
-   * Tab/Enter/Space keep working natively on the buttons.
-   */
+  /** Roving tabindex (#937): the checked project-type card is the group's one Tab stop. */
+  projectTypeTabIndex(id: ProjectType): 0 | -1 {
+    return radioTabIndex(this.projectTypeIds(), this.projectType(), id);
+  }
+
+  /** Radio-group keys: arrows/Home/End move focus and selection between the cards. */
   onProjectTypeKeydown(event: KeyboardEvent): void {
-    const forward = event.key === 'ArrowRight' || event.key === 'ArrowDown';
-    const backward = event.key === 'ArrowLeft' || event.key === 'ArrowUp';
-    if (!forward && !backward) {
-      return;
-    }
-    event.preventDefault();
-    const ids = this.projectTypes().map((t) => t.id);
-    const current = ids.indexOf(this.projectType() as ProjectType);
-    const next = (current + (forward ? 1 : -1) + ids.length) % ids.length;
-    this.chooseProjectType(ids[next]);
+    handleRadioGroupKeydown(event, this.projectTypeIds(), this.projectType(), (id) =>
+      this.chooseProjectType(id),
+    );
+  }
+
+  private projectTypeIds(): ProjectType[] {
+    return this.projectTypes().map((t) => t.id);
   }
 
   /** Slider input from the shared sqft component: stores the clamped value. */

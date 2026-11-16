@@ -17,6 +17,31 @@
   margin: 0 0 8px;
 }
 
+/* #835: what the free report adds — a short checklist above the form. */
+.gate-unlocks {
+  margin: 12px 0 16px;
+  padding: 16px 20px;
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  background: var(--card);
+}
+
+.gate-unlocks-heading {
+  font-family: var(--font-ui);
+  font-size: 16px;
+  font-weight: 700;
+  color: var(--text);
+  margin: 0 0 8px;
+}
+
+.gate-unlocks-list {
+  margin: 0;
+  padding-left: 20px;
+  color: var(--text);
+  font-size: 15px;
+  line-height: 1.5;
+}
+
 /* Quiet trust line under the gate subheading — data-driven, not a calculator. */
 .gate-trust {
   font-size: 13px;

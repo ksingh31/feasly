@@ -19,10 +19,12 @@ import type { OpsAlertStore } from './ops-alerts.store';
 export const OPS_ALERT_TYPES = [
   'sheets_sync_failed',
   'community_stats_failed',
+  'community_lots_failed',
   'stripe_webhook_failed',
   'narrative_worker_failed',
   'backup_missed',
   'billing_dispute_sla_breached',
+  'neighbourhood_data_failed',
 ] as const;
 
 export type OpsAlertType = (typeof OPS_ALERT_TYPES)[number];
@@ -43,6 +45,10 @@ const ALERT_COPY: Record<OpsAlertType, AlertCopy> = {
     name: 'Community stats refresh',
     detailsPath: '/admin/ops/community-stats',
   },
+  community_lots_failed: {
+    name: 'Community lots refresh',
+    detailsPath: '/admin/ops/community-stats',
+  },
   stripe_webhook_failed: {
     name: 'Stripe webhooks',
     detailsPath: '/admin/ops/billing',
@@ -58,6 +64,10 @@ const ALERT_COPY: Record<OpsAlertType, AlertCopy> = {
   billing_dispute_sla_breached: {
     name: 'Billing dispute SLA',
     detailsPath: '/admin/disputes',
+  },
+  neighbourhood_data_failed: {
+    name: 'Neighbourhood data refresh',
+    detailsPath: '/admin/ops/neighbourhood-data',
   },
 };
 

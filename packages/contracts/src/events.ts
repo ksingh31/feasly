@@ -7,6 +7,9 @@
 export type AnalyticsEventName =
   | 'step_view'
   | 'gate_view'
+  // #835: a valid gate form was submitted (before the API answers);
+  // `gate_convert` fires on success. view → submit → convert.
+  | 'gate_submit'
   | 'gate_convert'
   | 'report_open'
   | 'tier_toggle'
@@ -24,7 +27,48 @@ export type AnalyticsEventName =
   | 'steer_new_build_offered'
   | 'steer_renovation_offered'
   | 'steer_none_offered'
-  | 'steer_override_new_build';
+  | 'steer_override_new_build'
+  // #814: top-of-funnel visibility before paid traffic. `preview_view`
+  // replaces the `step_view` on /estimate/preview (the funnel still counts
+  // legacy preview `step_view` rows, so clients must send one or the other).
+  | 'landing_view'
+  | 'address_search'
+  | 'address_selected'
+  | 'address_no_results'
+  | 'out_of_coverage'
+  | 'property_unsupported'
+  | 'preview_view'
+  | 'estimate_error'
+  | 'magic_link_open'
+  // #814 / #683: assessed-value page.
+  | 'assessment_view'
+  | 'assessment_to_estimate';
+
+/**
+ * Which ad click-id parameter was present on the landing URL (#814). Only
+ * the parameter's *name* is recorded — the click id value itself never
+ * leaves the browser on an event. Closed set; unknown ids are omitted.
+ */
+export type ClickIdType = 'gclid' | 'gbraid' | 'wbraid' | 'msclkid' | 'fbclid';
+
+/** Max length of each `AnalyticsSource` string field (API rejects longer). */
+export const ANALYTICS_SOURCE_FIELD_MAX_LENGTH = 100;
+
+/**
+ * Campaign attribution captured from the landing URL (#814). Closed shape,
+ * every field optional and capped at {@link ANALYTICS_SOURCE_FIELD_MAX_LENGTH}
+ * characters. Values must not carry PII: the API rejects values containing
+ * `@` (email) or `$` (dollar figure) and anything outside a plain-text
+ * charset (letters, digits, space and `_ - . + ~ | : / ( )`).
+ */
+export interface AnalyticsSource {
+  readonly utm_source?: string;
+  readonly utm_medium?: string;
+  readonly utm_campaign?: string;
+  readonly utm_term?: string;
+  readonly utm_content?: string;
+  readonly click_id_type?: ClickIdType;
+}
 
 export interface AnalyticsEvent {
   readonly event: AnalyticsEventName;
@@ -44,4 +88,16 @@ export interface AnalyticsEvent {
    * per-tenant funnels. Optional and additive — old clients keep working.
    */
   readonly tenant_key?: string;
+  /**
+   * #814: campaign attribution for the session. Optional and additive; the
+   * funnel dashboard filters and groups on `utm_source` / `utm_campaign`.
+   */
+  readonly source?: AnalyticsSource;
+  /**
+   * #870: the host page origin the embed loaded on (e.g.
+   * `https://www.builder.com`). Only accepted on `embed_loaded` with a
+   * `tenant_key`; backs the builder portal's install check. An origin
+   * only — never a path or query. Optional and additive.
+   */
+  readonly embed_origin?: string;
 }

@@ -1,16 +1,24 @@
 #!/usr/bin/env python3
 """Tiny mock for checks.sh tests (HRD-06).
 
-Usage: mock-server.py <port> <mode>
+Usage: mock-server.py <port> <mode> [port-file]
   mode: healthy | degraded-db | no-checks | http500
+        | cors-none | cors-dup (#954 preflight variants; API otherwise healthy)
+  port 0 lets the OS pick a free port (#897: parallel test runs must not
+  share a fixed port). When port-file is given, the bound port is written
+  there (atomically) once the server is listening.
 
 Serves:
   /           -> 200 "ok"
   /privacy    -> 200 "ok"
   /api/health -> JSON per mode (or 500 for http500)
+  OPTIONS *   -> 204 echoing Origin with credentials (cors-none: 204 with no
+                 Access-Control-* headers, like the Functions host with an
+                 empty platform CORS list; cors-dup: two Allow-Origin lines)
 Everything else -> 404.
 """
 import json
+import os
 import sys
 from http.server import BaseHTTPRequestHandler, HTTPServer
 
@@ -22,6 +30,8 @@ MODES = {
                     "checks": {"database": "unreachable"}},
     "no-checks": {"status": "ok", "service": "feasly-api", "version": "0.1.0"},
 }
+MODES["cors-none"] = MODES["healthy"]
+MODES["cors-dup"] = MODES["healthy"]
 
 
 class Handler(BaseHTTPRequestHandler):
@@ -47,12 +57,31 @@ class Handler(BaseHTTPRequestHandler):
         else:
             self._send(404, "not found")
 
+    def do_OPTIONS(self):
+        origin = self.headers.get("Origin")
+        self.send_response(204)
+        if origin and self.mode != "cors-none":
+            self.send_header("Access-Control-Allow-Origin", origin)
+            if self.mode == "cors-dup":
+                self.send_header("Access-Control-Allow-Origin", origin)
+            self.send_header("Access-Control-Allow-Credentials", "true")
+            self.send_header("Access-Control-Allow-Methods", "GET, POST, OPTIONS")
+        self.send_header("Content-Length", "0")
+        self.end_headers()
+
     def log_message(self, *args):
         pass
 
 
 if __name__ == "__main__":
     port, mode = int(sys.argv[1]), sys.argv[2]
+    port_file = sys.argv[3] if len(sys.argv) > 3 else None
     assert mode in MODES or mode == "http500", f"unknown mode {mode}"
     Handler.mode = mode
-    HTTPServer(("127.0.0.1", port), Handler).serve_forever()
+    server = HTTPServer(("127.0.0.1", port), Handler)
+    if port_file:
+        tmp = f"{port_file}.tmp"
+        with open(tmp, "w") as f:
+            f.write(str(server.server_address[1]))
+        os.replace(tmp, port_file)
+    server.serve_forever()

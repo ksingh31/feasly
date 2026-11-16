@@ -12,7 +12,9 @@ import type {
   AdminUserStatus,
   BuilderLeadStatus,
   BuilderStatus,
+  ChargebackStatus,
   CommissionInvoiceStatus,
+  DisputeSource,
 } from '@feasly/contracts';
 
 /** Semantic tones; each maps to a `--status-<tone>-bg/-fg` token pair. */
@@ -35,7 +37,7 @@ export type LeadStatusKey = AdminLeadStatus | BuilderLeadStatus;
 /** Portal member/user — the spec's `deactivated` plus the wire `disabled`. */
 export type MemberStatusKey = AdminUserStatus | 'deactivated';
 /** Builder account health — spec states plus the wire `inactive`. */
-export type BuilderStatusKey = BuilderStatus | 'past_due' | 'degraded' | 'suspended';
+export type BuilderStatusKey = BuilderStatus | 'inactive' | 'past_due' | 'degraded';
 export type ApiKeyStatusKey = 'active' | 'revoked';
 /** Dispute review SLA — derive the key with {@link disputeSlaKey}. */
 export type DisputeSlaKey = 'on_track' | 'due_today' | 'overdue';
@@ -52,6 +54,10 @@ export type OpsFlagKey = 'ok' | 'attention' | 'problem';
 export type BillingModelKey = 'commission' | 'flat';
 /** Admin Billing header: which Stripe key is configured (#544). */
 export type StripeModeKey = 'test' | 'live' | 'not_configured';
+/** Who raised a dispute (#719/#872): a builder, or the card holder's bank. */
+export type DisputeSourceKey = DisputeSource;
+/** Bank chargeback state on an invoice (#719/#872). */
+export type ChargebackStatusKey = ChargebackStatus;
 
 type Dictionary<K extends string> = Readonly<Record<K, StatusPresentation>>;
 
@@ -68,6 +74,8 @@ const INVOICE: Dictionary<CommissionInvoiceStatus> = {
   draft: { label: 'Draft', tone: 'neutral' },
   in_review: { label: 'In review', tone: 'warning' },
   finalized: { label: 'Finalized', tone: 'info' },
+  // #712: the bank wants the builder to confirm the charge (3DS).
+  action_required: { label: 'Needs your confirmation', tone: 'warning' },
   paid: { label: 'Paid', tone: 'success' },
   failed: { label: 'Failed', tone: 'danger' },
   disputed: { label: 'Disputed', tone: 'paused' },
@@ -87,6 +95,8 @@ const BUILDER: Dictionary<BuilderStatusKey> = {
   past_due: { label: 'Past due', tone: 'warning' },
   degraded: { label: 'Degraded', tone: 'danger' },
   suspended: { label: 'Suspended', tone: 'danger' },
+  offboarding: { label: 'Offboarding', tone: 'warning' },
+  offboarded: { label: 'Offboarded', tone: 'neutral' },
 };
 
 const API_KEY: Dictionary<ApiKeyStatusKey> = {
@@ -137,6 +147,18 @@ const STRIPE_MODE: Dictionary<StripeModeKey> = {
   not_configured: { label: 'Stripe not configured', tone: 'danger' },
 };
 
+const DISPUTE_SOURCE: Dictionary<DisputeSourceKey> = {
+  builder: { label: 'Builder dispute', tone: 'neutral' },
+  chargeback: { label: 'Chargeback', tone: 'danger' },
+};
+
+const CHARGEBACK: Dictionary<ChargebackStatusKey> = {
+  open: { label: 'Chargeback open', tone: 'danger' },
+  won: { label: 'Chargeback won', tone: 'success' },
+  lost: { label: 'Chargeback lost', tone: 'danger' },
+  warning_closed: { label: 'Chargeback warning closed', tone: 'neutral' },
+};
+
 export const STATUS_DICTIONARY = {
   lead: LEAD,
   invoice: INVOICE,
@@ -150,6 +172,8 @@ export const STATUS_DICTIONARY = {
   opsFlag: OPS_FLAG,
   billingModel: BILLING_MODEL,
   stripeMode: STRIPE_MODE,
+  disputeSource: DISPUTE_SOURCE,
+  chargeback: CHARGEBACK,
 } as const;
 
 export type StatusDomain = keyof typeof STATUS_DICTIONARY;

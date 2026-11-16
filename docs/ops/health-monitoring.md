@@ -69,6 +69,10 @@ bash infra/health/test/test-checks.sh
 Covers: healthy/degraded-db/missing-checks-field/500/site-down mocks, CI
 status parsing (fake `gh`), and the alert dedupe lifecycle
 (fail → ALERT, fail → silent, recover → RECOVERED, fail → ALERT again).
+
+Safe to run in parallel (#897): each run uses its own `mktemp -d` scratch
+dir, an OS-assigned free port for the mock, and stops only its own mock by
+PID.
 Also run in CI (`build` job).
 
 API unit tests: `apps/api/test/health.service.test.ts` (service never throws
@@ -79,3 +83,8 @@ for sick deps).
 | Date (UTC) | Drill | Result |
 |---|---|---|
 | 2026-09-25 | Forced staging failure drill: `checks.sh` against a mock API returning `{"status":"degraded","checks":{"database":"unreachable"}}` → `ALERT` on first run, silence on repeat, `RECOVERED` after the mock went healthy | Pass (see `infra/health/test/test-checks.sh`) |
+
+## Public status page
+
+The public, user-facing view (uptime history, incident issues) is the Upptime
+status page. See [status-page.md](status-page.md).

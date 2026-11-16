@@ -187,7 +187,9 @@
                 >
                   −
                 </button>
-                <span class="stepper-value">{{ formatSqft(sqftDraft()) }}</span>
+                <!-- #832: announce the new size after − / + (screen readers
+                     otherwise hear nothing when the value changes). -->
+                <span class="stepper-value" role="status">{{ formatSqft(sqftDraft()) }}</span>
                 <button
                   type="button"
                   class="step-btn"
@@ -245,12 +247,29 @@
               <input type="tel" formControlName="phone" autocomplete="tel" inputmode="tel" />
             </label>
             <label class="field">
+              <span>{{ copy.callbackDayLabel }}</span>
+              <select formControlName="preferredDate" required>
+                <option value="" disabled>{{ copy.callbackDayPlaceholder }}</option>
+                @for (d of callbackDays; track d.value) {
+                  <option [value]="d.value">{{ d.label }}</option>
+                }
+              </select>
+            </label>
+            <label class="field">
               <span>{{ copy.callbackWindowLabel }}</span>
               <select formControlName="window">
                 @for (w of copy.callbackWindows; track w.id) {
-                  <option [value]="w.id">{{ w.label }}</option>
+                  <option [value]="w.id">{{ callbackWindowOption(w) }}</option>
                 }
               </select>
+            </label>
+            <label class="field">
+              <span>{{ copy.callbackNotesLabel }}</span>
+              <textarea
+                formControlName="notes"
+                rows="3"
+                [attr.maxlength]="callbackNotesMaxLength"
+              ></textarea>
             </label>
             @if (callbackDetailsInvalid) {
               <p class="field-error" role="alert">{{ copy.callbackInvalid }}</p>
@@ -260,12 +279,17 @@
             </button>
           </form>
           @if (callbackStatus() === 'sent') {
-            <p class="form-success" role="status">{{ copy.callbackSuccess }}</p>
+            <p class="form-success" role="status">{{ callbackConfirmation() }}</p>
           }
           @if (callbackStatus() === 'error') {
             <p class="field-error" role="alert">{{ copy.callbackError }}</p>
           }
-          <app-builder-matching-explainer />
+          <!-- #918: own-site callbacks go to Feasly's builder partner(s).
+               Embeds skip both: the lead goes to that builder. -->
+          @if (isOwnSite()) {
+            <app-partner-disclosure [partners]="partners()" />
+            <app-builder-matching-explainer />
+          }
         </section>
       }
 
@@ -386,16 +410,14 @@
       <section class="card ref" [attr.aria-label]="copy.coverageTitle">
         <details>
           <summary><h2 class="disclosure-heading">{{ copy.coverageTitle }}</h2></summary>
-          <p class="hint">{{ copy.includedLine }}</p>
+          <!-- #824: includes = the engine's line items (generated);
+               not included = config, minus anything the engine prices. -->
+          <app-estimate-scope [headingLevel]="3" />
           <p class="build-note">{{ copy.costMovementNote }}</p>
-          <h3 class="subhead">{{ copy.exclusionsTitle }}</h3>
-          @for (e of copy.exclusions; track e) {
-            <p class="build-note exclusion">• {{ e }}</p>
-          }
         </details>
       </section>
 
-      <!-- PLANNING AHEAD: financing + timeline honesty for prospects. No
+      <!-- PLANNING AHEAD: financing honesty for prospects. No
            referrals, no promises, no specific lenders. -->
       <section class="card ref" [attr.aria-label]="copy.planningTitle">
         <details>
@@ -404,8 +426,15 @@
           @for (line of copy.financingLines; track line) {
             <p class="planning-text">{{ line }}</p>
           }
-          <h3 class="subhead">{{ copy.timelineTitle }}</h3>
-          <p class="planning-text">{{ copy.timelineLine }}</p>
+        </details>
+      </section>
+
+      <!-- BUILD TIMELINE (#823): typical design-to-completion phases from
+           config (buildTimeline.cities). "Typical", never a promise. -->
+      <section class="card ref" [attr.aria-label]="timelineCopy.title">
+        <details>
+          <summary><h2 class="disclosure-heading">{{ timelineCopy.title }}</h2></summary>
+          <app-build-timeline [showTitle]="false" />
         </details>
       </section>
     }
@@ -455,6 +484,10 @@
        copy is skipped there rather than repeated. -->
   @if (showPrintDisclaimer()) {
     <p class="print-only print-disclaimer">{{ printDisclaimer }}</p>
+  }
+  <!-- #706: privacy self-service entry — owner token sessions only. -->
+  @if (reportToken() && !partnerView()) {
+    <app-privacy-data-link class="no-print" />
   }
 </main>
 <app-site-footer />

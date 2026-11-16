@@ -41,6 +41,7 @@ import {
 import { createTestDb, type TestDb } from './pglite-db';
 
 import type { BillingConfig } from '../src/config';
+import { BUILDER_STATUSES, BUILDER_STATUS_POLICY } from '@feasly/contracts';
 
 const BILLING: BillingConfig = {
   model: 'commission',
@@ -94,6 +95,7 @@ function fakeStripe(
     createSubscription: async () => ({ id: 'sub_test', status: 'active' }),
     cancelSubscription: async (id) => ({ id }),
     retrievePaymentIntent: retrieve,
+    getPaymentIntentConfirmation: async (id: string) => ({ id, status: 'requires_action', clientSecret: `${id}_secret_test` }),
     refundPaymentIntent: async (paymentIntentId) => ({ id: 're_test', status: 'succeeded' }),
     verifyWebhook: () => {
       throw new Error('not used');
@@ -126,6 +128,7 @@ function newFixtures(
   testDb: TestDb,
   stripe: StripeService,
   billing = BILLING,
+  builderStatus?: (tenantKey: string) => Promise<string | null>,
 ): Fixtures {
   const email = fakeEmail();
   const attribution = createAttributionService({
@@ -154,6 +157,7 @@ function newFixtures(
     commission,
     audit,
     stripe,
+    ...(builderStatus ? { builderStatus } : {}),
   });
   return { reviewer, commission, attribution };
 }
@@ -250,6 +254,28 @@ describe('invoice reviewer timer', () => {
     const invoice = await commission.getById(invoiceId);
     expect(invoice.status).toBe('finalized');
     expect(invoice.stripePaymentIntentId).toMatch(/^pi_reviewer_/);
+  });
+
+  // #860: auto-charge enforcement point — one test per builder status.
+  it.each(BUILDER_STATUSES)('a %s builder\'s due invoice follows the autoCharge policy', async (status) => {
+    const { reviewer, commission, attribution } = newFixtures(
+      testDb,
+      fakeStripe(),
+      BILLING,
+      async () => status,
+    );
+    const invoiceId = await seedInvoice(testDb, attribution, commission, 50_000_000);
+    const result = await reviewer.runReviewCycle(new Date('2026-10-02T00:00:00.000Z'));
+    const invoice = await commission.getById(invoiceId);
+    if (BUILDER_STATUS_POLICY[status].autoCharge) {
+      expect(result.finalized).toBe(1);
+      expect(invoice.status).toBe('finalized');
+    } else {
+      expect(result.finalized).toBe(0);
+      expect(result.skipped).toBe(1);
+      expect(invoice.status).toBe('in_review');
+      expect(invoice.stripePaymentIntentId).toBeNull();
+    }
   });
 
   it('skips invoices whose review window has not passed yet', async () => {
@@ -355,6 +381,8 @@ describe('invoice reviewer timer', () => {
       reconciledPaid: 0,
       reconciledFailed: 0,
       stillPending: 0,
+      retried: 0,
+      overdueReminded: 0,
       errors: [],
     });
   });
@@ -435,6 +463,27 @@ describe('invoice reviewer timer', () => {
         source: 'reconciliation',
         failureReason: 'Your card was declined.',
       });
+    });
+
+    it('moves a stuck invoice to action_required when Stripe reports authentication_required (#712)', async () => {
+      // Real Stripe leaves an off-session 3DS demand in
+      // requires_payment_method with code authentication_required.
+      const stripe = fakeStripe(undefined, async (id) => ({
+        id,
+        status: 'requires_payment_method',
+        lastPaymentErrorMessage: 'This payment requires authentication.',
+        lastPaymentErrorCode: 'authentication_required',
+      }));
+      const { reviewer, commission, attribution } = newFixtures(testDb, stripe);
+      const invoiceId = await seedInvoice(testDb, attribution, commission, 30_000_000);
+      await reviewer.runReviewCycle(FIRST_CYCLE);
+
+      const second = await reviewer.runReviewCycle(SECOND_CYCLE);
+
+      expect(second.reconciledFailed).toBe(0);
+      expect(second.stillPending).toBe(1);
+      expect((await commission.getById(invoiceId)).status).toBe('action_required');
+      expect(await settlementRows(testDb, invoiceId)).toHaveLength(0);
     });
 
     it('leaves an in-flight PaymentIntent pending', async () => {

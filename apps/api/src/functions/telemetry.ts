@@ -1,0 +1,104 @@
+/**
+ * Azure Functions v3 trigger adapter — POST /api/v1/telemetry (#830).
+ *
+ * Same adapter pattern as `events.ts`:
+ *  1. It runs through `webTelemetryPipeline`, which carries its own tight
+ *     10/min per-IP limiter (the endpoint is unauthenticated by design —
+ *     browser beacons from `navigator.sendBeacon`). The service adds a
+ *     per-instance trace budget so the Log Analytics daily cap is safe.
+ *  2. It never logs the request body — the pipeline logger only ever sees
+ *     service error messages, which reference field paths, never values.
+ *
+ * Bundled by `npm run bundle:functions` into `telemetry/index.js`
+ * (self-contained — the Function App has no node_modules).
+ */
+import { randomUUID } from 'node:crypto';
+import {
+  createComposition,
+  loadConfig,
+  middleware,
+  type AppComposition,
+} from '../index';
+import type { FunctionContext, FunctionRequest } from './estimate';
+import { clientIpFromHeaders } from '../middleware/client-ip';
+
+const CORRELATION_RESPONSE_HEADER = 'x-correlation-id';
+
+let cached: AppComposition | undefined;
+
+function getApp(): AppComposition {
+  if (!cached) cached = createComposition();
+  return cached;
+}
+
+/** #729: right-most (platform-appended) X-Forwarded-For hop — see middleware/client-ip.ts. */
+function clientIpFrom(req: FunctionRequest): string | undefined {
+  return clientIpFromHeaders(req.headers);
+}
+
+export async function telemetryHandler(
+  context: FunctionContext,
+  req: FunctionRequest,
+): Promise<void> {
+  // HRD-01: CORS is enforced at the adapter edge. The preflight path uses
+  // config alone — the full composition (DB pool, rate limiters) is never
+  // loaded for an OPTIONS request. Non-allowlisted origins get no
+  // Access-Control-Allow-Origin (fail-closed).
+  const origin = req.headers?.['origin'];
+  const corsHeaders = middleware.resolveCorsHeaders(origin, loadConfig().corsOrigins);
+  if (middleware.isPreflight(req.method, origin)) {
+    context.res = {
+      status: 204,
+      headers: { ...middleware.securityHeaders(), ...corsHeaders, ...middleware.preflightHeaders() },
+    };
+    return;
+  }
+
+  const app = getApp();
+  const headers: Record<string, string | string[] | undefined> = {
+    ...(req.headers ?? {}),
+  };
+  if (!headers[CORRELATION_RESPONSE_HEADER]) {
+    headers[CORRELATION_RESPONSE_HEADER] = randomUUID();
+  }
+  const correlationId = middleware.ensureCorrelationId(headers);
+
+  const result = await app.webTelemetryPipeline.run(
+    {
+      headers,
+      clientIp: clientIpFrom(req),
+      method: req.method,
+    },
+    // The body is never logged — see module docstring.
+    () => app.webTelemetryRoute.handle(req.body),
+  );
+
+  if (middleware.isProblemDetails(result)) {
+    context.res = {
+      status: result.status,
+      headers: {
+        ...middleware.securityHeaders(),
+        ...middleware.problemResponseHeaders(result),
+        [CORRELATION_RESPONSE_HEADER]: result.correlationId,
+        ...corsHeaders,
+      },
+      body: result,
+    };
+    return;
+  }
+  context.res = {
+    // Beacons are fire-and-forget (the browser never reads the response):
+    // 202 Accepted with the accepted item count.
+    status: 202,
+    headers: {
+      ...middleware.securityHeaders(),
+      'Content-Type': 'application/json',
+      [CORRELATION_RESPONSE_HEADER]: correlationId,
+      ...corsHeaders,
+    },
+    body: result,
+  };
+}
+
+// Azure Functions v3 programming model entry point (bundled as CJS).
+module.exports = telemetryHandler;

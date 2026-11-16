@@ -5,11 +5,15 @@ import type {
   AnalyticsEvent,
   AnyEstimateRequest,
   ApiError,
+  ErasureConfirmResponse,
+  ErasureRequestResponse,
+  PrivacyExportResponse,
   ApiKeyIssueRequest,
   ApiKeyIssuedResponse,
   ApiKeyListResponse,
   ApiKeyRecordResponse,
   AutocompleteResponse,
+  BuilderPartnerListResponse,
   CallbackRequest,
   CallbackResponse,
   WaitlistRequest,
@@ -61,6 +65,7 @@ import {
   mockVerifySuccess,
   MOCK_FUNNEL_COUNTS,
   MOCK_FUNNEL_DIRECT_SCALE,
+  MOCK_FUNNEL_SOURCE_SHARES,
 } from './mock-data';
 import { PROPERTY_DATA_SERVICE } from './property-data.service';
 
@@ -88,6 +93,9 @@ export class MockApiService implements ApiService {
   private readonly issuedTokens = new Map<string, { estimateId: string; leadId: string }>();
   /** Unsubscribe tokens already opted out (email/03 dev harness). */
   private readonly unsubscribedTokens = new Set<string>();
+  /** #706 dev harness: pending erasure request per token, and erased tokens. */
+  private readonly erasureRequests = new Map<string, string>();
+  private readonly erasedTokens = new Set<string>();
   /**
    * Granular mock consent per token for the preference page. Legacy
    * one-click sets emailOptOut only.
@@ -310,6 +318,24 @@ export class MockApiService implements ApiService {
     return this.roundTrip({ refreshedMonth: null });
   }
 
+  /**
+   * Builder partner disclosure (#918): a contract-shaped sample list. No
+   * website (the mock never links to a real company site).
+   */
+  getPartners(): Observable<BuilderPartnerListResponse> {
+    return this.roundTrip<BuilderPartnerListResponse>({
+      partners: [
+        {
+          id: 'partner-mock-1',
+          name: 'Elite Craft Builders',
+          logoUrl: null,
+          websiteUrl: null,
+          description: 'Custom infill homes across Calgary.',
+        },
+      ],
+    });
+  }
+
   submitLead(request: LeadRequest): Observable<LeadResponse> {
     const leadId = `lead-mock-${crypto.randomUUID()}`;
     const token = `mock-${crypto.randomUUID()}`;
@@ -464,7 +490,7 @@ export class MockApiService implements ApiService {
   }
 
   requestCallback(request: CallbackRequest): Observable<CallbackResponse> {
-    return this.roundTrip(mockCallbackOk(request.window));
+    return this.roundTrip(mockCallbackOk(request.window, request.preferredDate ?? null));
   }
 
   joinWaitlist(request: WaitlistRequest): Observable<WaitlistResponse> {
@@ -482,6 +508,83 @@ export class MockApiService implements ApiService {
   verifyPartnerShare(token: string): Observable<PartnerShareVerifyResponse> {
     void token;
     return this.roundTrip({ valid: false, reason: 'invalid' });
+  }
+
+  /** #706: the backend answers 401 UNAUTHENTICATED for unknown/expired/revoked tokens. */
+  private privacyDenied(): Observable<never> {
+    return this.roundTripError({
+      code: 'UNAUTHENTICATED',
+      message: 'A valid bearer token is required.',
+      retryable: false,
+    });
+  }
+
+  /** #706 dev harness: any non-empty, not-yet-erased token exports a sample payload. */
+  exportPrivacyData(reportToken: string): Observable<PrivacyExportResponse> {
+    if (!reportToken.trim() || this.erasedTokens.has(reportToken)) {
+      return this.privacyDenied();
+    }
+    const now = new Date().toISOString();
+    return this.roundTrip({
+      exportedAt: now,
+      email: 'you@example.com',
+      leads: [],
+      estimates: [],
+      magicLinks: [],
+      reportShares: [],
+      callbackRequests: [],
+      erasureRequests: [],
+      waitlistSignups: [],
+      retentionNotice: 'Mock retention notice.',
+    });
+  }
+
+  /** #706 dev harness: idempotent like the backend — one pending request per token. */
+  requestErasure(reportToken: string): Observable<ErasureRequestResponse> {
+    if (!reportToken.trim() || this.erasedTokens.has(reportToken)) {
+      return this.privacyDenied();
+    }
+    const pending = this.erasureRequests.get(reportToken);
+    const requestId = pending ?? crypto.randomUUID();
+    this.erasureRequests.set(reportToken, requestId);
+    return this.roundTrip({
+      requestId,
+      status: 'requested',
+      consequences: ['Mock consequence statement.'],
+      createdAt: new Date().toISOString(),
+      // #806: the backend emails the confirm link (duplicates are cooled down).
+      confirmationEmailSent: pending === undefined,
+    });
+  }
+
+  /** #706 dev harness: completes once, then 409 like the backend; the token is revoked. */
+  confirmErasure(reportToken: string, requestId: string): Observable<ErasureConfirmResponse> {
+    if (this.erasedTokens.has(reportToken)) {
+      return this.roundTripError({
+        code: 'CONFLICT',
+        message: 'This erasure request has already been completed.',
+        retryable: false,
+      });
+    }
+    if (!reportToken.trim()) {
+      return this.privacyDenied();
+    }
+    if (this.erasureRequests.get(reportToken) !== requestId) {
+      return this.roundTripError({
+        code: 'NOT_FOUND',
+        message: 'Unknown erasure request.',
+        retryable: false,
+      });
+    }
+    this.erasedTokens.add(reportToken);
+    this.erasureRequests.delete(reportToken);
+    return this.roundTrip({
+      requestId,
+      status: 'completed',
+      confirmedAt: new Date().toISOString(),
+      revokedMagicLinks: 1,
+      deletedLeads: 1,
+    });
   }
 
   /**
@@ -563,22 +666,43 @@ export class MockApiService implements ApiService {
    */
   getFunnel(query: FunnelQuery): Observable<FunnelReport> {
     // Fixture slices: 'all' = full fixture, 'direct' = 70% slice with
-    // recomputed conversions, any other tenant key = honest zeros.
+    // recomputed conversions, any other tenant key = honest zeros. #815:
+    // utm filters keep only the matching campaign groups of the fixture.
     const scale =
       query.tenant === 'all' ? 1 : query.tenant === 'direct' ? MOCK_FUNNEL_DIRECT_SCALE : 0;
-    const counts = MOCK_FUNNEL_COUNTS.map((s) => Math.round(s.count * scale));
-    const steps: FunnelStep[] = MOCK_FUNNEL_COUNTS.map((s, i) => ({
-      step: s.step,
-      label: s.label,
-      count: counts[i],
-      conversionFromPrevious:
-        i === 0 || counts[i - 1] === 0 ? null : +(counts[i] / counts[i - 1]).toFixed(4),
-    }));
+    const groups = MOCK_FUNNEL_SOURCE_SHARES.filter(
+      (g) =>
+        (query.utmSource === undefined || g.utmSource === query.utmSource) &&
+        (query.utmCampaign === undefined || g.utmCampaign === query.utmCampaign),
+    );
+    const filtered = query.utmSource !== undefined || query.utmCampaign !== undefined;
+    const share = filtered ? groups.reduce((sum, g) => sum + g.share, 0) : 1;
+    const stepsAt = (factor: number): FunnelStep[] => {
+      const counts = MOCK_FUNNEL_COUNTS.map((s) => Math.round(s.count * factor));
+      return MOCK_FUNNEL_COUNTS.map((s, i) => ({
+        step: s.step,
+        label: s.label,
+        count: counts[i],
+        conversionFromPrevious:
+          i === 0 || counts[i - 1] === 0 ? null : +(counts[i] / counts[i - 1]).toFixed(4),
+      }));
+    };
     return this.roundTrip<FunnelReport>({
       from: query.from ?? null,
       to: query.to ?? null,
       tenant: query.tenant,
-      steps,
+      utmSource: query.utmSource ?? null,
+      utmCampaign: query.utmCampaign ?? null,
+      steps: stepsAt(scale * share),
+      bySource:
+        scale === 0
+          ? []
+          : groups.map((g) => ({
+              utmSource: g.utmSource,
+              utmCampaign: g.utmCampaign,
+              steps: stepsAt(scale * g.share),
+            })),
+      bySourceTruncated: false,
     });
   }
 

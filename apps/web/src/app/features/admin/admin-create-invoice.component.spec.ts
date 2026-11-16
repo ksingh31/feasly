@@ -90,6 +90,8 @@ describe('AdminCreateInvoiceComponent (#544 create-invoice modal)', () => {
               key === 'copy'
                 ? { admin: { entities: { viewInvoice: 'View invoice', copyId: 'Copy ID', idCopied: 'ID copied' } } }
                 : { debounceMs: 0 },
+            // #980: admin copy is lazy — served overrides reach it via getServedCopy.
+            getServedCopy: () => ({ entities: { viewInvoice: 'View invoice', copyId: 'Copy ID', idCopied: 'ID copied' } }),
           },
         },
         { provide: DialogRef, useValue: ref },

@@ -71,3 +71,52 @@ byte-match the required consent checkbox in the waitlist UI once approved.)_
 ```text
 I agree to the Privacy Policy and that Feasly may email me when this launches. I can unsubscribe anytime.
 ```
+
+### API lead consent attestation
+
+_(lawyer: the wording an API or MCP caller attests to when it submits a lead
+on a person's behalf, issue #738; part of the API terms of use.)_
+
+> **Status: draft-pending-lawyer.** Owner decision 2026-11-15: a lead sent
+> through the agent API (REST `POST /api/v1/leads` with a Bearer key, or the
+> MCP `submit_lead` tool) must carry `consent: true` and `consentVersion`
+> equal to `API_LEAD_CONSENT_VERSION` in `apps/api/src/lib/legal-copy.ts`.
+> Anything else is rejected with 400 and nothing is stored. The lead row
+> records the version, the attesting API key and the time. Bump the version
+> when this wording changes; callers then have to re-attest.
+
+```text
+I confirm that the person named in this lead asked to be contacted about their estimate, agreed that Feasly and builders associated with Feasly may contact them about it, and was told they can opt out anytime.
+```
+
+### Builder-partner disclosure (builder-matching explainer + FAQ)
+
+_(lawyer: confirm or rewrite the referral-commission disclosure shown under
+the lead-gate form, in the report's next steps, and in the FAQ answers
+"How do builder introductions work?" / "Is Feasly a home builder?")_
+
+> **Status: draft-pending-lawyer.** Owner decision 2026-11-15 (#878,
+> option (a)): the copy matches the partner model. Leads from Feasly's own
+> site go to the builder partner(s) named on How it works, who pay a
+> referral commission on signed contracts. Source of truth while draft:
+> `copy.builderMatching.paragraphs` in
+> `apps/web/src/app/core/config/app-config.defaults.ts` (mirrored in
+> `apps/web/public/assets/config/app-config.json`). Neutral-matching claims
+> ("no favourites", "no paid placement", "matches on project fit", "rank
+> builders", "hand-pick") are banned by
+> `apps/web/tools/check-banned-phrases.mjs`. Embedded estimators on a
+> builder's own site don't show this explainer: the lead goes to that builder.
+>
+> #918 adds the partner disclosure line at every own-site lead capture point
+> (lead gate, report callback) and a partners section on How it works; same
+> draft status. Source: `copy.partners` in the same defaults file. Partner
+> names come from `GET /api/v1/partners` (data, not copy); embeds don't show it.
+
+```text
+Leads from Feasly’s site go to our builder partner(s): <partner names, linked>
+If you ask to be contacted, leads from Feasly’s own site go to these builder companies. A partner pays Feasly a referral commission only if you sign a contract with them. It never changes your estimate, and you’re never obliged to hire anyone.
+```
+
+```text
+Feasly is an independent estimator. We don’t build homes. If you ask to be contacted, leads from Feasly’s own site go to our builder partner(s), listed on How it works. A partner pays Feasly a referral commission only if you sign a contract with them. It never changes your estimate, and you’re never obliged to hire anyone. You can opt out anytime.
+```

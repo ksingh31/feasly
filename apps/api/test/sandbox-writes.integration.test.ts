@@ -55,7 +55,13 @@ function recordingEmail(): EmailService & { sends: MagicLinkEmailInput[] } {
     sendCommissionInvoiceReady: async () => ok,
     sendCommissionPaymentReceived: async () => ok,
     sendCommissionPaymentFailed: async () => ok,
+    sendCommissionPaymentActionRequired: async () => ok,
+    sendCommissionInvoiceOverdue: async () => ok,
+    sendCardExpiryReminder: async () => ok,
     sendContractNeedsRecording: async () => ok,
+    sendBuilderNewLead: async () => ok,
+    sendBuilderNeedsYouDigest: async () => ok,
+    sendErasureConfirmation: async () => ok,
   };
 }
 
@@ -170,7 +176,7 @@ describe('#793 sandbox writes (PGlite)', () => {
 
   it('the nudge timer never picks a sandbox lead as a candidate', async () => {
     const { estimate, leads } = services();
-    const body = { name: 'Nudge', timeline: 'exploring', marketingConsent: false };
+    const body = { name: 'Nudge', timeline: 'exploring', marketingConsent: true };
     const sbEst = await estimate.estimate(ESTIMATE_BODY, { sandbox: true });
     if (!('estimateId' in sbEst)) throw new Error('expected an estimate response');
     const sandbox = await leads.submitLead(

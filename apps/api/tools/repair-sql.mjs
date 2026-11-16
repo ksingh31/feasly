@@ -12,8 +12,27 @@
  * this repair script didn't cover it. `test/schema-repair-coverage.test.ts`
  * asserts EVERY pgTable in the Drizzle schema appears here — add new tables
  * to this file when you add them to the schema.
+ *
+ * MERGE-CONFLICT-FREE APPENDS (#900): new repair blocks go in their own file
+ * under `tools/repair-sql.d/` (`<issue>-<slug>.sql`), not at the end of the
+ * core string below — two branches appending here was a constant source of
+ * conflicts. Fragments run after the core in file-name order, but each must
+ * be ORDER-INDEPENDENT: idempotent, and depending only on the migrations and
+ * the core, never on another fragment (test/repair-sql-fragments.test.ts
+ * applies them in reverse order to prove it). The core is idempotent block by
+ * block too, so if a conflict does happen in it, keep both sides.
  */
-export const REPAIR_SQL = `
+import { readFileSync, readdirSync } from 'node:fs';
+
+const FRAGMENT_DIR = new URL('./repair-sql.d/', import.meta.url);
+
+/** Order-independent repair blocks, one file each (sorted by name). */
+export const REPAIR_FRAGMENTS = readdirSync(FRAGMENT_DIR)
+  .filter((name) => name.endsWith('.sql'))
+  .sort()
+  .map((name) => ({ name, sql: readFileSync(new URL(name, FRAGMENT_DIR), 'utf8') }));
+
+export const REPAIR_CORE_SQL = `
 CREATE TABLE IF NOT EXISTS "leads" (
 
 	"id" uuid PRIMARY KEY NOT NULL,
@@ -40,6 +59,9 @@ ALTER TABLE "leads" ADD COLUMN IF NOT EXISTS "consent_updated_at" timestamp with
 ALTER TABLE "leads" ADD COLUMN IF NOT EXISTS "nudge_sent_at" timestamp with time zone;
 ALTER TABLE "leads" ADD COLUMN IF NOT EXISTS "report_opened_at" timestamp with time zone;
 ALTER TABLE "leads" ADD COLUMN IF NOT EXISTS "follow_up_sent_at" timestamp with time zone;
+ALTER TABLE "leads" ADD COLUMN IF NOT EXISTS "consent_version" text;
+ALTER TABLE "leads" ADD COLUMN IF NOT EXISTS "consent_attested_by_api_key_id" uuid;
+ALTER TABLE "leads" ADD COLUMN IF NOT EXISTS "consent_attested_at" timestamp with time zone;
 ALTER TABLE "leads" ADD COLUMN IF NOT EXISTS "sandbox" boolean DEFAULT false NOT NULL;
 ALTER TABLE "leads" ADD COLUMN IF NOT EXISTS "sheets_synced_at" timestamp with time zone;
 ALTER TABLE "leads" ADD COLUMN IF NOT EXISTS "updated_at" timestamp with time zone DEFAULT now() NOT NULL;
@@ -468,6 +490,10 @@ ALTER TABLE "commission_invoices" ADD COLUMN IF NOT EXISTS "tax_inclusive" boole
 ALTER TABLE "commission_invoices" ADD COLUMN IF NOT EXISTS "tax_cents" integer DEFAULT 0 NOT NULL;
 ALTER TABLE "commission_invoices" ADD COLUMN IF NOT EXISTS "total_cents" integer;
 UPDATE "commission_invoices" SET "total_cents" = "commission_cents" + "tax_cents" WHERE "total_cents" IS NULL;
+-- #719 chargeback flag + cumulative refunded amount.
+ALTER TABLE "commission_invoices" ADD COLUMN IF NOT EXISTS "chargeback_status" text;
+-- #715 refunds: running refunded total (rows in billing_refunds).
+ALTER TABLE "commission_invoices" ADD COLUMN IF NOT EXISTS "refunded_cents" integer DEFAULT 0 NOT NULL;
 -- billing/12 safety net: rows created while migration 0046 was missing get
 -- human-readable invoice numbers (INV-0001… in created_at order), then the
 -- sequence advances past every assigned number — never backwards, so a
@@ -618,6 +644,16 @@ ALTER TABLE "billing_disputes" ADD COLUMN IF NOT EXISTS "resolved_by" text;
 ALTER TABLE "billing_disputes" ADD COLUMN IF NOT EXISTS "resolution_note" text;
 ALTER TABLE "billing_disputes" ADD COLUMN IF NOT EXISTS "created_at" timestamp with time zone DEFAULT now() NOT NULL;
 ALTER TABLE "billing_disputes" ADD COLUMN IF NOT EXISTS "updated_at" timestamp with time zone DEFAULT now() NOT NULL;
+-- #719 Stripe chargebacks share the disputes queue.
+ALTER TABLE "billing_disputes" ADD COLUMN IF NOT EXISTS "source" text DEFAULT 'builder' NOT NULL;
+ALTER TABLE "billing_disputes" ADD COLUMN IF NOT EXISTS "stripe_dispute_id" text;
+ALTER TABLE "billing_disputes" ADD COLUMN IF NOT EXISTS "stripe_reason" text;
+ALTER TABLE "billing_disputes" ADD COLUMN IF NOT EXISTS "stripe_status" text;
+ALTER TABLE "billing_disputes" ADD COLUMN IF NOT EXISTS "amount_cents" integer;
+ALTER TABLE "billing_disputes" ADD COLUMN IF NOT EXISTS "evidence_due_at" timestamp with time zone;
+ALTER TABLE "billing_disputes" ADD COLUMN IF NOT EXISTS "outcome" text;
+ALTER TABLE "billing_disputes" ADD COLUMN IF NOT EXISTS "livemode" boolean;
+CREATE UNIQUE INDEX IF NOT EXISTS "billing_disputes_stripe_dispute_id_idx" ON "billing_disputes" USING btree ("stripe_dispute_id");
 CREATE TABLE IF NOT EXISTS "admin_allowlist" (
 
 	"email" text PRIMARY KEY NOT NULL,
@@ -829,6 +865,69 @@ ALTER TABLE "city_data_cache" ADD COLUMN IF NOT EXISTS "payload" jsonb NOT NULL;
 ALTER TABLE "city_data_cache" ADD COLUMN IF NOT EXISTS "fetched_at" timestamp with time zone DEFAULT now() NOT NULL;
 ALTER TABLE "city_data_cache" ADD COLUMN IF NOT EXISTS "expires_at" timestamp with time zone NOT NULL;
 CREATE INDEX IF NOT EXISTS "city_data_cache_expires_at_idx" ON "city_data_cache" USING btree ("expires_at");
+CREATE TABLE IF NOT EXISTS "builder_partners" (
+
+	"id" uuid PRIMARY KEY NOT NULL,
+	"builder_id" uuid REFERENCES "builders"("id") ON DELETE SET NULL,
+	"name" text NOT NULL,
+	"logo_url" text,
+	"website_url" text,
+	"description" text,
+	"display_order" integer DEFAULT 0 NOT NULL,
+	"active" boolean DEFAULT true NOT NULL,
+	"created_at" timestamp with time zone DEFAULT now() NOT NULL,
+	"updated_at" timestamp with time zone DEFAULT now() NOT NULL
+);
+ALTER TABLE "builder_partners" ADD COLUMN IF NOT EXISTS "builder_id" uuid REFERENCES "builders"("id") ON DELETE SET NULL;
+ALTER TABLE "builder_partners" ADD COLUMN IF NOT EXISTS "name" text NOT NULL;
+ALTER TABLE "builder_partners" ADD COLUMN IF NOT EXISTS "logo_url" text;
+ALTER TABLE "builder_partners" ADD COLUMN IF NOT EXISTS "website_url" text;
+ALTER TABLE "builder_partners" ADD COLUMN IF NOT EXISTS "description" text;
+ALTER TABLE "builder_partners" ADD COLUMN IF NOT EXISTS "display_order" integer DEFAULT 0 NOT NULL;
+ALTER TABLE "builder_partners" ADD COLUMN IF NOT EXISTS "active" boolean DEFAULT true NOT NULL;
+ALTER TABLE "builder_partners" ADD COLUMN IF NOT EXISTS "created_at" timestamp with time zone DEFAULT now() NOT NULL;
+ALTER TABLE "builder_partners" ADD COLUMN IF NOT EXISTS "updated_at" timestamp with time zone DEFAULT now() NOT NULL;
+CREATE INDEX IF NOT EXISTS "builder_partners_active_order_idx" ON "builder_partners" USING btree ("active","display_order");
+CREATE TABLE IF NOT EXISTS "builder_notification_preferences" (
+
+	"user_id" uuid NOT NULL,
+	"builder_id" uuid NOT NULL,
+	"new_lead_email" boolean DEFAULT true NOT NULL,
+	"needs_you_digest" boolean DEFAULT false NOT NULL,
+	"billing_email" boolean DEFAULT true NOT NULL,
+	"updated_at" timestamp with time zone DEFAULT now() NOT NULL,
+	PRIMARY KEY ("user_id", "builder_id")
+);
+ALTER TABLE "builder_notification_preferences" ADD COLUMN IF NOT EXISTS "new_lead_email" boolean DEFAULT true NOT NULL;
+ALTER TABLE "builder_notification_preferences" ADD COLUMN IF NOT EXISTS "needs_you_digest" boolean DEFAULT false NOT NULL;
+ALTER TABLE "builder_notification_preferences" ADD COLUMN IF NOT EXISTS "billing_email" boolean DEFAULT true NOT NULL;
+ALTER TABLE "builder_notification_preferences" ADD COLUMN IF NOT EXISTS "updated_at" timestamp with time zone DEFAULT now() NOT NULL;
+CREATE INDEX IF NOT EXISTS "builder_notification_preferences_builder_idx" ON "builder_notification_preferences" USING btree ("builder_id");
+CREATE TABLE IF NOT EXISTS "builder_notifications" (
+
+	"id" uuid PRIMARY KEY NOT NULL,
+	"dedupe_key" text NOT NULL,
+	"kind" text NOT NULL,
+	"builder_id" uuid NOT NULL,
+	"user_id" uuid NOT NULL,
+	"lead_id" uuid,
+	"status" text DEFAULT 'pending' NOT NULL,
+	"attempts" integer DEFAULT 0 NOT NULL,
+	"last_error_code" text,
+	"last_attempt_at" timestamp with time zone,
+	"processed_at" timestamp with time zone,
+	"created_at" timestamp with time zone DEFAULT now() NOT NULL
+);
+ALTER TABLE "builder_notifications" ADD COLUMN IF NOT EXISTS "lead_id" uuid;
+ALTER TABLE "builder_notifications" ADD COLUMN IF NOT EXISTS "status" text DEFAULT 'pending' NOT NULL;
+ALTER TABLE "builder_notifications" ADD COLUMN IF NOT EXISTS "attempts" integer DEFAULT 0 NOT NULL;
+ALTER TABLE "builder_notifications" ADD COLUMN IF NOT EXISTS "last_error_code" text;
+ALTER TABLE "builder_notifications" ADD COLUMN IF NOT EXISTS "last_attempt_at" timestamp with time zone;
+ALTER TABLE "builder_notifications" ADD COLUMN IF NOT EXISTS "processed_at" timestamp with time zone;
+ALTER TABLE "builder_notifications" ADD COLUMN IF NOT EXISTS "created_at" timestamp with time zone DEFAULT now() NOT NULL;
+CREATE UNIQUE INDEX IF NOT EXISTS "builder_notifications_dedupe_key_idx" ON "builder_notifications" USING btree ("dedupe_key");
+CREATE INDEX IF NOT EXISTS "builder_notifications_status_created_idx" ON "builder_notifications" USING btree ("status","created_at");
+CREATE INDEX IF NOT EXISTS "builder_notifications_lead_idx" ON "builder_notifications" USING btree ("lead_id");
 CREATE TABLE IF NOT EXISTS "partner_shares" (
 
 	"id" uuid PRIMARY KEY NOT NULL,
@@ -1071,3 +1170,9 @@ FROM "builders" b
 WHERE "leads"."builder_id" = b."id"
   AND ("leads"."tenant_key" IS NULL OR "leads"."tenant_key" <> b."tenant_key");
 `;
+
+/** Core + every fragment: what tools/migrate.mjs runs after drizzle-kit. */
+export const REPAIR_SQL = [
+  REPAIR_CORE_SQL,
+  ...REPAIR_FRAGMENTS.map((f) => `-- tools/repair-sql.d/${f.name}\n${f.sql}`),
+].join('\n');

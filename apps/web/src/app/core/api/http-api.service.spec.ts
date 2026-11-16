@@ -131,6 +131,26 @@ describe('HttpApiService', () => {
       body: {},
     },
     {
+      name: 'exportPrivacyData',
+      call: (api) => api.exportPrivacyData('rep-123'),
+      method: 'GET',
+      url: `${BASE}/privacy/export`,
+    },
+    {
+      name: 'requestErasure',
+      call: (api) => api.requestErasure('rep-123'),
+      method: 'POST',
+      url: `${BASE}/privacy/erase-requests`,
+      body: {},
+    },
+    {
+      name: 'confirmErasure',
+      call: (api) => api.confirmErasure('rep-123', 'req-1'),
+      method: 'POST',
+      url: `${BASE}/privacy/erase-requests/req-1/confirm`,
+      body: {},
+    },
+    {
       name: 'reviseTier',
       call: (api) => api.reviseTier('rep-123', { tier: 'luxury' }),
       method: 'POST',
@@ -172,6 +192,12 @@ describe('HttpApiService', () => {
       method: 'GET',
       url: `${BASE}/city-data/freshness`,
     },
+    {
+      name: 'getPartners',
+      call: (api) => api.getPartners(),
+      method: 'GET',
+      url: `${BASE}/partners`,
+    },
   ];
 
   for (const c of cases) {
@@ -207,6 +233,26 @@ describe('HttpApiService', () => {
       narrativeSource: 'ai',
     });
     await pending;
+    httpMock.verify();
+  });
+
+  it('sends the magic-link token as Bearer auth (never in the URL) on the privacy endpoints (#706)', async () => {
+    const calls: Array<{ run: () => Observable<unknown>; url: string }> = [
+      { run: () => service.exportPrivacyData('rep-123'), url: `${BASE}/privacy/export` },
+      { run: () => service.requestErasure('rep-123'), url: `${BASE}/privacy/erase-requests` },
+      {
+        run: () => service.confirmErasure('rep-123', 'req/1'),
+        url: `${BASE}/privacy/erase-requests/req%2F1/confirm`,
+      },
+    ];
+    for (const c of calls) {
+      const pending = firstValueFrom(c.run());
+      const req = httpMock.expectOne(c.url);
+      expect(req.request.headers.get('Authorization')).toBe('Bearer rep-123');
+      expect(req.request.urlWithParams).not.toContain('rep-123');
+      req.flush({});
+      await pending;
+    }
     httpMock.verify();
   });
 

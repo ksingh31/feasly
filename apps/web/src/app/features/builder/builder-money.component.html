@@ -69,6 +69,7 @@
           @if (panel.action) {
             <button type="button" ui-button variant="secondary" size="sm" class="money__card-action" (click)="openCard()">{{ panel.action }}</button>
           }
+          <app-builder-card-lifecycle [card]="savedCard()" [canRemove]="isAdmin()" (replace)="openCard()" />
         } @else if (overviewStatus() !== 'error') {
           <ui-skeleton variant="text" [count]="2" [label]="copy.moneyLoading" />
         }

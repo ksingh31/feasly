@@ -24,6 +24,7 @@ import type { CommissionCardService } from '../src/services/billing/commission-c
 import type { InvoicePdfService } from '../src/services/billing/invoice-pdf.service';
 import type { BuilderGuard } from '../src/middleware/builder-guard';
 import type { AdminGuard } from '../src/middleware/admin-guard';
+import type { ConfirmInvoicePaymentResponse } from '@feasly/contracts';
 
 const BUILDER_SESSION = {
   email: 'builder@example.com',
@@ -100,6 +101,26 @@ function makeDeps(opts?: {
         tenantKey,
         paymentMethod: method,
       }),
+    ),
+    payInvoice: vi.fn(async (invoiceId: string, tenantKey: string) => {
+      if (tenantKey !== 'elite-craft') {
+        throw Object.assign(new Error('forbidden'), { status: 403 });
+      }
+      return { id: invoiceId, tenantKey, status: 'finalized' };
+    }),
+    confirmInvoicePayment: vi.fn(
+      async (invoiceId: string, tenantKey: string): Promise<ConfirmInvoicePaymentResponse> => {
+        if (tenantKey !== 'elite-craft') {
+          throw Object.assign(new Error('forbidden'), { status: 403 });
+        }
+        return {
+          invoiceId,
+          paymentIntentId: 'pi_1',
+          clientSecret: 'pi_1_secret_x',
+          paymentMethodId: 'pm_1',
+          provider: 'simulated',
+        };
+      },
     ),
   } as unknown as BillingService;
 
@@ -319,6 +340,72 @@ describe('POST /api/v1/billing/invoices/{id}/dispute', () => {
     await expect(
       route.disputeInvoice({}, id, { reason: 'x' }),
     ).rejects.toMatchObject({ status: 401 });
+  });
+});
+
+describe('POST /api/v1/billing/invoices/{id}/confirm-payment (#712)', () => {
+  const id = '00000000-0000-4000-8000-000000000004';
+
+  it('returns the confirmation contract for the session tenant', async () => {
+    const { route, billing } = makeDeps();
+    const result: ConfirmInvoicePaymentResponse = await route.confirmInvoicePayment({}, id);
+    expect(billing.confirmInvoicePayment).toHaveBeenCalledWith(id, 'elite-craft');
+    // Contract conformance: exactly the ConfirmInvoicePaymentResponse fields.
+    expect(Object.keys(result).sort()).toEqual(
+      ['clientSecret', 'invoiceId', 'paymentIntentId', 'paymentMethodId', 'provider'],
+    );
+    expect(result).toEqual({
+      invoiceId: id,
+      paymentIntentId: 'pi_1',
+      clientSecret: 'pi_1_secret_x',
+      paymentMethodId: 'pm_1',
+      provider: 'simulated',
+    });
+  });
+
+  it('requires builder auth (401 without a session)', async () => {
+    const { route, billing } = makeDeps({ builderSession: null, admin: true });
+    await expect(route.confirmInvoicePayment({}, id)).rejects.toMatchObject({ status: 401 });
+    expect(billing.confirmInvoicePayment).not.toHaveBeenCalled();
+  });
+
+  it('403s for another tenant\u2019s invoice', async () => {
+    const { route } = makeDeps({ builderSession: { email: 'x@example.com', tenantKey: 'other-builder' } });
+    await expect(route.confirmInvoicePayment({}, id)).rejects.toMatchObject({ status: 403 });
+  });
+
+  it('rejects a non-uuid id with 400', async () => {
+    const { route, billing } = makeDeps();
+    await expect(route.confirmInvoicePayment({}, 'nope')).rejects.toMatchObject({ status: 400 });
+    expect(billing.confirmInvoicePayment).not.toHaveBeenCalled();
+  });
+});
+
+describe('POST /api/v1/billing/invoices/{id}/pay (#718)', () => {
+  const id = '00000000-0000-4000-8000-000000000071';
+
+  it('pays the session tenant\u2019s invoice through the billing service', async () => {
+    const { route, billing } = makeDeps();
+    const result = await route.payInvoice({}, id);
+    expect(billing.payInvoice).toHaveBeenCalledWith(id, 'elite-craft');
+    expect(result).toMatchObject({ id, status: 'finalized' });
+  });
+
+  it('requires builder auth (401 without a session, even for an admin)', async () => {
+    const { route, billing } = makeDeps({ builderSession: null, admin: true });
+    await expect(route.payInvoice({}, id)).rejects.toMatchObject({ status: 401 });
+    expect(billing.payInvoice).not.toHaveBeenCalled();
+  });
+
+  it('403s for another tenant\u2019s invoice', async () => {
+    const { route } = makeDeps({ builderSession: { email: 'x@example.com', tenantKey: 'other-builder' } });
+    await expect(route.payInvoice({}, id)).rejects.toMatchObject({ status: 403 });
+  });
+
+  it('rejects a non-uuid id with 400', async () => {
+    const { route, billing } = makeDeps();
+    await expect(route.payInvoice({}, 'nope')).rejects.toMatchObject({ status: 400 });
+    expect(billing.payInvoice).not.toHaveBeenCalled();
   });
 });
 

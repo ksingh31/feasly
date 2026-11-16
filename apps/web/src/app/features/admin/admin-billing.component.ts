@@ -25,7 +25,8 @@ import {
   UiToastService,
   injectDrawerParam,
 } from '@app/shared/ui';
-import { LoadBillingHealth, RetryInvoiceCharge } from './billing-health.actions';
+import type { UpdateInvoiceDunningRequest } from '@feasly/contracts';
+import { LoadBillingHealth, RetryInvoiceCharge, UpdateInvoiceDunning } from './billing-health.actions';
 import { BillingHealthState } from './billing-health.state';
 import { AdminBuildersState } from './admin-builders.state';
 import { LoadBuilders } from './admin-builders.actions';
@@ -36,14 +37,22 @@ import type { AdminInvoiceActionData } from './admin-invoice-action-modal';
 import { ClearAdminInvoiceDetail, LoadAdminInvoiceDetail } from './admin-invoices.actions';
 import { AdminInvoicesState } from './admin-invoices.state';
 import { plannedMethodLabel } from './admin-invoice-view';
+import { formatEdmontonMediumDate } from '../../shared/utils/edmonton';
 import { ADMIN_PERMISSIONS, adminCan } from './admin-permissions';
+import { injectAdminCopy } from './admin-copy';
+import { AdminDunningGraceModalComponent, type AdminDunningGraceModalData } from './admin-dunning-grace-modal.component';
 import {
+  awaitingManualLabel,
   builderNameFor,
+  cancelRetriesConfirmOptions,
   daysOverdue,
+  dunningStateLabel,
+  graceDaysLabel,
   ratePercentLabel,
   retriesExhausted,
   retryConfirmOptions,
   retryLabel,
+  sortDunningRows,
   stripeModeKey,
 } from './admin-billing-view';
 
@@ -100,6 +109,10 @@ export class AdminBillingComponent implements OnInit {
   /** Invoice id currently retrying its charge, or null. BILL-03. */
   protected readonly retryingInvoiceId = this.store.selectSignal(BillingHealthState.retryingInvoiceId);
   private readonly builders = this.store.selectSignal(AdminBuildersState.builders);
+  /** #901: invoice whose dunning schedule is saving, or null. */
+  protected readonly dunningSavingId = this.store.selectSignal(BillingHealthState.dunningSavingId);
+  /** #901 dunning-control copy (`copy.admin.dunning`). */
+  protected readonly dunningCopy = injectAdminCopy().dunning;
 
   /** `billing:manage` — read-only staff see the overview without actions. */
   protected readonly canManageBilling = adminCan(this.store, ADMIN_PERMISSIONS.billingManage);
@@ -113,7 +126,8 @@ export class AdminBillingComponent implements OnInit {
   });
 
   protected readonly inReviewRows = computed(() => this.health()?.inReviewInvoices ?? []);
-  protected readonly dunningRows = computed(() => this.health()?.dunning ?? []);
+  /** #901: collections rows sit at the top. */
+  protected readonly dunningRows = computed(() => sortDunningRows(this.health()?.dunning ?? []));
   protected readonly maxRetries = computed(() => this.health()?.maxChargeRetries);
 
   protected readonly inReviewId = (row: BillingHealthInReviewInvoice): string => row.id;
@@ -125,6 +139,12 @@ export class AdminBillingComponent implements OnInit {
     { key: 'rate', header: 'Rate', cardRole: 'hidden', value: (r) => ratePercentLabel(r.commissionRatePercent) },
     { key: 'reviewDueAt', header: 'Review due', kind: 'date', cardRole: 'meta' },
     { key: 'method', header: 'Paid by', cardRole: 'meta', value: (r) => plannedMethodLabel(r.paymentMethod) },
+    {
+      key: 'awaiting',
+      header: this.dunningCopy.columns.awaiting,
+      cardRole: 'meta',
+      value: (r) => awaitingManualLabel(r, this.dunningCopy),
+    },
   ];
 
   protected readonly dunningColumns: readonly DataTableColumn<BillingHealthDunningInvoice>[] = [
@@ -137,6 +157,24 @@ export class AdminBillingComponent implements OnInit {
       header: 'Retries',
       cardRole: 'meta',
       value: (r) => `${r.retryCount} of ${this.maxRetries() ?? '—'}`,
+    },
+    {
+      key: 'dunningState',
+      header: this.dunningCopy.columns.state,
+      cardRole: 'meta',
+      value: (r) => dunningStateLabel(r, this.dunningCopy),
+    },
+    {
+      key: 'nextRetryAt',
+      header: this.dunningCopy.columns.nextRetry,
+      cardRole: 'meta',
+      value: (r) => (r.nextRetryAt ? this.dateLabel(r.nextRetryAt) : this.dunningCopy.noRetry),
+    },
+    {
+      key: 'retryGraceDays',
+      header: this.dunningCopy.columns.grace,
+      cardRole: 'hidden',
+      value: (r) => graceDaysLabel(r.retryGraceDays, this.dunningCopy),
     },
     { key: 'lastFailureReason', header: 'Last failure', cardRole: 'hidden' },
   ];
@@ -206,7 +244,27 @@ export class AdminBillingComponent implements OnInit {
         hint: exhausted ? 'All retries used. Record the payment or contact the builder.' : undefined,
       },
       { id: 'record-payment', label: 'Record payment…' },
+      ...this.scheduleActions(row),
     ];
+  }
+
+  /**
+   * #901 schedule controls: Pause (active) or Resume (paused/cancelled),
+   * Cancel (until cancelled), Edit grace days. Disabled while this row's
+   * schedule is saving.
+   */
+  private scheduleActions(row: BillingHealthDunningInvoice): UiRowAction[] {
+    const t = this.dunningCopy;
+    const state = row.dunningState ?? 'active';
+    const saving = this.dunningSavingId() !== null;
+    const actions: UiRowAction[] = [
+      state === 'active'
+        ? { id: 'dunning-pause', label: t.pause, disabled: saving }
+        : { id: 'dunning-resume', label: t.resume, disabled: saving },
+    ];
+    if (state !== 'cancelled') actions.push({ id: 'dunning-cancel', label: t.cancel, disabled: saving });
+    actions.push({ id: 'dunning-grace', label: t.editGrace, disabled: saving });
+    return actions;
   }
 
   protected onRowAction(invoiceId: string, action: string): void {
@@ -214,10 +272,90 @@ export class AdminBillingComponent implements OnInit {
       this.recordPayment(invoiceId);
       return;
     }
-    if (action === 'retry') {
-      const row = this.dunningRows().find((r) => r.id === invoiceId);
-      if (row) this.retryCharge(row);
+    const row = this.dunningRows().find((r) => r.id === invoiceId);
+    if (!row) return;
+    switch (action) {
+      case 'retry':
+        this.retryCharge(row);
+        return;
+      case 'dunning-pause':
+        this.updateDunning(row, { action: 'pause' });
+        return;
+      case 'dunning-resume':
+        this.updateDunning(row, { action: 'resume' });
+        return;
+      case 'dunning-cancel':
+        this.cancelRetries(row);
+        return;
+      case 'dunning-grace':
+        this.editGraceDays(row);
+        return;
     }
+  }
+
+  /** #901: Pause / Resume apply straight away (reversible); the toast names the outcome. */
+  protected updateDunning(row: BillingHealthDunningInvoice, body: UpdateInvoiceDunningRequest): void {
+    if (!this.canManageBilling() || this.dunningSavingId() !== null) return;
+    this.store
+      .dispatch(new UpdateInvoiceDunning(row.id, body))
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe(() => this.toastDunningOutcome(row.id));
+  }
+
+  /** #901: Cancel stops automatic retries for good — always confirmed, naming builder + amount. */
+  protected cancelRetries(row: BillingHealthDunningInvoice): void {
+    if (!this.canManageBilling()) return;
+    this.confirms
+      .confirm(
+        cancelRetriesConfirmOptions(
+          { builderName: this.builderName(row.tenantKey), commissionCents: row.commissionCents },
+          this.dunningCopy,
+        ),
+      )
+      .pipe(filter(Boolean), takeUntilDestroyed(this.destroyRef))
+      .subscribe(() => this.updateDunning(row, { action: 'cancel' }));
+  }
+
+  /** #901: Edit grace days in a focused modal; the saved value is toasted. */
+  protected editGraceDays(row: BillingHealthDunningInvoice): void {
+    if (!this.canManageBilling()) return;
+    this.modals
+      .open<AdminDunningGraceModalComponent, number, AdminDunningGraceModalData>(AdminDunningGraceModalComponent, {
+        data: {
+          invoiceId: row.id,
+          builderName: this.builderName(row.tenantKey),
+          commissionCents: row.commissionCents,
+          graceDays: row.retryGraceDays,
+        },
+        size: 'sm',
+        injector: this.injector,
+      })
+      .closed.pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe((days) => {
+        if (typeof days !== 'number') return;
+        this.toasts.show({
+          message: this.dunningCopy.graceSavedToast.replace('{days}', String(days)),
+          tone: 'success',
+        });
+      });
+  }
+
+  private toastDunningOutcome(invoiceId: string): void {
+    const feedback = this.store.selectSnapshot(BillingHealthState.dunningFeedback);
+    if (!feedback || feedback.invoiceId !== invoiceId) return;
+    const t = this.dunningCopy;
+    if (!feedback.ok) {
+      this.toasts.show({ message: feedback.conflict ? t.conflictError : t.genericError, tone: 'danger' });
+      return;
+    }
+    const message =
+      feedback.action === 'pause' ? t.pausedToast : feedback.action === 'resume' ? t.resumedToast : t.cancelledToast;
+    this.toasts.show({ message, tone: 'success' });
+  }
+
+  /** "Nov 23, 2026" for the next-retry column. */
+  private dateLabel(iso: string): string {
+    return formatEdmontonMediumDate(iso);
   }
 
   /** BILL-03 retry: always through ConfirmDialog naming the amount + builder. */

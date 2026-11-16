@@ -15,13 +15,16 @@ import {
   UiModalService,
 } from '@app/shared/ui';
 import { formatInvoiceTax } from '../../shared/utils/invoice-tax';
+import { invoiceRecoveryState } from '../../shared/utils/invoice-recovery';
 import { ClearAdminInvoiceDetail, LoadAdminInvoiceDetail, LoadAdminInvoices } from './admin-invoices.actions';
 import { AdminInvoicesState } from './admin-invoices.state';
 import { ADMIN_PERMISSIONS, adminCan } from './admin-permissions';
+import { LoadBillingHealth } from './billing-health.actions';
 import type { AdminInvoiceActionData } from './admin-invoice-action-modal';
 import { AdminInvoiceRateModalComponent } from './admin-invoice-rate-modal.component';
 import { AdminInvoiceMethodModalComponent } from './admin-invoice-method-modal.component';
 import { AdminInvoicePaymentModalComponent } from './admin-invoice-payment-modal.component';
+import { AdminSimulatedPanelComponent } from './admin-simulated-panel.component';
 import {
   auditTrailToTimeline,
   invoiceRateLabel,
@@ -46,6 +49,10 @@ export interface AdminInvoiceDrawerData {
  * disputed invoice links to its dispute. Body: amounts, an Activity
  * timeline (the dispute audit trail when there is one, otherwise the
  * invoice's own milestones), payment details and technical IDs.
+ *
+ * #791: with the simulated payment provider a dev panel (fire dispute /
+ * dashboard refund / delayed failure) sits at the end of the body; it
+ * never renders for the Stripe provider.
  */
 @Component({
   selector: 'app-admin-invoice-drawer',
@@ -58,6 +65,7 @@ export interface AdminInvoiceDrawerData {
     TimelineComponent,
     KitMoneyPipe,
     KitDateTimePipe,
+    AdminSimulatedPanelComponent,
   ],
   templateUrl: './admin-invoice-drawer.component.html',
   styleUrl: './admin-invoice-drawer.component.scss',
@@ -94,6 +102,12 @@ export class AdminInvoiceDrawerComponent implements OnInit {
   protected readonly tax = computed(() => {
     const invoice = this.invoice();
     return invoice ? formatInvoiceTax(invoice, 'Tax') : null;
+  });
+
+  /** #872: refund total + bank chargeback state; null when neither applies. */
+  protected readonly recovery = computed(() => {
+    const invoice = this.invoice();
+    return invoice ? invoiceRecoveryState(invoice) : null;
   });
 
   protected readonly canAct = computed(() => {
@@ -135,6 +149,12 @@ export class AdminInvoiceDrawerComponent implements OnInit {
     this.openAction(AdminInvoicePaymentModalComponent);
   }
 
+  /** #791: a simulated event was delivered — reload the drawer and the lists behind it. */
+  protected onSimulatedEvent(): void {
+    this.refreshAfterChange(this.data.invoiceId);
+    this.store.dispatch(new LoadBillingHealth());
+  }
+
   private openAction<C>(component: ComponentType<C>): void {
     const invoice = this.invoice();
     if (invoice === null || !this.canAct()) return;
@@ -147,12 +167,16 @@ export class AdminInvoiceDrawerComponent implements OnInit {
       .closed.pipe(takeUntilDestroyed(this.destroyRef))
       .subscribe((changed) => {
         if (!changed) return;
-        // Refresh the drawer and the list row behind it.
-        this.store.dispatch(new LoadAdminInvoiceDetail(invoice.id));
-        const page = this.store.selectSnapshot(AdminInvoicesState.page);
-        const pageSize = this.store.selectSnapshot(AdminInvoicesState.pageSize);
-        const filters = this.store.selectSnapshot(AdminInvoicesState.filters);
-        this.store.dispatch(new LoadAdminInvoices(page, pageSize, filters));
+        this.refreshAfterChange(invoice.id);
       });
+  }
+
+  /** Refresh the drawer and the list row behind it. */
+  private refreshAfterChange(invoiceId: string): void {
+    this.store.dispatch(new LoadAdminInvoiceDetail(invoiceId));
+    const page = this.store.selectSnapshot(AdminInvoicesState.page);
+    const pageSize = this.store.selectSnapshot(AdminInvoicesState.pageSize);
+    const filters = this.store.selectSnapshot(AdminInvoicesState.filters);
+    this.store.dispatch(new LoadAdminInvoices(page, pageSize, filters));
   }
 }

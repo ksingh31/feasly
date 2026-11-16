@@ -101,4 +101,33 @@ describe('AdminBuildersApiService', () => {
     expect(req.request.body).toEqual({ builderId: null });
     req.flush({ ok: true });
   });
+
+  it('posts a lifecycle action with its reason (#861)', () => {
+    service.changeStatus('b1', { action: 'suspend', reason: 'Unpaid invoices' }).subscribe();
+    const req = httpMock.expectOne((r) => r.url.endsWith('/api/v1/admin/builders/b1/status'));
+    expect(req.request.method).toBe('POST');
+    expect(req.request.body).toEqual({ action: 'suspend', reason: 'Unpaid invoices' });
+    expect(req.request.withCredentials).toBe(true);
+    req.flush({ builder: { ...BUILDER, status: 'suspended' }, changed: true });
+  });
+
+  it('reads the offboarding blockers (#861)', () => {
+    service.offboardingBlockers('b1').subscribe();
+    const req = httpMock.expectOne((r) =>
+      r.url.endsWith('/api/v1/admin/builders/b1/offboarding-blockers'),
+    );
+    expect(req.request.method).toBe('GET');
+    expect(req.request.withCredentials).toBe(true);
+    req.flush({ blockers: [] });
+  });
+
+  it('downloads a builder export as a blob with the kind param (#861)', () => {
+    service.exportCsv('b1', 'invoices').subscribe();
+    const req = httpMock.expectOne((r) => r.url.endsWith('/api/v1/admin/builders/b1/export.csv'));
+    expect(req.request.method).toBe('GET');
+    expect(req.request.params.get('kind')).toBe('invoices');
+    expect(req.request.responseType).toBe('blob');
+    expect(req.request.withCredentials).toBe(true);
+    req.flush(new Blob(['invoice_id\n']));
+  });
 });

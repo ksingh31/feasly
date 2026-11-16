@@ -2,6 +2,7 @@
  * Lead-gate contracts. The lead is persisted even if the magic link is never
  * clicked — capture first, verify after.
  */
+import type { AnalyticsSource } from './events';
 
 export type TimelineOption =
   | '0-3mo'
@@ -27,6 +28,33 @@ export interface LeadRequest {
    * response so bots learn nothing.
    */
   readonly website?: string;
+  /**
+   * Invisible bot protection (#788): milliseconds between the form being
+   * rendered and submitted, measured client-side. The API quarantines
+   * submissions faster than its configured minimum the same way as the
+   * honeypot (normal 201, no signal). The threshold lives in API config,
+   * never in the client. Optional — agent-API callers may omit it.
+   */
+  readonly elapsedMs?: number;
+  /**
+   * #814: campaign attribution captured on the visitor's first load (UTM
+   * parameters + click-id type). Stored on the lead's `source_*` columns at
+   * creation for the paid-search test and offline-conversion upload. Fields
+   * that fail the API's length/PII checks are dropped (stored as null) —
+   * attribution never blocks a lead capture.
+   */
+  readonly source?: AnalyticsSource;
+  /**
+   * Agent-API consent attestation (#738). REQUIRED when the request carries
+   * an API key (REST Bearer key or MCP `submit_lead`): `true` attests the
+   * person asked to be contacted. Ignored for web/embed submissions.
+   */
+  readonly consent?: true;
+  /**
+   * Version tag of the attestation wording (#738), required with `consent`
+   * on API-key requests; must equal the current version.
+   */
+  readonly consentVersion?: string;
 }
 
 export interface LeadResponse {

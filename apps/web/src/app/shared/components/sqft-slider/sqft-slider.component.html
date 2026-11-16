@@ -16,6 +16,7 @@
     [value]="value()"
     (input)="onInput($event)"
     [attr.aria-label]="label()"
+    [attr.aria-valuetext]="format(value()) + ' ' + unit()"
   />
   <div class="slider-scale" aria-hidden="true">
     <span>{{ format(min()) }}</span>

@@ -30,6 +30,37 @@
       </div>
     </section>
 
+    <!-- #836: the homeowner's callback request -->
+    @if (callback(); as cb) {
+      <section
+        class="lead-drawer__section"
+        aria-labelledby="lead-drawer-callback-heading"
+        data-testid="drawer-callback"
+      >
+        <h3 id="lead-drawer-callback-heading" class="lead-drawer__heading">{{ t.callbackHeading }}</h3>
+        <dl class="lead-drawer__details">
+          <div>
+            <dt>{{ t.callbackDayLabel }}</dt>
+            <dd>{{ cb.day }}</dd>
+          </div>
+          <div>
+            <dt>{{ t.callbackWindowLabel }}</dt>
+            <dd>{{ cb.window }}</dd>
+          </div>
+          @if (cb.notes) {
+            <div>
+              <dt>{{ t.callbackNotesLabel }}</dt>
+              <dd class="lead-drawer__callback-notes">{{ cb.notes }}</dd>
+            </div>
+          }
+          <div>
+            <dt>{{ t.callbackRequestedLabel }}</dt>
+            <dd>{{ cb.requested }}</dd>
+          </div>
+        </dl>
+      </section>
+    }
+
     <!-- Status: stepper + one-tap moves (apply now, Undo in the toast) -->
     <section class="lead-drawer__section" aria-labelledby="lead-drawer-status-heading">
       <h3 id="lead-drawer-status-heading" class="lead-drawer__heading">{{ t.statusHeading }}</h3>

@@ -4,6 +4,7 @@ import { Store } from '@ngxs/store';
 import type { FinishTier } from '@feasly/contracts';
 import { SeoService } from '../../core/seo/seo.service';
 import { ConfigService } from '../../core/config/config.service';
+import { handleRadioGroupKeydown, radioTabIndex } from '../../core/utils/radio-group';
 import {
   ChooseProjectType,
   GoToStep,
@@ -85,21 +86,34 @@ export class RenoScopePageComponent implements OnInit {
     }
   }
 
-  /**
-   * Radio-group arrow keys: moves the selection between the reno-type cards.
-   * Tab/Enter/Space keep working natively on the buttons.
-   */
+  /** Roving tabindex (#937): the checked reno-type card is the group's one Tab stop. */
+  renoTypeTabIndex(id: RenoType): 0 | -1 {
+    return radioTabIndex(this.renoTypeIds(), this.renoInputs().renoType, id);
+  }
+
+  /** Radio-group keys: arrows/Home/End move focus and selection between the reno-type cards. */
   onRenoTypeKeydown(event: KeyboardEvent): void {
-    const forward = event.key === 'ArrowRight' || event.key === 'ArrowDown';
-    const backward = event.key === 'ArrowLeft' || event.key === 'ArrowUp';
-    if (!forward && !backward) {
-      return;
-    }
-    event.preventDefault();
-    const ids = this.copy.renoTypes.map((t) => t.id);
-    const current = ids.indexOf(this.renoInputs().renoType as RenoType);
-    const next = (current + (forward ? 1 : -1) + ids.length) % ids.length;
-    this.chooseRenoType(ids[next]);
+    handleRadioGroupKeydown(event, this.renoTypeIds(), this.renoInputs().renoType, (id) =>
+      this.chooseRenoType(id),
+    );
+  }
+
+  /** Roving tabindex (#937) for the finish-tier cards. */
+  tierTabIndex(id: FinishTier): 0 | -1 {
+    return radioTabIndex(this.tierIds(), this.renoInputs().tier, id);
+  }
+
+  /** Radio-group keys for the finish-tier cards (#937). */
+  onTierKeydown(event: KeyboardEvent): void {
+    handleRadioGroupKeydown(event, this.tierIds(), this.renoInputs().tier, (id) => this.chooseTier(id));
+  }
+
+  private renoTypeIds(): RenoType[] {
+    return this.copy.renoTypes.map((t) => t.id as RenoType);
+  }
+
+  private tierIds(): FinishTier[] {
+    return this.copy.scopeTiers.map((t) => t.id as FinishTier);
   }
 
   /** Whether the underpinning toggle is shown (basement or combined only). */

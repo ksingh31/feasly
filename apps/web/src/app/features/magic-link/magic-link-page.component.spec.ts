@@ -100,6 +100,17 @@ describe('MagicLinkPageComponent', () => {
     expect(navigateSpy).toHaveBeenCalledWith(['/estimate/report']);
   });
 
+  it('a valid owner link fires magic_link_open once, without the token in the route (#815)', async () => {
+    await setup('tok-abc', { valid: true, reportToken: 'rep-123', estimateId: 'est-1', leadId: 'lead-1' });
+    const track = vi.mocked(TestBed.inject(AnalyticsService).track);
+    expect(track.mock.calls).toEqual([['magic_link_open', '/r']]);
+  });
+
+  it('an expired link fires no magic_link_open (#815)', async () => {
+    await setup('tok-old', { valid: false, reason: 'expired', reissueAllowed: true });
+    expect(TestBed.inject(AnalyticsService).track).not.toHaveBeenCalled();
+  });
+
   it('expired token shows the expired card with a resend form', async () => {
     await setup('tok-old', { valid: false, reason: 'expired', reissueAllowed: true });
     expect(text()).toContain('expired');

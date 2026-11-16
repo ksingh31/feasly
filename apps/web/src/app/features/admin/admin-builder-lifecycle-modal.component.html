@@ -1,0 +1,45 @@
+<ui-modal [heading]="title" asForm (submitted)="confirm()">
+  <p class="lifecycle-modal__body" data-testid="lifecycle-body">{{ body }}</p>
+
+  <ui-field-shell
+    label="Reason"
+    controlId="lifecycle-reason-input"
+    hintId="lifecycle-reason-hint"
+    errorId="lifecycle-reason-error"
+    [required]="true"
+    [hint]="reasonHint"
+    [error]="reasonError()"
+  >
+    <textarea
+      id="lifecycle-reason-input"
+      class="lifecycle-modal__textarea"
+      data-testid="lifecycle-reason"
+      rows="3"
+      required
+      aria-required="true"
+      [maxLength]="maxLength"
+      [value]="reason()"
+      [disabled]="submitting()"
+      [attr.aria-invalid]="reasonError() ? 'true' : null"
+      [attr.aria-describedby]="reasonError() ? 'lifecycle-reason-error' : 'lifecycle-reason-hint'"
+      (input)="onReason($event)"
+    ></textarea>
+  </ui-field-shell>
+
+  @if (error(); as err) {
+    <p class="lifecycle-modal__alert" role="alert" data-testid="lifecycle-error">{{ err }}</p>
+  }
+
+  <ng-container uiModalFooter>
+    <button type="button" ui-button variant="secondary" (click)="cancel()">Cancel</button>
+    <button
+      type="submit"
+      ui-button
+      data-testid="lifecycle-submit"
+      [variant]="danger ? 'danger' : 'primary'"
+      [loading]="submitting()"
+    >
+      {{ view.verb }}
+    </button>
+  </ng-container>
+</ui-modal>

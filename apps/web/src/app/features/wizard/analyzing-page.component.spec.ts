@@ -15,6 +15,7 @@ import { GoToStep, LeadState, SelectProperty, StoreLeadResult, StorePreviewEstim
 import { previewRequestKey } from '../../core/api/preview-cache';
 import { ReportState } from '../report/report.state';
 import { EmbedState } from '../embed/embed.state';
+import { AnalyticsService } from '../consent/analytics.service';
 import { AnalyzingPageComponent } from './analyzing-page.component';
 
 /** Blank route target for navigation assertions. */
@@ -350,6 +351,12 @@ describe('AnalyzingPageComponent', () => {
       expect(stageState('estimate')).toBe('error');
       expect(router.url).not.toBe('/estimate/report');
       expect(store.selectSnapshot(WizardState.preview)).toBeNull();
+    });
+
+    it('a failed run fires estimate_error once (#815)', async () => {
+      const track = vi.spyOn(TestBed.inject(AnalyticsService), 'track');
+      await failEstimate();
+      expect(track.mock.calls).toEqual([['estimate_error']]);
     });
 
     it('Retry re-runs the estimate and recovers to the report', async () => {

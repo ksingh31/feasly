@@ -9,10 +9,14 @@ import { provideRouter } from '@angular/router';
 import { Store, provideStore } from '@ngxs/store';
 import { Subject, of } from 'rxjs';
 import { describe, expect, it, vi } from 'vitest';
-import type { DisputeDetailResponse } from '@feasly/contracts';
+import type { BillingHealthResponse, DisputeDetailResponse } from '@feasly/contracts';
 import { UiDrawerRef, UiModalService } from '@app/shared/ui';
 import { BuilderInvoicesApiService, type BuilderCommissionInvoice } from '../builder/builder-invoices-api.service';
 import { AdminAuthState } from './admin-auth.state';
+import { AdminBillingApiService } from './admin-billing-api.service';
+import { AdminLeadsApiService } from './admin-leads-api.service';
+import { BillingHealthState } from './billing-health.state';
+import { LoadAdminInvoiceDetail } from './admin-invoices.actions';
 import { AdminDisputesApiService } from './admin-disputes-api.service';
 import { AdminInvoiceDrawerComponent } from './admin-invoice-drawer.component';
 import { AdminInvoiceMethodModalComponent } from './admin-invoice-method-modal.component';
@@ -98,6 +102,8 @@ interface Options {
   readonly invoice?: BuilderCommissionInvoice;
   readonly permissions?: string[];
   readonly modalResult?: Subject<boolean | undefined>;
+  /** #791: payment provider reported by GET /admin/billing. */
+  readonly provider?: 'stripe' | 'simulated';
 }
 
 async function setup(options: Options = {}) {
@@ -110,6 +116,16 @@ async function setup(options: Options = {}) {
     listDisputes: vi.fn(() => of({ disputes: [DISPUTE] })),
     getDispute: vi.fn(() => of(DISPUTE)),
   };
+  const billingApi = {
+    getBillingHealth: vi.fn(() =>
+      of({
+        stripe: { configured: true, testMode: true, provider: options.provider ?? 'stripe' },
+      } as BillingHealthResponse),
+    ),
+    fireSimulatedInvoiceEvent: vi.fn(() =>
+      of({ invoiceId: invoice.id, paymentIntentId: 'pi_sim_1', kind: 'dispute' as const, eventType: 'charge.dispute.created' }),
+    ),
+  };
   const modalResult = options.modalResult ?? new Subject<boolean | undefined>();
   const modals = { open: vi.fn(() => ({ closed: modalResult.asObservable() })) };
   const ref = { titleId: 'drawer-title', urlId: 'inv-1', setDirty: vi.fn(), close: vi.fn(), requestClose: vi.fn() };
@@ -117,7 +133,9 @@ async function setup(options: Options = {}) {
   TestBed.configureTestingModule({
     providers: [
       provideRouter([]),
-      provideStore([AdminInvoicesState, AdminAuthState]),
+      provideStore([AdminInvoicesState, AdminAuthState, BillingHealthState]),
+      { provide: AdminBillingApiService, useValue: billingApi },
+      { provide: AdminLeadsApiService, useValue: {} },
       { provide: BuilderInvoicesApiService, useValue: invoicesApi },
       { provide: AdminDisputesApiService, useValue: disputesApi },
       { provide: UiModalService, useValue: modals },
@@ -138,7 +156,7 @@ async function setup(options: Options = {}) {
   await fixture.whenStable();
   const el = fixture.nativeElement as HTMLElement;
   const q = (id: string) => el.querySelector(`[data-testid="${id}"]`) as HTMLElement | null;
-  return { fixture, store, el, q, invoicesApi, disputesApi, modals, modalResult };
+  return { fixture, store, el, q, invoicesApi, disputesApi, modals, modalResult, billingApi };
 }
 
 describe('AdminInvoiceDrawerComponent', () => {
@@ -161,6 +179,20 @@ describe('AdminInvoiceDrawerComponent', () => {
     expect(q('invoice-subtotal')?.textContent).toContain('$19,800');
     expect(q('invoice-tax')?.textContent).toContain('GST (5%)');
     expect(q('invoice-tax')?.textContent).toContain('$990');
+  });
+
+  it('#872: shows the refunded amount and the chargeback state on a charged-back invoice', async () => {
+    const { q } = await setup({
+      invoice: { ...INVOICE, status: 'paid', refundedCents: 250_000, chargebackStatus: 'open' },
+    });
+    expect(q('invoice-refunded')?.textContent).toContain('$2,500');
+    expect(q('invoice-chargeback')?.textContent).toContain('Chargeback open');
+  });
+
+  it('#872: no refund / chargeback rows when refundedCents is 0 and there is no chargeback', async () => {
+    const { q } = await setup({ invoice: { ...INVOICE, refundedCents: 0, chargebackStatus: null } });
+    expect(q('invoice-refunded')).toBeNull();
+    expect(q('invoice-chargeback')).toBeNull();
   });
 
   it('#764 AC2: an untaxed invoice shows no tax rows', async () => {
@@ -230,5 +262,22 @@ describe('AdminInvoiceDrawerComponent', () => {
     expect(disputesApi.getDispute).not.toHaveBeenCalled();
     expect(q('open-dispute')).toBeNull();
     expect(q('open-disputes')?.getAttribute('href')).toBe('/admin/disputes');
+  });
+
+  describe('simulated dev panel (#791)', () => {
+    it('is absent for the Stripe provider (AC2)', async () => {
+      const { q } = await setup({ provider: 'stripe' });
+      expect(q('simulated-dev-panel')).toBeNull();
+    });
+
+    it('shows for the simulated provider and reloads the invoice after an event', async () => {
+      const { q, fixture, store, billingApi } = await setup({ provider: 'simulated' });
+      expect(q('simulated-dev-panel')).not.toBeNull();
+      const dispatch = vi.spyOn(store, 'dispatch');
+      q('sim-fire-dispute')!.click();
+      await fixture.whenStable();
+      expect(billingApi.fireSimulatedInvoiceEvent).toHaveBeenCalledWith('inv-1', { kind: 'dispute' });
+      expect(dispatch).toHaveBeenCalledWith(expect.any(LoadAdminInvoiceDetail));
+    });
   });
 });

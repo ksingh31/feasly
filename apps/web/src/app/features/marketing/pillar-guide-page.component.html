@@ -1,4 +1,4 @@
-<app-site-nav />
+<app-site-nav [search]="true" />
 <main class="marketing" id="main-content" tabindex="-1">
   <p class="eyebrow eyebrow-left">
     <span class="eyebrow-line" aria-hidden="true"></span>
@@ -10,6 +10,7 @@
   <section aria-labelledby="pillar-tiers">
     <h2 class="guide-h2" id="pillar-tiers">{{ copy.tiersTitle }}</h2>
     <p class="guide-body">{{ copy.tiersIntro }}</p>
+    <div class="table-scroll" role="region" aria-labelledby="pillar-tiers" tabindex="0">
     <table class="guide-table">
       <caption class="sr-only">{{ copy.tiersTitle }}</caption>
       <thead>
@@ -29,6 +30,7 @@
         }
       </tbody>
     </table>
+    </div>
   </section>
 
   <section aria-labelledby="pillar-example">
@@ -39,8 +41,11 @@
   <section aria-labelledby="pillar-included">
     <h2 class="guide-h2" id="pillar-included">{{ copy.includedTitle }}</h2>
     <p class="guide-body">{{ copy.includedBody }}</p>
+    <!-- #824: the engine's line items (generated) / config exclusions. -->
+    <app-estimate-scope part="includes" [showTitles]="false" />
     <h2 class="guide-h2" id="pillar-excluded">{{ copy.excludedTitle }}</h2>
     <p class="guide-body">{{ copy.excludedBody }}</p>
+    <app-estimate-scope part="excluded" [showTitles]="false" />
   </section>
 
   <section aria-labelledby="pillar-infill">

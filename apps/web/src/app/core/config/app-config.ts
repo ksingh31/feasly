@@ -185,6 +185,8 @@ export interface BuilderCopy {
   invoiceStatusDraft: string;
   invoiceStatusInReview: string;
   invoiceStatusFinalized: string;
+  /** #712: the bank wants the builder to confirm the charge (3DS). */
+  invoiceStatusActionRequired: string;
   invoiceStatusPaid: string;
   invoiceStatusFailed: string;
   invoiceStatusDisputed: string;
@@ -195,6 +197,12 @@ export interface BuilderCopy {
   invoicesDueIn: string;
   invoicesDueTomorrow: string;
   invoicesDueToday: string;
+  /** #901: Due column for a failed card invoice — `{date}` of the next automatic retry. */
+  invoicesNextRetry: string;
+  /** #901: a manual-method invoice 1 day past its due date. */
+  invoicesOverdueOne: string;
+  /** #901: a manual-method invoice past its due date — `{days}`. */
+  invoicesOverdueMany: string;
   invoicesPaymentFailed: string;
   invoicesPaymentReceived: string;
   invoicesUpdateCardCta: string;
@@ -325,6 +333,8 @@ export interface BuilderCopy {
   /** Builder shell v2 (#502, portal UI kit §4). */
   shellNavLabel: string;
   shellTabsLabel: string;
+  /** #864: screen-reader text for the Leads unread badge. {count} = leads. */
+  shellLeadsUnreadLabel: string;
   shellNavMoney: string;
   shellMoneyNavLabel: string;
   shellAccountMenuLabel: string;
@@ -491,6 +501,228 @@ export interface BuilderCopy {
   cardModalContact: string;
   /** Close button label / × aria-label. */
   cardModalClose: string;
+  /** #791: test-mode (simulated payment provider) card picker + 3DS step. */
+  simulated: BuilderSimulatedPaymentsCopy;
+  /** #879: card lifecycle — expiry notices, replace and remove card. */
+  cardLifecycle: BuilderCardLifecycleCopy;
+  /** #871: builder Settings page (Profile & branding, Embed, Help). */
+  settings: BuilderSettingsCopy;
+  /** #861: the "Your account is paused" screen (403 BUILDER_PAUSED). */
+  paused: BuilderPausedCopy;
+}
+
+/**
+ * #879 card lifecycle copy (Money + Billing pages, card modal). The expiry
+ * window itself is server-side (BILLING_CARD_EXPIRY_WARNING_DAYS) — the
+ * client only renders the API's `expiresSoon` / `expired` flags.
+ */
+export interface BuilderCardLifecycleCopy {
+  /** Notice heading when the card expires within the warning window. */
+  expiresSoonHeading: string;
+  /** Notice body: {last4} = card last 4, {exp} = MM/YY. */
+  expiresSoonBody: string;
+  /** Notice heading when the card's expiry month has ended. */
+  expiredHeading: string;
+  /** Notice body: {last4} = card last 4, {exp} = MM/YY. */
+  expiredBody: string;
+  /** Notice action: opens the card modal. */
+  replace: string;
+  /** Builder-admin action that starts the remove confirm step. */
+  remove: string;
+  /** Confirm step heading. */
+  removeConfirmHeading: string;
+  /** Confirm step body. */
+  removeConfirmBody: string;
+  /** Confirm step: go ahead. */
+  removeConfirm: string;
+  /** Confirm step: back out. */
+  removeCancel: string;
+  /** Confirm button while the DELETE is in flight. */
+  removing: string;
+  /** Toast after removal. */
+  removed: string;
+  /** Any non-409 removal failure. */
+  removeFailed: string;
+  /** Card modal: saving a card replaces the one on file (one card per builder). */
+  modalReplaceNote: string;
+}
+
+/** #861: shown instead of a generic error when the org's account is paused. */
+export interface BuilderPausedCopy {
+  heading: string;
+  /** Fallback body when the API sent no message. */
+  body: string;
+  /** Extra line for org owners: invoices stay viewable and payable. */
+  invoicesNote: string;
+  contactLabel: string;
+  invoicesLabel: string;
+}
+
+/** One link on the builder Settings Help tab. */
+export interface BuilderHelpLink {
+  label: string;
+  /** App route (starts with '/') or absolute https URL. */
+  href: string;
+}
+
+/**
+ * #871: builder Settings copy. Support email + response time come from the
+ * API (`BuilderSupportContact`), never from here.
+ */
+export interface BuilderSettingsCopy {
+  navLabel: string;
+  heading: string;
+  description: string;
+  tabsLabel: string;
+  tabProfile: string;
+  tabEmbed: string;
+  tabHelp: string;
+  /** #864: Notifications tab. */
+  tabNotifications: string;
+  /** Profile tab. */
+  profileLoading: string;
+  profileLoadError: string;
+  profileReadOnlyNote: string;
+  profileViewAsNote: string;
+  businessNameLabel: string;
+  businessNameHint: string;
+  displayNameLabel: string;
+  displayNameHint: string;
+  contactEmailLabel: string;
+  contactPhoneLabel: string;
+  logoUrlLabel: string;
+  logoUrlHint: string;
+  accentColorLabel: string;
+  accentColorHint: string;
+  accentPickerLabel: string;
+  previewHeading: string;
+  previewLogoNone: string;
+  previewLogoBroken: string;
+  previewButton: string;
+  previewAccentNone: string;
+  saveLabel: string;
+  resetLabel: string;
+  savedToast: string;
+  saveError: string;
+  errorRequired: string;
+  errorEmail: string;
+  errorHttps: string;
+  errorHex: string;
+  /** {max} = character limit. */
+  errorTooLong: string;
+  /** Embed tab. */
+  embedLoading: string;
+  embedLoadError: string;
+  snippetHeading: string;
+  snippetIntro: string;
+  copyLabel: string;
+  copiedToast: string;
+  copyFailedToast: string;
+  originsHeading: string;
+  /** {days} = live window in days. */
+  originsIntro: string;
+  originsEmpty: string;
+  originColOrigin: string;
+  originColStatus: string;
+  originColLastSeen: string;
+  originLive: string;
+  originStale: string;
+  originNever: string;
+  requestChangeLabel: string;
+  requestChangeOwnerOnly: string;
+  openRequestsHeading: string;
+  openRequestAdd: string;
+  openRequestRemove: string;
+  /** {date} = request date. */
+  openRequestFiled: string;
+  /** Request-a-change dialog. */
+  requestHeading: string;
+  requestIntro: string;
+  requestAddLabel: string;
+  requestAddHint: string;
+  requestRemoveLegend: string;
+  requestNoteLabel: string;
+  requestNoteHint: string;
+  requestSubmit: string;
+  requestCancel: string;
+  requestEmptyError: string;
+  requestError: string;
+  requestCreatedToast: string;
+  requestDuplicateToast: string;
+  /** Help tab. */
+  helpHeading: string;
+  helpIntro: string;
+  helpEmailLabel: string;
+  /** {time} = response time from the API. */
+  helpResponseTime: string;
+  helpLinksHeading: string;
+  helpLinks: BuilderHelpLink[];
+  /** Notifications tab (#864). */
+  notificationsHeading: string;
+  notificationsIntro: string;
+  notificationsLoading: string;
+  notificationsLoadError: string;
+  notificationsViewAsNote: string;
+  notifyNewLeadLabel: string;
+  notifyNewLeadHint: string;
+  notifyDigestLabel: string;
+  notifyDigestHint: string;
+  notifyBillingLabel: string;
+  notifyBillingHint: string;
+  /** Shown to members in place of the billing toggle. */
+  notifyBillingMemberNote: string;
+  /** Shown when the last billing admin can't turn billing emails off. */
+  notifyBillingLockedNote: string;
+  notificationsSavedToast: string;
+  notificationsSaveError: string;
+  /** #861 "Close my account" (Help tab, org owners). No self-serve deletion. */
+  closeHeading: string;
+  closeIntro: string;
+  closeOwnerOnly: string;
+  closeButton: string;
+  closeModalHeading: string;
+  closeModalIntro: string;
+  closeNoteLabel: string;
+  /** {max} = character limit. */
+  closeNoteHint: string;
+  closeSubmit: string;
+  closeCancel: string;
+  closeError: string;
+  closeCreatedToast: string;
+  closeDuplicateToast: string;
+}
+
+/**
+ * #791 builder copy for the simulated payment provider (dev/test only):
+ * the test-card picker in the card modal and the dev-only 3D Secure step.
+ * The "Test mode — no real charges" banner and the card labels come from
+ * `@feasly/contracts` (SIMULATED_PAYMENTS_NOTICE / SIMULATED_TEST_CARDS).
+ */
+export interface BuilderSimulatedPaymentsCopy {
+  /** Radio-group legend for the test cards. */
+  pickerLegend: string;
+  /** 3DS step heading (dev-only). */
+  challengeHeading: string;
+  /** 3DS step body. */
+  challengeBody: string;
+  /** Complete the challenge (bank approves). */
+  challengeComplete: string;
+  /** Fail the challenge (bank refuses). */
+  challengeFail: string;
+  /** The authenticate call failed — try again. */
+  challengeError: string;
+  /** Card modal: the 3DS check on save failed — card not saved. */
+  setupChallengeFailed: string;
+  /** Invoice drawer section heading for a charge waiting on 3DS. */
+  paymentHeading: string;
+  /** Invoice drawer body for a charge waiting on 3DS. */
+  paymentBody: string;
+  /** confirm-payment failed — retry offered. */
+  paymentLoadError: string;
+  /** Toast: the 3DS check was completed. */
+  paymentCompletedToast: string;
+  /** Toast: the 3DS check failed — the charge did not go through. */
+  paymentFailedToast: string;
 }
 
 /** Builder Leads home copy and display thresholds (#527, builder review §Leads home). */
@@ -523,6 +755,14 @@ export interface BuilderLeadsHomeCopy {
   timelinePrefix: string;
   /** Text marker on stale rows (the highlight is never colour-only). */
   staleLabel: string;
+  /** Read-only list of leads Feasly moved away from this builder (#803). */
+  reassignedHeading: string;
+  /** Sub-copy under the heading. */
+  reassignedHint: string;
+  /** Marker on each reassigned row. */
+  reassignedLabel: string;
+  /** Time prefix on each reassigned row ("Moved"). */
+  reassignedAtPrefix: string;
   noResultsHeading: string;
   noResultsMessage: string;
   clearFiltersLabel: string;
@@ -584,6 +824,12 @@ export interface BuilderInvoiceDrawerCopy {
   changeMethodAria: string;
   timelineHeading: string;
   timelineEmpty: string;
+  /** #872: refunds + bank-dispute section heading. */
+  recoveryHeading: string;
+  /** #872: cumulative refunded amount row label. */
+  refundedLabel: string;
+  /** #872: bank chargeback state row label. */
+  chargebackLabel: string;
   actionsHeading: string;
   questionInvoice: string;
   /** #661: invoice PDF/receipt download button. */
@@ -598,6 +844,38 @@ export interface BuilderInvoiceDrawerCopy {
   pdfFilename: string;
   /** Toast after a method change: `{method}`. */
   methodChangedToast: string;
+  /** #867: primary button for an invoice waiting on the bank (`action_required`). */
+  confirmPaymentCta: string;
+  /** #867: the button while the confirm is in flight. */
+  confirmPaymentBusy: string;
+  /** #867: status note while waiting for the webhook to settle the invoice. */
+  confirmPaymentPending: string;
+  /** #867: the invoice still waits after the poll window — offer a re-check. */
+  confirmPaymentStalled: string;
+  /** #867: re-check button after the poll window. */
+  confirmPaymentCheckAgain: string;
+  /** #901: failed card invoice — label of the next-retry row. */
+  nextRetryLabel: string;
+  /** #901: value when no automatic retry is scheduled. */
+  nextRetryNone: string;
+  /** #901: Pay now button on a failed card invoice. */
+  payNowCta: string;
+  /** #901: Pay now while the charge is in flight. */
+  payNowBusy: string;
+  /** #901: one line under the button explaining what Pay now does. */
+  payNowNote: string;
+  /** #901: toast — Pay now charged the card. */
+  payNowPaidToast: string;
+  /** #901: toast — the card was declined again. */
+  payNowDeclinedToast: string;
+  /** #901: toast — the bank wants the builder to confirm (3D Secure). */
+  payNowConfirmToast: string;
+  /** #901: inline error when the Pay now request itself fails. */
+  payNowError: string;
+  /** #901: banner on a manual-method invoice past its due date — `{days}`, `{date}`. */
+  overdueBanner: string;
+  /** #901: same banner when exactly 1 day overdue — `{date}`. */
+  overdueBannerOne: string;
   modalHeading: string;
   /** "Before" label in the modal. */
   modalBefore: string;
@@ -621,6 +899,14 @@ export interface BuilderLeadDrawerCopy {
   /** Header meta: `{date}` is when the lead arrived. */
   arrivedMeta: string;
   contactHeading: string;
+  /** #836: the homeowner's callback request (preferred day, window, notes). */
+  callbackHeading: string;
+  callbackDayLabel: string;
+  callbackWindowLabel: string;
+  callbackNotesLabel: string;
+  callbackRequestedLabel: string;
+  /** Shown for a request filed before #836 (no preferred day). */
+  callbackAnyDay: string;
   statusHeading: string;
   detailsHeading: string;
   activityHeading: string;
@@ -739,6 +1025,129 @@ export interface BuilderRecordContractCopy {
   viewInvoice: string;
 }
 
+/**
+ * One phase of the typical build timeline (#823). Ranges are typical
+ * durations, never a promise. Permit phases can later be fed from real City
+ * approval times (permits story) by replacing these values.
+ */
+export interface BuildTimelinePhase {
+  /** Stable id (track key), e.g. `development-permit`. */
+  readonly id: string;
+  /** Display label, e.g. "Development permit". */
+  readonly label: string;
+  readonly min: number;
+  readonly max: number;
+  /** Unit of `min`/`max` — picks the range template in copy.buildTimeline. */
+  readonly unit: 'weeks' | 'months';
+}
+
+/** One entry in the estimate's includes / not-included lists (#824). */
+/** A whole-dollar `{ low, base, high }` band, as the engine emits it. */
+export interface HowWeEstimateBand {
+  readonly low: number;
+  readonly base: number;
+  readonly high: number;
+}
+
+/** Formula term of an engine line item (#827). */
+export type FormulaGroupKey = 'hard' | 'soft' | 'contingency';
+
+/**
+ * Config-owned FAQ lists a help answer (#834) can reuse:
+ * `copy.marketing.faq.items`, `copy.marketing.pillarGuide.faqs`,
+ * `copy.marketing.zoningGuide.faqs`, `copy.communities.faqItems`.
+ */
+export type HelpAnswerSource = 'faq' | 'pillarGuide' | 'zoningGuide' | 'communities';
+
+/**
+ * Help page (#834) at `/help`: answers grouped by topic, reused from
+ * the config-owned FAQ lists (never duplicated here), plus contact.
+ * Each answer references a question by its exact `q` text in one of
+ * the FAQ sources; unknown references are dropped at render and
+ * pinned by `help-page.component.spec.ts`.
+ *
+ * Not part of {@link AppConfig}: lazy-loaded with the help page
+ * (`features/marketing/help-copy.ts`) to keep it out of the initial bundle
+ * (Lighthouse script-size budget). Deploy overrides still live under
+ * `copy.marketing.help` in app-config.json.
+ */
+export interface HelpCopy {
+  eyebrow: string;
+  title: string;
+  /** Answer-first passage (SEO standard §2.1). */
+  answer: string;
+  searchLabel: string;
+  searchPlaceholder: string;
+  /** Live result count. Placeholders: {count}. */
+  resultsTemplate: string;
+  resultsOne: string;
+  noResults: string;
+  clearSearch: string;
+  topics: {
+    id: string;
+    title: string;
+    answers: { source: HelpAnswerSource; q: string }[];
+  }[];
+  linksTitle: string;
+  howWeEstimateLabel: string;
+  faqLabel: string;
+  statusLabel: string;
+  contactTitle: string;
+  contactIntro: string;
+  callbackTitle: string;
+  callbackBody: string;
+  callbackFindReport: string;
+  callbackStartEstimate: string;
+}
+
+/**
+ * How it works worked example (#827): a sample home priced by the cost
+ * engine at generation time (estimate-scope.generated.ts). Display only.
+ */
+export interface HowWeEstimateWorkedExample {
+  readonly costDataVersion: string;
+  readonly input: { readonly buildSqft: number; readonly tier: string; readonly lotSizeSqft: number };
+  readonly groups: readonly {
+    readonly key: FormulaGroupKey;
+    readonly rows: readonly { readonly key: string; readonly label: string; readonly range: HowWeEstimateBand }[];
+    readonly subtotal: HowWeEstimateBand;
+  }[];
+  readonly build: HowWeEstimateBand;
+}
+
+/** One "Data sources" card on How it works (#827). */
+export interface HowWeEstimateSourceCopy {
+  readonly title: string;
+  readonly body: string;
+  /** Primary-source link text (the URL lives beside it in config). */
+  readonly linkLabel: string;
+  /** Stamp when the date/version is known: "Updated {date}" / "Version {version}". */
+  readonly stampTemplate: string;
+  /** Stamp when it is not (yet) known — an honest, undated line. */
+  readonly stampUnknown: string;
+}
+
+export interface EstimateScopeItem {
+  /**
+   * Engine line-item key (`hard.<k>`, `soft.<k>`, `contingency`) for
+   * includes. For not-included entries, the cost-data category key the item
+   * would get once the engine prices it (e.g. `demolition`): an entry whose
+   * key matches an included item's key (ignoring the `hard.`/`soft.` prefix)
+   * is hidden, so it moves to "includes" when the engine adds it (#825).
+   */
+  readonly key: string;
+  readonly label: string;
+}
+
+/** A city's typical design-to-completion timeline (#823). */
+export interface BuildTimelineCity {
+  /** Typical total in months — configured, never summed (phases overlap). */
+  readonly totalMinMonths: number;
+  readonly totalMaxMonths: number;
+  /** Phases in display order. */
+  readonly phases: readonly BuildTimelinePhase[];
+}
+
 export interface AppConfig {
   /** Public site facts. */
   site: {
@@ -748,6 +1157,12 @@ export interface AppConfig {
     name: string;
     /** Site-root-relative path of the 1200×630 social share image. */
     socialImage: string;
+    /**
+     * Public status page (#831, Upptime on GitHub Pages). Absolute https URL;
+     * empty string = no footer link (never a dead link). Must match
+     * infra/status-page/.upptimerc.yml (status-page-config.spec.ts).
+     */
+    statusPageUrl: string;
   };
   /** Backend wiring. */
   api: {
@@ -797,6 +1212,26 @@ export interface AppConfig {
      * the minted invoice's own `reviewDueAt` is shown once it does.
      */
     chargeDelayDays: number;
+    /**
+     * Stripe dashboard origin for the admin "View in Stripe" chargeback
+     * link (#872). Live disputes open `<base>/disputes/<dp_…>`; test-mode
+     * disputes open `<base>/test/disputes/<dp_…>`.
+     */
+    stripeDashboardBaseUrl: string;
+    /**
+     * #867: after the builder confirms a payment with their bank, the
+     * invoice drawer re-fetches the invoice every `confirmPollIntervalMs`
+     * (at most `confirmPollAttempts` times) until the webhook settles it.
+     */
+    confirmPollIntervalMs: number;
+    confirmPollAttempts: number;
+    /**
+     * #901: bounds for the admin "Edit grace days" control on a dunning
+     * invoice. Mirror the API's MIN_/MAX_DUNNING_GRACE_DAYS (1–90), which
+     * stays the authority (a value outside them is rejected with 400).
+     */
+    dunningGraceDaysMin: number;
+    dunningGraceDaysMax: number;
   };
   /** Property-data wiring (FE1-002): autocomplete + property records. */
   propertyData: {
@@ -832,6 +1267,12 @@ export interface AppConfig {
     renovationWaitlist: boolean;
     /** #520 (D-P4): notify-me capture (Toronto/Vancouver) on the out-of-coverage state. */
     cityWaitlist: boolean;
+    /**
+     * #706: run the erasure confirm step on `/privacy/my-data` itself.
+     * True until the API emails the confirmation link (#806); then false and
+     * the page says "check your email" instead.
+     */
+    privacyEraseConfirmInPage: boolean;
   };
   /**
    * Legal review state (legal/01 AC3 — the LEGAL_REVIEW_PENDING mechanism).
@@ -883,6 +1324,8 @@ export interface AppConfig {
     communityPageLimit: number;
     /** Max address suggestions shown in autocomplete. */
     autocompleteSuggestionLimit: number;
+    /** Max community suggestions shown in the site search (#783). */
+    communitySuggestionLimit: number;
     /**
      * Estimate input bounds, mirrored from the cost-data file
      * (packages/cost-engine/cost-data inputBounds). The property record
@@ -904,12 +1347,72 @@ export interface AppConfig {
      * estimate-input-bounds-drift.spec.ts fails CI if they diverge.
      */
     estimateRoundingStep: number;
+    /**
+     * #836: callback preferred day — weekdays from tomorrow through this
+     * many calendar days ahead (Edmonton). Mirrors the API's
+     * LEAD_CALLBACK_DATE_WINDOW_DAYS; the API re-validates.
+     */
+    callbackDateWindowDays: number;
+    /** #836: callback notes cap (characters); the API enforces the same. */
+    callbackNotesMaxLength: number;
+    /**
+     * #871: builder Settings field caps — mirror the API's profile /
+     * origin-request validation (builder-settings.service.ts); the API
+     * re-validates.
+     */
+    builderDisplayNameMaxLength: number;
+    builderContactEmailMaxLength: number;
+    builderLogoUrlMaxLength: number;
+    builderOriginRequestMaxOrigins: number;
+    builderOriginRequestNoteMaxLength: number;
+    /** #861: optional note on a "Close my account" request (API max 1000). */
+    builderAccountClosureNoteMaxLength: number;
+  };
+  /**
+   * What a new-build estimate includes and leaves out (#824, owner decision
+   * 2026-11-15). `includes` is GENERATED from the cost engine's line items
+   * (estimate-scope.generated.ts) — never hand-written, so it can't drift.
+   * `notIncluded` lists what the engine doesn't price yet.
+   */
+  estimateScope: {
+    includes: readonly EstimateScopeItem[];
+    notIncluded: readonly EstimateScopeItem[];
+  };
+  /**
+   * How it works — the transparency page (#827). Every figure here is
+   * GENERATED: the worked example and cost-data version from the cost
+   * engine (estimate-scope.generated.ts), the land use rules date and
+   * bylaw link from the zoning catalogue (zoning-eligibility.generated.ts).
+   * The assessment roll date is live (GET /api/v1/city-data/freshness).
+   */
+  howWeEstimate: {
+    workedExample: HowWeEstimateWorkedExample;
+    /** Cost-data table version every estimate is pinned to. */
+    costDataVersion: string;
+    /** ISO date the land use rules catalogue is as of. */
+    landUseRulesAsOf: string;
+    /** Primary-source URLs cited by the data-source cards. */
+    sourceUrls: {
+      assessment: string;
+      landUse: string;
+    };
+  };
+  /**
+   * Typical custom-infill build timeline by city (#823, owner decision
+   * 2026-11-15: 12–16 months design to completion). Rendered by the shared
+   * BuildTimelineComponent on the report and address overview; the API's
+   * report email carries the same figures from its own config.
+   */
+  buildTimeline: {
+    /** City used when a surface does not pass one. Must be a key of `cities`. */
+    defaultCity: string;
+    cities: Record<string, BuildTimelineCity>;
   };
   /**
    * Estimator eligibility by city (#685). The early coverage guard
    * (core/utils/coverage.ts) reads these lists; no district code literal
-   * lives in code. When the zoning catalogue story lands it becomes the
-   * single source and this key goes away.
+   * lives in code. Both lists are generated from the zoning catalogue
+   * (packages/zoning, #911), which is the single source of truth.
    */
   coverage: {
     /**
@@ -921,6 +1424,14 @@ export interface AppConfig {
      * coverage-zoning-copy-drift.spec.ts.
      */
     singleFamilyDistricts: {
+      calgary: readonly string[];
+    };
+    /**
+     * Subset of `singleFamilyDistricts` where single-detached is a
+     * discretionary use (#911): still quoted, but the property card says it
+     * needs City approval. Derived from the zoning catalogue.
+     */
+    discretionarySingleFamilyDistricts: {
       calgary: readonly string[];
     };
   };
@@ -936,12 +1447,45 @@ export interface AppConfig {
     addressMaxLength: number;
     /** Allowlisted `src` values kept for attribution; any other value is dropped. */
     sources: readonly string[];
+    /**
+     * #783: `src` the nav site search sends when it opens the estimator with
+     * a picked address. Must be one of `sources`.
+     */
+    siteSearchSource: string;
   };
   /** Analytics consent. */
   analytics: {
     enabled: boolean;
     /** Exact opt-in wording shown to the user. */
     optInWording: string;
+  };
+  /**
+   * Real-user monitoring (#830): sampled Core Web Vitals + uncaught JS
+   * errors, beaconed to POST /api/v1/telemetry. No PII, no identifiers.
+   * Off in mock-API mode (there is no backend to receive it).
+   */
+  telemetry: {
+    enabled: boolean;
+    /** Fraction of page loads (sessions) that report, 0..1. */
+    sampleRate: number;
+    /** Most error items reported per page load (stops error storms). */
+    maxErrorsPerSession: number;
+    /** Error message characters kept before sending. */
+    maxMessageLength: number;
+    /** Most items per beacon (mirrors the API's batch cap). */
+    maxBatchItems: number;
+  };
+  /**
+   * Invisible bot challenge (#905, API half #788). Used only when the lead or
+   * estimate API answers 403 CHALLENGE_REQUIRED / CHALLENGE_FAILED; the
+   * script is never loaded on the normal path. The site key always comes
+   * from that 403 body, never from here.
+   */
+  botChallenge: {
+    /** Cloudflare Turnstile loader (explicit render). Origin must be in the CSP. */
+    turnstileScriptUrl: string;
+    /** Most time to wait for the script + token before giving up. */
+    timeoutMs: number;
   };
   /** User-facing copy, namespaced by area. Extended by FE1-001. */
   admin: {
@@ -1093,6 +1637,15 @@ export interface AppConfig {
       error: string;
       retryLabel: string;
       searchingLabel: string;
+      /** #783 site search: accessible label for the address-or-community box. */
+      siteSearchLabel: string;
+      /** #783 site search: placeholder for the address-or-community box. */
+      siteSearchPlaceholder: string;
+      /** #783 site search: listbox group headings. */
+      communitiesGroupLabel: string;
+      addressesGroupLabel: string;
+      /** #783 site search: secondary line on a community option. */
+      communityOptionHint: string;
     };
     /**
      * White-label embed shell strings (EMB-01). The unavailableBody copy is
@@ -1311,6 +1864,23 @@ export interface AppConfig {
       recapEditAriaLabel: string;
       recapSqftUnit: string;
       /**
+       * #835: the total range shows in the clear before the gate (owner,
+       * 2026-11-15). Note under it: what the total is made of.
+       */
+      totalShownNote: string;
+      /**
+       * #835 address overview, shown free before the gate: land-use district
+       * and what it typically allows (from `copy.marketing.zoningGuide.zones`), the
+       * redevelop/renovate steer (from `copy.wizard.steer*Reason`) and the
+       * typical build timeline. No figures here — the engine owns those.
+       */
+      overviewHeading: string;
+      overviewDistrictLabel: string;
+      overviewAllowedLabel: string;
+      overviewSteerLabel: string;
+      /** "Confirm with the City" line under the district facts. */
+      overviewConfirmNote: string;
+      /**
        * Validation-failure explainer (consumer/06): shown when the preview
        * API rejects the request (e.g. assessed value out of range). Retry
        * cannot succeed, so no retry button — just a plain-English
@@ -1356,6 +1926,11 @@ export interface AppConfig {
        * masquerade as City records (trust rule).
        */
       freshnessMock: string;
+      /**
+       * Shown under the zoning when single-detached is only discretionary
+       * for the parcel (#911). Never present it as a sure thing.
+       */
+      discretionaryZoningNote: string;
     };
     /**
      * Estimate report page copy. The hero is range-first (#504): the total
@@ -1421,16 +1996,13 @@ export interface AppConfig {
       tierDescriptors: { standard: string; premium: string; luxury: string };
       /** Upgrades-are-explicit-choices note under the tier descriptor. */
       tierChoicesNote: string;
-      /** "What your estimate covers" — honest included/excluded framing. */
+      /**
+       * "What your estimate covers" — section heading. The includes and
+       * not-included lists themselves come from `estimateScope` (#824).
+       */
       coverageTitle: string;
-      /** One-line "full build" framing above the exclusions list. */
-      includedLine: string;
       /** Honest note: inflation, material choices, project conditions can move costs. */
       costMovementNote: string;
-      /** "What's not in this estimate" heading. */
-      exclusionsTitle: string;
-      /** Honest exclusion list — landscaping only (Karan 2026-09-28: the estimate covers the full build except landscaping). */
-      exclusions: string[];
       tierTitle: string;
       tierLockedNote: string;
       /** What-if toggle hint (report page, post-gate): instant-plain, mirrors adjustHint. */
@@ -1478,8 +2050,6 @@ export interface AppConfig {
       planningTitle: string;
       financingTitle: string;
       financingLines: string[];
-      timelineTitle: string;
-      timelineLine: string;
       shareTitle: string;
       shareHint: string;
       shareEmailLabel: string;
@@ -1512,8 +2082,19 @@ export interface AppConfig {
       callbackNameLabel: string;
       callbackPhoneLabel: string;
       callbackWindowLabel: string;
-      callbackWindows: { id: CallbackWindow; label: string }[];
+      /**
+       * #836: time windows. `range` is the clock range shown with the label
+       * ("9 a.m.–12 p.m. MT"); `phrase` reads after the day in the
+       * confirmation ("in the morning"). Portal + admin reuse these labels.
+       */
+      callbackWindows: { id: CallbackWindow; label: string; range: string; phrase: string }[];
+      /** #836: preferred-day picker. */
+      callbackDayLabel: string;
+      callbackDayPlaceholder: string;
+      /** #836: optional notes. */
+      callbackNotesLabel: string;
       callbackCta: string;
+      /** #836: "We'll aim to call you {day} {window}." — {window} = phrase + range. */
       callbackSuccess: string;
       callbackError: string;
       callbackInvalid: string;
@@ -1540,6 +2121,12 @@ export interface AppConfig {
     gate: {
       heading: string;
       sub: string;
+      /**
+       * #835: exactly what the free report adds over the preview. Never
+       * uses the word reserved for the single preview CTA.
+       */
+      unlocksHeading: string;
+      unlocksItems: string[];
       /** Quiet trust line under the gate subheading — data-driven, not a calculator. */
       trustLine: string;
       nameLabel: string;
@@ -1675,6 +2262,8 @@ export interface AppConfig {
       howItWorks: string;
       faqTitle: string;
       faq: string;
+      helpTitle: string;
+      help: string;
       pillarGuideTitle: string;
       pillarGuide: string;
       zoningGuideTitle: string;
@@ -1687,6 +2276,11 @@ export interface AppConfig {
       notFound: string;
       unsubscribeTitle: string;
       unsubscribe: string;
+      /** #706 privacy self-service pages (noindex). */
+      privacyDataTitle: string;
+      privacyData: string;
+      privacyConfirmTitle: string;
+      privacyConfirm: string;
       magicLinkTitle: string;
       magicLink: string;
       myReportTitle: string;
@@ -1736,85 +2330,11 @@ export interface AppConfig {
      * claims — copy-linted by `tools/check-prerender-seo.mjs`.
      */
     marketing: {
-      howItWorks: {
-        eyebrow: string;
-        title: string;
-        sub: string;
-        steps: { n: string; title: string; body: string }[];
-        mathNoteTitle: string;
-        mathNoteBody: string;
-        ctaNewBuild: string;
-        ctaReno: string;
-        /** Zoning cross-link card (SEO guides): why the address/zoning matters. */
-        zoningCardTitle: string;
-        zoningCardBody: string;
-        zoningCardCta: string;
-      };
       faq: {
         eyebrow: string;
         title: string;
         sub: string;
         items: { q: string; a: string }[];
-      };
-      /**
-       * Pillar guide (SEO pillar): long-form "cost to build a house in
-       * Calgary" guide at `/guides/cost-to-build-a-house-calgary`.
-       * Figures are planning ranges from the cost model — never accuracy
-       * claims (banned-phrase tripwire).
-       */
-      pillarGuide: {
-        eyebrow: string;
-        title: string;
-        lede: string;
-        tiersTitle: string;
-        tiersIntro: string;
-        tiers: { name: string; range: string; blurb: string }[];
-        exampleTitle: string;
-        exampleBody: string;
-        includedTitle: string;
-        includedBody: string;
-        excludedTitle: string;
-        excludedBody: string;
-        infillTitle: string;
-        infillBody: string;
-        financingTitle: string;
-        financingBody: string;
-        faqTitle: string;
-        faqs: { q: string; a: string }[];
-        mathNoteTitle: string;
-        mathNoteBody: string;
-        ctaEstimate: string;
-        ctaCommunities: string;
-      };
-      /**
-       * Zoning explainer (SEO guides): long-form "Calgary zoning explained"
-       * guide at `/guides/calgary-zoning-explained`. Zone facts follow the
-       * City of Calgary Land Use Bylaw 1P2007 — no invented designations.
-       */
-      zoningGuide: {
-        eyebrow: string;
-        title: string;
-        lede: string;
-        introTitle: string;
-        introBody: string;
-        tableTitle: string;
-        tableIntro: string;
-        tableHeaders: { zone: string; name: string; allows: string; build: string };
-        zones: { code: string; name: string; allows: string; build: string }[];
-        recentTitle: string;
-        recentBody: string;
-        lookupTitle: string;
-        lookupBody: string;
-        faqTitle: string;
-        /** `anchor` is optional: deep-link target for cross-page links. */
-        faqs: { q: string; a: string; anchor?: string }[];
-        sourceTitle: string;
-        sourceBody: string;
-        sourceLinkLabel: string;
-        sourceUrl: string;
-        verifyNote: string;
-        ctaEstimate: string;
-        ctaCostGuide: string;
       };
       /**
        * Community index (SEO-05). Copy for `/communities/` and the landing
@@ -1831,6 +2351,27 @@ export interface AppConfig {
         groups: Record<'established' | 'newer', { heading: string; body: string }>;
       };
     };
+    /** Includes / not-included lists (#824). No accuracy claims. */
+    estimateScope: {
+      includesTitle: string;
+      includesIntro: string;
+      notIncludedTitle: string;
+      notIncludedIntro: string;
+    };
+    /** Typical build timeline section (#823). "Typical", never a promise. */
+    buildTimeline: {
+      title: string;
+      intro: string;
+      /** Typical total line: `{min}`, `{max}` months. */
+      totalTemplate: string;
+      /** Per-phase range by unit: `{min}`, `{max}`. */
+      rangeTemplates: { weeks: string; months: string };
+      /** Accessible name of the phase list. */
+      phasesLabel: string;
+      overlapNote: string;
+      /** Exact owner copy: pre-sale / move-in-ready homes differ. */
+      presaleNote: string;
+    };
     /**
      * Builder-matching explainer (UX audit 2026-09-28). The phrases
      * "builders associated with us" / "matched builder" appear on the gate,
@@ -1843,6 +2384,31 @@ export interface AppConfig {
       summary: string;
       /** Explainer paragraphs, rendered in order. */
       paragraphs: string[];
+    };
+    /**
+     * Builder partner disclosure (#918). Shown at every lead capture point on
+     * Feasly's own site (lead gate, report callback) and as a section on How
+     * it works. Partner names come from `GET /api/v1/partners` (data, not
+     * copy); only the framing lives here. Embeds never render it — on a
+     * builder's own site the lead goes to that builder.
+     */
+    partners: {
+      /** Disclosure lead-in, followed by the linked partner names. */
+      disclosureLead: string;
+      /** Fallback lead-in while the list is unavailable, followed by a link to How it works. */
+      disclosureFallbackLead: string;
+      /** Link label for the How it works partners section. */
+      howItWorksLinkLabel: string;
+      /** Joins partner names, e.g. ", ". */
+      nameSeparator: string;
+      /** Screen-reader suffix on external partner links. */
+      newTabLabel: string;
+      /** How it works section heading. */
+      sectionTitle: string;
+      /** How it works section intro. */
+      sectionIntro: string;
+      /** Shown on How it works when the list can't be loaded. */
+      sectionUnavailable: string;
     };
     /**
      * Consent banner (story consumer/01). All user-facing banner copy lives
@@ -1949,419 +2515,6 @@ export interface AppConfig {
       entra: BuilderEntraConfig;
     };
     /**
-     * Admin funnel dashboard (story admin/07). All user-facing dashboard
-     * copy lives here so the no-hardcode tripwire stays green.
-     */
-    admin: {
-      /**
-       * Admin shell (#503, portal-ui-kit §4): grouped sidebar, top bar,
-       * ⌘K placeholder. Nav labels are keyed by the item ids in
-       * features/admin/admin-nav.ts.
-       */
-      shell: {
-        brand: string;
-        homeLabel: string;
-        navLabel: string;
-        groups: { pipeline: string; partners: string; money: string; system: string };
-        nav: {
-          leads: string;
-          estimates: string;
-          builders: string;
-          users: string;
-          apiKeys: string;
-          billing: string;
-          invoices: string;
-          disputes: string;
-          calibration: string;
-          sheets: string;
-          funnels: string;
-          webhooks: string;
-          quarantine: string;
-        };
-        /** Screen-reader suffix for a queue badge, e.g. "3 open". */
-        badgeSuffix: string;
-        openMenu: string;
-        closeMenu: string;
-        collapseSidebar: string;
-        expandSidebar: string;
-        breadcrumbLabel: string;
-        searchLabel: string;
-        searchShortcut: string;
-        /** `aria-keyshortcuts` for the search button. */
-        searchKeyShortcuts: string;
-        /** ⌘K command palette (#538). */
-        palette: {
-          title: string;
-          placeholder: string;
-          hint: string;
-          loading: string;
-          noResults: string;
-          error: string;
-          retry: string;
-          close: string;
-          escKey: string;
-          resultsLabel: string;
-          /** Keyboard hint under the results ("↑↓ to move · Enter to open"). */
-          navHint: string;
-          /** Group headings per hit kind. */
-          kinds: { lead: string; invoice: string; builder: string; user: string };
-        };
-        environmentLabel: string;
-        userMenuLabel: string;
-        signOut: string;
-      };
-      /**
-       * Admin Quarantine (#540): honeypot-flagged leads on their own route,
-       * with row and bulk approve/discard. `{count}`, `{name}`, `{failed}`
-       * and `{total}` are filled in by the page.
-       */
-      quarantine: {
-        title: string;
-        description: string;
-        searchLabel: string;
-        searchPlaceholder: string;
-        clearFilters: string;
-        countOne: string;
-        countMany: string;
-        tableLabel: string;
-        columns: { lead: string; address: string; source: string; tenant: string; created: string };
-        emptyHeading: string;
-        emptyMessage: string;
-        noResultsHeading: string;
-        noResultsMessage: string;
-        errorHeading: string;
-        loadError: string;
-        retry: string;
-        loading: string;
-        actionsHeader: string;
-        loadMore: string;
-        loadingMore: string;
-        selectAll: string;
-        selectRow: string;
-        selectedCount: string;
-        approve: string;
-        approving: string;
-        discard: string;
-        discarding: string;
-        approveSelected: string;
-        discardSelected: string;
-        cancel: string;
-        approveConfirmTitleMany: string;
-        approveConfirmBody: string;
-        discardConfirmTitle: string;
-        discardConfirmTitleMany: string;
-        discardConfirmBody: string;
-        approvedOne: string;
-        approvedMany: string;
-        discardedOne: string;
-        discardedMany: string;
-        failedOne: string;
-        failedMany: string;
-        dismiss: string;
-      };
-      /**
-       * Admin Leads (#539, admin review S5/S6): saved views, the kit
-       * DataTable and the lead drawer with one footer Save.
-       */
-      leads: {
-        title: string;
-        description: string;
-        sandboxToggle: string;
-        exportCsv: string;
-        exporting: string;
-        dismiss: string;
-        totalsLabel: string;
-        viewsLabel: string;
-        /** Saved views. `quotingStale` takes `{days}`. */
-        views: { all: string; new: string; unassigned: string; quotingStale: string };
-        /** One-line explanation under the views, per view. `quotingStale` takes `{days}`. */
-        viewHints: { all: string; new: string; unassigned: string; quotingStale: string };
-        searchLabel: string;
-        searchPlaceholder: string;
-        statusFilter: string;
-        anyStatus: string;
-        assignedFilter: string;
-        anyAssignment: string;
-        unassigned: string;
-        clearFilters: string;
-        /** "{count} leads". */
-        countOne: string;
-        countMany: string;
-        sandboxExcluded: string;
-        tableLabel: string;
-        columns: {
-          lead: string;
-          address: string;
-          status: string;
-          tenant: string;
-          source: string;
-          score: string;
-          timeline: string;
-          consent: string;
-          created: string;
-        };
-        consentIn: string;
-        consentOut: string;
-        sandboxBadge: string;
-        emptyHeading: string;
-        emptyMessage: string;
-        noResultsHeading: string;
-        noResultsMessage: string;
-        errorHeading: string;
-        retry: string;
-        loading: string;
-        actionsHeader: string;
-        loadMore: string;
-        loadingMore: string;
-        drawer: {
-          loading: string;
-          refreshing: string;
-          retry: string;
-          close: string;
-          cancel: string;
-          save: string;
-          saving: string;
-          /** Toast after a successful save. */
-          saved: string;
-          readOnlyHint: string;
-          sections: {
-            pipeline: string;
-            contact: string;
-            property: string;
-            invoices: string;
-            notes: string;
-            comments: string;
-            activity: string;
-            record: string;
-          };
-          statusLabel: string;
-          builderLabel: string;
-          unassigned: string;
-          labels: {
-            email: string;
-            phone: string;
-            source: string;
-            tenant: string;
-            magicLink: string;
-            contactConsent: string;
-            marketingConsent: string;
-            address: string;
-            projectType: string;
-            livingArea: string;
-            finishTier: string;
-            totalRange: string;
-            buildRange: string;
-            land: string;
-            estimated: string;
-            leadScore: string;
-            consented: string;
-            sheetsSynced: string;
-            snapshots: string;
-            unsubscribed: string;
-            nudgeSent: string;
-          };
-          /** "{sqft} sq ft". */
-          sqftValue: string;
-          yes: string;
-          no: string;
-          magicLink: { sent: string; used: string; expired: string; none: string };
-          openEstimate: string;
-          noEstimate: string;
-          invoicesHint: string;
-          openInvoices: string;
-          noNotes: string;
-          addNoteLabel: string;
-          addNotePlaceholder: string;
-          addNote: string;
-          addingNote: string;
-          notesHint: string;
-          commentsHint: string;
-          noActivity: string;
-          honeypotBadge: string;
-        };
-      },
-      /** EntityLink + "Technical IDs" copy shared by admin pages (#538). */
-      entities: {
-        technicalIds: string;
-        copyId: string;
-        idCopied: string;
-        /** Link text when a record has no human label in the payload. */
-        viewLead: string;
-        viewInvoice: string;
-        /** Disclosure label for an audit event's raw JSON payload. */
-        rawPayload: string;
-      };
-      funnels: {
-        /** Page heading. */
-        title: string;
-        /** Page subheading. */
-        subtitle: string;
-        /** Date-range "from" label. */
-        fromLabel: string;
-        /** Date-range "to" label. */
-        toLabel: string;
-        /** Tenant filter label. */
-        tenantLabel: string;
-        /** Tenant filter: all traffic. */
-        tenantAll: string;
-        /** Tenant filter: Feasly-direct only. */
-        tenantDirect: string;
-        /** Tenant filter: one embed tenant. */
-        tenantKey: string;
-        /** Tenant-key text input label. */
-        tenantKeyLabel: string;
-        /** Tenant-key text input placeholder. */
-        tenantKeyPlaceholder: string;
-        /** Apply-filters button. */
-        apply: string;
-        /** Reset-filters button. */
-        reset: string;
-        /** Loading indicator text. */
-        loading: string;
-        /** Empty funnel state. */
-        empty: string;
-        /** Fetch failure banner (static — no error detail in the DOM). */
-        loadError: string;
-        /** Invalid date range (from after to). */
-        invalidRange: string;
-        /** First-step conversion label. */
-        entryStep: string;
-        /** Conversion prefix before the percentage. */
-        conversionPrefix: string;
-        /** Shown when conversion is meaningless (first step / zero prior). */
-        noConversion: string;
-        /** Accessible name of the date-preset button group. */
-        presetsLabel: string;
-        /** Date presets: label + trailing day count (today inclusive). */
-        presets: ReadonlyArray<{ readonly label: string; readonly days: number }>;
-        /** Date preset that clears both dates. */
-        presetAll: string;
-        /** KPI label: entry → final step conversion. */
-        overallConversion: string;
-        /** KPI sub line under the overall conversion; `{from}`/`{to}` = step labels. */
-        overallConversionSub: string;
-        /** Drop-off annotation; `{count}` = people lost since the previous step. */
-        dropOff: string;
-        /** Accessible name of the funnel step list. */
-        stepsLabel: string;
-      };
-      /** Admin API keys (api-mcp/02; redesign #546, review S13). */
-      apiKeys: {
-        title: string;
-        subtitle: string;
-        issueButton: string;
-        /** DataTable. */
-        tableLabel: string;
-        colName: string;
-        colBuilder: string;
-        colPrefix: string;
-        colScopes: string;
-        colLastUsed: string;
-        colStatus: string;
-        never: string;
-        noBuilder: string;
-        sandboxChip: string;
-        openKey: string;
-        empty: string;
-        emptyMessage: string;
-        loadError: string;
-        loadErrorMessage: string;
-        retry: string;
-        /** Key drawer. */
-        tabsLabel: string;
-        tabOverview: string;
-        tabUsage: string;
-        builderLabel: string;
-        prefixLabel: string;
-        modeLabel: string;
-        modeLive: string;
-        modeSandbox: string;
-        createdLabel: string;
-        lastUsedLabel: string;
-        revokedAtLabel: string;
-        accessHeading: string;
-        accessHint: string;
-        revokedNote: string;
-        scopesLabel: string;
-        scopesError: string;
-        rateLimitLabel: string;
-        rateLimitHint: string;
-        rateLimitError: string;
-        saveButton: string;
-        savedToast: string;
-        saveError: string;
-        closeButton: string;
-        dangerHeading: string;
-        rotateHint: string;
-        revokeHint: string;
-        rotateButton: string;
-        revokeButton: string;
-        rotateConfirmTitle: string;
-        rotateConfirm: string;
-        revokeConfirmTitle: string;
-        revokeConfirm: string;
-        cancelButton: string;
-        revokedToast: string;
-        actionError: string;
-        /** Usage tab. */
-        usageChartLabel: string;
-        usageTotal: string;
-        usageShowTable: string;
-        usageLoading: string;
-        usageEmpty: string;
-        usageDateHeader: string;
-        usageEndpointHeader: string;
-        usageRequestsHeader: string;
-        usageEstimatesHeader: string;
-        /** Issue modal. */
-        issueTitle: string;
-        nameLabel: string;
-        namePlaceholder: string;
-        nameError: string;
-        builderPlaceholder: string;
-        builderHint: string;
-        builderEmpty: string;
-        sandboxLabel: string;
-        sandboxHint: string;
-        createButton: string;
-        issueError: string;
-        /** One-time secret modal. */
-        secretTitle: string;
-        plaintextWarning: string;
-        secretLabel: string;
-        copyButton: string;
-        copiedButton: string;
-        copyFailed: string;
-        ackLabel: string;
-        doneButton: string;
-      };
-      /**
-       * Admin auth pages (auth/02 pivot): Entra sign-in + callback copy.
-       * All user-facing strings live here so the no-hardcode tripwire
-       * stays green and copy is deploy-tunable. Exact strings are pinned
-       * by the login/callback specs.
-       */
-      auth: {
-        /** Session-expired notice on the login page. */
-        loginExpired: string;
-        /** Label of the Entra "Sign in →" button. */
-        entraSignInLabel: string;
-        /** Intro line above the Entra button. */
-        entraSignInIntro: string;
-        /**
-         * Callback failure when Entra reports `error=access_denied`
-         * (user cancelled) or the callback carries no usable code.
-         */
-        entraIncomplete: string;
-        /** Callback failure when the `state` param mismatches (CSRF). */
-        entraStateMismatch: string;
-        /** Network/5xx failure exchanging the code with the backend. */
-        entraTransient: string;
-        /** Shown when the Entra tenant config is still a placeholder. */
-        entraNotConfigured: string;
-      };
-    };
-    /**
      * Unsubscribe center (email/03) copy. The confirmation line
      * `doneHeading` is pinned by the story's acceptance criteria.
      */
@@ -2392,6 +2545,67 @@ export interface AppConfig {
       errorHeading: string;
       errorBody: string;
       retryLabel: string;
+      homeCta: string;
+    };
+    /**
+     * Privacy self-service (#706): `/privacy/my-data` + the erase-confirm
+     * landing `/privacy/confirm/:requestId`. Copy status:
+     * draft-pending-lawyer (the erasure consequences come from the API).
+     */
+    privacyData: {
+      entryLinkLabel: string;
+      heading: string;
+      intro: string;
+      draftNotice: string;
+      loadingLabel: string;
+      downloadHeading: string;
+      downloadBody: string;
+      downloadCta: string;
+      downloadWorking: string;
+      downloadDone: string;
+      downloadFileName: string;
+      deleteHeading: string;
+      deleteBody: string;
+      deleteCta: string;
+      deleteWorking: string;
+      pendingHeading: string;
+      pendingBody: string;
+      consequencesHeading: string;
+      confirmCta: string;
+      cancelCta: string;
+      noTokenHeading: string;
+      noTokenBody: string;
+      emailLabel: string;
+      emailInvalid: string;
+      sendLinkCta: string;
+      sendLinkWorking: string;
+      linkSentHeading: string;
+      linkSentBody: string;
+      pendingEmailBody: string;
+      pendingEmailNotSentBody: string;
+      resendEmailCta: string;
+      resendEmailWorking: string;
+      confirmPromptHeading: string;
+      confirmPromptBody: string;
+      confirmWorking: string;
+      confirmDoneHeading: string;
+      confirmDoneBody: string;
+      confirmAlreadyHeading: string;
+      confirmAlreadyBody: string;
+      confirmExpiredHeading: string;
+      confirmExpiredBody: string;
+      confirmBlockedHeading: string;
+      confirmBlockedBody: string;
+      confirmInvalidHeading: string;
+      confirmInvalidBody: string;
+      expiredHeading: string;
+      expiredBody: string;
+      rateLimitedHeading: string;
+      rateLimitedBody: string;
+      errorHeading: string;
+      errorBody: string;
+      retryLabel: string;
+      myDataCta: string;
       homeCta: string;
     };
     /**
@@ -2469,5 +2683,667 @@ export interface AppConfig {
       /** navigator.share text: `{address}` is replaced. */
       shareText: string;
     };
+  };
+}
+
+/**
+ * `copy.marketing.howItWorks`: the `/how-it-works` transparency page (#827).
+ *
+ * Not part of {@link AppConfig}: lazy-loaded with the how-it-works page (features/marketing/how-it-works-copy.ts) to keep it out of
+ * the initial bundle (#980, Lighthouse script budget). Deploy overrides still
+ * apply from the same app-config.json path (merged by mergeLazyCopy).
+ */
+export interface HowItWorksCopy {
+  eyebrow: string;
+  title: string;
+  sub: string;
+  steps: { n: string; title: string; body: string }[];
+  mathNoteTitle: string;
+  mathNoteBody: string;
+  ctaNewBuild: string;
+  ctaReno: string;
+  /** Zoning cross-link card (SEO guides): why the address/zoning matters. */
+  zoningCardTitle: string;
+  zoningCardBody: string;
+  zoningCardCta: string;
+  /**
+   * #827 transparency sections. Copy only — every figure comes from
+   * `howWeEstimate` (engine/catalogue generated) or the live freshness
+   * endpoint. No accuracy claims (banned-phrase tripwire).
+   */
+  /** Answer-first passage (SEO standard §2.1): how the estimate is built. */
+  answer: string;
+  formulaTitle: string;
+  formulaIntro: string;
+  /** One card per formula term, keyed like the engine's row groups. */
+  formulaGroups: Record<FormulaGroupKey, { title: string; body: string }>;
+  /** Operator glyphs between the terms (visual; hidden from AT). */
+  formulaPlus: string;
+  formulaEquals: string;
+  /** Screen-reader sentence for the whole formula. */
+  formulaSentence: string;
+  formulaResultTitle: string;
+  formulaResultBody: string;
+  /** What each engine line item covers, keyed by engine row key. */
+  lineItemNotes: Record<string, string>;
+  whyRangeTitle: string;
+  whyRangeIntro: string;
+  whyRangeItems: { title: string; body: string }[];
+  sourcesTitle: string;
+  sourcesIntro: string;
+  sources: {
+    assessment: HowWeEstimateSourceCopy;
+    landUse: HowWeEstimateSourceCopy;
+    costData: HowWeEstimateSourceCopy;
+  };
+  exampleTitle: string;
+  /** "{sqft} sq ft home, {tier} finish, on a {lot} sq ft lot" */
+  exampleIntro: string;
+  /** Display names for the example's finish tier key. */
+  exampleTierNames: Record<string, string>;
+  exampleCaption: string;
+  exampleColItem: string;
+  exampleColRange: string;
+  exampleSubtotals: Record<FormulaGroupKey, string>;
+  exampleTotal: string;
+  /** "{low} – {high}" */
+  exampleRangeTemplate: string;
+  exampleNote: string;
+  /** "Priced with cost data {version}." */
+  exampleVersion: string;
+  currentTitle: string;
+  currentItems: string[];
+  nextTitle: string;
+  nextSteps: { title: string; body: string }[];
+  linksTitle: string;
+  /** Related pages. `flag` hides a link while its feature flag is off. */
+  links: { label: string; route: string; flag?: 'sampleReport' }[];
+}
+
+/**
+ * Pillar guide (SEO pillar): long-form "cost to build a house in
+ * Calgary" guide at `/guides/cost-to-build-a-house-calgary`.
+ * Figures are planning ranges from the cost model — never accuracy
+ * claims (banned-phrase tripwire). `copy.marketing.pillarGuide`.
+ *
+ * Not part of {@link AppConfig}: lazy-loaded with the pillar guide + help pages (features/marketing/pillar-guide-copy.ts) to keep it out of
+ * the initial bundle (#980, Lighthouse script budget). Deploy overrides still
+ * apply from the same app-config.json path (merged by mergeLazyCopy).
+ */
+export interface PillarGuideCopy {
+  eyebrow: string;
+  title: string;
+  lede: string;
+  tiersTitle: string;
+  tiersIntro: string;
+  tiers: { name: string; range: string; blurb: string }[];
+  exampleTitle: string;
+  exampleBody: string;
+  includedTitle: string;
+  includedBody: string;
+  excludedTitle: string;
+  excludedBody: string;
+  infillTitle: string;
+  infillBody: string;
+  financingTitle: string;
+  financingBody: string;
+  faqTitle: string;
+  faqs: { q: string; a: string }[];
+  mathNoteTitle: string;
+  mathNoteBody: string;
+  ctaEstimate: string;
+  ctaCommunities: string;
+}
+
+/**
+ * Zoning explainer (SEO guides): long-form "Calgary zoning explained"
+ * guide at `/guides/calgary-zoning-explained`. Zone facts follow the
+ * City of Calgary Land Use Bylaw 1P2007 — no invented designations.
+ * `copy.marketing.zoningGuide`.
+ *
+ * Not part of {@link AppConfig}: lazy-loaded with the zoning guide, help and preview pages (core/config/zoning-guide-copy.ts) to keep it out of
+ * the initial bundle (#980, Lighthouse script budget). Deploy overrides still
+ * apply from the same app-config.json path (merged by mergeLazyCopy).
+ */
+export interface ZoningGuideCopy {
+  eyebrow: string;
+  title: string;
+  lede: string;
+  introTitle: string;
+  introBody: string;
+  tableTitle: string;
+  tableIntro: string;
+  tableHeaders: { zone: string; name: string; allows: string; build: string };
+  zones: { code: string; name: string; allows: string; build: string }[];
+  recentTitle: string;
+  recentBody: string;
+  lookupTitle: string;
+  lookupBody: string;
+  faqTitle: string;
+  /** `anchor` is optional: deep-link target for cross-page links. */
+  faqs: { q: string; a: string; anchor?: string }[];
+  sourceTitle: string;
+  sourceBody: string;
+  sourceLinkLabel: string;
+  sourceUrl: string;
+  verifyNote: string;
+  ctaEstimate: string;
+  ctaCostGuide: string;
+}
+
+/**
+ * Admin funnel dashboard (story admin/07). All user-facing dashboard
+ * copy lives here so the no-hardcode tripwire stays green. `copy.admin`.
+ *
+ * Not part of {@link AppConfig}: lazy-loaded with the admin console (features/admin/admin-copy.ts) to keep it out of
+ * the initial bundle (#980, Lighthouse script budget). Deploy overrides still
+ * apply from the same app-config.json path (merged by mergeLazyCopy).
+ */
+export interface AdminCopy {
+  /**
+   * Admin shell (#503, portal-ui-kit §4): grouped sidebar, top bar,
+   * ⌘K placeholder. Nav labels are keyed by the item ids in
+   * features/admin/admin-nav.ts.
+   */
+  shell: {
+    brand: string;
+    homeLabel: string;
+    navLabel: string;
+    groups: { pipeline: string; partners: string; money: string; system: string };
+    nav: {
+      leads: string;
+      estimates: string;
+      builders: string;
+      users: string;
+      apiKeys: string;
+      billing: string;
+      invoices: string;
+      disputes: string;
+      calibration: string;
+      sheets: string;
+      funnels: string;
+      webhooks: string;
+      quarantine: string;
+    };
+    /** Screen-reader suffix for a queue badge, e.g. "3 open". */
+    badgeSuffix: string;
+    openMenu: string;
+    closeMenu: string;
+    collapseSidebar: string;
+    expandSidebar: string;
+    breadcrumbLabel: string;
+    searchLabel: string;
+    searchShortcut: string;
+    /** `aria-keyshortcuts` for the search button. */
+    searchKeyShortcuts: string;
+    /** ⌘K command palette (#538). */
+    palette: {
+      title: string;
+      placeholder: string;
+      hint: string;
+      loading: string;
+      noResults: string;
+      error: string;
+      retry: string;
+      close: string;
+      escKey: string;
+      resultsLabel: string;
+      /** Keyboard hint under the results ("↑↓ to move · Enter to open"). */
+      navHint: string;
+      /** Group headings per hit kind. */
+      kinds: { lead: string; invoice: string; builder: string; user: string };
+    };
+    environmentLabel: string;
+    userMenuLabel: string;
+    signOut: string;
+  };
+  /**
+   * Admin Quarantine (#540): honeypot-flagged leads on their own route,
+   * with row and bulk approve/discard. `{count}`, `{name}`, `{failed}`
+   * and `{total}` are filled in by the page.
+   */
+  quarantine: {
+    title: string;
+    description: string;
+    searchLabel: string;
+    searchPlaceholder: string;
+    clearFilters: string;
+    countOne: string;
+    countMany: string;
+    tableLabel: string;
+    columns: { lead: string; address: string; source: string; tenant: string; created: string };
+    emptyHeading: string;
+    emptyMessage: string;
+    noResultsHeading: string;
+    noResultsMessage: string;
+    errorHeading: string;
+    loadError: string;
+    retry: string;
+    loading: string;
+    actionsHeader: string;
+    loadMore: string;
+    loadingMore: string;
+    selectAll: string;
+    selectRow: string;
+    selectedCount: string;
+    approve: string;
+    approving: string;
+    discard: string;
+    discarding: string;
+    approveSelected: string;
+    discardSelected: string;
+    cancel: string;
+    approveConfirmTitleMany: string;
+    approveConfirmBody: string;
+    discardConfirmTitle: string;
+    discardConfirmTitleMany: string;
+    discardConfirmBody: string;
+    approvedOne: string;
+    approvedMany: string;
+    discardedOne: string;
+    discardedMany: string;
+    failedOne: string;
+    failedMany: string;
+    dismiss: string;
+  };
+  /**
+   * Admin Leads (#539, admin review S5/S6): saved views, the kit
+   * DataTable and the lead drawer with one footer Save.
+   */
+  leads: {
+    title: string;
+    description: string;
+    sandboxToggle: string;
+    exportCsv: string;
+    exporting: string;
+    dismiss: string;
+    totalsLabel: string;
+    viewsLabel: string;
+    /** Saved views. `quotingStale` takes `{days}`. */
+    views: { all: string; new: string; unassigned: string; quotingStale: string };
+    /** One-line explanation under the views, per view. `quotingStale` takes `{days}`. */
+    viewHints: { all: string; new: string; unassigned: string; quotingStale: string };
+    searchLabel: string;
+    searchPlaceholder: string;
+    statusFilter: string;
+    anyStatus: string;
+    assignedFilter: string;
+    anyAssignment: string;
+    unassigned: string;
+    clearFilters: string;
+    /** "{count} leads". */
+    countOne: string;
+    countMany: string;
+    sandboxExcluded: string;
+    tableLabel: string;
+    columns: {
+      lead: string;
+      address: string;
+      status: string;
+      tenant: string;
+      source: string;
+      score: string;
+      timeline: string;
+      consent: string;
+      created: string;
+    };
+    consentIn: string;
+    consentOut: string;
+    sandboxBadge: string;
+    emptyHeading: string;
+    emptyMessage: string;
+    noResultsHeading: string;
+    noResultsMessage: string;
+    errorHeading: string;
+    retry: string;
+    loading: string;
+    actionsHeader: string;
+    loadMore: string;
+    loadingMore: string;
+    drawer: {
+      loading: string;
+      refreshing: string;
+      retry: string;
+      close: string;
+      cancel: string;
+      save: string;
+      saving: string;
+      /** Toast after a successful save. */
+      saved: string;
+      readOnlyHint: string;
+      sections: {
+        pipeline: string;
+        contact: string;
+        property: string;
+        invoices: string;
+        notes: string;
+        comments: string;
+        activity: string;
+        record: string;
+        /** #815: campaign attribution section. */
+        campaign: string;
+      };
+      statusLabel: string;
+      builderLabel: string;
+      unassigned: string;
+      labels: {
+        email: string;
+        phone: string;
+        source: string;
+        tenant: string;
+        magicLink: string;
+        contactConsent: string;
+        marketingConsent: string;
+        address: string;
+        projectType: string;
+        livingArea: string;
+        finishTier: string;
+        totalRange: string;
+        buildRange: string;
+        land: string;
+        estimated: string;
+        leadScore: string;
+        consented: string;
+        sheetsSynced: string;
+        snapshots: string;
+        unsubscribed: string;
+        nudgeSent: string;
+        /** #815: campaign attribution (leads.source_*). */
+        utmSource: string;
+        utmMedium: string;
+        utmCampaign: string;
+        utmTerm: string;
+        utmContent: string;
+        clickIdType: string;
+      };
+      /** "{sqft} sq ft". */
+      sqftValue: string;
+      yes: string;
+      no: string;
+      magicLink: { sent: string; used: string; expired: string; none: string };
+      openEstimate: string;
+      noEstimate: string;
+      invoicesHint: string;
+      openInvoices: string;
+      noNotes: string;
+      addNoteLabel: string;
+      addNotePlaceholder: string;
+      addNote: string;
+      addingNote: string;
+      notesHint: string;
+      commentsHint: string;
+      noActivity: string;
+      /** #815: shown when the lead arrived with no campaign attribution. */
+      noAttribution: string;
+      /** #836: callback requests section (preferred day, window, notes). */
+      callbacksHeading: string;
+      noCallbacks: string;
+      callbackLabels: {
+        day: string;
+        window: string;
+        notes: string;
+        phone: string;
+        requested: string;
+      };
+      /** Shown for a request filed before #836 (no preferred day). */
+      callbackAnyDay: string;
+      honeypotBadge: string;
+      /** Activity sub-list of builder moves (#803). */
+      reassignmentsHeading: string;
+      /** Shown for a builder id no longer in the builders list. */
+      unknownBuilder: string;
+      /**
+       * Confirm before moving a lead away from its builder (#803).
+       * `{lead}`, `{from}`, `{to}` are filled in.
+       */
+      reassignConfirm: {
+        title: string;
+        body: string;
+        verb: string;
+        unassignTitle: string;
+        unassignBody: string;
+        unassignVerb: string;
+        cancel: string;
+      };
+    };
+  },
+  /** EntityLink + "Technical IDs" copy shared by admin pages (#538). */
+  entities: {
+    technicalIds: string;
+    copyId: string;
+    idCopied: string;
+    /** Link text when a record has no human label in the payload. */
+    viewLead: string;
+    viewInvoice: string;
+    /** Disclosure label for an audit event's raw JSON payload. */
+    rawPayload: string;
+  };
+  funnels: {
+    /** Page heading. */
+    title: string;
+    /** Page subheading. */
+    subtitle: string;
+    /** Date-range "from" label. */
+    fromLabel: string;
+    /** Date-range "to" label. */
+    toLabel: string;
+    /** Tenant filter label. */
+    tenantLabel: string;
+    /** Tenant filter: all traffic. */
+    tenantAll: string;
+    /** Tenant filter: Feasly-direct only. */
+    tenantDirect: string;
+    /** Tenant filter: one embed tenant. */
+    tenantKey: string;
+    /** Tenant-key text input label. */
+    tenantKeyLabel: string;
+    /** Tenant-key text input placeholder. */
+    tenantKeyPlaceholder: string;
+    /** Apply-filters button. */
+    apply: string;
+    /** Reset-filters button. */
+    reset: string;
+    /** Loading indicator text. */
+    loading: string;
+    /** Empty funnel state. */
+    empty: string;
+    /** Fetch failure banner (static — no error detail in the DOM). */
+    loadError: string;
+    /** Invalid date range (from after to). */
+    invalidRange: string;
+    /** First-step conversion label. */
+    entryStep: string;
+    /** Conversion prefix before the percentage. */
+    conversionPrefix: string;
+    /** Shown when conversion is meaningless (first step / zero prior). */
+    noConversion: string;
+    /** Accessible name of the date-preset button group. */
+    presetsLabel: string;
+    /** Date presets: label + trailing day count (today inclusive). */
+    presets: ReadonlyArray<{ readonly label: string; readonly days: number }>;
+    /** Date preset that clears both dates. */
+    presetAll: string;
+    /** KPI label: entry → final step conversion. */
+    overallConversion: string;
+    /** KPI sub line under the overall conversion; `{from}`/`{to}` = step labels. */
+    overallConversionSub: string;
+    /** Drop-off annotation; `{count}` = people lost since the previous step. */
+    dropOff: string;
+    /** Accessible name of the funnel step list. */
+    stepsLabel: string;
+    /** #815: utm_source filter label / placeholder. */
+    utmSourceLabel: string;
+    utmSourcePlaceholder: string;
+    /** #815: utm_campaign filter label / placeholder. */
+    utmCampaignLabel: string;
+    utmCampaignPlaceholder: string;
+    /** #815: hint under the utm filters (exact match). */
+    utmHint: string;
+    /** #815: per-(source, campaign) breakdown heading, note, headers. */
+    sourcesHeading: string;
+    sourcesNote: string;
+    sourceHeader: string;
+    campaignHeader: string;
+    /** Shown for an untagged (null) source or campaign. */
+    sourceNone: string;
+    /** Shown when the backend capped the breakdown. */
+    sourcesTruncated: string;
+  };
+  /** Admin API keys (api-mcp/02; redesign #546, review S13). */
+  apiKeys: {
+    title: string;
+    subtitle: string;
+    issueButton: string;
+    /** DataTable. */
+    tableLabel: string;
+    colName: string;
+    colBuilder: string;
+    colPrefix: string;
+    colScopes: string;
+    colLastUsed: string;
+    colStatus: string;
+    never: string;
+    noBuilder: string;
+    sandboxChip: string;
+    openKey: string;
+    empty: string;
+    emptyMessage: string;
+    loadError: string;
+    loadErrorMessage: string;
+    retry: string;
+    /** Key drawer. */
+    tabsLabel: string;
+    tabOverview: string;
+    tabUsage: string;
+    builderLabel: string;
+    prefixLabel: string;
+    modeLabel: string;
+    modeLive: string;
+    modeSandbox: string;
+    createdLabel: string;
+    lastUsedLabel: string;
+    revokedAtLabel: string;
+    accessHeading: string;
+    accessHint: string;
+    revokedNote: string;
+    scopesLabel: string;
+    scopesError: string;
+    rateLimitLabel: string;
+    rateLimitHint: string;
+    rateLimitError: string;
+    saveButton: string;
+    savedToast: string;
+    saveError: string;
+    closeButton: string;
+    dangerHeading: string;
+    rotateHint: string;
+    revokeHint: string;
+    rotateButton: string;
+    revokeButton: string;
+    rotateConfirmTitle: string;
+    rotateConfirm: string;
+    revokeConfirmTitle: string;
+    revokeConfirm: string;
+    cancelButton: string;
+    revokedToast: string;
+    actionError: string;
+    /** Usage tab. */
+    usageChartLabel: string;
+    usageTotal: string;
+    usageShowTable: string;
+    usageLoading: string;
+    usageEmpty: string;
+    usageDateHeader: string;
+    usageEndpointHeader: string;
+    usageRequestsHeader: string;
+    usageEstimatesHeader: string;
+    /** Issue modal. */
+    issueTitle: string;
+    nameLabel: string;
+    namePlaceholder: string;
+    nameError: string;
+    builderPlaceholder: string;
+    builderHint: string;
+    builderEmpty: string;
+    sandboxLabel: string;
+    sandboxHint: string;
+    createButton: string;
+    issueError: string;
+    /** One-time secret modal. */
+    secretTitle: string;
+    plaintextWarning: string;
+    secretLabel: string;
+    copyButton: string;
+    copiedButton: string;
+    copyFailed: string;
+    ackLabel: string;
+    doneButton: string;
+  };
+  /**
+   * Admin auth pages (auth/02 pivot): Entra sign-in + callback copy.
+   * All user-facing strings live here so the no-hardcode tripwire
+   * stays green and copy is deploy-tunable. Exact strings are pinned
+   * by the login/callback specs.
+   */
+  /**
+   * #901 admin dunning controls on /admin/billing: the retry schedule
+   * (next retry, grace days, state), Pause / Resume / Cancel / Edit grace
+   * days, collections age and manual-payment age. `{days}`, `{date}`,
+   * `{builder}`, `{amount}`, `{min}`, `{max}` are filled in by the page.
+   */
+  dunning: {
+    columns: { nextRetry: string; grace: string; state: string; awaiting: string };
+    stateActive: string;
+    statePaused: string;
+    stateCancelled: string;
+    /** Collections age, e.g. "Collections · 4 days". */
+    collectionsOne: string;
+    collectionsMany: string;
+    noRetry: string;
+    graceOne: string;
+    graceMany: string;
+    /** In-review manual invoice past its due date. */
+    awaitingManualOne: string;
+    awaitingManualMany: string;
+    notOverdue: string;
+    pause: string;
+    resume: string;
+    cancel: string;
+    editGrace: string;
+    cancelTitle: string;
+    cancelBody: string;
+    cancelVerb: string;
+    pausedToast: string;
+    resumedToast: string;
+    cancelledToast: string;
+    graceSavedToast: string;
+    conflictError: string;
+    genericError: string;
+    graceHeading: string;
+    graceContext: string;
+    graceLabel: string;
+    graceHint: string;
+    graceInvalid: string;
+    graceSave: string;
+    graceCancel: string;
+  };
+  auth: {
+    /** Session-expired notice on the login page. */
+    loginExpired: string;
+    /** Label of the Entra "Sign in →" button. */
+    entraSignInLabel: string;
+    /** Intro line above the Entra button. */
+    entraSignInIntro: string;
+    /**
+     * Callback failure when Entra reports `error=access_denied`
+     * (user cancelled) or the callback carries no usable code.
+     */
+    entraIncomplete: string;
+    /** Callback failure when the `state` param mismatches (CSRF). */
+    entraStateMismatch: string;
+    /** Network/5xx failure exchanging the code with the backend. */
+    entraTransient: string;
+    /** Shown when the Entra tenant config is still a placeholder. */
+    entraNotConfigured: string;
   };
 }

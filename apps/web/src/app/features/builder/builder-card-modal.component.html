@@ -2,6 +2,9 @@
   @if (currentCard(); as current) {
     <p class="card-modal__current">{{ current }}</p>
   }
+  @if (updating && phase() !== 'unavailable') {
+    <p class="card-modal__replace-note" data-testid="replace-note">{{ copy.cardLifecycle.modalReplaceNote }}</p>
+  }
 
   @switch (phase()) {
     @case ('unavailable') {
@@ -21,25 +24,60 @@
     @case ('loading') {
       <p class="card-modal__loading" role="status">{{ copy.cardModalLoading }}</p>
     }
+    @case ('challenge') {
+      @if (challengeIntentId(); as intentId) {
+        <app-builder-simulated-challenge [intentId]="intentId" (resolved)="onChallengeResolved($event)" />
+      }
+    }
     @default {
-      <p id="card-modal-label" class="card-modal__label">{{ copy.billingFormHeading }}</p>
-      <div
-        #cardHost
-        class="card-modal__element"
-        role="group"
-        aria-labelledby="card-modal-label"
-        aria-describedby="card-modal-inline-error"
-      ></div>
-      <p id="card-modal-inline-error" class="card-modal__inline-error" aria-live="polite">{{ inlineError() }}</p>
-      @if (saveError()) {
-        <p class="card-modal__alert" role="alert">{{ copy.billingSaveFailed }}</p>
+      @if (provider() === 'simulated') {
+        <p class="card-modal__test-mode" role="note" data-testid="simulated-notice">{{ testModeNotice }}</p>
+        <fieldset class="card-modal__cards" data-testid="simulated-card-picker" [disabled]="phase() === 'saving'">
+          <legend class="card-modal__label">{{ simCopy.pickerLegend }}</legend>
+          @for (card of testCards; track card.number) {
+            <label class="card-modal__card">
+              <input
+                type="radio"
+                name="simulated-test-card"
+                [value]="card.number"
+                [checked]="selectedTestCard() === card.number"
+                (change)="pickTestCard(card.number)"
+              />
+              <span class="card-modal__card-text">
+                <span>{{ card.label }}</span>
+                <span class="card-modal__card-number">{{ card.number }}</span>
+              </span>
+            </label>
+          }
+        </fieldset>
+        @if (challengeFailed()) {
+          <p class="card-modal__alert" role="alert">{{ simCopy.setupChallengeFailed }}</p>
+        }
+        @if (saveError()) {
+          <p class="card-modal__alert" role="alert">{{ copy.billingSaveFailed }}</p>
+        }
+      } @else {
+        <p id="card-modal-label" class="card-modal__label">{{ copy.billingFormHeading }}</p>
+        <div
+          #cardHost
+          class="card-modal__element"
+          role="group"
+          aria-labelledby="card-modal-label"
+          aria-describedby="card-modal-inline-error"
+        ></div>
+        <p id="card-modal-inline-error" class="card-modal__inline-error" aria-live="polite">{{ inlineError() }}</p>
+        @if (saveError()) {
+          <p class="card-modal__alert" role="alert">{{ copy.billingSaveFailed }}</p>
+        }
       }
     }
   }
 
   @if (phase() !== 'unavailable') {
     <div class="card-modal__reassure">
-      <p>{{ copy.cardModalReassurance }}</p>
+      @if (provider() !== 'simulated') {
+        <p>{{ copy.cardModalReassurance }}</p>
+      }
       <p>{{ chargeTiming }}</p>
     </div>
   }
@@ -51,14 +89,16 @@
       <button type="button" ui-button variant="secondary" [disabled]="phase() === 'saving'" (click)="cancel()">
         {{ copy.billingCancel }}
       </button>
-      <button
-        type="submit"
-        ui-button
-        [loading]="phase() === 'saving'"
-        [disabled]="phase() !== 'saving' && (phase() !== 'ready' || !complete())"
-      >
-        {{ phase() === 'saving' ? copy.billingSavingCard : copy.billingSaveCard }}
-      </button>
+      @if (phase() !== 'challenge') {
+        <button
+          type="submit"
+          ui-button
+          [loading]="phase() === 'saving'"
+          [disabled]="phase() !== 'saving' && (phase() !== 'ready' || !canSave())"
+        >
+          {{ phase() === 'saving' ? copy.billingSavingCard : copy.billingSaveCard }}
+        </button>
+      }
     }
   </ng-container>
 </ui-modal>

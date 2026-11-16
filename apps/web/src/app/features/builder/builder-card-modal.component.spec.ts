@@ -16,9 +16,11 @@ import { OverlayContainer } from '@angular/cdk/overlay';
 import type { DialogRef } from '@angular/cdk/dialog';
 import { TestBed } from '@angular/core/testing';
 import { Store } from '@ngxs/store';
-import { of } from 'rxjs';
+import { of, throwError } from 'rxjs';
+import type { Observable } from 'rxjs';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import type { CardOnFileStatus } from '@feasly/contracts';
+import { SIMULATED_PAYMENTS_NOTICE, SIMULATED_TEST_CARDS } from '@feasly/contracts';
+import type { CardOnFileStatus, SetupIntentResponse, SimulatedIntentResponse } from '@feasly/contracts';
 import { UiToastService } from '@app/shared/ui';
 
 import {
@@ -82,7 +84,27 @@ function fakeStripe() {
   return { stripe, element, create };
 }
 
-function setup(opts: { key?: string; contactHref?: string } = {}) {
+interface SetupOpts {
+  key?: string;
+  contactHref?: string;
+  /** SetupIntent response (or failure); defaults to the Stripe provider. */
+  intent?: () => Observable<SetupIntentResponse>;
+  confirm?: () => Observable<SimulatedIntentResponse>;
+  authenticate?: () => Observable<SimulatedIntentResponse>;
+}
+
+const STRIPE_INTENT: SetupIntentResponse = {
+  setupIntentId: 'seti_test',
+  clientSecret: 'seti_test_secret',
+  provider: 'stripe',
+};
+const SIM_INTENT: SetupIntentResponse = {
+  setupIntentId: 'seti_sim_1',
+  clientSecret: 'seti_sim_1_secret_x',
+  provider: 'simulated',
+};
+
+function setup(opts: SetupOpts = {}) {
   TestBed.resetTestingModule();
   const configStub = {
     get: (section: keyof typeof DEFAULT_APP_CONFIG) =>
@@ -94,7 +116,15 @@ function setup(opts: { key?: string; contactHref?: string } = {}) {
           }
         : DEFAULT_APP_CONFIG[section],
   } as unknown as ConfigService;
-  const api = { createSetupIntent: vi.fn(() => of({ clientSecret: 'seti_test_secret' })) };
+  const api = {
+    createSetupIntent: vi.fn(opts.intent ?? (() => of(STRIPE_INTENT))),
+    simulatedConfirmSetup: vi.fn(
+      opts.confirm ?? (() => of<SimulatedIntentResponse>({ intentId: 'seti_sim_1', status: 'succeeded' })),
+    ),
+    simulatedAuthenticate: vi.fn(
+      opts.authenticate ?? (() => of<SimulatedIntentResponse>({ intentId: 'seti_sim_1', status: 'succeeded' })),
+    ),
+  };
   const store = { dispatch: vi.fn(() => of(null)) };
   TestBed.configureTestingModule({
     providers: [
@@ -171,7 +201,18 @@ describe('BuilderCardModalComponent (#534)', () => {
     expect(saveButton(container)).toBeNull();
     expect(container.querySelector('a.card-modal__link')?.getAttribute('href')).toBe('mailto:billing@example.com');
     expect(loadStripe).not.toHaveBeenCalled();
-    expect(api.createSetupIntent).not.toHaveBeenCalled();
+    // #791: the SetupIntent is asked for (only the simulated provider could
+    // take a card without a key); a Stripe answer keeps the contact copy.
+    expect(api.createSetupIntent).toHaveBeenCalledTimes(1);
+    expect(container.querySelector('[data-testid="simulated-card-picker"]')).toBeNull();
+  });
+
+  it('without a key and a failed SetupIntent: still the calm contact copy, never an outage', async () => {
+    const { open, container } = setup({ intent: () => throwError(() => new Error('boom')) });
+    ref = open(CARD);
+    await until(() => text(container).includes(copy.cardModalUnavailableWithCard), 'unavailable copy');
+    expect(text(container)).not.toContain(copy.cardModalLoadError);
+    expect(saveButton(container)).toBeNull();
   });
 
   it('without a key and no card: "Add a card" title and contact copy, link hidden when unset', async () => {
@@ -204,8 +245,31 @@ describe('BuilderCardModalComponent (#534)', () => {
       style: expect.objectContaining({ base: expect.objectContaining({ color: '#123456' }) }),
     });
     expect(element.mount).toHaveBeenCalledWith(container.querySelector('.card-modal__element'));
+    // #791 AC2: the Stripe provider never renders the test-card picker.
+    expect(container.querySelector('[data-testid="simulated-card-picker"]')).toBeNull();
+    expect(text(container)).not.toContain(SIMULATED_PAYMENTS_NOTICE);
     expect(text(container)).toContain(copy.cardModalReassurance);
     expect(text(container)).toContain(CHARGE_TIMING_COPY);
+  });
+
+  it('#879 AC3 copy: replacing a saved card says the new card replaces it', async () => {
+    const { stripe, element } = fakeStripe();
+    loadStripe.mockResolvedValue(stripe as never);
+    const { open, container } = setup({ key: 'pk_test_stub' });
+    ref = open(CARD);
+    await until(() => element.mount.mock.calls.length > 0, 'element mounted');
+    expect(container.querySelector('[data-testid="replace-note"]')?.textContent).toContain(
+      copy.cardLifecycle.modalReplaceNote,
+    );
+  });
+
+  it('#879: adding a first card shows no replace note', async () => {
+    const { stripe, element } = fakeStripe();
+    loadStripe.mockResolvedValue(stripe as never);
+    const { open, container } = setup({ key: 'pk_test_stub' });
+    ref = open({ hasCard: false });
+    await until(() => element.mount.mock.calls.length > 0, 'element mounted');
+    expect(container.querySelector('[data-testid="replace-note"]')).toBeNull();
   });
 
   it('enables Save only for a complete card; success refreshes billing, toasts and closes true', async () => {
@@ -306,5 +370,145 @@ describe('BuilderCardModalComponent (#534)', () => {
     cancel.click();
     await until(() => closed, 'closed');
     expect(result).toBeUndefined();
+  });
+
+  describe('simulated provider (#791)', () => {
+    function radios(container: HTMLElement): HTMLInputElement[] {
+      return Array.from(container.querySelectorAll<HTMLInputElement>('input[name="simulated-test-card"]'));
+    }
+
+    function pick(container: HTMLElement, number: string): void {
+      const radio = radios(container).find((r) => r.value === number);
+      if (!radio) throw new Error(`no radio for ${number}`);
+      radio.click();
+    }
+
+    function button(container: HTMLElement, testId: string): HTMLButtonElement {
+      return container.querySelector(`[data-testid="${testId}"]`) as HTMLButtonElement;
+    }
+
+    it('shows the test-card picker + notice without loading Stripe.js (no key)', async () => {
+      const { open, container } = setup({ intent: () => of(SIM_INTENT) });
+      ref = open(CARD);
+      await until(() => radios(container).length > 0, 'picker');
+
+      expect(radios(container).map((r) => r.value)).toEqual(SIMULATED_TEST_CARDS.map((c) => c.number));
+      for (const card of SIMULATED_TEST_CARDS) expect(text(container)).toContain(card.label);
+      expect(container.querySelector('[data-testid="simulated-notice"]')?.textContent).toContain(
+        SIMULATED_PAYMENTS_NOTICE,
+      );
+      expect(container.querySelector('.card-modal__element')).toBeNull();
+      expect(loadStripe).not.toHaveBeenCalled();
+      // The "goes straight to Stripe" line would be untrue in test mode.
+      expect(text(container)).not.toContain(copy.cardModalReassurance);
+      expect(text(container)).toContain(CHARGE_TIMING_COPY);
+    });
+
+    it('never loads Stripe.js when the API is simulated, even with a key', async () => {
+      const { open, container } = setup({ key: 'pk_test_stub', intent: () => of(SIM_INTENT) });
+      ref = open(CARD);
+      await until(() => radios(container).length > 0, 'picker');
+      expect(loadStripe).not.toHaveBeenCalled();
+    });
+
+    it.each(SIMULATED_TEST_CARDS.filter((c) => c.behavior !== 'requires_3ds'))(
+      'saves $label via confirm-setup, refreshes billing and closes true',
+      async (card) => {
+        const { open, api, store, toast, container } = setup({ intent: () => of(SIM_INTENT) });
+        ref = open(CARD);
+        let result: boolean | undefined;
+        ref.closed.subscribe((r) => (result = r));
+        await until(() => radios(container).length > 0, 'picker');
+
+        expect(saveButton(container).disabled).toBe(true);
+        pick(container, card.number);
+        await until(() => !saveButton(container).disabled, 'save enabled');
+        saveButton(container).click();
+        await until(() => result !== undefined, 'closed');
+
+        expect(api.simulatedConfirmSetup).toHaveBeenCalledWith({ setupIntentId: 'seti_sim_1', cardNumber: card.number });
+        expect(store.dispatch).toHaveBeenCalledWith([expect.any(LoadBillingCard), expect.any(LoadBillingOverview)]);
+        expect(toast).toHaveBeenCalledWith({ message: copy.billingCardSaved, tone: 'success' });
+        expect(result).toBe(true);
+      },
+    );
+
+    it('3DS card: Complete on the challenge step saves the card', async () => {
+      const { open, api, container } = setup({
+        intent: () => of(SIM_INTENT),
+        confirm: () => of({ intentId: 'seti_sim_1', status: 'requires_action', nextAction: 'three_d_secure' }),
+      });
+      ref = open(CARD);
+      let result: boolean | undefined;
+      ref.closed.subscribe((r) => (result = r));
+      await until(() => radios(container).length > 0, 'picker');
+      pick(container, '4000002760003184');
+      await until(() => !saveButton(container).disabled, 'save enabled');
+      saveButton(container).click();
+
+      await until(() => !!button(container, 'simulated-challenge-complete'), 'challenge step');
+      expect(text(container)).toContain(copy.simulated.challengeHeading);
+      expect(saveButton(container)).toBeNull();
+
+      button(container, 'simulated-challenge-complete').click();
+      await until(() => result !== undefined, 'closed');
+      expect(api.simulatedAuthenticate).toHaveBeenCalledWith({ intentId: 'seti_sim_1', outcome: 'complete' });
+      expect(result).toBe(true);
+    });
+
+    it('3DS card: Fail keeps the modal open with the failure note and the picker back', async () => {
+      const { open, api, store, container } = setup({
+        intent: () => of(SIM_INTENT),
+        confirm: () => of({ intentId: 'seti_sim_1', status: 'requires_action', nextAction: 'three_d_secure' }),
+        authenticate: () => of({ intentId: 'seti_sim_1', status: 'requires_payment_method' }),
+      });
+      ref = open(CARD);
+      await until(() => radios(container).length > 0, 'picker');
+      pick(container, '4000002760003184');
+      await until(() => !saveButton(container).disabled, 'save enabled');
+      saveButton(container).click();
+      await until(() => !!button(container, 'simulated-challenge-fail'), 'challenge step');
+
+      button(container, 'simulated-challenge-fail').click();
+      await until(() => text(container).includes(copy.simulated.setupChallengeFailed), 'failure note');
+      expect(api.simulatedAuthenticate).toHaveBeenCalledWith({ intentId: 'seti_sim_1', outcome: 'fail' });
+      expect(radios(container).length).toBe(SIMULATED_TEST_CARDS.length);
+      expect(store.dispatch).not.toHaveBeenCalled();
+
+      // Picking another card clears the stale note.
+      pick(container, '4242424242424242');
+      await until(() => !text(container).includes(copy.simulated.setupChallengeFailed), 'note cleared');
+    });
+
+    it('a failed authenticate call keeps the challenge step with an error', async () => {
+      const { open, container } = setup({
+        intent: () => of(SIM_INTENT),
+        confirm: () => of({ intentId: 'seti_sim_1', status: 'requires_action' }),
+        authenticate: () => throwError(() => ({ code: 'http_500', message: 'x', retryable: true })),
+      });
+      ref = open(CARD);
+      await until(() => radios(container).length > 0, 'picker');
+      pick(container, '4000002760003184');
+      await until(() => !saveButton(container).disabled, 'save enabled');
+      saveButton(container).click();
+      await until(() => !!button(container, 'simulated-challenge-complete'), 'challenge step');
+      button(container, 'simulated-challenge-complete').click();
+      await until(() => text(container).includes(copy.simulated.challengeError), 'challenge error');
+      expect(button(container, 'simulated-challenge-complete').disabled).toBe(false);
+    });
+
+    it('a failed confirm-setup shows the save error and keeps the picker', async () => {
+      const { open, container } = setup({
+        intent: () => of(SIM_INTENT),
+        confirm: () => throwError(() => ({ code: 'http_409', message: 'x', retryable: false })),
+      });
+      ref = open(CARD);
+      await until(() => radios(container).length > 0, 'picker');
+      pick(container, '4242424242424242');
+      await until(() => !saveButton(container).disabled, 'save enabled');
+      saveButton(container).click();
+      await until(() => text(container).includes(copy.billingSaveFailed), 'save error');
+      expect(radios(container).length).toBe(SIMULATED_TEST_CARDS.length);
+    });
   });
 });

@@ -1,16 +1,38 @@
-import { Component, DestroyRef, computed, inject, input, output, signal } from '@angular/core';
+import { Component, DestroyRef, OnInit, computed, inject, input, output, signal } from '@angular/core';
+import { NgTemplateOutlet } from '@angular/common';
 import { FormControl, ReactiveFormsModule } from '@angular/forms';
 import { catchError, debounceTime, distinctUntilChanged, filter, map, of, switchMap, tap } from 'rxjs';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
+import { Router } from '@angular/router';
 import type { AutocompleteSuggestion, PropertyRecord } from '@feasly/contracts';
 import { API_SERVICE } from '../../../core/api';
+import { CommunitySearchService } from '../../../core/community/community-search';
+import type { CommunitySuggestion } from '../../../core/community/community-search';
 import { ConfigService } from '../../../core/config';
+import { DEEP_LINK_ADDRESS_PARAM, DEEP_LINK_SOURCE_PARAM } from '../../utils/deep-link';
 import { WaitlistSignupComponent } from '../waitlist-signup';
 import { noResultsHintKind } from './address-query-hint';
 
 let nextInstanceId = 0;
 
 type SearchStatus = 'idle' | 'searching' | 'error';
+
+/**
+ * How one address lookup ended (#815). Emitted once per completed search
+ * (or failed pick) so the parent page can report funnel analytics — this
+ * shared component never talks to analytics itself.
+ */
+export type AddressSearchOutcome = 'results' | 'no_results' | 'out_of_coverage' | 'error';
+
+/**
+ * One row of the listbox (#783). `index` is the row's position across
+ * every group (communities first), which is what keyboard navigation and
+ * `aria-activedescendant` use.
+ */
+export type SearchOption =
+  | { readonly kind: 'community'; readonly index: number; readonly community: CommunitySuggestion }
+  | { readonly kind: 'address'; readonly index: number; readonly suggestion: AutocompleteSuggestion };
+
 
 /**
  * Backend error codes the address step distinguishes (reno/05). Anything
@@ -28,29 +50,54 @@ const ADDRESS_NOT_FOUND = 'ADDRESS_NOT_FOUND';
  * open it — ArrowUp on the last option), Enter to pick the
  * highlighted suggestion (or `submitted` when nothing is highlighted),
  * Escape to dismiss.
+ *
+ * #783 site search: with `communities` on, the same box also suggests
+ * established communities (from the bundled community index — no extra
+ * request) in a "Communities" group above the "Addresses" group. Picking a
+ * community opens its guide page. With `navigateAddresses` on (the nav
+ * search, outside the estimator page), picking an address opens the
+ * estimator with that address instead of emitting `selected`.
  */
 @Component({
   selector: 'app-address-autocomplete',
   standalone: true,
-  imports: [ReactiveFormsModule, WaitlistSignupComponent],
+  imports: [NgTemplateOutlet, ReactiveFormsModule, WaitlistSignupComponent],
   templateUrl: './address-autocomplete.component.html',
   styleUrl: './address-autocomplete.component.scss',
 })
-export class AddressAutocompleteComponent {
+export class AddressAutocompleteComponent implements OnInit {
   private readonly api = inject(API_SERVICE);
   private readonly config = inject(ConfigService);
   private readonly destroyRef = inject(DestroyRef);
+  private readonly router = inject(Router);
+  private readonly communitySearch = inject(CommunitySearchService);
 
   /** Fires with the resolved property when the user picks a suggestion. */
   readonly selected = output<PropertyRecord>();
   /** Fires on Enter with no highlighted suggestion (parent decides: pick the sole match or hint). */
   readonly submitted = output<void>();
   /**
+   * #815: one emission per completed autocomplete request (each debounced
+   * lookup, Enter-to-search or prefill) — not per user session, and never for
+   * resolving a picked suggestion. See {@link AddressSearchOutcome}.
+   */
+  readonly searchOutcome = output<AddressSearchOutcome>();
+  /**
    * #520: offer the other-city notify-me under the out-of-coverage message.
    * Off by default — the builder embed (a Calgary builder's widget) never
    * shows it; the consumer landing page opts in.
    */
   readonly waitlist = input(false);
+  /** #783: also suggest communities (grouped listbox). Off for the builder embed. */
+  readonly communities = input(false);
+  /**
+   * #783: an address pick opens the estimator deep link (`/?address=…`)
+   * instead of resolving the record here. For the nav search, which lives
+   * outside the estimator entry page.
+   */
+  readonly navigateAddresses = input(false);
+  /** #783: compact look for the nav bar (smaller field, no visible label). */
+  readonly compact = input(false);
   /** Deploy-level kill switch for the city waitlist (config-owned). */
   readonly cityWaitlistEnabled = this.config.get('features').cityWaitlist;
   /** Trimmed query of the latest search (preselects the waitlist city). */
@@ -58,12 +105,33 @@ export class AddressAutocompleteComponent {
 
   /** User-facing strings (config-owned so the no-hardcode tripwire stays green). */
   readonly copy = this.config.get('copy').search;
+  /** Visible/accessible label: the site-search wording when communities are on (#783). */
+  readonly label = computed(() => (this.communities() ? this.copy.siteSearchLabel : this.copy.label));
+  readonly placeholder = computed(() =>
+    this.communities() ? this.copy.siteSearchPlaceholder : this.copy.placeholder,
+  );
 
   readonly inputId = `ac-input-${nextInstanceId}`;
   readonly listboxId = `ac-listbox-${nextInstanceId++}`;
 
   readonly query = new FormControl('', { nonNullable: true });
   readonly suggestions = signal<AutocompleteSuggestion[]>([]);
+  /** #783: community matches for the current query (empty unless `communities`). */
+  readonly communityMatches = signal<CommunitySuggestion[]>([]);
+  /** Every listbox row, communities first, with its flat index. */
+  readonly options = computed<SearchOption[]>(() => {
+    const communities = this.communityMatches();
+    return [
+      ...communities.map((community, index) => ({ kind: 'community' as const, index, community })),
+      ...this.suggestions().map((suggestion, i) => ({
+        kind: 'address' as const,
+        index: communities.length + i,
+        suggestion,
+      })),
+    ];
+  });
+  readonly communityOptions = computed(() => this.options().filter((o) => o.kind === 'community'));
+  readonly addressOptions = computed(() => this.options().filter((o) => o.kind === 'address'));
   readonly open = signal(false);
   readonly activeIndex = signal(-1);
   readonly status = signal<SearchStatus>('idle');
@@ -109,7 +177,7 @@ export class AddressAutocompleteComponent {
    * an element that exists (axe `aria-valid-attr-value`, #487), so the
    * input references the listbox only while it is rendered.
    */
-  readonly listboxRendered = computed(() => this.open() && this.suggestions().length > 0);
+  readonly listboxRendered = computed(() => this.open() && this.options().length > 0);
   /**
    * id of the highlighted option, or null. `aria-activedescendant` must name
    * an option that is in the DOM (#579), so it is set only while the
@@ -117,7 +185,7 @@ export class AddressAutocompleteComponent {
    */
   readonly activeDescendantId = computed(() => {
     const index = this.activeIndex();
-    if (!this.listboxRendered() || index < 0 || index >= this.suggestions().length) return null;
+    if (!this.listboxRendered() || index < 0 || index >= this.options().length) return null;
     return `${this.listboxId}-opt-${index}`;
   });
 
@@ -140,6 +208,7 @@ export class AddressAutocompleteComponent {
           this.errorCode.set(null);
           if (q.length < 3) {
             this.suggestions.set([]);
+            this.communityMatches.set([]);
             this.searched.set(false);
             this.open.set(false);
             this.activeIndex.set(-1);
@@ -153,13 +222,13 @@ export class AddressAutocompleteComponent {
           this.lastQuery.set(q);
           this.status.set('searching');
           this.pendingKey = null;
+          this.showCommunityMatches(q);
         }),
         switchMap((q) =>
           this.api.autocomplete(q).pipe(
             map((res) => res.suggestions.slice(0, this.suggestionLimit)),
             catchError((error: unknown) => {
-              this.status.set('error');
-              this.errorCode.set(apiErrorCode(error));
+              this.fail(error);
               return of([]);
             }),
           ),
@@ -178,8 +247,55 @@ export class AddressAutocompleteComponent {
     this.suggestions.set(suggestions);
     this.searched.set(true);
     this.open.set(true);
-    this.activeIndex.set(-1);
+    // Keep a highlight the user already moved onto a community row while
+    // the addresses were loading; anything else resets.
+    if (this.activeIndex() >= this.communityMatches().length) this.activeIndex.set(-1);
     this.status.set('idle');
+    this.searchOutcome.emit(suggestions.length > 0 ? 'results' : 'no_results');
+  }
+
+  /** A lookup failed: show its error state and report the outcome once (#815). */
+  private fail(error: unknown): void {
+    const code = this.showError(error);
+    this.searchOutcome.emit(code === OUT_OF_COVERAGE ? 'out_of_coverage' : 'error');
+  }
+
+  /**
+   * Shows a failed request's error state without reporting a search outcome.
+   * Used directly by the pick path: resolving a suggestion is not a search, and
+   * the lookup that produced it already reported its outcome (#815).
+   */
+  private showError(error: unknown): string | null {
+    const code = apiErrorCode(error);
+    this.status.set('error');
+    this.errorCode.set(code);
+    return code;
+  }
+
+  /**
+   * #783: start loading the community index as soon as a community-enabled
+   * box renders, so matches are ready by the first search. Boxes without
+   * `communities` (the builder embed, the wizard) never load it.
+   */
+  ngOnInit(): void {
+    if (this.communities()) void this.communitySearch.load().catch(() => undefined);
+  }
+
+  /**
+   * #783: community matches come from the static community index (no API
+   * request), so they show without waiting for the address request — and
+   * even if it fails. A late answer for an older query is dropped.
+   */
+  private showCommunityMatches(query: string): void {
+    if (!this.communities()) return;
+    void this.communitySearch
+      .search(query, this.config.get('limits').communitySuggestionLimit)
+      .then((matches) => {
+        if (this.lastQuery() !== query || this.query.value.trim() !== query) return;
+        this.communityMatches.set(matches);
+        this.activeIndex.set(-1);
+        if (matches.length > 0) this.open.set(true);
+      });
   }
 
   /** Fires one autocomplete request immediately, skipping the debounce. */
@@ -195,10 +311,7 @@ export class AddressAutocompleteComponent {
       )
       .subscribe({
         next: (suggestions) => this.applyResults(suggestions),
-        error: (error: unknown) => {
-          this.status.set('error');
-          this.errorCode.set(apiErrorCode(error));
-        },
+        error: (error: unknown) => this.fail(error),
       });
   }
 
@@ -237,12 +350,11 @@ export class AddressAutocompleteComponent {
           // The user started typing over the prefill: their query wins.
           if (this.query.value !== text) return;
           this.applyResults(suggestions);
-          if (suggestions.length === 1) this.choose(0);
+          if (suggestions.length === 1) this.chooseAddress(suggestions[0]!);
         },
         error: (error: unknown) => {
           if (this.query.value !== text) return;
-          this.status.set('error');
-          this.errorCode.set(apiErrorCode(error));
+          this.fail(error);
         },
       });
   }
@@ -260,6 +372,7 @@ export class AddressAutocompleteComponent {
     this.pendingKey = null;
     this.query.setValue('');
     this.suggestions.set([]);
+    this.communityMatches.set([]);
     this.open.set(false);
     this.activeIndex.set(-1);
     this.searched.set(false);
@@ -284,7 +397,7 @@ export class AddressAutocompleteComponent {
   pickTop(): boolean {
     const suggestions = this.suggestions();
     if (suggestions.length !== 1 || this.status() === 'searching') return false;
-    this.choose(0);
+    this.chooseAddress(suggestions[0]!);
     return true;
   }
 
@@ -371,7 +484,7 @@ export class AddressAutocompleteComponent {
   }
 
   onKeydown(event: KeyboardEvent): void {
-    const count = this.suggestions().length;
+    const count = this.options().length;
     switch (event.key) {
       case 'ArrowDown':
         event.preventDefault();
@@ -403,6 +516,10 @@ export class AddressAutocompleteComponent {
         }
         break;
       case 'Escape':
+        // #783: closing an open list is all this Escape does — it must not
+        // also reach document-level handlers (the nav's phone menu closes on
+        // Escape). A second Escape, with the list closed, passes through.
+        if (this.listboxRendered()) event.stopPropagation();
         this.open.set(false);
         this.activeIndex.set(-1);
         break;
@@ -410,7 +527,7 @@ export class AddressAutocompleteComponent {
   }
 
   onFocus(): void {
-    if (this.suggestions().length > 0) this.open.set(true);
+    if (this.options().length > 0) this.open.set(true);
   }
 
   onBlur(): void {
@@ -420,15 +537,45 @@ export class AddressAutocompleteComponent {
     this.activeIndex.set(-1);
   }
 
+  /** Picks the listbox row at flat `index` (communities first, #783). */
   choose(index: number): void {
-    const suggestion = this.suggestions()[index];
-    if (!suggestion) return;
+    const option = this.options()[index];
+    if (!option) return;
+    if (option.kind === 'community') {
+      this.chooseCommunity(option.community);
+    } else {
+      this.chooseAddress(option.suggestion);
+    }
+  }
+
+  /** #783: a community opens its guide page. */
+  private chooseCommunity(community: CommunitySuggestion): void {
+    this.open.set(false);
+    this.activeIndex.set(-1);
+    this.hint.set(null);
+    this.selectionHint.set(null);
+    this.query.setValue(community.name, { emitEvent: false });
+    void this.router.navigate(['/communities', community.slug]);
+  }
+
+  private chooseAddress(suggestion: AutocompleteSuggestion): void {
     this.open.set(false);
     this.activeIndex.set(-1);
     this.hint.set(null);
     this.selectionHint.set(null);
     // Show the picked address while the record resolves.
     this.query.setValue(suggestion.address, { emitEvent: false });
+    if (this.navigateAddresses()) {
+      // Nav search (#783): hand the address to the estimator page, which
+      // looks it up through the same deep link as any other entry (#692).
+      void this.router.navigate(['/'], {
+        queryParams: {
+          [DEEP_LINK_ADDRESS_PARAM]: suggestion.address,
+          [DEEP_LINK_SOURCE_PARAM]: this.config.get('deepLink').siteSearchSource,
+        },
+      });
+      return;
+    }
     this.resolve(suggestion.addressKey);
   }
 
@@ -447,10 +594,7 @@ export class AddressAutocompleteComponent {
           this.status.set('idle');
           this.selected.emit(property);
         },
-        error: (error: unknown) => {
-          this.status.set('error');
-          this.errorCode.set(apiErrorCode(error));
-        },
+        error: (error: unknown) => this.showError(error),
       });
   }
 }

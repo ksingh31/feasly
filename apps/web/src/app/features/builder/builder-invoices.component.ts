@@ -35,7 +35,7 @@ import {
   BuilderInvoiceDrawerComponent,
   type BuilderInvoiceDrawerData,
 } from './builder-invoice-drawer.component';
-import { methodLabel, reviewCountdown } from './builder-invoice-view';
+import { methodLabel, nextRetryLabel, overdueLabel, reviewCountdown } from './builder-invoice-view';
 
 /**
  * Invoice-number search debounce (UI-responsiveness timing, not a tunable:
@@ -238,6 +238,8 @@ export class BuilderInvoicesComponent implements OnInit {
         return this.copy.invoiceStatusInReview;
       case 'finalized':
         return this.copy.invoiceStatusFinalized;
+      case 'action_required':
+        return this.copy.invoiceStatusActionRequired;
       case 'paid':
         return this.copy.invoiceStatusPaid;
       case 'failed':
@@ -252,6 +254,18 @@ export class BuilderInvoicesComponent implements OnInit {
   /** Method-aware review countdown ("Auto-charges in 3 days" / "Due in 3 days"). */
   protected reviewCountdown(invoice: BuilderCommissionInvoice): string | null {
     return reviewCountdown(invoice, this.copy);
+  }
+
+  /**
+   * #901: Due cell note that outranks the review countdown — "Overdue 3
+   * days" for a manual-method invoice past its due date, or "Retries Nov
+   * 23, 2026" for a failed card invoice with a retry scheduled.
+   */
+  protected dueNote(invoice: BuilderCommissionInvoice): { text: string; overdue: boolean } | null {
+    const overdue = overdueLabel(invoice, this.copy);
+    if (overdue) return { text: overdue, overdue: true };
+    const retry = nextRetryLabel(invoice, this.copy);
+    return retry ? { text: retry, overdue: false } : null;
   }
 
   /** Buyer-grade label, e.g. "Card •••• 4242" or "Cheque". */

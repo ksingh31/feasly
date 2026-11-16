@@ -8,6 +8,7 @@ import { API_SERVICE, type ApiService } from '../../core/api/api.service';
 import { AnalyticsService } from './analytics.service';
 import { AcknowledgeConsent } from './consent.actions';
 import { ConsentState } from './consent.state';
+import { CampaignSourceState, CaptureCampaignSource } from './campaign-source.state';
 
 /**
  * Story consumer/01: the consent gate on analytics emission.
@@ -27,7 +28,7 @@ describe('AnalyticsService', () => {
     TestBed.configureTestingModule({
       providers: [
         provideRouter([]),
-        provideStore([ConsentState]),
+        provideStore([ConsentState, CampaignSourceState]),
         { provide: API_SERVICE, useValue: { trackEvent } satisfies Partial<ApiService> },
       ],
     });
@@ -71,5 +72,56 @@ describe('AnalyticsService', () => {
     store.dispatch(new AcknowledgeConsent(true));
     expect(() => service.track('step_view')).not.toThrow();
     expect(trackEvent).toHaveBeenCalledTimes(1);
+  });
+
+  describe('campaign source (#815)', () => {
+    beforeEach(() => {
+      store.dispatch(
+        new CaptureCampaignSource({
+          source: { utm_source: 'google', utm_campaign: 'test', click_id_type: 'gclid' },
+          referrerHost: null,
+        }),
+      );
+    });
+
+    it('attaches the session source to each event once consent is granted', () => {
+      store.dispatch(new AcknowledgeConsent(true));
+      service.track('landing_view', '/');
+      service.track('address_selected', '/');
+      expect(trackEvent).toHaveBeenCalledTimes(2);
+      for (const [payload] of trackEvent.mock.calls) {
+        expect(payload.source).toEqual({ utm_source: 'google', utm_campaign: 'test', click_id_type: 'gclid' });
+      }
+    });
+
+    it('declined consent: zero network calls and no lead source', () => {
+      store.dispatch(new AcknowledgeConsent(false));
+      service.track('landing_view', '/');
+      service.track('address_search', '/');
+      expect(trackEvent).not.toHaveBeenCalled();
+      expect(service.leadSource()).toBeUndefined();
+    });
+
+    it('leadSource() returns the source only with consent', () => {
+      expect(service.leadSource()).toBeUndefined();
+      store.dispatch(new AcknowledgeConsent(true));
+      expect(service.leadSource()).toEqual({ utm_source: 'google', utm_campaign: 'test', click_id_type: 'gclid' });
+    });
+
+    it('omits source entirely for a direct session', () => {
+      TestBed.resetTestingModule();
+      TestBed.configureTestingModule({
+        providers: [
+          provideRouter([]),
+          provideStore([ConsentState]),
+          { provide: API_SERVICE, useValue: { trackEvent } satisfies Partial<ApiService> },
+        ],
+      });
+      trackEvent.mockClear();
+      const fresh = TestBed.inject(AnalyticsService);
+      TestBed.inject(Store).dispatch(new AcknowledgeConsent(true));
+      fresh.track('landing_view', '/');
+      expect(trackEvent.mock.calls[0][0]).not.toHaveProperty('source');
+    });
   });
 });
