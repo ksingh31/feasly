@@ -135,6 +135,11 @@ describe('loadConfig', () => {
         httpTimeoutMs: 15_000,
         searchRowLimit: 50,
         suggestionLimit: 8,
+        redevelopmentMinAgeYears: 25,
+        // #756: durable shared cache + HTTP cache lifetime.
+        dbCacheTtlMs: 604_800_000,
+        dbCacheTimeoutMs: 1_500,
+        httpCacheMaxAgeSeconds: 3_600,
       },
       // #686: current land-use district from the City's Land Use Districts
       // dataset; falls back to the roll value on timeout/error/no hit.
@@ -143,6 +148,7 @@ describe('loadConfig', () => {
         socrataBaseUrl: 'https://data.calgary.ca',
         datasetId: 'qe6k-p9nh',
         cacheTtlMs: 86_400_000,
+        dbCacheTtlMs: 604_800_000,
         httpTimeoutMs: 3_000,
       },
       // #687: zoning rules catalogue city + public cache lifetime.
@@ -170,6 +176,7 @@ describe('loadConfig', () => {
         isProduction: false,
         maxChargeRetries: 3,
         settlementThresholdHours: 24,
+        cardExpiryWarningDays: 30,
         tax: {
           enabled: false,
           ratePercent: 5,
@@ -189,6 +196,10 @@ describe('loadConfig', () => {
       sandboxPurge: {
         retentionDays: 30,
         dryRun: true,
+      },
+      apiKeyAuth: {
+        authCacheTtlSeconds: 0,
+        acceptedModes: 'all',
       },
       followUpEmail: {
         enabled: false,
@@ -344,6 +355,7 @@ describe('loadConfig', () => {
       isProduction: false,
       maxChargeRetries: 3,
       settlementThresholdHours: 24,
+      cardExpiryWarningDays: 30,
       tax: {
         enabled: false,
         ratePercent: 5,
@@ -396,6 +408,33 @@ describe('loadConfig', () => {
     expect(() =>
       loadConfig({ ...VALID_ENV, BILLING_SETTLEMENT_THRESHOLD_HOURS: '0' }),
     ).toThrow(/BILLING_SETTLEMENT_THRESHOLD_HOURS/);
+  });
+
+  it('reads BILLING_STATEMENT_DESCRIPTOR (#716) and enforces Stripe descriptor rules', () => {
+    expect(loadConfig(VALID_ENV).billing.statementDescriptor).toBeUndefined();
+    expect(
+      loadConfig({ ...VALID_ENV, BILLING_STATEMENT_DESCRIPTOR: ' FEASLY COMMISSION ' })
+        .billing.statementDescriptor,
+    ).toBe('FEASLY COMMISSION');
+    expect(() =>
+      loadConfig({ ...VALID_ENV, BILLING_STATEMENT_DESCRIPTOR: 'X'.repeat(23) }),
+    ).toThrow(/BILLING_STATEMENT_DESCRIPTOR/);
+    expect(() =>
+      loadConfig({ ...VALID_ENV, BILLING_STATEMENT_DESCRIPTOR: 'FEASLY*COMM' }),
+    ).toThrow(/BILLING_STATEMENT_DESCRIPTOR/);
+    expect(() =>
+      loadConfig({ ...VALID_ENV, BILLING_STATEMENT_DESCRIPTOR: '12345' }),
+    ).toThrow(/BILLING_STATEMENT_DESCRIPTOR/);
+  });
+
+  it('reads BILLING_CARD_EXPIRY_WARNING_DAYS (#716) and rejects 0', () => {
+    expect(
+      loadConfig({ ...VALID_ENV, BILLING_CARD_EXPIRY_WARNING_DAYS: '45' }).billing
+        .cardExpiryWarningDays,
+    ).toBe(45);
+    expect(() =>
+      loadConfig({ ...VALID_ENV, BILLING_CARD_EXPIRY_WARNING_DAYS: '0' }),
+    ).toThrow(/BILLING_CARD_EXPIRY_WARNING_DAYS/);
   });
 
   it('rejects an unknown billing model naming the variable', () => {

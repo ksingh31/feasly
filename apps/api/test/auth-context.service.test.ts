@@ -21,6 +21,8 @@ import type {
   UserRecord,
 } from '../src/services/user.service';
 import { effectivePermissions } from '../src/auth/permissions';
+import { HttpError } from '../src/middleware/errors';
+import { createPermissionGuard } from '../src/middleware/permission-guard';
 
 const NOW = new Date('2026-09-28T12:00:00Z');
 
@@ -712,5 +714,154 @@ describe('sign-in time for the re-auth window (#730)', () => {
     });
     const ctx = await fx.service.resolve(BUILDER_HEADERS('builder-token'));
     expect(ctx!.authenticatedAt).toEqual(signedIn);
+  });
+});
+
+describe('builder permissions follow the ACTIVE org role only (#855)', () => {
+  /** Builder-only user: builder_admin of A, builder_member of B. */
+  function seedTwoOrgUser(fx: Fixture, activeBuilderId: string | null): void {
+    const u = user({
+      id: 'user-two-orgs',
+      email: 'two@example.com',
+      name: 'Two Orgs',
+      staffRole: null,
+    });
+    fx.usersByEmail.set(u.email, u);
+    fx.usersById.set(u.id, u);
+    fx.buildersById.set('builder-a', {
+      id: 'builder-a',
+      displayName: 'Org A',
+      status: 'active',
+    });
+    fx.buildersById.set('builder-b', {
+      id: 'builder-b',
+      displayName: 'Org B',
+      status: 'active',
+    });
+    fx.membershipsByUser.set(u.id, [
+      { builderId: 'builder-a', role: 'builder_admin', createdAt: NOW },
+      { builderId: 'builder-b', role: 'builder_member', createdAt: NOW },
+    ]);
+    fx.adminSessions.set(
+      hashSessionToken('two-token'),
+      adminSession('two-token', {
+        email: u.email,
+        userId: u.id,
+        activeBuilderId,
+      }),
+    );
+  }
+
+  it('admin in A, member in B, active in B: only builder_member permissions', async () => {
+    const fx = makeService();
+    seedTwoOrgUser(fx, 'builder-b');
+    const ctx = await fx.service.resolve(HEADERS('two-token'));
+    expect(ctx!.builderId).toBe('builder-b');
+    expect(new Set(ctx!.permissions)).toEqual(
+      new Set(effectivePermissions(null, ['builder_member'])),
+    );
+    expect(ctx!.permissions).not.toContain('builder:users:manage');
+    expect(ctx!.permissions).not.toContain('builder:billing');
+    expect(ctx!.permissions).not.toContain('view_as');
+    // The org switcher still sees every membership.
+    expect(ctx!.memberships).toHaveLength(2);
+  });
+
+  it('the same user active in A gets the builder_admin permissions', async () => {
+    const fx = makeService();
+    seedTwoOrgUser(fx, 'builder-a');
+    const ctx = await fx.service.resolve(HEADERS('two-token'));
+    expect(ctx!.builderId).toBe('builder-a');
+    expect(new Set(ctx!.permissions)).toEqual(
+      new Set(effectivePermissions(null, ['builder_admin'])),
+    );
+  });
+
+  it('no active org → no builder-role permissions', async () => {
+    const fx = makeService();
+    seedTwoOrgUser(fx, null);
+    const ctx = await fx.service.resolve(HEADERS('two-token'));
+    expect(ctx!.builderId).toBeNull();
+    expect(ctx!.permissions).toEqual([]);
+  });
+
+  it('a dangling active org (membership removed) grants no builder-role permissions', async () => {
+    const fx = makeService();
+    seedTwoOrgUser(fx, 'builder-gone');
+    const ctx = await fx.service.resolve(HEADERS('two-token'));
+    expect(ctx!.builderId).toBeNull();
+    expect(ctx!.permissions).toEqual([]);
+  });
+
+  it('staff-role permissions still apply alongside the active org role', async () => {
+    const fx = makeService();
+    seedTwoOrgUser(fx, 'builder-b');
+    const u = user({
+      id: 'user-two-orgs',
+      email: 'two@example.com',
+      name: 'Two Orgs',
+      staffRole: 'viewer',
+    });
+    fx.usersById.set(u.id, u);
+    const ctx = await fx.service.resolve(HEADERS('two-token'));
+    expect(new Set(ctx!.permissions)).toEqual(
+      new Set(effectivePermissions('viewer', ['builder_member'])),
+    );
+  });
+
+  it('the permission guard 403s builder:users:manage and builder:billing for the member-in-B session', async () => {
+    const fx = makeService();
+    seedTwoOrgUser(fx, 'builder-b');
+    const guard = createPermissionGuard({ authContext: fx.service });
+    for (const [permission, route] of [
+      ['builder:users:manage', 'GET /api/v1/builder/users'],
+      ['builder:users:manage', 'PATCH /api/v1/builder/users/{id}'],
+      ['builder:billing', 'GET /api/v1/builder/billing/overview'],
+    ] as const) {
+      const err = await guard
+        .requirePermission(permission, HEADERS('two-token'), route)
+        .catch((e: unknown) => e);
+      expect(err).toBeInstanceOf(HttpError);
+      expect((err as HttpError).status).toBe(403);
+    }
+    // Lead access (the member role) still works in B.
+    const ctx = await guard.requirePermission(
+      'builder:leads:read',
+      HEADERS('two-token'),
+      'GET /api/v1/builder/leads',
+    );
+    expect(ctx.builderId).toBe('builder-b');
+  });
+
+  it('admin view-as of a user scopes builder permissions to the target’s resolved org', async () => {
+    const fx = makeService();
+    seedAdmin(fx);
+    const target = user({
+      id: 'user-target',
+      email: 'target@example.com',
+      name: 'Target',
+      staffRole: null,
+    });
+    fx.usersById.set(target.id, target);
+    fx.buildersById.set('builder-b', {
+      id: 'builder-b',
+      displayName: 'Org B',
+      status: 'active',
+    });
+    // Member in the org the view resolves to (first membership), admin
+    // elsewhere: the admin role must not widen the borrowed view.
+    fx.membershipsByUser.set(target.id, [
+      { builderId: 'builder-1', role: 'builder_member', createdAt: NOW },
+      { builderId: 'builder-b', role: 'builder_admin', createdAt: NOW },
+    ]);
+    fx.adminSessions.set(
+      hashSessionToken('admin-token'),
+      adminSession('admin-token', { viewAs: { userId: target.id } }),
+    );
+    const ctx = await fx.service.resolve(HEADERS('admin-token'));
+    expect(ctx!.builderId).toBe('builder-1');
+    expect(new Set(ctx!.permissions)).toEqual(
+      new Set(effectivePermissions(null, ['builder_member'])),
+    );
   });
 });

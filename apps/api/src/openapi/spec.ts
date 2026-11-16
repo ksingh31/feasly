@@ -517,6 +517,12 @@ export function buildOpenApiSpec(options: OpenApiSpecOptions) {
           'application/json': { schema: AutocompleteResponseSchema },
         },
       },
+      '304': {
+        description:
+          'Not modified: If-None-Match names the current ETag; reuse the ' +
+          'cached copy (#756). 200 responses carry ETag and ' +
+          'Cache-Control: private, max-age=<PROPERTY_HTTP_CACHE_MAX_AGE_S> and Vary: Origin.',
+      },
       '404': {
         description:
           'OUT_OF_COVERAGE: the query is explicitly outside Calgary ' +
@@ -566,6 +572,12 @@ export function buildOpenApiSpec(options: OpenApiSpecOptions) {
         content: {
           'application/json': { schema: PropertyRecordSchema },
         },
+      },
+      '304': {
+        description:
+          'Not modified: If-None-Match names the current ETag; reuse the ' +
+          'cached copy (#756). 200 responses carry ETag and ' +
+          'Cache-Control: private, max-age=<PROPERTY_HTTP_CACHE_MAX_AGE_S> and Vary: Origin.',
       },
       '404': {
         description:

@@ -73,6 +73,8 @@ interface Options {
   readonly method?: BuilderPaymentMethod | 'error' | Subject<{ defaultMethod: BuilderPaymentMethod }>;
   readonly confirm?: boolean;
   readonly report?: Subject<ReportContractResult> | 'error';
+  /** Patches the minted invoice the success card reads. */
+  readonly invoice?: Partial<CommissionInvoice>;
 }
 
 function setup(options: Options = {}) {
@@ -102,6 +104,7 @@ function setup(options: Options = {}) {
         paymentMethod: 'card',
         reviewDueAt: IN_THREE_DAYS,
         effectiveRatePercent: 1.5,
+        ...options.invoice,
       } as unknown as CommissionInvoice),
     ),
   };
@@ -179,6 +182,47 @@ describe('BuilderRecordContractPanelComponent (#529)', () => {
     typeValue(el, '650000');
     expect((el.querySelector('[data-testid="record-value"] input') as HTMLInputElement).value).toBe('650,000');
     expect(text(el, 'record-commission')).toBe('$9,750');
+  });
+
+  describe('sales tax preview (#764)', () => {
+    const GST = { ratePercent: 5, label: 'GST', inclusive: false };
+
+    it('previews "$X + $Y GST" when tax is added on top, and the confirm repeats it', async () => {
+      const { el, confirms } = setup({ overview: overview({ tax: GST }) });
+      await until(() => !review(el).disabled, 'ready');
+      typeValue(el, '650000');
+      expect(text(el, 'record-commission')).toBe('$9,750 + $487.50 GST');
+      setDate(el, '2026-11-10');
+      review(el).click();
+      expect(confirms.confirm.mock.calls[0][0].body).toContain('$9,750 + $487.50 GST');
+    });
+
+    it('previews "(incl. GST)" for tax-inclusive pricing without inventing a tax split', async () => {
+      const { el } = setup({ overview: overview({ tax: { ...GST, inclusive: true } }) });
+      await until(() => !review(el).disabled, 'ready');
+      typeValue(el, '650000');
+      expect(text(el, 'record-commission')).toBe('$9,750 (incl. GST)');
+    });
+
+    it('the success card names the minted invoice\'s server tax', async () => {
+      const { el } = setup({
+        overview: overview({ tax: GST }),
+        invoice: { taxCents: 48_750, totalCents: 1_023_750, taxRatePercent: 5, taxLabel: 'GST' },
+      });
+      await until(() => !review(el).disabled, 'ready');
+      typeValue(el, '650000');
+      setDate(el, '2026-11-10');
+      review(el).click();
+      await until(() => !!el.querySelector('[data-testid="record-success"]'), 'success');
+      expect(text(el, 'record-success-commission')).toBe('$9,750 + $487.50 GST');
+    });
+
+    it('AC2: without tax the preview is unchanged', async () => {
+      const { el } = setup();
+      await until(() => !review(el).disabled, 'ready');
+      typeValue(el, '650000');
+      expect(text(el, 'record-commission')).toBe('$9,750');
+    });
   });
 
   it('shows the expected charge date and the card on file', async () => {

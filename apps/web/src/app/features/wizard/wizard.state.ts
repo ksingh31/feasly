@@ -11,6 +11,7 @@ import type { PreviewCacheEntry } from '../../core/api/preview-cache';
 import { ConfigService } from '../../core/config/config.service';
 import {
   ChooseProjectType,
+  MarkSteerApplied,
   DismissResume,
   GoToStep,
   ResetWizard,
@@ -96,6 +97,11 @@ export interface WizardStateModel {
    * Optional: absent in state persisted by older versions (treated as false).
    */
   resumeDismissed?: boolean;
+  /**
+   * #755: addressKey of the property whose home-age steer the scope step
+   * already applied. Optional: absent in older persisted state (null).
+   */
+  steerAppliedFor?: string | null;
 }
 
 /**
@@ -131,6 +137,7 @@ export interface WizardStateModel {
     previewTenantKey: null,
     entrySource: null,
     resumeDismissed: false,
+    steerAppliedFor: null,
   },
 })
 @Injectable()
@@ -254,6 +261,17 @@ export class WizardState implements NgxsOnInit {
     ctx.patchState({ projectType: action.projectType });
   }
 
+  /** #755: the scope step applied the home-age steer for this property. */
+  @Selector()
+  static steerAppliedFor(state: WizardStateModel): string | null {
+    return state.steerAppliedFor ?? null;
+  }
+
+  @Action(MarkSteerApplied)
+  markSteerApplied(ctx: StateContext<WizardStateModel>, action: MarkSteerApplied): void {
+    ctx.patchState({ steerAppliedFor: action.addressKey });
+  }
+
   @Action(UpdateInputs)
   updateInputs(ctx: StateContext<WizardStateModel>, action: UpdateInputs): void {
     ctx.patchState({ inputs: { ...ctx.getState().inputs, ...action.inputs } });
@@ -338,6 +356,7 @@ export class WizardState implements NgxsOnInit {
       previewTenantKey: null,
       entrySource: null,
       resumeDismissed: false,
+      steerAppliedFor: null,
     });
   }
 

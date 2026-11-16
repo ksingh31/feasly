@@ -87,6 +87,7 @@ const fakeApp = {
   previewRoute: { handle: routes.preview },
   leadRoute: { handle: routes.lead },
   propertyRoute: { autocomplete: routes.autocomplete, lookup: routes.lookup },
+  config: { propertyData: { httpCacheMaxAgeSeconds: 60 } },
   withApiKeyRateLimit: createApiKeyRateLimitMiddleware({
     apiKeys,
     usage,
@@ -99,6 +100,7 @@ vi.mock('../src/index', async () => ({
   createComposition: () => fakeApp,
   loadConfig: () => ({ corsOrigins: [] }),
   middleware: await vi.importActual('../src/middleware'),
+  lib: await vi.importActual('../src/lib'),
 }));
 
 // Imported after the mock so each adapter sees the fake composition.

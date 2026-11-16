@@ -4,7 +4,7 @@
  * Routes are adapters, not logic: authenticate → create the MCP server →
  * handle the Streamable HTTP request → return the response.
  *
- * - POST /mcp/v1 — Streamable HTTP transport (stateless mode for the
+ * - POST /api/mcp/v1 — Streamable HTTP transport (stateless mode for the
  *   serverless Function App). Bearer API-key auth + per-tool scope checks.
  * - The MCP protocol handling (JSON-RPC, tool dispatch) lives in
  *   `@feasly/mcp` — this route only wires auth + services.
@@ -112,7 +112,7 @@ export function createMcpRoute(deps: McpRouteDeps): McpRoute {
         // The URL is never fetched (stateless mode) — it's only parsed by
         // the transport. Built from parts to avoid a hardcoded URL literal
         // (layer-boundaries test: routes must not embed URLs).
-        const requestUrl = ['https', '://', 'feasly.local', '/mcp/v1'].join('');
+        const requestUrl = ['https', '://', 'feasly.local', '/api/mcp/v1'].join('');
         const request = new Request(requestUrl, {
           method: 'POST',
           headers: {

@@ -148,6 +148,7 @@ Related: [rate-limits.md](rate-limits.md) · [asvs-l1.md](asvs-l1.md) ·
 | POST | `/api/v1/billing/simulated/confirm-setup` | builder-session | builder:billing | 100/min per session | live |  |
 | POST | `/api/v1/billing/simulated/authenticate` | builder-session | builder:billing | 100/min per session | live |  |
 | GET | `/api/v1/billing/card` | builder-session | builder:billing | 100/min per session | live |  |
+| DELETE | `/api/v1/billing/card` | builder-session | builder:billing | 100/min per session | live |  |
 | GET | `/api/v1/billing/commission-rate` | builder-session | builder:billing | 100/min per session | live |  |
 | GET | `/api/v1/builder/billing/overview` | builder-session | builder:billing | 100/min per session | live |  |
 | GET | `/api/v1/billing/payment-method` | builder-session | builder:billing | 100/min per session | live |  |

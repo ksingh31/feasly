@@ -213,6 +213,35 @@ describe('AdminCreateInvoiceComponent (#544 create-invoice modal)', () => {
     expect(ref.close).toHaveBeenCalledWith(true);
   });
 
+  it('#764: shows subtotal, the GST line and the total for a taxed invoice', async () => {
+    billingApi.createManualInvoice.mockReturnValue(
+      of({ ...INVOICE_RESPONSE, taxCents: 85_000, totalCents: 1_785_000, taxRatePercent: 5, taxLabel: 'GST' }),
+    );
+    await fillValidForm();
+    component.startReview();
+    await fixture.whenStable();
+    (q('create-invoice-confirm') as HTMLButtonElement).click();
+    await fixture.whenStable();
+    expect(q('create-invoice-subtotal')?.textContent).toContain('$17,000');
+    expect(q('create-invoice-tax')?.textContent).toContain('GST (5%)');
+    expect(q('create-invoice-tax')?.textContent).toContain('$850');
+    expect(q('create-invoice-total')?.textContent).toContain('$17,850');
+  });
+
+  it('#764 AC2: an untaxed created invoice shows only the commission row', async () => {
+    billingApi.createManualInvoice.mockReturnValue(
+      of({ ...INVOICE_RESPONSE, taxCents: 0, totalCents: 1_700_000, taxRatePercent: 0, taxLabel: null }),
+    );
+    await fillValidForm();
+    component.startReview();
+    await fixture.whenStable();
+    (q('create-invoice-confirm') as HTMLButtonElement).click();
+    await fixture.whenStable();
+    expect(q('create-invoice-done')?.textContent).toContain('$17,000');
+    expect(q('create-invoice-tax')).toBeNull();
+    expect(q('create-invoice-total')).toBeNull();
+  });
+
   it('links to the created invoice instead of printing its UUID (#538)', async () => {
     const navigate = vi.spyOn(TestBed.inject(Router), 'navigate').mockResolvedValue(true);
     await fillValidForm();
