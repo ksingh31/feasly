@@ -35,6 +35,7 @@ import {
   type FlatPlanService,
 } from '../src/services/billing/flat-plan.service';
 import type { StripeService } from '../src/services/billing/stripe.service';
+import { createChargebackService } from '../src/services/billing/chargeback.service';
 import type { EmailService } from '../src/services/email/email.service';
 import {
   billingEvents,
@@ -222,6 +223,12 @@ describe('billing webhook service', () => {
       audit,
       commission,
       flatPlan,
+      chargebacks: createChargebackService({
+        db: testDb.db,
+        audit,
+        email,
+        opsInbox: 'ops@example.com',
+      }),
       email,
       opsInbox: 'ops@example.com',
     });
@@ -461,6 +468,12 @@ describe('billing webhook service', () => {
       audit,
       commission: flakyCommission,
       flatPlan,
+      chargebacks: createChargebackService({
+        db: testDb.db,
+        audit,
+        email,
+        opsInbox: 'ops@example.com',
+      }),
       email,
       opsInbox: 'ops@example.com',
     });
@@ -810,6 +823,12 @@ describe('billing webhook service', () => {
       audit,
       commission,
       flatPlan,
+      chargebacks: createChargebackService({
+        db: testDb.db,
+        audit,
+        email,
+        opsInbox: 'ops@example.com',
+      }),
       commissionCard: { handleCardEvent },
       email,
       opsInbox: 'ops@example.com',
@@ -854,6 +873,12 @@ describe('billing webhook service', () => {
       audit,
       commission,
       flatPlan,
+      chargebacks: createChargebackService({
+        db: testDb.db,
+        audit,
+        email,
+        opsInbox: 'ops@example.com',
+      }),
       commissionCard: {
         handleCardEvent: vi.fn(async () => {
           throw new Error('stripe down');

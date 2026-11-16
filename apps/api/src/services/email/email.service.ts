@@ -28,6 +28,7 @@ import {
   renderBuilderNeedsYouDigestEmail,
   renderBuilderNewLeadEmail,
   renderContractNeedsRecordingEmail,
+  renderErasureConfirmationEmail,
   renderFollowUpEmail,
   renderInvitationEmail,
   renderMagicLinkEmail,
@@ -223,6 +224,16 @@ export interface BuilderNeedsYouDigestEmailInput {
   readonly maxPerGroup: number;
 }
 
+/** #806: the erase-confirmation link (privacy self-service step 2). */
+export interface ErasureConfirmationEmailInput {
+  readonly to: string;
+  readonly name?: string;
+  /** `${appBaseUrl}/privacy/confirm/${requestId}#token=${token}`. */
+  readonly confirmUrl: string;
+  /** Hours until the link expires — rendered from config. */
+  readonly expiresInHours: number;
+}
+
 export interface EmailService {
   sendMagicLink(input: MagicLinkEmailInput): Promise<EmailDelivery>;
   sendInvitation(input: InvitationEmailInput): Promise<EmailDelivery>;
@@ -259,6 +270,10 @@ export interface EmailService {
   /** #725: daily "Needs you" digest (never sent for an empty feed). */
   sendBuilderNeedsYouDigest(
     input: BuilderNeedsYouDigestEmailInput,
+  ): Promise<EmailDelivery>;
+  /** #806: "confirm you want to delete your data" link (transactional). */
+  sendErasureConfirmation(
+    input: ErasureConfirmationEmailInput,
   ): Promise<EmailDelivery>;
 }
 
@@ -557,6 +572,17 @@ export function createEmailService(deps: EmailServiceDeps): EmailService {
         wonWithoutContract: input.wonWithoutContract,
         staleAfterDays: input.staleAfterDays,
         maxPerGroup: input.maxPerGroup,
+      });
+      return deliver({ ...rendered, to: input.to });
+    },
+
+    async sendErasureConfirmation(
+      input: ErasureConfirmationEmailInput,
+    ): Promise<EmailDelivery> {
+      const rendered = renderErasureConfirmationEmail(ctx, {
+        name: input.name,
+        confirmUrl: input.confirmUrl,
+        expiresInHours: input.expiresInHours,
       });
       return deliver({ ...rendered, to: input.to });
     },

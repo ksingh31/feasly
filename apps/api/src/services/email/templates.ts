@@ -371,6 +371,41 @@ ${fallbackLink(input.shareUrl)}
   return { subject, html: layout(ctx, 'An estimate was shared with you', body), text };
 }
 
+export interface ErasureConfirmationTemplateInput {
+  readonly name?: string;
+  /**
+   * `${appBaseUrl}/privacy/confirm/${requestId}#token=${token}` — minted by
+   * the privacy service. The token rides in the fragment so it never
+   * reaches a server log.
+   */
+  readonly confirmUrl: string;
+  /** Hours until the confirm link expires — from config, never hardcoded. */
+  readonly expiresInHours: number;
+}
+
+/**
+ * #806: step 2 of self-service erasure (owner decision on #706: deletion
+ * with email confirmation). Transactional — the person asked for it — so
+ * no unsubscribe footer. Nothing is deleted until the link is clicked and
+ * the landing page's button is pressed.
+ */
+export function renderErasureConfirmationEmail(
+  ctx: TemplateContext,
+  input: ErasureConfirmationTemplateInput,
+): RenderedEmail {
+  const greeting = input.name ? `Hi ${esc(input.name)},` : 'Hi there,';
+  const hours = `${input.expiresInHours} hour${input.expiresInHours === 1 ? '' : 's'}`;
+  const subject = `Confirm you want to delete your ${ctx.brandName} data`;
+  const body = `<p>${greeting}</p>
+<p>We got a request to delete the data ${esc(ctx.brandName)} holds about you. Nothing has been deleted yet.</p>
+<p>To go ahead, open this link and confirm. The link expires in ${hours}.</p>
+${ctaButton(input.confirmUrl, 'Review and confirm deletion')}
+${fallbackLink(input.confirmUrl)}
+<p style="font-size:13px;color:#8a8378;">Didn't ask for this? Ignore this email and your data stays as it is.</p>`;
+  const text = `${input.name ? `Hi ${input.name},` : 'Hi there,'}\n\nWe got a request to delete the data ${ctx.brandName} holds about you. Nothing has been deleted yet.\n\nTo go ahead, open this link and confirm (the link expires in ${hours}):\n${input.confirmUrl}\n\nDidn't ask for this? Ignore this email and your data stays as it is.\n\n— ${ctx.brandName}`;
+  return { subject, html: layout(ctx, 'Confirm your data deletion', body), text };
+}
+
 export interface CallbackTeamTemplateInput {
   readonly leadName: string;
   readonly leadEmail: string;

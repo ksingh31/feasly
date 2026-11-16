@@ -524,13 +524,16 @@ export class MockApiService implements ApiService {
     if (!reportToken.trim() || this.erasedTokens.has(reportToken)) {
       return this.privacyDenied();
     }
-    const requestId = this.erasureRequests.get(reportToken) ?? crypto.randomUUID();
+    const pending = this.erasureRequests.get(reportToken);
+    const requestId = pending ?? crypto.randomUUID();
     this.erasureRequests.set(reportToken, requestId);
     return this.roundTrip({
       requestId,
       status: 'requested',
       consequences: ['Mock consequence statement.'],
       createdAt: new Date().toISOString(),
+      // #806: the backend emails the confirm link (duplicates are cooled down).
+      confirmationEmailSent: pending === undefined,
     });
   }
 
