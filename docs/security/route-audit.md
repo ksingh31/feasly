@@ -106,6 +106,10 @@ Related: [rate-limits.md](rate-limits.md) · [asvs-l1.md](asvs-l1.md) ·
 | GET | `/api/v1/builder/leads/needs-you` | builder-session | builder:leads:read | 100/min per session | live |  |
 | GET | `/api/v1/builder/notifications/preferences` | builder-session | builder:leads:read | 100/min per session | live |  |
 | PUT | `/api/v1/builder/notifications/preferences` | builder-session | builder:leads:read | 100/min per session | live |  |
+| GET | `/api/v1/builder/profile` | builder-session | builder:leads:read | 100/min per session | live |  |
+| PUT | `/api/v1/builder/profile` | builder-session | builder:settings:manage | 100/min per session | live |  |
+| GET | `/api/v1/builder/embed` | builder-session | builder:leads:read | 100/min per session | live |  |
+| POST | `/api/v1/builder/embed/origin-requests` | builder-session | builder:settings:manage | 100/min per session | live |  |
 | PATCH | `/api/v1/builder/leads/{id}` | builder-session | builder:leads:manage | 100/min per session | live |  |
 | POST | `/api/v1/builder/leads/{id}/mark-won` | builder-session | builder:leads:manage | 100/min per session | live |  |
 | GET | `/api/v1/builder/leads/{leadId}/comments` | builder-session | builder:leads:read | 100/min per session | live |  |

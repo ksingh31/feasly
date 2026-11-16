@@ -407,6 +407,20 @@ const targets = [
     entry: 'src/functions/builder-notifications-preferences.ts',
     out: 'builder-notifications-preferences/index.js',
   },
+  // #870 — builder Settings: profile & branding, embed snippet + install
+  // check, embed origin-change requests.
+  {
+    entry: 'src/functions/builder-profile.ts',
+    out: 'builder-profile/index.js',
+  },
+  {
+    entry: 'src/functions/builder-embed.ts',
+    out: 'builder-embed/index.js',
+  },
+  {
+    entry: 'src/functions/builder-embed-origin-requests.ts',
+    out: 'builder-embed-origin-requests/index.js',
+  },
   // #531 — builder portal Money page header (one-call billing overview).
   {
     entry: 'src/functions/builder-billing-overview.ts',

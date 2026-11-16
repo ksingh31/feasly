@@ -47,6 +47,18 @@ export interface BuilderService {
     adminEmail: string,
   ): Promise<Builder>;
   /**
+   * #870: a builder org owner edits their own profile/branding — the
+   * owner-editable subset only (never rate, plan, status, origins).
+   * Already-validated input; omitted = unchanged, null clears. Throws 404
+   * when missing. Audit-logged under the acting user with the changed
+   * field names (never the values).
+   */
+  updateProfile(
+    id: string,
+    input: BuilderProfilePatch,
+    actorEmail: string,
+  ): Promise<Builder>;
+  /**
    * Assign (or unassign with null) a lead to a builder. Null builderId is
    * the normal state — the lead flow never depends on it. Throws 404 when
    * the lead (or builder) doesn't exist. Moving a lead away from a builder
@@ -63,6 +75,15 @@ export interface BuilderService {
   // here — list/grant/revoke builder_allowlist emails per builder. The
   // builder_allowlist table and the /builder/login magic-link flow already
   // exist; this is where the admin API will manage them.
+}
+
+/** #870: the builder-owner-editable profile fields (validated upstream). */
+export interface BuilderProfilePatch {
+  readonly displayName?: string;
+  readonly email?: string | null;
+  readonly phone?: string | null;
+  readonly logoUrl?: string | null;
+  readonly accentColor?: string | null;
 }
 
 export interface BuilderServiceDeps {
@@ -84,6 +105,16 @@ export interface BuilderServiceDeps {
    * is logged and never fails the admin's update.
    */
   readonly onBillingProfileChanged?: (builder: Builder) => Promise<void>;
+  /**
+   * #870: called after an admin update that changed allowed origins, so
+   * builder origin-change requests the update satisfied are closed.
+   * Best-effort: a failure is logged and never fails the update.
+   */
+  readonly onAllowedOriginsChanged?: (args: {
+    readonly builderId: string;
+    readonly allowedOrigins: readonly string[];
+    readonly actorEmail: string;
+  }) => Promise<void>;
   /** Warning sink for the best-effort hook. Defaults to console.warn. */
   readonly logWarning?: (message: string) => void;
 }
@@ -176,6 +207,12 @@ async function syncTenantRow(
     .onConflictDoUpdate({ target: tenants.tenantKey, set: shared });
 }
 
+function sameOrigins(a: readonly string[], b: readonly string[]): boolean {
+  if (a.length !== b.length) return false;
+  const set = new Set(a);
+  return b.every((o) => set.has(o));
+}
+
 function normalizeOrigins(origins: readonly string[] | undefined): string[] {
   if (origins === undefined) return [];
   return origins.map((o) => o.trim()).filter((o) => o.length > 0);
@@ -185,6 +222,53 @@ export function createBuilderService(deps: BuilderServiceDeps): BuilderService {
   const { db, audit } = deps;
   const leadAssignment =
     deps.leadAssignment ?? createLeadAssignmentService({ db, audit });
+
+  const warn = (m: string): void =>
+    (deps.logWarning ?? ((msg: string) => console.warn(msg)))(m);
+
+  /** Update the row and mirror it into `tenants` in one transaction. */
+  async function persistPatch(
+    current: BuilderRow,
+    patch: Partial<BuilderRow>,
+  ): Promise<BuilderRow> {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    return db.transaction(async (tx: any) => {
+      const [updated] = await tx
+        .update(builders)
+        .set(patch)
+        .where(eq(builders.id, current.id))
+        .returning();
+      if (!updated) {
+        throw new HttpError(404, ErrorCodes.NOT_FOUND, 'Builder not found.', false);
+      }
+      // Keep the shared tenants fields in sync (and create the row for a
+      // builder that predates #710 and has not been backfilled yet).
+      await syncTenantRow(tx, updated as BuilderRow);
+      return updated as BuilderRow;
+    });
+  }
+
+  /** #716: keep the Stripe customer in sync — best-effort, never throws. */
+  async function syncBillingProfile(
+    current: BuilderRow,
+    row: BuilderRow,
+    builder: Builder,
+  ): Promise<void> {
+    if (
+      !deps.onBillingProfileChanged ||
+      (row.businessName === current.businessName && row.email === current.email)
+    ) {
+      return;
+    }
+    try {
+      await deps.onBillingProfileChanged(builder);
+    } catch (error) {
+      warn(
+        `builder-service: Stripe customer sync failed for builderId=${row.id} ` +
+          `(${error instanceof Error ? error.message : 'unknown error'})`,
+      );
+    }
+  }
 
   async function getRowById(id: string): Promise<BuilderRow> {
     const row = await db.query.builders.findFirst({
@@ -347,21 +431,7 @@ export function createBuilderService(deps: BuilderServiceDeps): BuilderService {
           defaultPaymentMethod: input.defaultPaymentMethod,
         };
       }
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const row: BuilderRow = await db.transaction(async (tx: any) => {
-        const [updated] = await tx
-          .update(builders)
-          .set(patch)
-          .where(eq(builders.id, current.id))
-          .returning();
-        if (!updated) {
-          throw new HttpError(404, ErrorCodes.NOT_FOUND, 'Builder not found.', false);
-        }
-        // Keep the shared tenants fields in sync (and create the row for a
-        // builder that predates #710 and has not been backfilled yet).
-        await syncTenantRow(tx, updated as BuilderRow);
-        return updated as BuilderRow;
-      });
+      const row = await persistPatch(current, patch);
       await audit.log({
         actorEmail: adminEmail,
         action: 'admin_builder_updated',
@@ -386,20 +456,58 @@ export function createBuilderService(deps: BuilderServiceDeps): BuilderService {
         });
       }
       const builder = toContract(row);
+      await syncBillingProfile(current, row, builder);
       if (
-        deps.onBillingProfileChanged &&
-        (row.businessName !== current.businessName ||
-          row.email !== current.email)
+        deps.onAllowedOriginsChanged &&
+        input.allowedOrigins !== undefined &&
+        !sameOrigins(current.allowedOrigins, row.allowedOrigins)
       ) {
         try {
-          await deps.onBillingProfileChanged(builder);
+          await deps.onAllowedOriginsChanged({
+            builderId: row.id,
+            allowedOrigins: [...row.allowedOrigins],
+            actorEmail: adminEmail,
+          });
         } catch (error) {
-          (deps.logWarning ?? ((m: string) => console.warn(m)))(
-            `builder-service: Stripe customer sync failed for builderId=${row.id} ` +
+          warn(
+            `builder-service: origin-request sync failed for builderId=${row.id} ` +
               `(${error instanceof Error ? error.message : 'unknown error'})`,
           );
         }
       }
+      return builder;
+    },
+
+    async updateProfile(
+      id: string,
+      input: BuilderProfilePatch,
+      actorEmail: string,
+    ): Promise<Builder> {
+      const current = await getRowById(id);
+      const patch: Partial<BuilderRow> = { updatedAt: new Date() };
+      const changed: string[] = [];
+      const set = <K extends keyof BuilderProfilePatch & keyof BuilderRow>(
+        key: K,
+        value: BuilderRow[K],
+      ): void => {
+        if (value !== current[key]) changed.push(key);
+        (patch as Record<string, unknown>)[key] = value;
+      };
+      if (input.displayName !== undefined) set('displayName', input.displayName);
+      if (input.email !== undefined) set('email', input.email);
+      if (input.phone !== undefined) set('phone', input.phone);
+      if (input.logoUrl !== undefined) set('logoUrl', input.logoUrl);
+      if (input.accentColor !== undefined) set('accentColor', input.accentColor);
+      const row = await persistPatch(current, patch);
+      await audit.log({
+        actorEmail,
+        action: 'builder_profile_updated',
+        detail:
+          `builderId=${row.id} tenantKey=${row.tenantKey} ` +
+          `fields=${changed.length > 0 ? changed.join(',') : 'none'}`,
+      });
+      const builder = toContract(row);
+      await syncBillingProfile(current, row, builder);
       return builder;
     },
 
