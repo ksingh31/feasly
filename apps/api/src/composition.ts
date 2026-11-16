@@ -2103,6 +2103,7 @@ export function createComposition(
   // events table into per-step counts + conversion rates. Admin-only.
   const funnelService: FunnelService = createFunnelService({
     store: options.funnelStore ?? createDrizzleFunnelStore({ db: db.db }),
+    sourceGroupLimit: config.analytics.funnelSourceGroupLimit,
   });
   const funnelRoute: FunnelRoute = createFunnelRoute({
     funnel: funnelService,

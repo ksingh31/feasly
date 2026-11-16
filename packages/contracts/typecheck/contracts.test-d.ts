@@ -5,6 +5,8 @@
  */
 import type {
   AnalyticsEvent,
+  AnalyticsSource,
+  AdminLeadDetail,
   AutocompleteSuggestion,
   BuilderLeadListResponse,
   BuilderLeadNeedsYouItem,
@@ -148,10 +150,48 @@ assertType<
   | 'steer_renovation_offered'
   | 'steer_none_offered'
   | 'steer_override_new_build'
+  | 'landing_view'
+  | 'address_search'
+  | 'address_selected'
+  | 'address_no_results'
+  | 'out_of_coverage'
+  | 'property_unsupported'
+  | 'preview_view'
+  | 'estimate_error'
+  | 'magic_link_open'
+  | 'assessment_view'
+  | 'assessment_to_estimate'
 >(event.event);
 const eventKeys = ['event', 'route', 'ts', 'consent_ts'] as const;
 assertType<readonly ['event', 'route', 'ts', 'consent_ts']>(eventKeys);
 assertType<4>(eventKeys.length);
+
+// #814: the event payload's keys are exactly these — no email/address/
+// figure field exists (a new key fails this assertion both ways).
+type EventKey = keyof AnalyticsEvent;
+assertType<EventKey>('' as 'event' | 'route' | 'ts' | 'consent_ts' | 'tenant_key' | 'source');
+assertType<'event' | 'route' | 'ts' | 'consent_ts' | 'tenant_key' | 'source'>('' as EventKey);
+
+// #814: the campaign source is a closed object of optional strings plus
+// the click-id *type* (never the click id value).
+type SourceKey = keyof AnalyticsSource;
+const sourceKeysExact: Record<SourceKey, true> = {
+  utm_source: true,
+  utm_medium: true,
+  utm_campaign: true,
+  utm_term: true,
+  utm_content: true,
+  click_id_type: true,
+};
+void sourceKeysExact;
+declare const src: AnalyticsSource;
+assertType<string | undefined>(src.utm_campaign);
+assertType<'gclid' | 'gbraid' | 'wbraid' | 'msclkid' | 'fbclid' | undefined>(
+  src.click_id_type,
+);
+assertType<AnalyticsSource | undefined>(leadReq.source);
+declare const leadDetail: AdminLeadDetail;
+assertType<AnalyticsSource | null | undefined>(leadDetail.attribution);
 
 // Embed directionality: parent→iframe carries theme + relay; iframe→parent
 // carries ready/resize/estimate-start/lead-created/auth-ok (embed/08).

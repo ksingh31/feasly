@@ -2,6 +2,7 @@
  * Lead-gate contracts. The lead is persisted even if the magic link is never
  * clicked — capture first, verify after.
  */
+import type { AnalyticsSource } from './events';
 
 export type TimelineOption =
   | '0-3mo'
@@ -35,6 +36,14 @@ export interface LeadRequest {
    * never in the client. Optional — agent-API callers may omit it.
    */
   readonly elapsedMs?: number;
+  /**
+   * #814: campaign attribution captured on the visitor's first load (UTM
+   * parameters + click-id type). Stored on the lead's `source_*` columns at
+   * creation for the paid-search test and offline-conversion upload. Fields
+   * that fail the API's length/PII checks are dropped (stored as null) —
+   * attribution never blocks a lead capture.
+   */
+  readonly source?: AnalyticsSource;
 }
 
 export interface LeadResponse {

@@ -446,6 +446,32 @@ describe('lead service', () => {
     expect(saved.source).toBe('embed');
   });
 
+  it('#814: passes the sanitized campaign source to the insert', async () => {
+    const store = fakeLeadStore();
+    const service = createLeadService({ ...DEPS, store });
+    await service.submitLead({
+      ...VALID_BODY,
+      source: { utm_source: 'google', utm_campaign: 'spring', utm_term: 'a@b.co' },
+    });
+    expect(store.inserted[0].attribution).toEqual({
+      utmSource: 'google',
+      utmMedium: null,
+      utmCampaign: 'spring',
+      // PII-shaped value dropped, not stored.
+      utmTerm: null,
+      utmContent: null,
+      clickIdType: null,
+    });
+  });
+
+  it('#814: a malformed source never fails the capture', async () => {
+    const store = fakeLeadStore();
+    const service = createLeadService({ ...DEPS, store });
+    const result = await service.submitLead({ ...VALID_BODY, source: 'utm_source=google' });
+    expect(result.leadId).toBeTruthy();
+    expect(store.inserted[0].attribution?.utmSource).toBeNull();
+  });
+
   it('normalizes the email before dedup and insert', async () => {
     const store = fakeLeadStore();
     const seen: Array<{ email: string; addressKey: string; tenantKey: string | null }> = [];

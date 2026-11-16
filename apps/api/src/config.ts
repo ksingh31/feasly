@@ -123,6 +123,8 @@ const EnvSchema = z.object({
   // general API traffic.
   ANALYTICS_RATE_LIMIT_WINDOW_MS: z.coerce.number().int().positive().default(60_000),
   ANALYTICS_RATE_LIMIT_MAX_REQUESTS: z.coerce.number().int().positive().default(300),
+  /** #814: max utm_source × utm_campaign groups in the admin funnel breakdown. */
+  FUNNEL_SOURCE_GROUP_LIMIT: z.coerce.number().int().positive().max(500).default(25),
 
   // Admin global search (⌘K palette): dedicated limiters — palettes fire
   // per keystroke, so they are separate from the general API budget.
@@ -759,6 +761,12 @@ export interface EstimateConfig {
 export interface AnalyticsConfig {
   /** Generous rate limiter for the public analytics-ingest endpoint. */
   readonly rateLimit: Omit<RateLimitConfig, 'maxTrackedKeys'>;
+  /**
+   * #814: the admin funnel's per-source breakdown returns at most this many
+   * (utm_source, utm_campaign) groups, largest first. Attribution values
+   * are client-supplied, so the group count must be bounded.
+   */
+  readonly funnelSourceGroupLimit: number;
 }
 
 export interface AdminSearchConfig {
@@ -1853,6 +1861,7 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): ApiConfig {
         windowMs: e.ANALYTICS_RATE_LIMIT_WINDOW_MS,
         maxRequests: e.ANALYTICS_RATE_LIMIT_MAX_REQUESTS,
       },
+      funnelSourceGroupLimit: e.FUNNEL_SOURCE_GROUP_LIMIT,
     },
     adminSearch: {
       ipRateLimit: {

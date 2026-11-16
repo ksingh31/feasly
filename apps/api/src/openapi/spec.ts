@@ -973,17 +973,35 @@ export function buildOpenApiSpec(options: OpenApiSpecOptions) {
     },
   });
 
-  // GET /v1/admin/funnels (admin/07)
+  // GET /v1/admin/funnels (admin/07, #814)
+  const FUNNEL_STEPS_SCHEMA = {
+    type: 'array' as const,
+    items: {
+      type: 'object' as const,
+      properties: {
+        step: { type: 'string' as const },
+        label: { type: 'string' as const },
+        count: { type: 'integer' as const },
+        conversionFromPrevious: {
+          type: ['number', 'null'] as ['number', 'null'],
+        },
+      },
+      required: ['step', 'label', 'count', 'conversionFromPrevious'],
+    },
+  };
   registry.registerPath({
     method: 'get',
     path: '/v1/admin/funnels',
     summary: 'Consumer funnel: per-step counts + conversion rates',
     description:
       'Aggregates the append-only analytics events table into the consumer ' +
-      'funnel (scope → details → preview → gate → report) with per-step ' +
-      'counts and step-to-step conversion rates. Optional ISO-8601 from/to ' +
+      'funnel (landing view → address selected → preview → gate view → ' +
+      'gate convert → report open) with per-step counts and step-to-step ' +
+      'conversion rates, plus the same funnel per (utm_source, utm_campaign) ' +
+      'in bySource (largest first, capped). Optional ISO-8601 from/to ' +
       'bounds (inclusive). tenant_key filters to one embed tenant, "direct" ' +
       'selects Feasly-direct traffic only, omitted = all traffic. ' +
+      'utm_source / utm_campaign filter to one campaign source (exact match). ' +
       'Admin-only (X-Admin-Key interim until admin/01). Numbers only — no PII.',
     security: [{ AdminKey: [] }],
     request: {
@@ -994,6 +1012,12 @@ export function buildOpenApiSpec(options: OpenApiSpecOptions) {
           .string()
           .optional()
           .describe('Embed tenant key, "direct" for Feasly-direct only'),
+        utm_source: z.string().max(100).optional().describe('Exact utm_source filter'),
+        utm_campaign: z
+          .string()
+          .max(100)
+          .optional()
+          .describe('Exact utm_campaign filter'),
       }),
     },
     responses: {
@@ -1007,28 +1031,33 @@ export function buildOpenApiSpec(options: OpenApiSpecOptions) {
                 from: { type: ['string', 'null'], format: 'date-time' },
                 to: { type: ['string', 'null'], format: 'date-time' },
                 tenant: { type: 'string' },
-                steps: {
+                utmSource: { type: ['string', 'null'] },
+                utmCampaign: { type: ['string', 'null'] },
+                steps: FUNNEL_STEPS_SCHEMA,
+                bySource: {
                   type: 'array',
                   items: {
                     type: 'object',
                     properties: {
-                      step: { type: 'string' },
-                      label: { type: 'string' },
-                      count: { type: 'integer' },
-                      conversionFromPrevious: {
-                        type: ['number', 'null'],
-                      },
+                      utmSource: { type: ['string', 'null'] },
+                      utmCampaign: { type: ['string', 'null'] },
+                      steps: FUNNEL_STEPS_SCHEMA,
                     },
-                    required: [
-                      'step',
-                      'label',
-                      'count',
-                      'conversionFromPrevious',
-                    ],
+                    required: ['utmSource', 'utmCampaign', 'steps'],
                   },
                 },
+                bySourceTruncated: { type: 'boolean' },
               },
-              required: ['from', 'to', 'tenant', 'steps'],
+              required: [
+                'from',
+                'to',
+                'tenant',
+                'utmSource',
+                'utmCampaign',
+                'steps',
+                'bySource',
+                'bySourceTruncated',
+              ],
             },
           },
         },

@@ -41,6 +41,7 @@ describe('loadConfig', () => {
       },
       analytics: {
         rateLimit: { windowMs: 60_000, maxRequests: 300 },
+        funnelSourceGroupLimit: 25,
       },
       adminSearch: {
         ipRateLimit: { windowMs: 60_000, maxRequests: 300 },

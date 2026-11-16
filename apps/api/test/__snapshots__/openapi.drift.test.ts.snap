@@ -2359,7 +2359,7 @@ URL versioning (\`/v1/\`). Breaking changes ship as \`/v2/\` with 6 months notic
     },
     "/v1/admin/funnels": {
       "get": {
-        "description": "Aggregates the append-only analytics events table into the consumer funnel (scope → details → preview → gate → report) with per-step counts and step-to-step conversion rates. Optional ISO-8601 from/to bounds (inclusive). tenant_key filters to one embed tenant, "direct" selects Feasly-direct traffic only, omitted = all traffic. Admin-only (X-Admin-Key interim until admin/01). Numbers only — no PII.",
+        "description": "Aggregates the append-only analytics events table into the consumer funnel (landing view → address selected → preview → gate view → gate convert → report open) with per-step counts and step-to-step conversion rates, plus the same funnel per (utm_source, utm_campaign) in bySource (largest first, capped). Optional ISO-8601 from/to bounds (inclusive). tenant_key filters to one embed tenant, "direct" selects Feasly-direct traffic only, omitted = all traffic. utm_source / utm_campaign filter to one campaign source (exact match). Admin-only (X-Admin-Key interim until admin/01). Numbers only — no PII.",
         "parameters": [
           {
             "description": "ISO-8601 start (inclusive)",
@@ -2391,6 +2391,28 @@ URL versioning (\`/v1/\`). Breaking changes ship as \`/v2/\` with 6 months notic
               "type": "string",
             },
           },
+          {
+            "description": "Exact utm_source filter",
+            "in": "query",
+            "name": "utm_source",
+            "required": false,
+            "schema": {
+              "description": "Exact utm_source filter",
+              "maxLength": 100,
+              "type": "string",
+            },
+          },
+          {
+            "description": "Exact utm_campaign filter",
+            "in": "query",
+            "name": "utm_campaign",
+            "required": false,
+            "schema": {
+              "description": "Exact utm_campaign filter",
+              "maxLength": 100,
+              "type": "string",
+            },
+          },
         ],
         "responses": {
           "200": {
@@ -2398,6 +2420,63 @@ URL versioning (\`/v1/\`). Breaking changes ship as \`/v2/\` with 6 months notic
               "application/json": {
                 "schema": {
                   "properties": {
+                    "bySource": {
+                      "items": {
+                        "properties": {
+                          "steps": {
+                            "items": {
+                              "properties": {
+                                "conversionFromPrevious": {
+                                  "type": [
+                                    "number",
+                                    "null",
+                                  ],
+                                },
+                                "count": {
+                                  "type": "integer",
+                                },
+                                "label": {
+                                  "type": "string",
+                                },
+                                "step": {
+                                  "type": "string",
+                                },
+                              },
+                              "required": [
+                                "step",
+                                "label",
+                                "count",
+                                "conversionFromPrevious",
+                              ],
+                              "type": "object",
+                            },
+                            "type": "array",
+                          },
+                          "utmCampaign": {
+                            "type": [
+                              "string",
+                              "null",
+                            ],
+                          },
+                          "utmSource": {
+                            "type": [
+                              "string",
+                              "null",
+                            ],
+                          },
+                        },
+                        "required": [
+                          "utmSource",
+                          "utmCampaign",
+                          "steps",
+                        ],
+                        "type": "object",
+                      },
+                      "type": "array",
+                    },
+                    "bySourceTruncated": {
+                      "type": "boolean",
+                    },
                     "from": {
                       "format": "date-time",
                       "type": [
@@ -2444,12 +2523,28 @@ URL versioning (\`/v1/\`). Breaking changes ship as \`/v2/\` with 6 months notic
                         "null",
                       ],
                     },
+                    "utmCampaign": {
+                      "type": [
+                        "string",
+                        "null",
+                      ],
+                    },
+                    "utmSource": {
+                      "type": [
+                        "string",
+                        "null",
+                      ],
+                    },
                   },
                   "required": [
                     "from",
                     "to",
                     "tenant",
+                    "utmSource",
+                    "utmCampaign",
                     "steps",
+                    "bySource",
+                    "bySourceTruncated",
                   ],
                   "type": "object",
                 },

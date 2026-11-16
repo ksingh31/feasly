@@ -11,6 +11,7 @@
  * Every cross-tenant read writes an audit row (AC6). Status changes write
  * `lead_status_history` + audit rows with the admin's email (AC4).
  */
+import { columnsToSource } from '../lib/campaign-source';
 import { randomUUID } from 'node:crypto';
 import { z } from 'zod';
 import type {
@@ -382,6 +383,7 @@ export function createAdminLeadsService(
         sheetsSyncedAt,
         snapshotCount,
         builderId: row.builderId,
+        attribution: row.attribution ? columnsToSource(row.attribution) : null,
         notes: notes.map((n, i) => ({
           id: `note-${i}`,
           note: n.note,
