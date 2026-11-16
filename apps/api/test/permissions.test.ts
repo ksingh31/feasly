@@ -118,6 +118,20 @@ describe('permission model (auth/04)', () => {
     expect(hasPermission(member, 'builder:billing')).toBe(false);
   });
 
+  it('#728: audit + finance export are staff-only; activity team scope is builder-admin only', () => {
+    for (const role of ['super_admin', 'admin', 'viewer'] as const) {
+      expect(hasPermission(ROLE_PERMISSIONS[role], 'audit:read')).toBe(true);
+      expect(hasPermission(ROLE_PERMISSIONS[role], 'finance:export')).toBe(true);
+    }
+    for (const role of ['builder_admin', 'builder_member'] as const) {
+      expect(hasPermission(ROLE_PERMISSIONS[role], 'audit:read')).toBe(false);
+      expect(hasPermission(ROLE_PERMISSIONS[role], 'finance:export')).toBe(false);
+      expect(hasPermission(ROLE_PERMISSIONS[role], 'builder:activity:read')).toBe(true);
+    }
+    expect(hasPermission(ROLE_PERMISSIONS.builder_admin, 'builder:activity:team')).toBe(true);
+    expect(hasPermission(ROLE_PERMISSIONS.builder_member, 'builder:activity:team')).toBe(false);
+  });
+
   it('builder_admin can manage builder users and billing', () => {
     const admin = ROLE_PERMISSIONS.builder_admin;
     expect(hasPermission(admin, 'builder:users:manage')).toBe(true);

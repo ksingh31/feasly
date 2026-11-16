@@ -251,6 +251,26 @@ const targets = [
     out: 'admin-leads-export/index.js',
   },
   {
+    entry: 'src/functions/admin-audit.ts',
+    out: 'admin-audit/index.js',
+  },
+  {
+    entry: 'src/functions/admin-billing-summary.ts',
+    out: 'admin-billing-summary/index.js',
+  },
+  {
+    entry: 'src/functions/admin-billing-invoices-export.ts',
+    out: 'admin-billing-invoices-export/index.js',
+  },
+  {
+    entry: 'src/functions/billing-invoices-export.ts',
+    out: 'billing-invoices-export/index.js',
+  },
+  {
+    entry: 'src/functions/builder-activity.ts',
+    out: 'builder-activity/index.js',
+  },
+  {
     entry: 'src/functions/admin-leads-quarantine-approve.ts',
     out: 'admin-leads-quarantine-approve/index.js',
   },

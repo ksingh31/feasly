@@ -135,6 +135,7 @@ Related: [rate-limits.md](rate-limits.md) · [asvs-l1.md](asvs-l1.md) ·
 | POST | `/api/v1/admin/leads/{id}/quarantine/approve` | admin | leads:manage | 60/min per session | live |  |
 | POST | `/api/v1/admin/leads/{id}/quarantine/discard` | admin | leads:manage | 60/min per session | live |  |
 | GET | `/api/v1/admin/leads/export.csv` | admin | leads:read | 10/min per session | planned | CSV cells beginning with = + - @ (or tab/CR) are prefixed with a quote (formula-injection test). Sheets sync writes with valueInputOption RAW, so cells are never evaluated. |
+| GET | `/api/v1/admin/audit` | admin | audit:read | 300/min per session | live |  |
 | POST | `/api/v1/admin/leads/{id}/assign-builder` | admin | leads:assign | 60/min per session | live |  |
 | GET | `/api/v1/admin/builders` | admin | builders:read | 300/min per session | live |  |
 | POST | `/api/v1/admin/builders` | admin | builders:manage | 60/min per session | live |  |
@@ -161,6 +162,8 @@ Related: [rate-limits.md](rate-limits.md) · [asvs-l1.md](asvs-l1.md) ·
 | POST | `/api/v1/admin/billing/invoices/{id}/correct-contract` | admin | billing:manage | 300/min per session | live |  |
 | POST | `/api/v1/admin/billing/invoices/{id}/reverse-payment` | admin | billing:manage | 300/min per session | live |  |
 | POST | `/api/v1/admin/billing/invoices` | admin | billing:manage | 300/min per session | live |  |
+| GET | `/api/v1/admin/billing/summary` | admin | finance:export | 300/min per session | live |  |
+| GET | `/api/v1/admin/billing/invoices/export.csv` | admin | finance:export | 10/min per session | live |  |
 | POST | `/api/v1/admin/community-stats/refresh` | admin | ops:manage | 10/min per session | live |  |
 | POST | `/api/v1/admin/neighbourhood-data/{provider}/refresh` | admin | ops:manage | 10/min per session | live |  |
 | GET | `/api/v1/admin/community-narratives` | admin | ops:manage | 300/min per session | live |  |
@@ -182,6 +185,7 @@ Related: [rate-limits.md](rate-limits.md) · [asvs-l1.md](asvs-l1.md) ·
 | DELETE | `/api/v1/billing/card` | builder-session | builder:billing | 100/min per session | live |  |
 | GET | `/api/v1/billing/commission-rate` | builder-session | builder:billing | 100/min per session | live |  |
 | GET | `/api/v1/builder/billing/overview` | builder-session | builder:billing | 100/min per session | live |  |
+| GET | `/api/v1/builder/activity` | builder-session | builder:activity:read | 100/min per session | live |  |
 | GET | `/api/v1/billing/payment-method` | builder-session | builder:billing | 100/min per session | live |  |
 | PUT | `/api/v1/billing/payment-method` | builder-session | builder:billing | 100/min per session | live |  |
 | PUT | `/api/v1/billing/invoices/{id}/payment-method` | builder-session | builder:billing | 100/min per session | live |  |
@@ -190,6 +194,7 @@ Related: [rate-limits.md](rate-limits.md) · [asvs-l1.md](asvs-l1.md) ·
 | GET | `/api/v1/billing/invoices/{id}` | builder-session | builder:billing | 100/min per session | live |  |
 | GET | `/api/v1/billing/invoices/{id}/pdf` | builder-session | builder:billing | 100/min per session | live |  |
 | GET | `/api/v1/billing/invoices` | builder-session | builder:billing | 100/min per session | live |  |
+| GET | `/api/v1/billing/invoices/export.csv` | builder-session | builder:billing | 10/min per session | live |  |
 | POST | `/api/v1/billing/invoices/{id}/dispute` | builder-session | builder:billing | 100/min per session | live |  |
 | POST | `/api/v1/billing/invoices/{id}/resolve` | admin | billing:manage | 100/min per session | live |  |
 | GET | `/api/v1/admin/disputes` | admin | billing:read | 100/min per session | live |  |

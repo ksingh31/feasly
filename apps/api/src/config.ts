@@ -232,6 +232,19 @@ const EnvSchema = z.object({
   /** Max hits returned per kind (leads, invoices, builders, users). */
   ADMIN_SEARCH_MAX_HITS_PER_KIND: z.coerce.number().int().positive().max(50).default(5),
 
+  // Finance exports (#728): invoice CSVs run on their own limiters — per
+  // client IP first (before any token is trusted), then 10/min per session
+  // (frozen registry). An export larger than the row cap is refused with a
+  // "narrow the date range" error instead of being silently truncated, so
+  // CSV totals always match the summary panel.
+  EXPORT_IP_RATE_LIMIT_WINDOW_MS: z.coerce.number().int().positive().default(60_000),
+  EXPORT_IP_RATE_LIMIT_MAX_REQUESTS: z.coerce.number().int().positive().default(60),
+  EXPORT_RATE_LIMIT_WINDOW_MS: z.coerce.number().int().positive().default(60_000),
+  EXPORT_RATE_LIMIT_MAX_REQUESTS: z.coerce.number().int().positive().default(10),
+  EXPORT_MAX_ROWS: z.coerce.number().int().positive().max(100_000).default(10_000),
+  /** Longest period an export or finance summary may cover, in days. */
+  FINANCE_MAX_RANGE_DAYS: z.coerce.number().int().positive().max(3_660).default(366),
+
   // Stripe webhook receiver (billing/02): 100/min per IP (frozen registry).
   WEBHOOK_RATE_LIMIT_WINDOW_MS: z.coerce.number().int().positive().default(60_000),
   WEBHOOK_RATE_LIMIT_MAX_REQUESTS: z.coerce.number().int().positive().default(100),
@@ -1094,6 +1107,18 @@ export interface AdminSearchConfig {
   readonly maxHitsPerKind: number;
 }
 
+/** Audit viewer + finance exports (#728). */
+export interface FinanceExportConfig {
+  /** Primary per-IP limiter for the invoice CSV exports. */
+  readonly ipRateLimit: Omit<RateLimitConfig, 'maxTrackedKeys'>;
+  /** Secondary per-session limiter for the invoice CSV exports. */
+  readonly rateLimit: Omit<RateLimitConfig, 'maxTrackedKeys'>;
+  /** Max invoice rows in one CSV; larger periods are refused (422). */
+  readonly maxRows: number;
+  /** Longest period an export or finance summary may cover, in days. */
+  readonly maxRangeDays: number;
+}
+
 export interface WebhookConfig {
   /** Tight rate limiter for the Stripe webhook receiver (100/min per IP). */
   readonly rateLimit: Omit<RateLimitConfig, 'maxTrackedKeys'>;
@@ -1896,6 +1921,7 @@ export interface ApiConfig {
   readonly analytics: AnalyticsConfig;
   readonly webTelemetry: WebTelemetryConfig;
   readonly adminSearch: AdminSearchConfig;
+  readonly financeExport: FinanceExportConfig;
   readonly webhook: WebhookConfig;
   readonly auth: AuthConfig;
   readonly entra: EntraConfig;
@@ -2411,6 +2437,18 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): ApiConfig {
         maxRequests: e.ADMIN_SEARCH_RATE_LIMIT_MAX_REQUESTS,
       },
       maxHitsPerKind: e.ADMIN_SEARCH_MAX_HITS_PER_KIND,
+    },
+    financeExport: {
+      ipRateLimit: {
+        windowMs: e.EXPORT_IP_RATE_LIMIT_WINDOW_MS,
+        maxRequests: e.EXPORT_IP_RATE_LIMIT_MAX_REQUESTS,
+      },
+      rateLimit: {
+        windowMs: e.EXPORT_RATE_LIMIT_WINDOW_MS,
+        maxRequests: e.EXPORT_RATE_LIMIT_MAX_REQUESTS,
+      },
+      maxRows: e.EXPORT_MAX_ROWS,
+      maxRangeDays: e.FINANCE_MAX_RANGE_DAYS,
     },
     webhook: {
       rateLimit: {

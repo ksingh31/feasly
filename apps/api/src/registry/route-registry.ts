@@ -1160,6 +1160,20 @@ export const ROUTE_REGISTRY: readonly ApiRouteEntry[] = [
     summary: 'CSV export of the filtered lead set.',
   },
   {
+    method: 'GET',
+    path: '/api/v1/admin/audit',
+    auth: 'admin',
+    permissions: ['audit:read'] as const,
+    rateLimit: '300/min per session',
+    status: 'live',
+    summary:
+      'Audit log viewer (#728): admin_audit_log + billing_events merged, ' +
+      'newest first, keyset cursor (limit 1–100, default 50). Filters: ' +
+      'actor, action prefix, entity type/id, from/to, impersonation only, ' +
+      'source. Entries carry actor, time, entity link and before/after ' +
+      'detail.',
+  },
+  {
     method: 'POST',
     path: '/api/v1/admin/leads/{id}/assign-builder',
     auth: 'admin',
@@ -1492,6 +1506,34 @@ export const ROUTE_REGISTRY: readonly ApiRouteEntry[] = [
       'Idempotent: re-reporting returns the existing invoice.',
   },
   {
+    method: 'GET',
+    path: '/api/v1/admin/billing/summary',
+    auth: 'admin',
+    permissions: ['finance:export'] as const,
+    rateLimit: '300/min per session',
+    status: 'live',
+    summary:
+      'Finance summary for [from, to) (#728; default the current month, ' +
+      'max FINANCE_MAX_RANGE_DAYS): invoiced, collected, refunded, ' +
+      'outstanding and tax in integer cents, total and by builder. ' +
+      'Computed from stored invoice amounts; matches the invoice CSV for ' +
+      'the same period to the cent.',
+  },
+  {
+    method: 'GET',
+    path: '/api/v1/admin/billing/invoices/export.csv',
+    auth: 'admin',
+    permissions: ['finance:export'] as const,
+    rateLimit: '10/min per session',
+    status: 'live',
+    summary:
+      'Invoice CSV for [from, to) (#728), every builder or one ' +
+      '(tenantKey): number, builder, lead, contract value, rate, ' +
+      'commission, tax, total, status, payment method, paid date, ' +
+      'refunded, Stripe PaymentIntent id. Over EXPORT_MAX_ROWS → 422 ' +
+      '(never truncated). Audit-logged.',
+  },
+  {
     method: 'POST',
     path: '/api/v1/admin/community-stats/refresh',
     auth: 'admin',
@@ -1739,6 +1781,19 @@ export const ROUTE_REGISTRY: readonly ApiRouteEntry[] = [
   },
   {
     method: 'GET',
+    path: '/api/v1/builder/activity',
+    auth: 'builder-session',
+    permissions: ['builder:activity:read'] as const,
+    rateLimit: '100/min per session',
+    status: 'live',
+    summary:
+      'Builder org activity history (#728), newest first, keyset cursor. ' +
+      'Builder owner/admins (builder:activity:team) see the whole team; ' +
+      'other members see only their own actions. Staff security ' +
+      'internals are excluded and Feasly staff show as Feasly.',
+  },
+  {
+    method: 'GET',
     path: '/api/v1/billing/payment-method',
     auth: 'builder-session',
     permissions: ['builder:billing'] as const,
@@ -1841,6 +1896,19 @@ export const ROUTE_REGISTRY: readonly ApiRouteEntry[] = [
       'BILL-04: paginated commission invoice list, newest first ' +
       '(limit 1–100, default 20; offset default 0). Builders see only ' +
       'their own tenant\'s invoices; admins see all.',
+  },
+  {
+    method: 'GET',
+    path: '/api/v1/billing/invoices/export.csv',
+    auth: 'builder-session',
+    permissions: ['builder:billing'] as const,
+    rateLimit: '10/min per session',
+    status: 'live',
+    summary:
+      'Builder downloads their own invoice CSV for [from, to) (#728) for ' +
+      'their bookkeeper — same columns as the admin export. Tenant comes ' +
+      'from the session; another tenant\'s invoices are never included. ' +
+      'Audit-logged.',
   },
   {
     method: 'POST',

@@ -48,6 +48,11 @@ exports[`route registry > exhaustive role x route permission matrix (auth/04 acc
     "super_admin",
     "admin",
   ],
+  "GET /api/v1/admin/audit": [
+    "super_admin",
+    "admin",
+    "viewer",
+  ],
   "GET /api/v1/admin/auth/me": [
     "super_admin",
     "admin",
@@ -57,6 +62,16 @@ exports[`route registry > exhaustive role x route permission matrix (auth/04 acc
     "none",
   ],
   "GET /api/v1/admin/billing": [
+    "super_admin",
+    "admin",
+    "viewer",
+  ],
+  "GET /api/v1/admin/billing/invoices/export.csv": [
+    "super_admin",
+    "admin",
+    "viewer",
+  ],
+  "GET /api/v1/admin/billing/summary": [
     "super_admin",
     "admin",
     "viewer",
@@ -176,6 +191,11 @@ exports[`route registry > exhaustive role x route permission matrix (auth/04 acc
     "admin",
     "builder_admin",
   ],
+  "GET /api/v1/billing/invoices/export.csv": [
+    "super_admin",
+    "admin",
+    "builder_admin",
+  ],
   "GET /api/v1/billing/invoices/{id}": [
     "super_admin",
     "admin",
@@ -190,6 +210,12 @@ exports[`route registry > exhaustive role x route permission matrix (auth/04 acc
     "super_admin",
     "admin",
     "builder_admin",
+  ],
+  "GET /api/v1/builder/activity": [
+    "super_admin",
+    "admin",
+    "builder_admin",
+    "builder_member",
   ],
   "GET /api/v1/builder/auth/me": [
     "super_admin",

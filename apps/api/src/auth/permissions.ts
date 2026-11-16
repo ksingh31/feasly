@@ -49,11 +49,19 @@ export const PERMISSIONS = [
   'super_admins:manage',
   // Admin: view-as (auth/04)
   'view_as',
+  // Admin: audit trail + accountant exports (#728)
+  'audit:read',
+  'finance:export',
   // Builder org
   'builder:leads:read',
   'builder:leads:manage',
   'builder:billing',
   'builder:users:manage',
+  // Builder org activity history (#728). Every member reads their own
+  // activity; `builder:activity:team` widens it to the whole org (owner
+  // decision 2026-11-15: builder owner + admins see their team).
+  'builder:activity:read',
+  'builder:activity:team',
   // #870: org owners edit their profile/branding + file embed-origin requests.
   'builder:settings:manage',
 ] as const;
@@ -85,10 +93,14 @@ export const ROLE_PERMISSIONS: Record<AnyRole, readonly Permission[]> = {
     'users:manage',
     'super_admins:manage',
     'view_as',
+    'audit:read',
+    'finance:export',
     'builder:leads:read',
     'builder:leads:manage',
     'builder:billing',
     'builder:users:manage',
+    'builder:activity:read',
+    'builder:activity:team',
     'builder:settings:manage',
   ],
   admin: [
@@ -107,10 +119,14 @@ export const ROLE_PERMISSIONS: Record<AnyRole, readonly Permission[]> = {
     'ops:manage',
     'users:manage',
     'view_as',
+    'audit:read',
+    'finance:export',
     'builder:leads:read',
     'builder:leads:manage',
     'builder:billing',
     'builder:users:manage',
+    'builder:activity:read',
+    'builder:activity:team',
     'builder:settings:manage',
   ],
   viewer: [
@@ -122,6 +138,10 @@ export const ROLE_PERMISSIONS: Record<AnyRole, readonly Permission[]> = {
     'estimates:read',
     // auth/04: viewer is read-only — every read permission, no writes.
     'usage:read',
+    // #728: the accountant persona — reads the audit trail and exports
+    // invoices/finance summaries (both read-only).
+    'audit:read',
+    'finance:export',
   ],
   builder_admin: [
     'builder:leads:read',
@@ -133,8 +153,16 @@ export const ROLE_PERMISSIONS: Record<AnyRole, readonly Permission[]> = {
     // users only as targets — enforced in view-as.service.ts). viewer and
     // builder_member never hold this.
     'view_as',
+    // #728 (owner 2026-11-15): builder owner/admins see the team's activity.
+    'builder:activity:read',
+    'builder:activity:team',
   ],
-  builder_member: ['builder:leads:read', 'builder:leads:manage'],
+  // #728: members see only their own activity (no `builder:activity:team`).
+  builder_member: [
+    'builder:leads:read',
+    'builder:leads:manage',
+    'builder:activity:read',
+  ],
 };
 
 /**

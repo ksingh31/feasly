@@ -491,6 +491,13 @@
 			"when": 1797379200000,
 			"tag": "0072_billing_refunds",
 			"breakpoints": true
+		},
+		{
+			"idx": 70,
+			"version": "7",
+			"when": 1797465600000,
+			"tag": "0073_admin_audit_log_created_idx",
+			"breakpoints": true
 		}
 	]
 }

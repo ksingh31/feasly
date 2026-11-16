@@ -53,6 +53,12 @@ describe('loadConfig', () => {
         rateLimit: { windowMs: 60_000, maxRequests: 60 },
         maxHitsPerKind: 5,
       },
+      financeExport: {
+        ipRateLimit: { windowMs: 60_000, maxRequests: 60 },
+        rateLimit: { windowMs: 60_000, maxRequests: 10 },
+        maxRows: 10_000,
+        maxRangeDays: 366,
+      },
       webhook: {
         rateLimit: { windowMs: 60_000, maxRequests: 100 },
       },
