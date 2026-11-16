@@ -565,8 +565,31 @@ const zoningVersionShape = {
   sourceUrl: z.string().url().describe("The City's bylaw page — where to confirm the rules."),
 };
 
+/** Catalogue freshness against the City's sources (#757). */
+export const ZoningCatalogueFreshnessSchema = z
+  .object({
+    rulesAsOf: z
+      .string()
+      .regex(/^\d{4}-\d{2}-\d{2}$/)
+      .describe("ISO date the catalogue's rules are as of (its effectiveDate)."),
+    stale: z
+      .boolean()
+      .describe('True when the City changed its rules or districts after rulesAsOf — confirm with the City.'),
+    latestChangeDetectedOn: z
+      .string()
+      .regex(/^\d{4}-\d{2}-\d{2}$/)
+      .nullable()
+      .describe('ISO date of the latest City change detected; null when none.'),
+  })
+  .strict()
+  .openapi('ZoningCatalogueFreshness');
+
 export const ZoningDistrictsResponseSchema = z
-  .object({ ...zoningVersionShape, districts: z.array(ZoningDistrictSchema) })
+  .object({
+    ...zoningVersionShape,
+    districts: z.array(ZoningDistrictSchema),
+    freshness: ZoningCatalogueFreshnessSchema.optional(),
+  })
   .strict()
   .openapi('ZoningDistrictsResponse');
 

@@ -493,6 +493,11 @@ const targets = [
     entry: 'src/functions/sheets-sync-timer.ts',
     out: 'sheets-sync-timer/index.js',
   },
+  // #757: daily zoning source watch (City bylaw + districts dataset).
+  {
+    entry: 'src/functions/zoning-watch-timer.ts',
+    out: 'zoning-watch-timer/index.js',
+  },
   {
     entry: 'src/functions/admin-community-stats-refresh.ts',
     out: 'admin-community-stats-refresh/index.js',
