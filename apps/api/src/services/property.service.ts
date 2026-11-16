@@ -36,6 +36,7 @@ import type {
   AutocompleteSuggestion,
   PropertyLandUse,
   PropertyRecord,
+  PropertySteer,
 } from '@feasly/contracts';
 import { HttpError, ErrorCodes } from '../middleware/errors';
 import { detectCoverageSignal } from '../lib/coverage';
@@ -372,12 +373,31 @@ function isDistrictCheck(value: unknown): value is DistrictCheck {
 }
 
 /**
- * `stale` depends on today's date, so a cached record re-derives it on read
- * (a record cached in December is stale in January).
+ * Fields derived from today's date or market config are re-derived on read,
+ * so a cached record (in memory or in the durable `city_data_cache`) never
+ * serves a frozen value:
+ *  - `stale` — a record cached in December is stale in January;
+ *  - `steer` (#755) — records cached before the steer shipped have none, and
+ *    a changed `redevelopmentMinAgeYears` must apply immediately, not after
+ *    the 7-day durable TTL.
  */
-function withFreshStale(entry: RollEntry): RollEntry {
-  const stale = entry.record.assessmentYear < new Date().getFullYear();
-  return stale === entry.record.stale ? entry : { ...entry, record: { ...entry.record, stale } };
+function withFreshDerived(entry: RollEntry, redevelopmentMinAgeYears: number): RollEntry {
+  const currentYear = new Date().getFullYear();
+  const stale = entry.record.assessmentYear < currentYear;
+  const steer = propertySteer(entry.record.yearBuilt ?? null, redevelopmentMinAgeYears, currentYear);
+  if (stale === entry.record.stale && sameSteer(steer, entry.record.steer)) return entry;
+  return { ...entry, record: { ...entry.record, stale, steer } };
+}
+
+function sameSteer(a: PropertySteer, b: PropertySteer | undefined): boolean {
+  return (
+    b !== undefined &&
+    a.redevelopmentCandidate === b.redevelopmentCandidate &&
+    a.reason === b.reason &&
+    a.recommendedProjectType === b.recommendedProjectType &&
+    a.homeAgeYears === b.homeAgeYears &&
+    a.thresholdYears === b.thresholdYears
+  );
 }
 
 /** Fallback: the roll's designation, flagged as such. */
@@ -725,7 +745,7 @@ export function createPropertyService(
       const hit = cached(propertyCache, key);
       if (hit) {
         emit({ event: 'lookup', op: 'property', dataset: config.datasetId, source: 'memory' });
-        return withLandUse(key, withFreshStale(hit), options);
+        return withLandUse(key, withFreshDerived(hit, config.redevelopmentMinAgeYears), options);
       }
       const entry = await resolveShared<RollEntry>({
         op: 'property',
@@ -744,7 +764,7 @@ export function createPropertyService(
         },
       });
       store(propertyCache, key, entry);
-      return withLandUse(key, withFreshStale(entry), options);
+      return withLandUse(key, withFreshDerived(entry, config.redevelopmentMinAgeYears), options);
     },
   };
 }
