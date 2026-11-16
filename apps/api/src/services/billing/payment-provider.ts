@@ -49,6 +49,11 @@ export interface PaymentIntentStatus {
   readonly status: string;
   /** `last_payment_error.message` when the provider recorded a decline. */
   readonly lastPaymentErrorMessage?: string;
+  /**
+   * `last_payment_error.code` (#712) — `authentication_required` means the
+   * off-session charge needs 3DS (recoverable on-session), not a decline.
+   */
+  readonly lastPaymentErrorCode?: string;
 }
 
 /** Metadata key carrying the commission invoice id on a PaymentIntent (#712). */
@@ -105,6 +110,13 @@ export interface NormalizedStripeEvent {
   readonly failureMessage?: string;
   /** payment_intent.payment_failed only: issuer decline code (#712). */
   readonly declineCode?: string;
+  /**
+   * payment_intent.payment_failed only: `last_payment_error.code` (#712).
+   * Real Stripe reports an off-session 3DS demand as a payment_failed event
+   * with code `authentication_required` — never as requires_action — so the
+   * webhook must read this to keep the invoice recoverable.
+   */
+  readonly errorCode?: string;
   /**
    * payment_intent.* only: the commission invoice the PaymentIntent was
    * created for (`metadata.feasly_commission_invoice_id`, #712). Lets the
@@ -249,6 +261,7 @@ export function normalizeStripeEvent(event: {
       : undefined,
     failureMessage: lastError ? str(lastError['message']) : undefined,
     declineCode: lastError ? str(lastError['decline_code']) : undefined,
+    errorCode: lastError ? str(lastError['code']) : undefined,
     commissionInvoiceId:
       event.type.startsWith('payment_intent.') &&
       typeof data['metadata'] === 'object' &&

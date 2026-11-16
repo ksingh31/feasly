@@ -294,11 +294,15 @@ export function createStripeSdkClient(secretKey: string): StripeClient {
     async retrievePaymentIntent(paymentIntentId) {
       const intent = await stripe.paymentIntents.retrieve(paymentIntentId);
       const message = intent.last_payment_error?.message;
+      const code = intent.last_payment_error?.code;
       return {
         id: intent.id,
         status: intent.status,
         ...(typeof message === 'string' && message.length > 0
           ? { lastPaymentErrorMessage: message }
+          : {}),
+        ...(typeof code === 'string' && code.length > 0
+          ? { lastPaymentErrorCode: code }
           : {}),
       };
     },

@@ -212,6 +212,19 @@ describe('normalizeStripeEvent', () => {
       commissionInvoiceId: 'inv-9',
       chargeAttempt: 2,
     });
+    // #712: last_payment_error.code is read (authentication_required = 3DS).
+    expect(
+      normalizeStripeEvent({
+        id: 'evt_sca',
+        type: 'payment_intent.payment_failed',
+        data: {
+          object: {
+            id: 'pi_5',
+            last_payment_error: { code: 'authentication_required', message: 'This payment requires authentication.' },
+          },
+        },
+      }),
+    ).toMatchObject({ paymentIntentId: 'pi_5', errorCode: 'authentication_required' });
     // Metadata on non-PaymentIntent objects is ignored.
     expect(
       normalizeStripeEvent({

@@ -258,6 +258,7 @@ describe('simulated payment provider — off-session charges', () => {
       id: pi.id,
       status: 'requires_payment_method',
       lastPaymentErrorMessage: message,
+      lastPaymentErrorCode: 'card_declined',
     });
   });
 

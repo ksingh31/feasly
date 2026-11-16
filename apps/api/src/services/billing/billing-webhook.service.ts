@@ -35,6 +35,7 @@ import { eq } from 'drizzle-orm';
 import type { AppDb } from '../../db/client';
 import { stripeEvents } from '../../db/schema';
 import { HttpError, ErrorCodes } from '../../middleware/errors';
+import { AUTHENTICATION_REQUIRED_CODE } from '../../lib/charge-outcome';
 import type { EmailService } from '../email/email.service';
 import { ensureOpsAlertDelivered } from '../ops-alerts.service';
 import type { BillingAuditService } from './billing-audit.service';
@@ -254,6 +255,22 @@ export function createBillingWebhookService(
         case 'payment_intent.payment_failed':
           if (event.paymentIntentId) {
             const piId = event.paymentIntentId;
+            // #712: real Stripe reports an off-session 3DS demand as
+            // payment_failed + code authentication_required (it never sends
+            // requires_action for it). That is recoverable on-session, so it
+            // takes the action-required path — a no-op when the charge step
+            // already moved the invoice to action_required.
+            if (event.errorCode === AUTHENTICATION_REQUIRED_CODE) {
+              await tolerateModelMismatch(event, () =>
+                tolerateOrphanPaymentIntent(event, piId, () =>
+                  commission.markActionRequiredByPaymentIntent(piId, {
+                    invoiceIdHint: event.commissionInvoiceId,
+                    chargeAttemptHint: event.chargeAttempt,
+                  }),
+                ),
+              );
+              break;
+            }
             await tolerateModelMismatch(event, () =>
               tolerateOrphanPaymentIntent(event, piId, () =>
                 commission.markFailedByPaymentIntent(piId, event.failureMessage, {

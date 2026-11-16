@@ -552,10 +552,12 @@ export function createSimulatedPaymentProvider(
       const pi = await requireObject(paymentIntentId, 'payment_intent');
       const err = pi.data['last_payment_error'] as Record<string, unknown> | null;
       const message = err ? str(err['message']) : undefined;
+      const code = err ? str(err['code']) : undefined;
       return {
         id: pi.id,
         status: str(pi.data['status']) ?? 'unknown',
         ...(message ? { lastPaymentErrorMessage: message } : {}),
+        ...(code ? { lastPaymentErrorCode: code } : {}),
       };
     },
 

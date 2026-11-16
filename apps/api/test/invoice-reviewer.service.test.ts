@@ -432,6 +432,27 @@ describe('invoice reviewer timer', () => {
       });
     });
 
+    it('moves a stuck invoice to action_required when Stripe reports authentication_required (#712)', async () => {
+      // Real Stripe leaves an off-session 3DS demand in
+      // requires_payment_method with code authentication_required.
+      const stripe = fakeStripe(undefined, async (id) => ({
+        id,
+        status: 'requires_payment_method',
+        lastPaymentErrorMessage: 'This payment requires authentication.',
+        lastPaymentErrorCode: 'authentication_required',
+      }));
+      const { reviewer, commission, attribution } = newFixtures(testDb, stripe);
+      const invoiceId = await seedInvoice(testDb, attribution, commission, 30_000_000);
+      await reviewer.runReviewCycle(FIRST_CYCLE);
+
+      const second = await reviewer.runReviewCycle(SECOND_CYCLE);
+
+      expect(second.reconciledFailed).toBe(0);
+      expect(second.stillPending).toBe(1);
+      expect((await commission.getById(invoiceId)).status).toBe('action_required');
+      expect(await settlementRows(testDb, invoiceId)).toHaveLength(0);
+    });
+
     it('leaves an in-flight PaymentIntent pending', async () => {
       const { reviewer, commission, attribution } = newFixtures(
         testDb,
