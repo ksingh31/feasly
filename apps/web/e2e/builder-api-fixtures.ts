@@ -81,6 +81,13 @@ function invoice(
     leadName,
     contractValueCents,
     commissionCents,
+    // Untaxed (#714/#764): subtotal = total = commission.
+    subtotalCents: commissionCents,
+    taxRatePercent: 0,
+    taxInclusive: false,
+    taxCents: 0,
+    totalCents: commissionCents,
+    taxLabel: null,
     currency: 'CAD',
     stripePaymentIntentId: status === 'paid' ? `pi_${n}` : null,
     status,
@@ -101,8 +108,11 @@ function invoice(
   };
 }
 
+/** #764: 5% GST added on top — literal server figures. */
+const GST_5 = { taxRatePercent: 5, taxCents: 64_225, totalCents: 1_348_725, taxLabel: 'GST' } as const;
+
 export const INVOICES: readonly CommissionInvoice[] = [
-  invoice(1, 'in_review', 'Bartholomew & Genevieve Okonkwo-Hargreaves', 128_450_000, 1_284_500),
+  { ...invoice(1, 'in_review', 'Bartholomew & Genevieve Okonkwo-Hargreaves', 128_450_000, 1_284_500), ...GST_5 },
   invoice(2, 'failed', 'Priya Ramanathan-Castellanos', 96_000_000, 960_000),
   invoice(3, 'paid', 'Jordan Lee', 74_500_000, 745_000, 'e_transfer'),
   invoice(4, 'disputed', 'Maximilian Featherstonehaugh', 110_250_000, 1_102_500, 'cheque'),
@@ -188,12 +198,12 @@ export const OVERVIEW: BuilderBillingOverviewResponse = {
   planType: 'commission',
   commissionRatePercent: 1,
   currency: 'CAD',
-  outstandingCents: 2_244_500,
+  outstandingCents: 2_308_725,
   outstandingCount: 2,
   nextCharge: {
     invoiceId: INVOICES[0]!.id,
     invoiceNumber: INVOICES[0]!.invoiceNumber,
-    amountCents: INVOICES[0]!.commissionCents,
+    amountCents: INVOICES[0]!.totalCents,
     chargeAt: daysAhead(4),
     cardLast4: '4242',
   },
@@ -208,6 +218,7 @@ export const OVERVIEW: BuilderBillingOverviewResponse = {
   ],
   disputedCount: 1,
   card: CARD,
+  tax: { ratePercent: 5, label: 'GST', inclusive: false },
 };
 
 export const COMMISSION_RATE: CommissionRateResponse = { commissionRatePercent: 1 };

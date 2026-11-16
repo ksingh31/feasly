@@ -28,6 +28,7 @@ import {
   formatEdmontonMediumDate,
 } from '../../shared/utils/edmonton';
 import { formatCentsToCad, formatRatePercent, percentOfCents } from '../../shared/utils/money';
+import { formatInvoiceTax, previewTaxCents } from '../../shared/utils/invoice-tax';
 import { BUILDER_COPY } from './builder-copy';
 import { RefreshBuilderLeadsQuietly } from './builder.actions';
 import { LoadBillingOverview, LoadDefaultPaymentMethod } from './builder-billing.actions';
@@ -124,9 +125,24 @@ export class BuilderRecordContractPanelComponent {
     const value = this.valueCents();
     return rate === null || value === null || value <= 0 ? null : percentOfCents(value, rate);
   });
+  /**
+   * Preview figure. #764: with sales tax on, "$18,750 + $937.50 GST"
+   * (tax on top) or "$18,750 (incl. GST)" (tax-inclusive pricing).
+   * Display-only — the backend computes the billed commission and tax.
+   */
   protected readonly commission = computed(() => {
     const cents = this.commissionCents();
-    return cents === null ? null : formatCentsToCad(cents);
+    if (cents === null) return null;
+    const amount = formatCentsToCad(cents);
+    const tax = this.overview()?.tax;
+    if (!tax) return amount;
+    return tax.inclusive
+      ? fill(this.t.commissionInclTax, { commission: amount, label: tax.label })
+      : fill(this.t.commissionPlusTax, {
+          commission: amount,
+          tax: formatCentsToCad(previewTaxCents(cents, tax.ratePercent)),
+          label: tax.label,
+        });
   });
 
   protected readonly chargeKind = computed<ChargeKind>(() => {
@@ -268,9 +284,13 @@ export class BuilderRecordContractPanelComponent {
     }
   });
 
+  /** The minted invoice's commission; #764: "+ {tax} {label}" when it carries tax. */
   protected readonly invoiceCommission = computed(() => {
     const inv = this.invoice();
-    return inv ? formatCentsToCad(inv.commissionCents) : null;
+    if (!inv) return null;
+    const amount = formatCentsToCad(inv.commissionCents);
+    const tax = formatInvoiceTax(inv, this.copy.invoiceDrawer.breakdownTaxFallback);
+    return tax ? fill(this.t.commissionPlusTax, { commission: amount, tax: tax.amount, label: tax.label }) : amount;
   });
 
   protected readonly invoiceChargeDate = computed(() => {

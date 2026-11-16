@@ -46,10 +46,25 @@
             <dt>{{ t.breakdownRate }}</dt>
             <dd>× {{ b.rate }}</dd>
           </div>
-          <div class="invoice-drawer__total">
-            <dt>{{ t.breakdownCommission }}</dt>
-            <dd>{{ b.commission }}</dd>
-          </div>
+          @if (b.tax; as tax) {
+            <div class="invoice-drawer__subtotal" data-testid="invoice-subtotal">
+              <dt>{{ t.breakdownSubtotal }}</dt>
+              <dd>{{ b.commission }}</dd>
+            </div>
+            <div data-testid="invoice-tax">
+              <dt>{{ tax.line }}</dt>
+              <dd>+ {{ tax.amount }}</dd>
+            </div>
+            <div class="invoice-drawer__total" data-testid="invoice-total">
+              <dt>{{ t.breakdownTotal }}</dt>
+              <dd>{{ tax.total }}</dd>
+            </div>
+          } @else {
+            <div class="invoice-drawer__total">
+              <dt>{{ t.breakdownCommission }}</dt>
+              <dd>{{ b.commission }}</dd>
+            </div>
+          }
         </dl>
         @if (b.formula) {
           <p class="invoice-drawer__formula" data-testid="invoice-formula">{{ b.formula }}</p>
@@ -95,7 +110,7 @@
         <dl class="invoice-drawer__rows" data-testid="invoice-receipt">
           <div>
             <dt>{{ copy.invoicesReceiptAmount }}</dt>
-            <dd>{{ breakdown()?.commission }}</dd>
+            <dd>{{ breakdown()?.charged }}</dd>
           </div>
           <div>
             <dt>{{ copy.invoicesReceiptDate }}</dt>

@@ -406,6 +406,11 @@ export interface BuilderCopy {
   moneyLoadError: string;
   /** KPI: outstanding balance label. */
   moneyKpiOutstanding: string;
+  /**
+   * #764: KPI label for an amount that includes sales tax — `{label}` = the
+   * KPI label, `{tax}` = the tax label (e.g. "GST"). Used only when tax is on.
+   */
+  moneyKpiInclTax: string;
   /** KPI sub: {count} = unpaid invoice count (2+ or 0). */
   moneyKpiOutstandingSub: string;
   /** KPI sub for exactly one unpaid invoice. */
@@ -642,6 +647,12 @@ export interface BuilderInvoiceDrawerCopy {
   breakdownCommission: string;
   /** One-line summary: `{contract} × {rate} = {commission}` (all server figures). */
   breakdownFormula: string;
+  /** #764: taxed invoices — the pre-tax subtotal row. */
+  breakdownSubtotal: string;
+  /** #764: taxed invoices — the amount charged (subtotal + tax). */
+  breakdownTotal: string;
+  /** #764: tax row label when the invoice carries no tax label. */
+  breakdownTaxFallback: string;
   paymentHeading: string;
   /** Opens the change-method modal. */
   changeMethod: string;
@@ -756,6 +767,13 @@ export interface BuilderRecordContractCopy {
   commissionLabel: string;
   /** Preview figure before a value is typed. */
   commissionEmpty: string;
+  /**
+   * #764: preview figure when tax is added on top — `{commission}`,
+   * `{tax}` (amount), `{label}` (e.g. "GST"): "$18,750 + $937.50 GST".
+   */
+  commissionPlusTax: string;
+  /** #764: preview figure when the commission includes tax — `{commission}`, `{label}`. */
+  commissionInclTax: string;
   rateLoading: string;
   rateError: string;
   /** Flat plan: no commission on recorded contracts. */

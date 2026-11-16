@@ -31,8 +31,9 @@ only Karan can provide.
 
 - [ ] **[GATE]** The deterministic disclaimer appears on all four surfaces:
       report page, print/PDF, API `EstimateResponse.disclaimer`, MCP tool
-      descriptions (MCP pending api-mcp/06).
-  - Gate: same `check-banned-phrases.mjs` (CI).
+      descriptions (every tool, plus the `estimate_project` result — #765).
+  - Gate: same `check-banned-phrases.mjs` (CI, per-tool MCP check) +
+    `apps/api/test/mcp-disclaimer.test.ts` + `packages/mcp/test/tools.test.ts`.
 
 - [ ] **[KARAN]** Platform agreement reviewed by the lawyer (blocks the 1%
       commission billing engine going live, not the MVP launch).
@@ -104,5 +105,5 @@ only Karan can provide.
 - Real Stripe production credentials (billing engine is dormant until then).
 - Magic-link email via Azure Communication Services sender domain.
 - Community pages rollout (seo/*) and programmatic content engine.
-- MCP server public launch (api-mcp/06) — completes the fourth disclaimer
-  surface.
+- MCP server public launch (api-mcp/06) — launch posture waits on the
+  owner (#738); the fourth disclaimer surface is already enforced (#765).
