@@ -20,6 +20,9 @@
  * PaymentIntent *status* (`requires_payment_method` + a
  * `payment_intent.payment_failed` webhook), never a thrown error — the
  * invoice must record the PaymentIntent id so the webhook can settle it.
+ * #712: the decline / 3DS details (`errorCode`, `declineCode`,
+ * `failureMessage`) come back with it so the engine can settle the invoice
+ * in the same step. Only transient errors (network, 5xx, rate limit) throw.
  */
 import type { PaymentProviderName } from '@feasly/contracts';
 
@@ -46,6 +49,48 @@ export interface PaymentIntentStatus {
   readonly status: string;
   /** `last_payment_error.message` when the provider recorded a decline. */
   readonly lastPaymentErrorMessage?: string;
+  /**
+   * `last_payment_error.code` (#712) — `authentication_required` means the
+   * off-session charge needs 3DS (recoverable on-session), not a decline.
+   */
+  readonly lastPaymentErrorCode?: string;
+}
+
+/** Metadata key carrying the commission invoice id on a PaymentIntent (#712). */
+export const INVOICE_METADATA_KEY = 'feasly_commission_invoice_id';
+/**
+ * Metadata key carrying which charge attempt created a PaymentIntent (#712):
+ * `0` = the first charge at finalize, `n` = admin retry n.
+ */
+export const CHARGE_ATTEMPT_METADATA_KEY = 'feasly_charge_attempt';
+
+/**
+ * Result of one off-session charge attempt (#712). A decline or a 3DS
+ * demand is a result, not a thrown error — the PaymentIntent exists either
+ * way and the invoice must record it.
+ */
+export interface OffSessionChargeResult {
+  readonly id: string;
+  /** Raw PaymentIntent status (`succeeded`, `requires_action`, …). */
+  readonly status: string;
+  /** Card-error code when the confirm was rejected (`card_declined`, `authentication_required`, …). */
+  readonly errorCode?: string;
+  /** Issuer decline code (`insufficient_funds`, `generic_decline`, …). */
+  readonly declineCode?: string;
+  /** Display-safe decline message (e.g. "Your card was declined."). */
+  readonly failureMessage?: string;
+}
+
+/**
+ * What the builder portal needs to confirm a PaymentIntent on-session
+ * (3DS recovery, #712).
+ */
+export interface PaymentIntentConfirmation {
+  readonly id: string;
+  readonly status: string;
+  readonly clientSecret: string;
+  /** The card the charge used, re-supplied to `confirmCardPayment`. */
+  readonly paymentMethodId?: string;
 }
 
 /** Normalized webhook event — the fields billing cares about. */
@@ -64,6 +109,24 @@ export interface NormalizedStripeEvent {
    * `last_setup_error.message`.
    */
   readonly failureMessage?: string;
+  /** payment_intent.payment_failed only: issuer decline code (#712). */
+  readonly declineCode?: string;
+  /**
+   * payment_intent.payment_failed only: `last_payment_error.code` (#712).
+   * Real Stripe reports an off-session 3DS demand as a payment_failed event
+   * with code `authentication_required` — never as requires_action — so the
+   * webhook must read this to keep the invoice recoverable.
+   */
+  readonly errorCode?: string;
+  /**
+   * payment_intent.* only: the commission invoice the PaymentIntent was
+   * created for (`metadata.feasly_commission_invoice_id`, #712). Lets the
+   * webhook tell "charge still in flight" apart from a true orphan when the
+   * event beats the charge call's own response.
+   */
+  readonly commissionInvoiceId?: string;
+  /** payment_intent.* only: `metadata.feasly_charge_attempt` (#712). */
+  readonly chargeAttempt?: number;
 }
 
 /**
@@ -92,6 +155,8 @@ export interface OffSessionChargeInput {
    * `statement_descriptor` on card PaymentIntents. Absent = account default.
    */
   readonly statementDescriptorSuffix?: string;
+  /** #712: stored on the PaymentIntent (e.g. INVOICE_METADATA_KEY). */
+  readonly metadata?: Readonly<Record<string, string>>;
 }
 
 export interface PaymentProvider {
@@ -128,13 +193,21 @@ export interface PaymentProvider {
    * Charge the customer off-session. #716: the card charged is the
    * customer's default payment method, named explicitly on the
    * PaymentIntent; the newest saved card only when no default is set. A
-   * decline returns the PaymentIntent with its status (see the contract
-   * above).
+   * decline or a 3DS demand (#712) returns the PaymentIntent with its
+   * status and error details (see the contract above); only transient
+   * errors throw.
    */
   createOffSessionPaymentIntent(
     input: OffSessionChargeInput,
     idempotencyKey: string,
-  ): Promise<{ id: string; status: string }>;
+  ): Promise<OffSessionChargeResult>;
+  /**
+   * #712: client secret (+ the card used) so the cardholder can confirm a
+   * PaymentIntent on-session after the bank demanded 3DS. Read-only.
+   */
+  getPaymentIntentConfirmation(
+    paymentIntentId: string,
+  ): Promise<PaymentIntentConfirmation>;
   /**
    * Refund a PaymentIntent — in full, or `amountCents` for a partial
    * refund. Idempotent via the idempotency key — timer/retry safe.
@@ -163,6 +236,19 @@ export interface PaymentProvider {
     signature: string,
     webhookSecret: string,
   ): NormalizedStripeEvent;
+}
+
+/** `metadata.feasly_charge_attempt` of a payment_intent.* object, if numeric. */
+function chargeAttemptOf(
+  type: string,
+  data: Record<string, unknown>,
+): number | undefined {
+  if (!type.startsWith('payment_intent.')) return undefined;
+  const meta = data['metadata'];
+  if (typeof meta !== 'object' || meta === null) return undefined;
+  const raw = (meta as Record<string, unknown>)[CHARGE_ATTEMPT_METADATA_KEY];
+  if (typeof raw !== 'string' || !/^\d+$/.test(raw)) return undefined;
+  return Number(raw);
 }
 
 /**
@@ -238,5 +324,14 @@ export function normalizeStripeEvent(event: {
             : undefined))
         : undefined,
     failureMessage: lastError ? str(lastError['message']) : undefined,
+    declineCode: lastError ? str(lastError['decline_code']) : undefined,
+    errorCode: lastError ? str(lastError['code']) : undefined,
+    commissionInvoiceId:
+      event.type.startsWith('payment_intent.') &&
+      typeof data['metadata'] === 'object' &&
+      data['metadata'] !== null
+        ? str((data['metadata'] as Record<string, unknown>)[INVOICE_METADATA_KEY])
+        : undefined,
+    chargeAttempt: chargeAttemptOf(event.type, data),
   };
 }

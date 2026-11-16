@@ -185,6 +185,8 @@ export interface BuilderCopy {
   invoiceStatusDraft: string;
   invoiceStatusInReview: string;
   invoiceStatusFinalized: string;
+  /** #712: the bank wants the builder to confirm the charge (3DS). */
+  invoiceStatusActionRequired: string;
   invoiceStatusPaid: string;
   invoiceStatusFailed: string;
   invoiceStatusDisputed: string;

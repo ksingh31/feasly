@@ -107,6 +107,9 @@ const ISOLATION_CASES: Readonly<Record<string, IsolationEntry>> = {
   'PUT /api/v1/billing/invoices/{id}/payment-method': {
     cases: [{ file: 'commission.service.test.ts', title: "400s on an unknown method, 403s for another tenant's invoice, 404s for an unknown invoice" }],
   },
+  'POST /api/v1/billing/invoices/{id}/confirm-payment': {
+    cases: [{ file: 'billing.service.test.ts', title: 'confirmInvoicePayment 403s for another tenant invoice and asks the provider for nothing (#712)' }],
+  },
   'POST /api/v1/billing/invoices/{id}/dispute': {
     cases: [{ file: 'billing.service.test.ts', title: 'disputeInvoice 403s for another tenant invoice and records nothing (#731)' }],
   },

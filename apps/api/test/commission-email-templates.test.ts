@@ -16,6 +16,7 @@ import {
   renderCommissionInvoiceReadyEmail,
   renderCommissionPaymentReceivedEmail,
   renderCommissionPaymentFailedEmail,
+  renderCommissionPaymentActionRequiredEmail,
   type TemplateContext,
 } from '../src/services/email/templates';
 
@@ -88,6 +89,35 @@ describe('commission-payment-failed template (BILL-04)', () => {
     expect(rendered.html).toContain('Update card');
     expect(rendered.html).toContain('7 days');
     expect(rendered.text).toContain('7 days');
+  });
+});
+
+describe('commission-payment-action-required template (#712)', () => {
+  it('asks the builder to confirm with their bank and deep-links the invoice', () => {
+    const rendered = renderCommissionPaymentActionRequiredEmail(CTX, {
+      invoiceId: '00000000-0000-4000-8000-000000000042',
+      invoiceRef: 'INV-0042',
+      commissionCents: 500_000,
+      currency: 'CAD',
+    });
+    expect(rendered.subject).toBe('Your bank needs you to confirm this payment — invoice INV-0042');
+    expect(rendered.html).toContain('$5,000.00');
+    expect(rendered.html).toContain('Confirm payment with your bank');
+    expect(rendered.html).toContain('not declined');
+    const url = 'https://app.feasly.example/builder/invoices?open=00000000-0000-4000-8000-000000000042';
+    expect(rendered.html).toContain(url);
+    expect(rendered.text).toContain(`Confirm payment: ${url}`);
+  });
+
+  it('shows the amount charged including tax', () => {
+    const rendered = renderCommissionPaymentActionRequiredEmail(CTX, {
+      invoiceId: 'inv-1',
+      invoiceRef: 'INV-0043',
+      commissionCents: 1_875_000,
+      currency: 'CAD',
+      tax: { label: 'GST', ratePercent: 5, taxCents: 93_750, totalCents: 1_968_750, registrationNumber: '123456789RT0001' },
+    });
+    expect(rendered.text).toContain('$19,687.50 CAD');
   });
 });
 

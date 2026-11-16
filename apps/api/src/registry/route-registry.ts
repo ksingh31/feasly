@@ -1396,6 +1396,21 @@ export const ROUTE_REGISTRY: readonly ApiRouteEntry[] = [
       'timer skips non-card invoices until staff marks them paid.',
   },
   {
+    method: 'POST',
+    path: '/api/v1/billing/invoices/{id}/confirm-payment',
+    auth: 'builder-session',
+    permissions: ['builder:billing'] as const,
+    rateLimit: '100/min per session',
+    status: 'live',
+    summary:
+      'SCA recovery (#712): the bank demanded 3-D Secure on the ' +
+      'off-session charge, so the invoice is action_required. Returns the ' +
+      'PaymentIntent client secret, the card it used and the provider so ' +
+      'the builder confirms the payment on-session; the webhook settles ' +
+      'the invoice. 409 unless action_required; 403 for another tenant\'s ' +
+      'invoice.',
+  },
+  {
     method: 'GET',
     path: '/api/v1/billing/invoices/{id}',
     auth: 'builder-session',
