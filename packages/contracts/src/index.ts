@@ -36,3 +36,4 @@ export * from './admin-sheets';
 export * from './admin-users';
 export * from './agreement';
 export * from './zoning';
+export * from './partners';

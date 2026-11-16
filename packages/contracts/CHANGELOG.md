@@ -12,6 +12,16 @@ real backend. Changing them has a cost, so:
 - **Never** widen a type to `any` to "unblock" something — the no-`any` lint exists
   precisely to stop that.
 
+## Unreleased — 2026-11-16 (additive) — builder partners
+
+Builder partner disclosure (issue #888, API half of #847):
+
+- **Added** `partners.ts`: public `BuilderPartner` / `BuilderPartnerListResponse`
+  for `GET /api/v1/partners` (active partners, display order, company name
+  only — no contact details), and admin `AdminBuilderPartner` /
+  `AdminBuilderPartnerListResponse` / `BuilderPartnerCreateBody` /
+  `BuilderPartnerUpdateBody` for `/api/v1/admin/partners`.
+
 ## Unreleased — 2026-11-16 (additive)
 
 Project-type steer by home age (issue #755):

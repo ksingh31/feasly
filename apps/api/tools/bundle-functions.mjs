@@ -83,6 +83,10 @@ const targets = [
     out: 'zoning-districts/index.js',
   },
   {
+    entry: 'src/functions/partners.ts',
+    out: 'partners/index.js',
+  },
+  {
     entry: 'src/functions/unsubscribe-get.ts',
     out: 'unsubscribe-get/index.js',
   },
@@ -239,6 +243,14 @@ const targets = [
   {
     entry: 'src/functions/admin-builders-detail.ts',
     out: 'admin-builders-detail/index.js',
+  },
+  {
+    entry: 'src/functions/admin-partners.ts',
+    out: 'admin-partners/index.js',
+  },
+  {
+    entry: 'src/functions/admin-partners-detail.ts',
+    out: 'admin-partners-detail/index.js',
   },
   {
     entry: 'src/functions/admin-leads-assign-builder.ts',

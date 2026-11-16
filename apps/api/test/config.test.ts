@@ -156,6 +156,8 @@ describe('loadConfig', () => {
       },
       // #687: zoning rules catalogue city + public cache lifetime.
       zoning: { city: 'calgary', cacheMaxAgeSeconds: 3_600 },
+      // #888: builder partner list caches (in-memory TTL + HTTP max-age).
+      partners: { cacheTtlMs: 300_000, cacheMaxAgeSeconds: 300 },
       // trust-strip/01: landing "Refreshed <Month Year>" from the Socrata
       // dataset metadata. Reuses the SOCRATA_* source; 24h cache TTL on
       // successful fetches only.
