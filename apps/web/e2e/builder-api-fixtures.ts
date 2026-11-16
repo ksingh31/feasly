@@ -17,6 +17,7 @@ import type {
   BuilderAuthMeResponse,
   BuilderBillingOverviewResponse,
   BuilderEmbedResponse,
+  BuilderNotificationPreferencesResponse,
   BuilderProfileResponse,
   BuilderLeadListItem,
   BuilderLeadListResponse,
@@ -334,6 +335,14 @@ export const EMBED: BuilderEmbedResponse = {
   ],
 };
 
+/** #864: the signed-in admin's email preferences (last billing admin). */
+export const NOTIFICATION_PREFERENCES: BuilderNotificationPreferencesResponse = {
+  channel: 'email',
+  preferences: { newLeadEmail: true, needsYouDigest: false, billingEmail: true },
+  role: 'builder_admin',
+  canDisableBillingEmail: false,
+};
+
 export async function mockBuilderApi(page: Page, opts: { signedIn: boolean }): Promise<ApiMockHandle> {
   const handle: ApiMockHandle = { unhandled: [] };
   await page.route('**/api/**', (route) => {
@@ -363,6 +372,8 @@ export async function mockBuilderApi(page: Page, opts: { signedIn: boolean }): P
           return json(route, PROFILE);
         case '/api/v1/builder/embed':
           return json(route, EMBED);
+        case '/api/v1/builder/notifications/preferences':
+          return json(route, NOTIFICATION_PREFERENCES);
         case '/api/v1/billing/card':
           return json(route, CARD);
         case '/api/v1/billing/commission-rate':

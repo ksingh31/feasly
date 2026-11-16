@@ -154,6 +154,9 @@ export const appConfig: ApplicationConfig = {
         // initial bundle.
         BuilderReportContractState,
         BuilderTeamState,
+        // BuilderLeadsSeenState (#864, Leads unread badge) is NOT here: it
+        // lazy-loads at the `builder` shell route via lazyProvider
+        // (app.routes.ts) so it stays out of the initial bundle.
         AdminAuthState,
         // CommunityProfileState is transient (never persisted): the property
         // context is navigation-scoped, and a refresh behaves like a direct
@@ -179,6 +182,11 @@ export const appConfig: ApplicationConfig = {
           ComparisonState,
           AdminAuthState,
           BuilderState,
+          // #864: last Leads visit per org id (org UUID → ISO timestamp, no
+          // PII) so the Leads unread badge survives a reload. A string key
+          // (the state's name) so the lazy-loaded class stays out of the
+          // initial bundle; the plugin rehydrates it on the lazy UpdateState.
+          'builderLeadsSeen',
           // Due-invoice banner UI state (dismissed/open/collapsed): invoice
           // ids are opaque UUIDs (no PII) and dismissal must survive a
           // reload (Karan). The state itself lazy-loads at the dashboard

@@ -607,6 +607,14 @@ export const routes: Routes = [
           (await import('./features/builder/builder-invoices.state'))
             .builderInvoicesStateProvider,
       ),
+      // #864: the shell's Leads unread badge reads BuilderLeadsSeenState
+      // (storage-plugin persisted under 'builderLeadsSeen'). Lazy-provided
+      // so it stays out of the initial bundle.
+      lazyProvider(
+        async () =>
+          (await import('./features/builder/builder-leads-seen.state'))
+            .builderLeadsSeenStateProvider,
+      ),
       // #980: card-on-file / default-method / overview state read by the
       // shell, dashboard banners, Money, Billing, Invoices and the lead
       // drawer. Memory-only; lazy-provided so it stays out of the initial
