@@ -5,6 +5,8 @@ import type {
   AnalyticsEvent,
   AnyEstimateRequest,
   ApiError,
+  CommunityMatchRequest,
+  CommunityMatchResponse,
   ErasureConfirmResponse,
   ErasureRequestResponse,
   PrivacyExportResponse,
@@ -55,6 +57,7 @@ import {
   MOCK_VERIFY_FAILURE,
   mockCallbackOk,
   mockWaitlistOk,
+  mockCommunityMatch,
   mockCommunityStats,
   mockComparisonEstimate,
   mockEstimate,
@@ -357,6 +360,11 @@ export class MockApiService implements ApiService {
   /** #781: sample living-nearby metrics. */
   getCommunityLiving(slug: string): Observable<CommunityLivingResponse> {
     return this.roundTrip(mockCommunityLiving(slug));
+  }
+
+  /** Community match (#779): canned, deterministic ranking (mock-data). */
+  matchCommunities(request: CommunityMatchRequest): Observable<CommunityMatchResponse> {
+    return this.roundTrip(mockCommunityMatch(request));
   }
 
   submitLead(request: LeadRequest): Observable<LeadResponse> {

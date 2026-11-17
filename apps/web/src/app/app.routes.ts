@@ -184,6 +184,22 @@ export const routes: Routes = [
     loadComponent: () => import('./features/marketing/help-page.component').then((m) => m.HelpPageComponent),
     canActivate: [robotsGuard],
   },
+  // Find a community (#779): indexable, lazy-loaded. Both match states
+  // lazy-load with the page (selection persisted via the storage-plugin
+  // string key 'findCommunitySelection' in app.config.ts).
+  {
+    path: 'find-a-community',
+    loadComponent: () =>
+      import('./features/find-community/find-a-community-page.component').then(
+        (m) => m.FindACommunityPageComponent,
+      ),
+    canActivate: [
+      robotsGuard,
+      lazyProvider(
+        async () => (await import('./features/find-community/find-community.state')).findCommunityStateProvider,
+      ),
+    ],
+  },
   // Pillar guide (SEO pillar): long-form cost guide — indexable like the
   // other marketing pages. Anchors the /guides/ section for future guides.
   // Lazy-loaded: prerendering follows loadComponent routes, so SEO is

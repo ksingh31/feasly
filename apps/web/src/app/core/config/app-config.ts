@@ -1413,6 +1413,17 @@ export interface AppConfig {
     /** #781/#782: max schools a visitor can add to the school comparison. */
     schoolComparisonMax: number;
     /**
+     * #779 Find a community: quiet time (ms) after the last priority change
+     * before the one match request goes out.
+     */
+    communityMatchDebounceMs: number;
+    /** #779: communities a visitor can tick for the compare tray. */
+    communityMatchCompareMax: number;
+    /** #779: results requested per match (the API caps it too). */
+    communityMatchResultLimit: number;
+    /** #779: minimum frontage (ft) behind the "Wide lot" build chip. */
+    communityMatchWideLotFrontageFt: number;
+    /**
      * Estimate input bounds, mirrored from the cost-data file
      * (packages/cost-engine/cost-data inputBounds). The property record
      * carries no eligibility verdict (on every propertyData.source), so the
@@ -2350,6 +2361,9 @@ export interface AppConfig {
       faq: string;
       helpTitle: string;
       help: string;
+      /** #779 `/find-a-community`. */
+      findCommunityTitle: string;
+      findCommunity: string;
       pillarGuideTitle: string;
       pillarGuide: string;
       zoningGuideTitle: string;
@@ -2431,6 +2445,8 @@ export interface AppConfig {
         landingTitle: string;
         /** Landing card body. */
         landingBody: string;
+        /** #779: landing + index link to `/find-a-community`. */
+        findCommunityLink: string;
         /** Index page intro paragraph. */
         intro: string;
         /** #690: index section headings — established/infill communities first, then newer ones. */

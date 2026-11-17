@@ -20,6 +20,8 @@ import type {
   CommunityLivingResponse,
   CommunitySchoolDesignationsResponse,
   SchoolsListResponse,
+  CommunityMatchRequest,
+  CommunityMatchResponse,
   EstimateRequest,
   GetReportResponse,
   LeadRequest,
@@ -200,6 +202,13 @@ export class HttpApiService implements ApiService {
   getCommunityLiving(slug: string): Observable<CommunityLivingResponse> {
     const path = `/communities/${encodeURIComponent(slug)}/living`;
     return this.call(this.http.get<CommunityLivingResponse>(`${this.base}${path}`));
+  }
+
+  /** Community match (#778): POST /api/v1/communities/match (public, ungated). */
+  matchCommunities(request: CommunityMatchRequest): Observable<CommunityMatchResponse> {
+    return this.call(
+      this.http.post<CommunityMatchResponse>(`${this.base}/communities/match`, request),
+    );
   }
 
   submitLead(request: LeadRequest): Observable<LeadResponse> {

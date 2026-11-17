@@ -191,6 +191,10 @@ export const appConfig: ApplicationConfig = {
           // only, no PII). By state NAME: the state lazy-loads at the
           // community guide route and must stay out of the initial bundle.
           'schoolComparison',
+          // #779: Find a community priorities + build filters (priority
+          // keys only, no PII). String key so the lazy state stays out of
+          // the initial bundle; rehydrated on the lazy UpdateState.
+          'findCommunitySelection',
           // Due-invoice banner UI state (dismissed/open/collapsed): invoice
           // ids are opaque UUIDs (no PII) and dismissal must survive a
           // reload (Karan). The state itself lazy-loads at the dashboard

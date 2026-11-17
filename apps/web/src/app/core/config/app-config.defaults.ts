@@ -114,6 +114,10 @@ export const DEFAULT_APP_CONFIG: AppConfig = {
     communitySuggestionLimit: 4,
     // #781/#782: schools a visitor can line up in the school comparison.
     schoolComparisonMax: 4,
+    communityMatchDebounceMs: 400,
+    communityMatchCompareMax: 3,
+    communityMatchResultLimit: 30,
+    communityMatchWideLotFrontageFt: 50,
     /**
      * Mirror of the cost-data inputBounds
      * (packages/cost-engine/cost-data/v0.4.1-uncalibrated.json). The property
@@ -928,6 +932,9 @@ export const DEFAULT_APP_CONFIG: AppConfig = {
       faq: 'How much does it cost to build a house in Calgary? Are renovation estimates available? Answers about Calgary build costs, finish tiers, data, and privacy.',
       helpTitle: 'Help and contact · Feasly',
       help: 'Search answers about Feasly estimates, Calgary zoning, City-assessed values, privacy and builders, or request a callback from your report.',
+      findCommunityTitle: 'Find a Calgary infill community · Feasly',
+      findCommunity:
+        'Pick what matters to you (schools, parks, pathways, lots for sale) and see Calgary infill communities ranked, with reasons, lot counts and typical build ranges.',
       pillarGuideTitle: 'Feasly — How much does it cost to build a house in Calgary?',
       pillarGuide:
         'Planning ranges for building a house in Calgary: cost per square foot by Standard, Premium, and Luxury finish tier, what is included, infill vs greenfield, and financing basics — from real City property data.',
@@ -1049,6 +1056,7 @@ export const DEFAULT_APP_CONFIG: AppConfig = {
       },
       communities: {
         landingTitle: 'Browse community guides',
+        findCommunityLink: 'Not sure where to build? Find a community',
         landingBody:
           'Guides for Calgary communities, from inner-city infill areas to newer suburbs — assessed values, dwelling mix, and cost ranges by finish tier where single-family homes get built.',
         intro:

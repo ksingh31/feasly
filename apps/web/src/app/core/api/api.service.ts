@@ -17,6 +17,8 @@ import type {
   CommunityLivingResponse,
   CommunitySchoolDesignationsResponse,
   SchoolsListResponse,
+  CommunityMatchRequest,
+  CommunityMatchResponse,
   EstimateRequest,
   GetReportResponse,
   LeadRequest,
@@ -132,6 +134,11 @@ export interface ApiService {
    * — nearest + counts per amenity category and public-tree cover.
    */
   getCommunityLiving(slug: string): Observable<CommunityLivingResponse>;
+  /**
+   * Community match (#778 / #779): POST /api/v1/communities/match — public,
+   * ungated. Priorities in, ranked established infill communities out.
+   */
+  matchCommunities(request: CommunityMatchRequest): Observable<CommunityMatchResponse>;
   /** Lead capture. The magic link travels by email in prod. */
   submitLead(request: LeadRequest): Observable<LeadResponse>;
   /** Resolves a magic-link token to a report token. */
@@ -334,6 +341,10 @@ class LazyApiService implements ApiService {
 
   getCommunityLiving(slug: string): Observable<CommunityLivingResponse> {
     return this.resolve().getCommunityLiving(slug);
+  }
+
+  matchCommunities(request: CommunityMatchRequest): Observable<CommunityMatchResponse> {
+    return this.resolve().matchCommunities(request);
   }
 
   submitLead(request: LeadRequest): Observable<LeadResponse> {
