@@ -187,6 +187,10 @@ export const appConfig: ApplicationConfig = {
           // (the state's name) so the lazy-loaded class stays out of the
           // initial bundle; the plugin rehydrates it on the lazy UpdateState.
           'builderLeadsSeen',
+          // #779: Find a community priorities + build filters (priority
+          // keys only, no PII). String key so the lazy state stays out of
+          // the initial bundle; rehydrated on the lazy UpdateState.
+          'findCommunitySelection',
           // Due-invoice banner UI state (dismissed/open/collapsed): invoice
           // ids are opaque UUIDs (no PII) and dismissal must survive a
           // reload (Karan). The state itself lazy-loads at the dashboard

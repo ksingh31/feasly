@@ -47,6 +47,8 @@ export class SiteNavComponent {
   protected readonly navLinks = [
     { label: 'How it works', path: '/how-it-works' },
     { label: 'Community guides', path: '/communities' },
+    // #779: priorities in, ranked infill communities out.
+    { label: 'Find a community', path: '/find-a-community' },
     { label: 'FAQ', path: '/faq' },
     // #834: help + contact.
     { label: 'Help', path: '/help' },
@@ -59,6 +61,7 @@ export class SiteNavComponent {
   protected readonly menuLinks: ReadonlyArray<NavLink> = [
     { label: 'How it works', path: '/how-it-works' },
     { label: 'Community guides', path: '/communities' },
+    { label: 'Find a community', path: '/find-a-community' },
     { label: 'Compare neighbourhoods', path: '/estimate/compare', queryParams: { fresh: 1 } },
     { label: 'FAQ', path: '/faq' },
     { label: 'Help', path: '/help' },

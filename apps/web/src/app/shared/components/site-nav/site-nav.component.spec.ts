@@ -59,15 +59,15 @@ describe('SiteNavComponent', () => {
     expect(parseFloat(getComputedStyle(brand).minHeight)).toBeGreaterThanOrEqual(44);
   });
 
-  it('renders the approved header: skip link + brand + 4 primary nav links', () => {
+  it('renders the approved header: skip link + brand + 5 primary nav links', () => {
     setup();
     const links = [...fixture.nativeElement.querySelectorAll('nav a')];
-    expect(links).toHaveLength(6);
+    expect(links).toHaveLength(7);
     expect(links[1].classList.contains('nav-brand')).toBe(true);
     expect(links[1].getAttribute('aria-label')).toBe('Feasly home');
     const navLabels = links.slice(2).map((l) => l.textContent?.trim());
-    // #834: Help joins the primary nav.
-    expect(navLabels).toEqual(['How it works', 'Community guides', 'FAQ', 'Help']);
+    // #834: Help joins the primary nav. #779: Find a community.
+    expect(navLabels).toEqual(['How it works', 'Community guides', 'Find a community', 'FAQ', 'Help']);
     // No dead auth links: sign-in was deliberately omitted.
     for (const link of links) {
       expect(link.textContent ?? '').not.toMatch(/sign in|log in|sign up/i);
@@ -78,7 +78,7 @@ describe('SiteNavComponent', () => {
     setup();
     const router = TestBed.inject(Router);
     const navigateSpy = vi.spyOn(router, 'navigate').mockResolvedValue(true);
-    const faqLink = fixture.nativeElement.querySelectorAll('nav a.nav-link')[2] as HTMLAnchorElement;
+    const faqLink = fixture.nativeElement.querySelectorAll('nav a.nav-link')[3] as HTMLAnchorElement;
     // Still a real link for keyboard / open-in-new-tab / crawlers.
     expect(faqLink.getAttribute('href')).toBe('/faq');
     faqLink.click();
@@ -100,6 +100,7 @@ describe('SiteNavComponent', () => {
     expect(menuLinks).toEqual([
       'How it works',
       'Community guides',
+      'Find a community',
       'Compare neighbourhoods',
       'FAQ',
       'Help',

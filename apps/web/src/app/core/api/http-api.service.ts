@@ -17,6 +17,8 @@ import type {
   WaitlistRequest,
   WaitlistResponse,
   CityDataFreshnessResponse,
+  CommunityMatchRequest,
+  CommunityMatchResponse,
   EstimateRequest,
   GetReportResponse,
   LeadRequest,
@@ -174,6 +176,13 @@ export class HttpApiService implements ApiService {
   /** Builder partner disclosure (#918): GET /api/v1/partners (public, cached). */
   getPartners(): Observable<BuilderPartnerListResponse> {
     return this.call(this.http.get<BuilderPartnerListResponse>(`${this.base}/partners`));
+  }
+
+  /** Community match (#778): POST /api/v1/communities/match (public, ungated). */
+  matchCommunities(request: CommunityMatchRequest): Observable<CommunityMatchResponse> {
+    return this.call(
+      this.http.post<CommunityMatchResponse>(`${this.base}/communities/match`, request),
+    );
   }
 
   submitLead(request: LeadRequest): Observable<LeadResponse> {

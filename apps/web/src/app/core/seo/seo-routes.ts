@@ -37,6 +37,8 @@ const ROUTES: SeoRouteConfig[] = [
   { pattern: 'faq', titleKey: 'faqTitle', descriptionKey: 'faq' },
   // Help + contact (#834): indexable marketing page.
   { pattern: 'help', titleKey: 'helpTitle', descriptionKey: 'help' },
+  // Find a community (#779): indexable.
+  { pattern: 'find-a-community', titleKey: 'findCommunityTitle', descriptionKey: 'findCommunity' },
   // Pillar guide (SEO pillar): long-form "cost to build a house in Calgary"
   // guide — indexable like the other marketing pages.
   {

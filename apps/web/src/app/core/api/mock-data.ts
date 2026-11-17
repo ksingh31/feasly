@@ -10,6 +10,9 @@
 import type {
   AutocompleteSuggestion,
   CallbackResponse,
+  CommunityMatchRequest,
+  CommunityMatchResponse,
+  CommunityMatchResult,
   WaitlistResponse,
   WaitlistTopic,
   ComparisonEstimateRequest,
@@ -753,3 +756,89 @@ export const MOCK_FUNNEL_SOURCE_SHARES: ReadonlyArray<{
 
 /** Direct-traffic slice of the funnel fixture (70% of all-traffic counts). */
 export const MOCK_FUNNEL_DIRECT_SCALE = 0.7;
+
+// ── Community match (#778 / #779) ──────────────────────────────────────────
+
+/** Canned infill communities and which priority keys each one "meets". */
+const MOCK_MATCH_COMMUNITIES: readonly {
+  code: string;
+  name: string;
+  slug: string;
+  meets: readonly string[];
+  listed: number;
+  wide: number;
+  low: number;
+  high: number;
+}[] = [
+  { code: 'ALT', name: 'Altadore', slug: 'altadore', meets: ['parks', 'playgrounds', 'pathways', 'designated-schools', 'tree-cover'], listed: 6, wide: 2, low: 690000, high: 840000 },
+  { code: 'KIL', name: 'Killarney/Glengarry', slug: 'killarney-glengarry', meets: ['parks', 'pools', 'rec-centres', 'designated-schools'], listed: 9, wide: 3, low: 660000, high: 810000 },
+  { code: 'MOP', name: 'Mount Pleasant', slug: 'mount-pleasant', meets: ['parks', 'pools', 'libraries', 'tree-cover', 'designated-schools'], listed: 4, wide: 1, low: 680000, high: 830000 },
+  { code: 'BRI', name: 'Bridgeland/Riverside', slug: 'bridgeland-riverside', meets: ['pathways', 'off-leash', 'libraries', 'parks'], listed: 2, wide: 0, low: 700000, high: 850000 },
+  { code: 'BOW', name: 'Bowness', slug: 'bowness', meets: ['pathways', 'parks', 'off-leash', 'pools'], listed: 11, wide: 5, low: 640000, high: 790000 },
+  { code: 'CAP', name: 'Capitol Hill', slug: 'capitol-hill', meets: ['playgrounds', 'designated-schools', 'rec-centres'], listed: 3, wide: 1, low: 650000, high: 800000 },
+];
+
+/**
+ * Mock community match: deterministic, contract-shaped. Score = share of
+ * priorities met (must counts double); a missed must ranks below every pass.
+ */
+export function mockCommunityMatch(request: CommunityMatchRequest): CommunityMatchResponse {
+  const wideOnly = request.filters?.minFrontageFt !== undefined;
+  const scored = MOCK_MATCH_COMMUNITIES.map((c) => {
+    let got = 0;
+    let max = 0;
+    const reasons: CommunityMatchResult['reasons'][number][] = [];
+    const misses: CommunityMatchResult['misses'][number][] = [];
+    for (const p of request.priorities) {
+      const weight = p.importance === 'must' ? 2 : 1;
+      max += weight;
+      const label = p.key.replace(/-/g, ' ');
+      if (c.meets.includes(p.key)) {
+        got += weight;
+        reasons.push({ priority: p.key, importance: p.importance, text: `Close to ${label}` });
+      } else {
+        misses.push({ priority: p.key, importance: p.importance, text: `No ${label} nearby` });
+      }
+    }
+    if (reasons.length === 0) {
+      reasons.push({ priority: 'established', importance: null, text: 'Established infill community' });
+    }
+    const matching = wideOnly ? c.wide : c.listed;
+    return {
+      c,
+      match: max === 0 ? 0 : Math.round((got / max) * 100),
+      passesMustHaves: !misses.some((m) => m.importance === 'must'),
+      reasons,
+      misses: [...misses].sort((a, b) => (a.importance === 'must' ? -1 : 0) - (b.importance === 'must' ? -1 : 0)),
+      matching,
+    };
+  })
+    .filter((r) => !request.filters?.lotsListedNow || r.matching > 0)
+    .sort(
+      (a, b) =>
+        Number(b.passesMustHaves) - Number(a.passesMustHaves) ||
+        b.match - a.match ||
+        a.c.name.localeCompare(b.c.name),
+    );
+  const results: CommunityMatchResult[] = scored.slice(0, request.limit ?? scored.length).map((r, i) => ({
+    rank: i + 1,
+    communityCode: r.c.code,
+    name: r.c.name,
+    slug: r.c.slug,
+    match: r.match,
+    passesMustHaves: r.passesMustHaves,
+    reasons: r.reasons,
+    misses: r.misses,
+    lots: { listed: r.c.listed, matching: r.matching, refreshedAt: '2026-11-01T00:00:00.000Z' },
+    typicalNewBuild: { low: r.c.low, high: r.c.high },
+  }));
+  return {
+    results,
+    total: scored.length,
+    buildBasis: { buildSqft: 2400, tier: 'standard', costDataVersion: 'mock', calibrated: false },
+    distanceBasis: 'straight-line',
+    frontageBasis: 'estimated-from-lot-area',
+    dataRefreshedAt: '2026-11-01T00:00:00.000Z',
+    disclaimer: 'Mock data for local development. Planning ranges only.',
+  };
+}
