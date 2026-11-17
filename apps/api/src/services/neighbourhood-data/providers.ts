@@ -24,6 +24,11 @@
  * - `board-published` (#775) — CBE + CCSD designations per community and
  *   grade band, transcribed from the boards' published notices
  *   (`school-designations.data.ts`; no open boundary file exists).
+ * - `published-reports` (#776) — Fraser Institute score (behind its own
+ *   flag), Alberta Education provincial results and CBE enrolment vs
+ *   capacity, transcribed from the published reports (`school-ratings.data.ts`).
+ * - `maps-link` (#776 reviews) — a Google Maps search link built at read
+ *   time; no API call, nothing stored (`storesNothing`: the refresh skips it).
  * - `none` — no source chosen yet: the refresh skips it and writes nothing.
  *
  * Records carry public open data only — no personal data.
@@ -50,6 +55,8 @@ import { TREE_COVER_CATEGORY } from './categories';
 import { buildSchoolDirectory, type OsmElement } from './school-directory';
 import { buildDesignationRecords, type CuratedDesignation } from './school-designations';
 import { BOARD_PUBLISHED_DESIGNATIONS } from './school-designations.data';
+import { buildRatingRecords, type CuratedSchoolRating } from './school-ratings';
+import { PUBLISHED_SCHOOL_RATINGS } from './school-ratings.data';
 
 /** Provider interface keys — also the admin path segment and state key. */
 export const NEIGHBOURHOOD_PROVIDER_NAMES = [
@@ -118,6 +125,11 @@ export interface CommunityMetricRecord extends NeighbourhoodRecordBase {
 export interface NeighbourhoodProvider<TRecord, TImpl extends string = string> {
   /** Implementation name, e.g. 'calgary-open-data' — also the row `source`. */
   readonly implementation: TImpl;
+  /**
+   * #776: true for an implementation served entirely at read time (e.g. the
+   * reviews `maps-link`): the refresh skips it and writes nothing.
+   */
+  readonly storesNothing?: boolean;
   fetchAll(): Promise<readonly TRecord[]>;
 }
 
@@ -325,6 +337,30 @@ export function createBoardPublishedDesignationProvider(
     implementation: 'board-published',
     fetchAll: async () => buildDesignationRecords(entries),
   };
+}
+
+/**
+ * #776 school ratings from the published reports (curated list). No outside
+ * call. Fraser entries are kept only when `fraserEnabled`. An invalid entry
+ * throws and an empty list is an empty snapshot — either way the refresh
+ * keeps the stored ratings.
+ */
+export function createPublishedReportsRatingsProvider(
+  options: { readonly fraserEnabled: boolean },
+  entries: readonly CuratedSchoolRating[] = PUBLISHED_SCHOOL_RATINGS,
+): SchoolRatingsProvider {
+  return {
+    implementation: 'published-reports',
+    fetchAll: async () => buildRatingRecords(entries, options),
+  };
+}
+
+/**
+ * #776 free reviews: the link is built per school at read time
+ * (`lib/school-ratings.ts` createMapsReviewsLinker) — nothing to fetch or store.
+ */
+export function createMapsLinkReviewsProvider(): ReviewsProvider {
+  return { implementation: 'maps-link', storesNothing: true, fetchAll: async () => [] };
 }
 
 /** First GeoJSON geometry value in a row (`point`, `multipolygon`, `the_geom`, ...). */
@@ -600,8 +636,11 @@ export function createNeighbourhoodProviders(
       p.schoolDesignation === 'board-published'
         ? createBoardPublishedDesignationProvider()
         : noneProvider(),
-    schoolRatings: noneProvider(),
-    reviews: noneProvider(),
+    schoolRatings:
+      p.schoolRatings === 'published-reports'
+        ? createPublishedReportsRatingsProvider({ fraserEnabled: config.schoolRatingsFraserEnabled })
+        : noneProvider(),
+    reviews: p.reviews === 'maps-link' ? createMapsLinkReviewsProvider() : noneProvider(),
     amenities:
       p.amenities === 'calgary-open-data'
         ? createCalgaryAmenitiesProvider({

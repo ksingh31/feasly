@@ -302,14 +302,14 @@ describe('neighbourhood providers — free implementations (#773)', () => {
 });
 
 describe('neighbourhood providers — config-only switch (#773 AC2)', () => {
-  it('defaults: free implementations for directory, amenities, commute; none for the rest', () => {
+  it('defaults: free implementations for directory, amenities, commute, reviews (#776 maps-link); none for the rest', () => {
     const providers = createNeighbourhoodProviders(loadConfig(BASE_ENV).neighbourhoodData);
     expect(providers.schoolDirectory.implementation).toBe('free-public');
     expect(providers.amenities.implementation).toBe('calgary-open-data');
     expect(providers.commute.implementation).toBe('straight-line');
     expect(providers.schoolDesignation.implementation).toBe('none');
     expect(providers.schoolRatings.implementation).toBe('none');
-    expect(providers.reviews.implementation).toBe('none');
+    expect(providers.reviews.implementation).toBe('maps-link');
   });
 
   it('changing only env/config switches the implementation — and "none" makes no outside call', async () => {

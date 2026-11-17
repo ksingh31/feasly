@@ -32,6 +32,22 @@ const SCHOOL: School = {
   communityCode: 'ALT',
   communityName: 'ALTADORE',
   sources: { name: 'calgary-open-data', type: 'alberta-authority-list' },
+  ratings: {
+    fraser: {
+      score: 7.4,
+      year: '2025',
+      attribution: 'Fraser Institute',
+      sourceUrl: 'https://www.compareschoolrankings.org/',
+    },
+    provincialResults: null,
+    enrolment: null,
+  },
+  reviews: {
+    kind: 'link',
+    provider: 'google-maps',
+    label: 'Read reviews on Google Maps',
+    url: 'https://www.google.com/maps/search/?api=1&query=Altadore+School',
+  },
   refreshedAt: '2026-11-01T00:00:00.000Z',
 };
 

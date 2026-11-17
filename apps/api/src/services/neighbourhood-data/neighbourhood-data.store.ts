@@ -12,7 +12,7 @@
  * the db directly).
  */
 import { createHash } from 'node:crypto';
-import { and, asc, eq, getTableColumns, gt, gte, lte, ne, or, sql } from 'drizzle-orm';
+import { and, asc, eq, getTableColumns, gt, gte, inArray, lte, ne, or, sql } from 'drizzle-orm';
 import {
   amenities,
   communityLivingMetrics,
@@ -103,6 +103,12 @@ export interface StoredDesignation {
   readonly refreshedAt: Date;
 }
 
+/** #776: one stored school rating row (one per school and kind). */
+export interface StoredSchoolRating {
+  readonly schoolId: string | null;
+  readonly data: unknown;
+}
+
 export interface StoredAmenity {
   readonly id: string;
   readonly category: string;
@@ -159,6 +165,8 @@ export interface NeighbourhoodDataStore {
    * no code, all of them (the refresh diffs the whole snapshot). Key order.
    */
   listDesignations(communityCode?: string): Promise<readonly StoredDesignation[]>;
+  /** #776: stored ratings for these directory school ids. */
+  listSchoolRatings(schoolIds: readonly string[]): Promise<readonly StoredSchoolRating[]>;
   /** Point amenities in the box (never the per-community tree-cover rows). */
   amenitiesIn(box: BoundingBox): Promise<readonly StoredAmenity[]>;
   /** #777: anchor by City community code (upper) or slug (lower); null when unknown. */
@@ -404,6 +412,16 @@ export function createDrizzleNeighbourhoodDataStore(
         .from(t)
         .where(and(...conditions))
         .orderBy(asc(t.externalId));
+    },
+
+    async listSchoolRatings(schoolIds): Promise<readonly StoredSchoolRating[]> {
+      if (schoolIds.length === 0) return [];
+      const t = schoolRatings;
+      return db
+        .select({ schoolId: t.schoolId, data: t.data })
+        .from(t)
+        .where(and(eq(t.provider, 'school-ratings'), inArray(t.schoolId, [...schoolIds])))
+        .orderBy(asc(t.id));
     },
 
     async amenitiesIn(box): Promise<readonly StoredAmenity[]> {
