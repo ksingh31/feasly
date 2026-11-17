@@ -14,6 +14,8 @@ import type {
   CallbackRequest,
   CallbackResponse,
   CityDataFreshnessResponse,
+  CommunityMatchRequest,
+  CommunityMatchResponse,
   EstimateRequest,
   GetReportResponse,
   LeadRequest,
@@ -113,6 +115,11 @@ export interface ApiService {
    * order. Read once per session through `PartnersState`.
    */
   getPartners(): Observable<BuilderPartnerListResponse>;
+  /**
+   * Community match (#778 / #779): POST /api/v1/communities/match — public,
+   * ungated. Priorities in, ranked established infill communities out.
+   */
+  matchCommunities(request: CommunityMatchRequest): Observable<CommunityMatchResponse>;
   /** Lead capture. The magic link travels by email in prod. */
   submitLead(request: LeadRequest): Observable<LeadResponse>;
   /** Resolves a magic-link token to a report token. */
@@ -303,6 +310,10 @@ class LazyApiService implements ApiService {
 
   getPartners(): Observable<BuilderPartnerListResponse> {
     return this.resolve().getPartners();
+  }
+
+  matchCommunities(request: CommunityMatchRequest): Observable<CommunityMatchResponse> {
+    return this.resolve().matchCommunities(request);
   }
 
   submitLead(request: LeadRequest): Observable<LeadResponse> {

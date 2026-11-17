@@ -463,6 +463,23 @@
   }
 }
 
+.find-community-entry {
+  max-width: 1200px;
+  margin: -16px auto 0;
+  padding: 0 20px 24px;
+  text-align: center;
+  font-family: var(--font-ui);
+  font-size: 16px;
+
+  a {
+    display: inline-flex;
+    align-items: center;
+    min-height: 44px;
+    font-weight: 600;
+    color: var(--accent-text);
+  }
+}
+
 .entry-pair .compare-entry {
   max-width: none;
   margin: 0;

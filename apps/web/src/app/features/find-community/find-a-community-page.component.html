@@ -1,0 +1,240 @@
+<app-site-nav [search]="true" />
+<main class="marketing find" id="main-content" tabindex="-1">
+  <p class="eyebrow eyebrow-left">
+    <span class="eyebrow-line" aria-hidden="true"></span>
+    {{ copy.eyebrow }}
+  </p>
+  <h1>{{ copy.title }}</h1>
+  <p class="lede answer">{{ copy.answer }}</p>
+
+  <div class="find-layout">
+    <section class="find-priorities" aria-labelledby="find-priorities-title">
+      <h2 id="find-priorities-title" class="find-h2">{{ copy.prioritiesTitle }}</h2>
+      <p class="find-hint" id="find-priorities-hint">{{ copy.prioritiesHint }}</p>
+      @for (group of groups(); track group.id) {
+        <div class="find-group" role="group" [attr.aria-labelledby]="'find-group-' + group.id">
+          <h3 class="find-group-title" [id]="'find-group-' + group.id">{{ group.title }}</h3>
+          <div class="find-chips">
+            @for (view of group.chips; track view.chip.key) {
+              <button
+                type="button"
+                class="find-chip"
+                [class.is-nice]="view.importance === 'nice'"
+                [class.is-must]="view.importance === 'must'"
+                [class.is-on]="view.chip.kind === 'filter' && view.pressed"
+                [attr.aria-pressed]="view.pressed"
+                [attr.data-chip]="view.chip.key"
+                aria-describedby="find-priorities-hint"
+                (click)="onChip(view)"
+              >
+                <span class="find-chip-label">{{ view.label }}</span>
+                @if (view.stateText) {
+                  <span class="find-chip-state">{{ view.stateText }}</span>
+                }
+              </button>
+            }
+          </div>
+        </div>
+      }
+      <p class="find-share">{{ copy.shareNote }}</p>
+    </section>
+
+    <section class="find-results" aria-labelledby="find-results-title">
+      <h2 id="find-results-title" class="find-h2">{{ copy.resultsTitle }}</h2>
+      <p class="find-status" role="status" aria-live="polite">{{ statusText() }}</p>
+      @if (hasPriorities() && status() === 'error') {
+        <button type="button" class="cta cta-secondary find-retry" (click)="retry()">{{ copy.retry }}</button>
+      }
+
+      @if (hasPriorities() && results().length > 0) {
+        <ol class="find-list" [attr.aria-busy]="status() === 'loading'">
+          @for (result of results(); track result.communityCode) {
+            <li class="find-card" [attr.data-community]="result.communityCode">
+              <div class="find-card-head">
+                <h3 class="find-card-name">
+                  <span class="find-rank">{{ result.rank }}.</span> {{ result.name }}
+                </h3>
+                <span class="find-match-text">{{ matchLabel(result) }}</span>
+              </div>
+              <div class="find-bar" aria-hidden="true">
+                <span class="find-bar-fill" [style.width.%]="result.match"></span>
+              </div>
+              @if (!result.passesMustHaves) {
+                <p class="find-badge">{{ copy.missedMustBadge }}</p>
+              }
+              <div class="find-notes">
+                <div>
+                  <h4 class="find-notes-title">{{ copy.reasonsLabel }}</h4>
+                  <ul class="find-tags">
+                    @for (reason of result.reasons; track reason.priority) {
+                      <li class="find-tag find-tag-reason">{{ reason.text }}</li>
+                    }
+                  </ul>
+                </div>
+                @if (result.misses.length > 0) {
+                  <div>
+                    <h4 class="find-notes-title">{{ copy.missesLabel }}</h4>
+                    <ul class="find-tags">
+                      @for (miss of result.misses; track miss.priority) {
+                        <li class="find-tag find-tag-miss" [class.is-must]="miss.importance === 'must'">{{ miss.text }}</li>
+                      }
+                    </ul>
+                  </div>
+                }
+              </div>
+              <dl class="find-facts">
+                <div>
+                  <dt>{{ copy.compareRowLots }}</dt>
+                  <dd>{{ lotsText(result) }}</dd>
+                </div>
+                <div>
+                  <dt>{{ copy.buildRangeLabel }}</dt>
+                  <dd>{{ buildRange(result) }}</dd>
+                </div>
+              </dl>
+              <div class="find-card-actions">
+                <a class="find-link" [routerLink]="['/communities', result.slug]">{{ label(copy.viewCommunity, result.name) }}</a>
+                <label class="find-compare">
+                  <input
+                    type="checkbox"
+                    [checked]="compareCodes().has(result.communityCode)"
+                    (change)="onCompareChange(result, $event)"
+                  />
+                  <span>{{ label(copy.compareLabel, result.name) }}</span>
+                </label>
+              </div>
+            </li>
+          }
+        </ol>
+        @if (buildBasis()) {
+          <p class="find-basis">
+            {{ buildBasis() }}
+            @if (response()?.buildBasis?.calibrated === false) {
+              {{ copy.draftCostData }}
+            }
+          </p>
+        }
+      }
+    </section>
+  </div>
+
+  <section class="find-how" aria-labelledby="find-how-title">
+    <h2 id="find-how-title" class="find-h2">{{ copy.notesTitle }}</h2>
+    <ul class="find-how-list">
+      @for (note of copy.notes; track note) {
+        <li>{{ note }}</li>
+      }
+    </ul>
+    @if (refreshed()) {
+      <p class="find-basis">{{ refreshed() }}</p>
+    }
+  </section>
+
+  <section class="find-related" aria-labelledby="find-related-title">
+    <h2 id="find-related-title" class="find-h2">{{ copy.relatedTitle }}</h2>
+    <ul class="find-related-list">
+      <li><a routerLink="/communities">{{ copy.guidesLink }}</a></li>
+      <li><a routerLink="/estimate/compare" [queryParams]="{ fresh: 1 }">{{ copy.compareLink }}</a></li>
+      <li><a routerLink="/">{{ copy.estimateLink }}</a></li>
+    </ul>
+  </section>
+</main>
+
+@if (compare().length > 0 || compareBlocked()) {
+  <aside class="find-tray" aria-labelledby="find-tray-title">
+    <div class="find-tray-inner">
+      <div class="find-tray-head">
+        <h2 id="find-tray-title" class="find-tray-title">{{ copy.compareTrayTitle }}</h2>
+        <span class="find-tray-count">{{ compareCount() }}</span>
+      </div>
+      <p class="find-tray-limit" role="alert">
+        @if (compareBlocked()) {
+          {{ compareLimitText }}
+        }
+      </p>
+      <ul class="find-tray-list">
+        @for (item of compare(); track item.communityCode) {
+          <li class="find-tray-item">
+            <span>{{ item.name }}</span>
+            <button
+              type="button"
+              class="find-tray-remove"
+              [attr.aria-label]="label(copy.compareRemove, item.name)"
+              (click)="removeCompare(item.communityCode)"
+            >
+              <span aria-hidden="true">×</span>
+            </button>
+          </li>
+        }
+      </ul>
+      <div class="find-tray-actions">
+        <button
+          type="button"
+          class="cta cta-primary find-tray-show"
+          [attr.aria-expanded]="compareOpen()"
+          aria-controls="find-compare-table"
+          [disabled]="compare().length === 0"
+          (click)="compareOpen.set(!compareOpen())"
+        >
+          {{ compareOpen() ? copy.compareHide : copy.compareShow }}
+        </button>
+        <button type="button" class="cta cta-secondary find-tray-clear" (click)="clearCompare()">{{ copy.compareClear }}</button>
+      </div>
+      @if (compareOpen() && compare().length > 0) {
+        <div class="find-compare-scroll" id="find-compare-table" tabindex="0" role="region" [attr.aria-label]="copy.compareTableCaption">
+          <table class="find-compare-table">
+            <caption>{{ copy.compareTableCaption }}</caption>
+            <thead>
+              <tr>
+                <td></td>
+                @for (item of compare(); track item.communityCode) {
+                  <th scope="col">{{ item.name }}</th>
+                }
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <th scope="row">{{ copy.compareRowMatch }}</th>
+                @for (item of compare(); track item.communityCode) {
+                  <td>{{ matchLabel(item) }}</td>
+                }
+              </tr>
+              <tr>
+                <th scope="row">{{ copy.compareRowMustHaves }}</th>
+                @for (item of compare(); track item.communityCode) {
+                  <td>{{ item.passesMustHaves ? copy.yes : copy.no }}</td>
+                }
+              </tr>
+              <tr>
+                <th scope="row">{{ copy.compareRowLots }}</th>
+                @for (item of compare(); track item.communityCode) {
+                  <td>{{ lotsText(item) }}</td>
+                }
+              </tr>
+              <tr>
+                <th scope="row">{{ copy.compareRowBuild }}</th>
+                @for (item of compare(); track item.communityCode) {
+                  <td>{{ buildRange(item) }}</td>
+                }
+              </tr>
+              <tr>
+                <th scope="row">{{ copy.compareRowReasons }}</th>
+                @for (item of compare(); track item.communityCode) {
+                  <td>
+                    <ul class="find-compare-reasons">
+                      @for (reason of item.reasons; track reason.priority) {
+                        <li>{{ reason.text }}</li>
+                      }
+                    </ul>
+                  </td>
+                }
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      }
+    </div>
+  </aside>
+}
+
+<app-site-footer />

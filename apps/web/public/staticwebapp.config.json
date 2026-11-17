@@ -89,6 +89,11 @@
       "statusCode": 301
     },
     {
+      "route": "/find-a-community",
+      "redirect": "/find-a-community/",
+      "statusCode": 301
+    },
+    {
       "route": "/developers",
       "redirect": "/developers/",
       "statusCode": 301

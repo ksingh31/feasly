@@ -180,6 +180,27 @@ for (const route of [...INDEXABLE, '/404']) {
   }
 }
 
+// --- #779: Find a community prerenders every chip group, the how-it-works
+// notes and a WebPage JSON-LD whose name is the visible h1. The ranking is
+// browser-only (a crawler never triggers a match request). ---
+{
+  const html = htmlFor('/find-a-community');
+  if (html !== null) {
+    for (const group of ['Schools', 'Getting around', 'Lifestyle', 'Your build']) {
+      mustContain(html, '/find-a-community', `>${group}</h3>`, `chip group "${group}"`);
+    }
+    mustContain(html, '/find-a-community', 'aria-pressed="false"', 'priority toggle buttons');
+    mustContain(html, '/find-a-community', 'How the ranking works', 'ranking notes');
+    mustContain(html, '/find-a-community', 'href="/communities"', 'community guides link');
+    const data = jsonLdBlocks(html)[0];
+    if (!data || data['@type'] !== 'WebPage') {
+      failures.push('"/find-a-community" ld+json must be a valid WebPage');
+    } else if (!data.name || !html.includes(`>${data.name}</h1>`)) {
+      failures.push(`"/find-a-community" ld+json WebPage name not the visible h1: "${String(data.name).slice(0, 60)}"`);
+    }
+  }
+}
+
 // --- 404 brand copy + noindex. ---
 {
   const html = htmlFor('/404');

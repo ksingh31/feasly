@@ -27,6 +27,11 @@ apps/web/src/app/features/communities/community-profile-copy.defaults.ts
 # resource-summary budget stays green.
 apps/web/src/app/features/marketing/help-copy.defaults.ts
 
+# Find a community copy defaults (#779): lazy-loaded compiled fallback for
+# /find-a-community copy, merged with deploy overrides (copy.findCommunity)
+# via mergeLazyCopy. Kept out of the initial bundle (Lighthouse budget).
+apps/web/src/app/features/find-community/find-community-copy.defaults.ts
+
 # Lazy copy defaults split out of app-config.defaults.ts (#980/Lighthouse):
 # compiled fallbacks for copy.admin and copy.marketing.{howItWorks,
 # pillarGuide,zoningGuide}, merged with deploy overrides from the same JSON
