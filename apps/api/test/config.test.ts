@@ -348,6 +348,10 @@ describe('loadConfig', () => {
         alertAfterFailureDays: 3,
         lotRadiusM: 1_000,
         lotMetricsTtlMs: 2_592_000_000,
+        schoolBoardLookupUrls: {
+          cbe: 'https://www.cbe.ab.ca/find-a-school',
+          ccsd: 'https://www.cssd.ab.ca',
+        },
       },
       backupCheck: {
         enabled: false,

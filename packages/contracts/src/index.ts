@@ -44,4 +44,5 @@ export * from './zoning';
 export * from './audit';
 export * from './partners';
 export * from './schools';
+export * from './school-designations';
 export * from './web-telemetry';

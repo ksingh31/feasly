@@ -155,6 +155,8 @@ These need owner input and are not implemented yet:
 | GET | `/api/v1/zoning/districts` | none | 100/min per IP | live |
 | GET | `/api/v1/schools` | none | 100/min per IP | live |
 | GET | `/api/v1/schools/{id}` | none | 100/min per IP | live |
+| GET | `/api/v1/communities/{slug}/school-designations` | none | 100/min per IP | live |
+| GET | `/api/v1/school-designations` | none | 100/min per IP | live |
 | GET | `/api/v1/partners` | none | 100/min per IP | live |
 | GET | `/api/v1/embed/config` | none | 120/min per tenant key | live |
 | POST | `/api/v1/embed/session` | none | 30/min per tenant key | planned |

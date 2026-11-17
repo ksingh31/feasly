@@ -21,6 +21,9 @@
  * - `straight-line` — straight-line distance from each established community
  *   (#690 rule, Community Points dataset) to a configured destination.
  *   A distance, never a travel time.
+ * - `board-published` (#775) — CBE + CCSD designations per community and
+ *   grade band, transcribed from the boards' published notices
+ *   (`school-designations.data.ts`; no open boundary file exists).
  * - `none` — no source chosen yet: the refresh skips it and writes nothing.
  *
  * Records carry public open data only — no personal data.
@@ -45,6 +48,8 @@ import {
 import { toSlug } from '../community-stats/socrata-aggregates';
 import { TREE_COVER_CATEGORY } from './categories';
 import { buildSchoolDirectory, type OsmElement } from './school-directory';
+import { buildDesignationRecords, type CuratedDesignation } from './school-designations';
+import { BOARD_PUBLISHED_DESIGNATIONS } from './school-designations.data';
 
 /** Provider interface keys — also the admin path segment and state key. */
 export const NEIGHBOURHOOD_PROVIDER_NAMES = [
@@ -305,6 +310,20 @@ export function createSchoolDirectoryProvider<TImpl extends 'free-public' | 'cal
         dedupeRadiusM: deps.dedupeRadiusM,
       });
     },
+  };
+}
+
+/**
+ * #775 school designations from the boards' published notices (curated
+ * list). No outside call. An invalid entry throws and an empty list is an
+ * empty snapshot — either way the refresh keeps the stored designations.
+ */
+export function createBoardPublishedDesignationProvider(
+  entries: readonly CuratedDesignation[] = BOARD_PUBLISHED_DESIGNATIONS,
+): NeighbourhoodProvider<SchoolDesignationRecord, 'board-published'> {
+  return {
+    implementation: 'board-published',
+    fetchAll: async () => buildDesignationRecords(entries),
   };
 }
 
@@ -577,7 +596,10 @@ export function createNeighbourhoodProviders(
         : p.schoolDirectory === 'calgary-open-data'
           ? createSchoolDirectoryProvider('calgary-open-data', schoolDeps)
           : noneProvider(),
-    schoolDesignation: noneProvider(),
+    schoolDesignation:
+      p.schoolDesignation === 'board-published'
+        ? createBoardPublishedDesignationProvider()
+        : noneProvider(),
     schoolRatings: noneProvider(),
     reviews: noneProvider(),
     amenities:

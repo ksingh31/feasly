@@ -94,6 +94,15 @@ export interface SchoolDirectoryFilter {
   readonly schoolType?: string;
 }
 
+/** #775: one stored school designation row. */
+export interface StoredDesignation {
+  readonly externalId: string;
+  readonly communityCode: string | null;
+  readonly gradeBand: string | null;
+  readonly data: unknown;
+  readonly refreshedAt: Date;
+}
+
 export interface StoredAmenity {
   readonly id: string;
   readonly category: string;
@@ -145,6 +154,11 @@ export interface NeighbourhoodDataStore {
   listSchools(filter: SchoolDirectoryFilter): Promise<readonly StoredDirectorySchool[]>;
   /** #774: one directory school by its external id. */
   getSchool(externalId: string): Promise<StoredDirectorySchool | null>;
+  /**
+   * #775: stored designations — one community's (code, upper case) or, with
+   * no code, all of them (the refresh diffs the whole snapshot). Key order.
+   */
+  listDesignations(communityCode?: string): Promise<readonly StoredDesignation[]>;
   /** Point amenities in the box (never the per-community tree-cover rows). */
   amenitiesIn(box: BoundingBox): Promise<readonly StoredAmenity[]>;
   /** #777: anchor by City community code (upper) or slug (lower); null when unknown. */
@@ -373,6 +387,23 @@ export function createDrizzleNeighbourhoodDataStore(
         .orderBy(asc(t.source))
         .limit(1);
       return rows[0] ?? null;
+    },
+
+    async listDesignations(communityCode): Promise<readonly StoredDesignation[]> {
+      const t = schoolDesignations;
+      const conditions = [eq(t.provider, 'school-designation')];
+      if (communityCode) conditions.push(eq(t.communityCode, communityCode));
+      return db
+        .select({
+          externalId: t.externalId,
+          communityCode: t.communityCode,
+          gradeBand: t.gradeBand,
+          data: t.data,
+          refreshedAt: t.refreshedAt,
+        })
+        .from(t)
+        .where(and(...conditions))
+        .orderBy(asc(t.externalId));
     },
 
     async amenitiesIn(box): Promise<readonly StoredAmenity[]> {

@@ -18,6 +18,12 @@
  * - Telemetry: one event per provider run (rows changed, outcome, failures)
  *   and one per job run. No PII — only provider names and counts.
  *
+ * - #775: a school-designation snapshot is diffed against the stored one
+ *   before it is written; any changed designation goes to
+ *   `onDesignationsChanged` (one GitHub review issue). If that throws, the
+ *   refresh fails and writes nothing, so the change is retried — never
+ *   stored unreviewed.
+ *
  * DB access goes through NeighbourhoodDataStore (never src/db/ directly).
  */
 import type {
@@ -26,6 +32,7 @@ import type {
   NeighbourhoodProviders,
 } from './providers';
 import { NEIGHBOURHOOD_PROVIDER_NAMES, NO_PROVIDER } from './providers';
+import { diffDesignations, type DesignationChange } from './school-designations';
 import type {
   NeighbourhoodDataStore,
   NeighbourhoodRecordMap,
@@ -48,6 +55,8 @@ export interface ProviderRefreshResult {
   readonly consecutiveFailures: number;
   /** Error class name on failure (never a message carrying data). */
   readonly error?: string;
+  /** #775 school-designation only: designations that changed (sent for review). */
+  readonly changesFlagged?: number;
 }
 
 export interface NeighbourhoodRefreshRunResult {
@@ -81,6 +90,14 @@ export interface NeighbourhoodRefreshServiceDeps {
     readonly firstFailureAt: Date;
   }) => Promise<void>;
   readonly onRecovered?: () => Promise<void>;
+  /**
+   * #775: designations that differ from the stored snapshot (never called
+   * on a first load or with no change). A throw fails the refresh.
+   */
+  readonly onDesignationsChanged?: (
+    changes: readonly DesignationChange[],
+    refreshedAt: Date,
+  ) => Promise<void>;
   readonly onEvent?: (event: NeighbourhoodRefreshEvent) => void;
   readonly clock?: () => Date;
   readonly logWarning?: (message: string) => void;
@@ -157,6 +174,7 @@ export function createNeighbourhoodRefreshService(
     alertAfterFailureDays,
     onFailing,
     onRecovered,
+    onDesignationsChanged,
     onEvent,
     clock = () => new Date(),
     logWarning = (message: string) => console.warn(message),
@@ -211,6 +229,21 @@ export function createNeighbourhoodRefreshService(
     try {
       const records = await provider.fetchAll();
       if (records.length === 0) throw new EmptySnapshotError(name);
+      let changesFlagged: number | undefined;
+      if (name === 'school-designation' && onDesignationsChanged) {
+        const stored = await store.listDesignations();
+        const changes = diffDesignations(
+          stored,
+          (records as NeighbourhoodRecordMap['school-designation'][]).map((r) => ({
+            externalId: r.externalId,
+            communityCode: r.communityCode ?? null,
+            gradeBand: r.gradeBand,
+            data: r.data,
+          })),
+        );
+        changesFlagged = changes.length;
+        if (changes.length > 0) await onDesignationsChanged(changes, startedAt);
+      }
       const written = await store.replaceSnapshot(name, implementation, records, startedAt);
       await store.saveState({
         ...base,
@@ -229,6 +262,7 @@ export function createNeighbourhoodRefreshService(
         ...written,
         durationMs: clock().getTime() - startedAt.getTime(),
         consecutiveFailures: 0,
+        ...(changesFlagged !== undefined ? { changesFlagged } : {}),
       };
       return { result, recovered: previous?.alertedAt != null };
     } catch (error) {

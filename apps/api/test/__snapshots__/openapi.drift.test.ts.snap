@@ -5,6 +5,66 @@ exports[`OpenAPI drift > generated spec matches the snapshot 1`] = `
   "components": {
     "parameters": {},
     "schemas": {
+      "AddressSchoolDesignationsResponse": {
+        "additionalProperties": false,
+        "properties": {
+          "addressKey": {
+            "minLength": 1,
+            "type": "string",
+          },
+          "boards": {
+            "items": {
+              "$ref": "#/components/schemas/SchoolBoardLookup",
+            },
+            "type": "array",
+          },
+          "communityCode": {
+            "type": [
+              "string",
+              "null",
+            ],
+          },
+          "communityName": {
+            "type": [
+              "string",
+              "null",
+            ],
+          },
+          "designations": {
+            "items": {
+              "$ref": "#/components/schemas/SchoolDesignation",
+            },
+            "type": "array",
+          },
+          "disclaimer": {
+            "minLength": 1,
+            "type": "string",
+          },
+          "label": {
+            "enum": [
+              "typically designated",
+            ],
+            "type": "string",
+          },
+          "slug": {
+            "type": [
+              "string",
+              "null",
+            ],
+          },
+        },
+        "required": [
+          "label",
+          "designations",
+          "boards",
+          "disclaimer",
+          "addressKey",
+          "communityCode",
+          "communityName",
+          "slug",
+        ],
+        "type": "object",
+      },
       "AdminEstimateDetail": {
         "properties": {
           "costDataVersion": {
@@ -679,6 +739,55 @@ exports[`OpenAPI drift > generated spec matches the snapshot 1`] = `
         ],
         "type": "object",
       },
+      "CommunitySchoolDesignationsResponse": {
+        "additionalProperties": false,
+        "properties": {
+          "boards": {
+            "items": {
+              "$ref": "#/components/schemas/SchoolBoardLookup",
+            },
+            "type": "array",
+          },
+          "communityCode": {
+            "minLength": 1,
+            "type": "string",
+          },
+          "communityName": {
+            "minLength": 1,
+            "type": "string",
+          },
+          "designations": {
+            "items": {
+              "$ref": "#/components/schemas/SchoolDesignation",
+            },
+            "type": "array",
+          },
+          "disclaimer": {
+            "minLength": 1,
+            "type": "string",
+          },
+          "label": {
+            "enum": [
+              "typically designated",
+            ],
+            "type": "string",
+          },
+          "slug": {
+            "minLength": 1,
+            "type": "string",
+          },
+        },
+        "required": [
+          "label",
+          "designations",
+          "boards",
+          "disclaimer",
+          "communityCode",
+          "communityName",
+          "slug",
+        ],
+        "type": "object",
+      },
       "CommunityStatsResponse": {
         "properties": {
           "avgAssessedValue": {
@@ -749,6 +858,15 @@ exports[`OpenAPI drift > generated spec matches the snapshot 1`] = `
           "range",
         ],
         "type": "object",
+      },
+      "DesignationGradeBand": {
+        "enum": [
+          "K-6",
+          "K-9",
+          "7-9",
+          "10-12",
+        ],
+        "type": "string",
       },
       "EmbedPublicConfig": {
         "properties": {
@@ -1724,6 +1842,79 @@ exports[`OpenAPI drift > generated spec matches the snapshot 1`] = `
           "communityCode",
           "communityName",
           "sources",
+          "refreshedAt",
+        ],
+        "type": "object",
+      },
+      "SchoolBoardId": {
+        "enum": [
+          "cbe",
+          "ccsd",
+        ],
+        "type": "string",
+      },
+      "SchoolBoardLookup": {
+        "additionalProperties": false,
+        "properties": {
+          "board": {
+            "$ref": "#/components/schemas/SchoolBoardId",
+          },
+          "lookupUrl": {
+            "description": "The board's address lookup — confirm the school for an exact address.",
+            "format": "uri",
+            "type": "string",
+          },
+          "name": {
+            "minLength": 1,
+            "type": "string",
+          },
+        },
+        "required": [
+          "board",
+          "name",
+          "lookupUrl",
+        ],
+        "type": "object",
+      },
+      "SchoolDesignation": {
+        "additionalProperties": false,
+        "properties": {
+          "board": {
+            "$ref": "#/components/schemas/SchoolBoardId",
+          },
+          "boardName": {
+            "minLength": 1,
+            "type": "string",
+          },
+          "gradeBand": {
+            "$ref": "#/components/schemas/DesignationGradeBand",
+          },
+          "label": {
+            "enum": [
+              "typically designated",
+            ],
+            "type": "string",
+          },
+          "lookupUrl": {
+            "format": "uri",
+            "type": "string",
+          },
+          "refreshedAt": {
+            "format": "date-time",
+            "type": "string",
+          },
+          "schoolName": {
+            "minLength": 1,
+            "type": "string",
+          },
+        },
+        "required": [
+          "board",
+          "boardName",
+          "gradeBand",
+          "schoolName",
+          "label",
+          "lookupUrl",
           "refreshedAt",
         ],
         "type": "object",
@@ -3917,6 +4108,129 @@ URL versioning (\`/v1/\`). Breaking changes ship as \`/v2/\` with 6 months notic
         "summary": "List lots in a community",
       },
     },
+    "/v1/communities/{slug}/school-designations": {
+      "get": {
+        "description": "CBE and CCSD schools typically designated for an established Calgary community, per grade band, from the boards' published notices. Every designation links to the board's address lookup — designations can differ by address, so confirm with the board. 404 when the community is not covered. Public by design.",
+        "parameters": [
+          {
+            "description": "Community slug ('altadore') or City code ('ALT').",
+            "in": "path",
+            "name": "slug",
+            "required": true,
+            "schema": {
+              "description": "Community slug ('altadore') or City code ('ALT').",
+              "type": "string",
+            },
+          },
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CommunitySchoolDesignationsResponse",
+                },
+              },
+            },
+            "description": "Typically designated schools",
+          },
+          "400": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails",
+                },
+              },
+            },
+            "description": "Bad request — validation failed",
+          },
+          "429": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails",
+                },
+              },
+            },
+            "description": "Rate limit exceeded — per-key sliding window (60s) or per-IP fixed window (code RATE_LIMITED, X-RateLimit-* headers), or the key's daily/monthly quota (code QUOTA_EXCEEDED, X-Quota-Period / -Limit / -Remaining / -Reset headers). Body is RFC 7807 problem+json; Retry-After says when to try again.",
+            "headers": {
+              "X-Quota-Limit": {
+                "description": "QUOTA_EXCEEDED only: requests allowed per period for this API key.",
+                "required": false,
+                "schema": {
+                  "description": "QUOTA_EXCEEDED only: requests allowed per period for this API key.",
+                  "type": "integer",
+                },
+              },
+              "X-Quota-Period": {
+                "description": "QUOTA_EXCEEDED only: which quota ran out (UTC calendar day or month).",
+                "required": false,
+                "schema": {
+                  "description": "QUOTA_EXCEEDED only: which quota ran out (UTC calendar day or month).",
+                  "enum": [
+                    "day",
+                    "month",
+                  ],
+                  "type": "string",
+                },
+              },
+              "X-Quota-Remaining": {
+                "description": "QUOTA_EXCEEDED only: requests remaining in the period (0).",
+                "required": false,
+                "schema": {
+                  "description": "QUOTA_EXCEEDED only: requests remaining in the period (0).",
+                  "type": "integer",
+                },
+              },
+              "X-Quota-Reset": {
+                "description": "QUOTA_EXCEEDED only: Unix epoch seconds when the period resets.",
+                "required": false,
+                "schema": {
+                  "description": "QUOTA_EXCEEDED only: Unix epoch seconds when the period resets.",
+                  "type": "integer",
+                },
+              },
+              "X-RateLimit-Limit": {
+                "description": "Requests allowed per 60-second window for this API key.",
+                "required": true,
+                "schema": {
+                  "description": "Requests allowed per 60-second window for this API key.",
+                  "type": "integer",
+                },
+              },
+              "X-RateLimit-Remaining": {
+                "description": "Requests remaining in the current window.",
+                "required": true,
+                "schema": {
+                  "description": "Requests remaining in the current window.",
+                  "type": "integer",
+                },
+              },
+              "X-RateLimit-Reset": {
+                "description": "Unix epoch seconds when the current window slides past the oldest request.",
+                "required": true,
+                "schema": {
+                  "description": "Unix epoch seconds when the current window slides past the oldest request.",
+                  "type": "integer",
+                },
+              },
+            },
+          },
+          "500": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails",
+                },
+              },
+            },
+            "description": "Internal server error",
+          },
+        },
+        "security": [],
+        "summary": "School designations for a community",
+      },
+    },
     "/v1/communities/{slug}/stats": {
       "get": {
         "description": "Aggregated City-assessment stats for a community page.",
@@ -5326,6 +5640,129 @@ URL versioning (\`/v1/\`). Breaking changes ship as \`/v2/\` with 6 months notic
         },
         "security": [],
         "summary": "Append a tier/sqft what-if revision",
+      },
+    },
+    "/v1/school-designations": {
+      "get": {
+        "description": "The schools typically designated for the address's community, with each board's address lookup link (also when none are stored). Public by design.",
+        "parameters": [
+          {
+            "description": "Address key from property autocomplete.",
+            "in": "query",
+            "name": "addressKey",
+            "required": true,
+            "schema": {
+              "description": "Address key from property autocomplete.",
+              "type": "string",
+            },
+          },
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AddressSchoolDesignationsResponse",
+                },
+              },
+            },
+            "description": "Typically designated schools for the address's community",
+          },
+          "400": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails",
+                },
+              },
+            },
+            "description": "Bad request — validation failed",
+          },
+          "429": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails",
+                },
+              },
+            },
+            "description": "Rate limit exceeded — per-key sliding window (60s) or per-IP fixed window (code RATE_LIMITED, X-RateLimit-* headers), or the key's daily/monthly quota (code QUOTA_EXCEEDED, X-Quota-Period / -Limit / -Remaining / -Reset headers). Body is RFC 7807 problem+json; Retry-After says when to try again.",
+            "headers": {
+              "X-Quota-Limit": {
+                "description": "QUOTA_EXCEEDED only: requests allowed per period for this API key.",
+                "required": false,
+                "schema": {
+                  "description": "QUOTA_EXCEEDED only: requests allowed per period for this API key.",
+                  "type": "integer",
+                },
+              },
+              "X-Quota-Period": {
+                "description": "QUOTA_EXCEEDED only: which quota ran out (UTC calendar day or month).",
+                "required": false,
+                "schema": {
+                  "description": "QUOTA_EXCEEDED only: which quota ran out (UTC calendar day or month).",
+                  "enum": [
+                    "day",
+                    "month",
+                  ],
+                  "type": "string",
+                },
+              },
+              "X-Quota-Remaining": {
+                "description": "QUOTA_EXCEEDED only: requests remaining in the period (0).",
+                "required": false,
+                "schema": {
+                  "description": "QUOTA_EXCEEDED only: requests remaining in the period (0).",
+                  "type": "integer",
+                },
+              },
+              "X-Quota-Reset": {
+                "description": "QUOTA_EXCEEDED only: Unix epoch seconds when the period resets.",
+                "required": false,
+                "schema": {
+                  "description": "QUOTA_EXCEEDED only: Unix epoch seconds when the period resets.",
+                  "type": "integer",
+                },
+              },
+              "X-RateLimit-Limit": {
+                "description": "Requests allowed per 60-second window for this API key.",
+                "required": true,
+                "schema": {
+                  "description": "Requests allowed per 60-second window for this API key.",
+                  "type": "integer",
+                },
+              },
+              "X-RateLimit-Remaining": {
+                "description": "Requests remaining in the current window.",
+                "required": true,
+                "schema": {
+                  "description": "Requests remaining in the current window.",
+                  "type": "integer",
+                },
+              },
+              "X-RateLimit-Reset": {
+                "description": "Unix epoch seconds when the current window slides past the oldest request.",
+                "required": true,
+                "schema": {
+                  "description": "Unix epoch seconds when the current window slides past the oldest request.",
+                  "type": "integer",
+                },
+              },
+            },
+          },
+          "500": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails",
+                },
+              },
+            },
+            "description": "Internal server error",
+          },
+        },
+        "security": [],
+        "summary": "School designations for an address",
       },
     },
     "/v1/schools": {

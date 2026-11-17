@@ -9,15 +9,15 @@ request paths read our tables only and never call a provider.
 | Provider (admin path segment) | Config key | Implementations (default first) | Writes to |
 |---|---|---|---|
 | `school-directory` | `NEIGHBOURHOOD_SCHOOL_DIRECTORY_PROVIDER` | `free-public` (#774: City "Schools" `fd9t-tdn2` + Alberta school authority list + OpenStreetMap; see [Schools directory](#schools-directory-774)), `calgary-open-data` (City + authority list, no OSM call), `none` | `schools` |
-| `school-designation` | `NEIGHBOURHOOD_SCHOOL_DESIGNATION_PROVIDER` | `none` | `school_designations` |
+| `school-designation` | `NEIGHBOURHOOD_SCHOOL_DESIGNATION_PROVIDER` | `none`, `board-published` (#775: CBE + CCSD designations transcribed from the boards' notices; see [School designations](#school-designations-775)) | `school_designations` |
 | `school-ratings` | `NEIGHBOURHOOD_SCHOOL_RATINGS_PROVIDER` | `none` | `school_ratings` |
 | `reviews` | `NEIGHBOURHOOD_REVIEWS_PROVIDER` | `none` | `community_living_metrics` (`metric='reviews'`) |
 | `amenities` | `NEIGHBOURHOOD_AMENITIES_PROVIDER` | `calgary-open-data` (one City dataset per category in `NEIGHBOURHOOD_AMENITY_CATEGORIES`, plus per-community tree cover — see below), `none` | `amenities` |
 | `commute` | `NEIGHBOURHOOD_COMMUTE_PROVIDER` | `straight-line` (City "Community Points", `j9ps-fyst` → straight-line km to `NEIGHBOURHOOD_COMMUTE_DESTINATION_*`), `none` | `community_living_metrics` (`metric='commute'`) |
 
 `none` means no source has been chosen yet: the job skips it and leaves any
-existing rows alone. No free, open source exists today for designations,
-ratings or reviews; a later story adds an implementation and flips the config.
+existing rows alone. No free, open source exists today for ratings or
+reviews; a later story adds an implementation and flips the config.
 
 Switching an implementation is config-only. Row ids are
 `<implementation>:<external id>`, and the provider becomes due right away when
@@ -140,3 +140,37 @@ field plus the notices for each source used (City OGL, Alberta OGL,
 stored. If any source fails (Overpass is often slow — it has its own
 `NEIGHBOURHOOD_OSM_HTTP_TIMEOUT_MS`), the refresh fails, the previous
 directory stays, and the next daily tick retries.
+
+## School designations (#775)
+
+CBE and CCSD publish designated schools **by community** (designation maps
+and notices); there is no open boundary file. The `board-published`
+provider reads a curated list transcribed from those notices,
+`apps/api/src/services/neighbourhood-data/school-designations.data.ts`: one
+entry per established community (#690), board (`cbe`, `ccsd`) and grade band
+(`K-6` or `K-9`, `7-9`, `10-12`), with the notice URL and school year. An
+invalid or duplicated entry, or an empty list, fails the refresh and keeps
+the stored designations. `NEIGHBOURHOOD_SCHOOL_DESIGNATION_PROVIDER` stays
+`none` until the list is filled; then set it to `board-published`.
+
+**API (public, free, ungated; tables only):**
+
+- `GET /api/v1/communities/{slug}/school-designations` — slug or City code;
+  404 when the community has no anchor row (not established / unknown).
+- `GET /api/v1/school-designations?addressKey=` — via the address's
+  community (cache-first property lookup, #756). Always answers.
+
+Every designation is labelled **"typically designated"** and links to its
+board's address lookup (`NEIGHBOURHOOD_CBE_DESIGNATION_LOOKUP_URL`,
+`NEIGHBOURHOOD_CCSD_DESIGNATION_LOOKUP_URL`); every response also lists both
+boards' lookup links, even when no designation is stored.
+
+**Change review.** Each refresh diffs the new snapshot against the stored
+one (by board + community + grade band; school names compare
+case-insensitively; the first load is not a change). Any change opens **one**
+GitHub issue, "School designations changed — review needed" (labels `ops`,
+`area:api`; same repo/token as the zoning watch, `ZONING_WATCH_GITHUB_*`).
+While that issue is open, later changes are added as comments. If GitHub
+fails, the refresh fails and writes nothing, so the change is retried the
+next day and never stored unreviewed. No token → the change is logged and
+stored. The `provider_refresh` trace carries `changesFlagged`.
