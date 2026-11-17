@@ -313,10 +313,12 @@ describe('loadConfig', () => {
           schoolDirectory: 'free-public',
           schoolDesignation: 'none',
           schoolRatings: 'none',
-          reviews: 'none',
+          reviews: 'maps-link',
           amenities: 'calgary-open-data',
           commute: 'straight-line',
         },
+        schoolRatingsFraserEnabled: false,
+        reviewsMapsSearchUrl: 'https://www.google.com/maps/search/?api=1',
         socrataBaseUrl: 'https://data.calgary.ca',
         schoolsDatasetId: 'fd9t-tdn2',
         amenityCategories: [

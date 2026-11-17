@@ -12,6 +12,19 @@ real backend. Changing them has a cost, so:
 - **Never** widen a type to `any` to "unblock" something — the no-`any` lint exists
   precisely to stop that.
 
+## Unreleased — 2026-11-17 (additive) — school ratings + reviews link
+
+Issue #776 (Community Match epic):
+
+- **Added** to `School` (response-only, always present): `ratings`
+  (`SchoolRatings`: `fraser`, `provincialResults`, `enrolment`, each `null`
+  when not published) and `reviews` (`SchoolReviewsLink | null`).
+- **Added** types `SchoolRatings`, `PublishedFigureSource`,
+  `FraserSchoolRating`, `ProvincialTest` (+ `PROVINCIAL_TESTS`),
+  `ProvincialTestResult`, `ProvincialResultsSummary`, `SchoolEnrolment`,
+  `SchoolReviewsLink`. Nothing existing renamed or narrowed; only the API
+  builds `School`, so no client has to construct the new fields.
+
 ## Unreleased — 2026-11-17 (additive) — school designations
 
 Issue #775 (Community Match epic):

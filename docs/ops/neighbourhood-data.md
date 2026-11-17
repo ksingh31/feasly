@@ -10,14 +10,14 @@ request paths read our tables only and never call a provider.
 |---|---|---|---|
 | `school-directory` | `NEIGHBOURHOOD_SCHOOL_DIRECTORY_PROVIDER` | `free-public` (#774: City "Schools" `fd9t-tdn2` + Alberta school authority list + OpenStreetMap; see [Schools directory](#schools-directory-774)), `calgary-open-data` (City + authority list, no OSM call), `none` | `schools` |
 | `school-designation` | `NEIGHBOURHOOD_SCHOOL_DESIGNATION_PROVIDER` | `none`, `board-published` (#775: CBE + CCSD designations transcribed from the boards' notices; see [School designations](#school-designations-775)) | `school_designations` |
-| `school-ratings` | `NEIGHBOURHOOD_SCHOOL_RATINGS_PROVIDER` | `none` | `school_ratings` |
-| `reviews` | `NEIGHBOURHOOD_REVIEWS_PROVIDER` | `none` | `community_living_metrics` (`metric='reviews'`) |
+| `school-ratings` | `NEIGHBOURHOOD_SCHOOL_RATINGS_PROVIDER` | `none`, `published-reports` (#776: Fraser score, Alberta Education provincial results, CBE enrolment vs capacity, transcribed from the published reports; see [School ratings](#school-ratings-and-reviews-link-776)) | `school_ratings` |
+| `reviews` | `NEIGHBOURHOOD_REVIEWS_PROVIDER` | `maps-link` (#776: a Google Maps search link per school, built at read time — no API call), `none` | nothing (`maps-link` stores nothing; the job skips it) |
 | `amenities` | `NEIGHBOURHOOD_AMENITIES_PROVIDER` | `calgary-open-data` (one City dataset per category in `NEIGHBOURHOOD_AMENITY_CATEGORIES`, plus per-community tree cover — see below), `none` | `amenities` |
 | `commute` | `NEIGHBOURHOOD_COMMUTE_PROVIDER` | `straight-line` (City "Community Points", `j9ps-fyst` → straight-line km to `NEIGHBOURHOOD_COMMUTE_DESTINATION_*`), `none` | `community_living_metrics` (`metric='commute'`) |
 
 `none` means no source has been chosen yet: the job skips it and leaves any
-existing rows alone. No free, open source exists today for ratings or
-reviews; a later story adds an implementation and flips the config.
+existing rows alone. An implementation that stores nothing (`maps-link`) is
+skipped the same way.
 
 Switching an implementation is config-only. Row ids are
 `<implementation>:<external id>`, and the provider becomes due right away when
@@ -174,3 +174,35 @@ While that issue is open, later changes are added as comments. If GitHub
 fails, the refresh fails and writes nothing, so the change is retried the
 next day and never stored unreviewed. No token → the change is logged and
 stored. The `provider_refresh` trace carries `changesFlagged`.
+
+## School ratings and reviews link (#776)
+
+None of the three sources publishes an open feed, so the `published-reports`
+provider reads a curated list transcribed from the published reports,
+`apps/api/src/services/neighbourhood-data/school-ratings.data.ts` — one entry
+per directory school id (#774) and kind, each with its https source URL:
+
+| Kind | Source | Fields |
+|---|---|---|
+| `fraser` | Fraser Institute, Report Card on Alberta's Schools | overall score (0–10), report year |
+| `provincial` | Alberta Education provincial results (where published) | school year; per test (`pat6`, `pat9`, `diploma`): % acceptable standard, % standard of excellence (null when not published) |
+| `enrolment` | CBE annual enrolment report | school year, enrolment, capacity (utilization % is computed) |
+
+Copy figures exactly as published; never estimate one. An invalid or
+duplicated entry, or an empty list, fails the refresh and keeps the stored
+ratings. `NEIGHBOURHOOD_SCHOOL_RATINGS_PROVIDER` stays `none` until the list
+is filled; then set it to `published-reports` (or run admin refresh-now for
+`school-ratings`).
+
+**Fraser flag.** `NEIGHBOURHOOD_SCHOOL_RATINGS_FRASER_ENABLED` (default
+`false`; Bicep sets it `true` in dev only). Off: Fraser entries are not
+stored by the refresh **and** are never returned, even if rows remain from
+when it was on. Prod stays off until the owner confirms Fraser's permission.
+
+**API.** `GET /api/v1/schools` and `GET /api/v1/schools/{id}` return each
+school with `ratings` (`fraser`, `provincialResults`, `enrolment` — each
+`null` when not published; the UI shows "n/a") with attribution + source URL,
+and `reviews`: with `maps-link`, a Google Maps search link
+(`NEIGHBOURHOOD_REVIEWS_MAPS_SEARCH_URL` + school name and address) — no API
+call, nothing stored; `null` with `none`. A paid Places implementation can be
+added later behind the same config key.

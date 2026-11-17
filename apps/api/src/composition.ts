@@ -453,6 +453,7 @@ import {
 } from './routes/school-designations.route';
 import { createSchoolDesignationReadService } from './services/neighbourhood-data/school-designation-read.service';
 import { createSchoolDesignationReviewService } from './services/neighbourhood-data/school-designation-review.service';
+import { createMapsReviewsLinker, NO_REVIEWS_LINK } from './lib/school-ratings';
 import {
   createSchoolDirectoryReadService,
   type SchoolDirectoryReadService,
@@ -2283,8 +2284,14 @@ export function createComposition(
     neighbourhood: neighbourhoodReadService,
   });
   // #774: schools directory — reads the stored directory only.
+  // #776: + published ratings (Fraser behind its flag) and the reviews link.
   const schoolDirectoryReadService: SchoolDirectoryReadService = createSchoolDirectoryReadService({
     store: neighbourhoodDataStore,
+    fraserEnabled: config.neighbourhoodData.schoolRatingsFraserEnabled,
+    reviewsLink:
+      config.neighbourhoodData.providers.reviews === 'maps-link'
+        ? createMapsReviewsLinker(config.neighbourhoodData.reviewsMapsSearchUrl)
+        : NO_REVIEWS_LINK,
   });
   const schoolsRoute: SchoolsRoute = createSchoolsRoute({ schools: schoolDirectoryReadService });
   const adminNeighbourhoodDataRoute: AdminNeighbourhoodDataRoute =

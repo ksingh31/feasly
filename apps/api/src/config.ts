@@ -379,8 +379,25 @@ const EnvSchema = z.object({
   // a family can confirm the school for an exact address).
   NEIGHBOURHOOD_CBE_DESIGNATION_LOOKUP_URL: z.string().url().default('https://www.cbe.ab.ca/find-a-school'),
   NEIGHBOURHOOD_CCSD_DESIGNATION_LOOKUP_URL: z.string().url().default('https://www.cssd.ab.ca'),
-  NEIGHBOURHOOD_SCHOOL_RATINGS_PROVIDER: z.enum(['none']).default('none'),
-  NEIGHBOURHOOD_REVIEWS_PROVIDER: z.enum(['none']).default('none'),
+  // #776: 'published-reports' = Fraser Institute report-card scores,
+  // Alberta Education provincial results and CBE enrolment vs capacity,
+  // transcribed from the published reports into school-ratings.data.ts (no
+  // outside call). Stays 'none' until that list is filled.
+  NEIGHBOURHOOD_SCHOOL_RATINGS_PROVIDER: z.enum(['published-reports', 'none']).default('none'),
+  // #776: Fraser Institute scores are stored and returned only when on.
+  // Off by default (prod stays off until the owner confirms Fraser's
+  // permission); Bicep turns it on in dev.
+  NEIGHBOURHOOD_SCHOOL_RATINGS_FRASER_ENABLED: z
+    .enum(['true', 'false'])
+    .default('false')
+    .transform((value) => value === 'true'),
+  // #776: 'maps-link' = a Google Maps search link per school (no API call,
+  // nothing stored). A paid Places implementation can be added later.
+  NEIGHBOURHOOD_REVIEWS_PROVIDER: z.enum(['maps-link', 'none']).default('maps-link'),
+  NEIGHBOURHOOD_REVIEWS_MAPS_SEARCH_URL: z
+    .string()
+    .url()
+    .default('https://www.google.com/maps/search/?api=1'),
   NEIGHBOURHOOD_AMENITIES_PROVIDER: z.enum(['calgary-open-data', 'none']).default('calgary-open-data'),
   NEIGHBOURHOOD_COMMUTE_PROVIDER: z.enum(['straight-line', 'none']).default('straight-line'),
   // City of Calgary open-data datasets behind the free implementations:
@@ -1695,8 +1712,8 @@ export interface CommunityStatsRefreshConfig {
 /** #773: neighbourhood provider implementation names (config-selected). */
 export type SchoolDirectoryImpl = 'free-public' | 'calgary-open-data' | 'none';
 export type SchoolDesignationImpl = 'board-published' | 'none';
-export type SchoolRatingsImpl = 'none';
-export type ReviewsImpl = 'none';
+export type SchoolRatingsImpl = 'published-reports' | 'none';
+export type ReviewsImpl = 'maps-link' | 'none';
 export type AmenitiesImpl = 'calgary-open-data' | 'none';
 export type CommuteImpl = 'straight-line' | 'none';
 
@@ -1733,6 +1750,10 @@ export interface NeighbourhoodDataConfig {
     readonly amenities: AmenitiesImpl;
     readonly commute: CommuteImpl;
   };
+  /** #776: Fraser Institute scores stored + returned only when true. */
+  readonly schoolRatingsFraserEnabled: boolean;
+  /** #776: Google Maps search URL the free reviews link is built on. */
+  readonly reviewsMapsSearchUrl: string;
   /** City open-data endpoint (shared with property data). */
   readonly socrataBaseUrl: string;
   readonly schoolsDatasetId: string;
@@ -2393,6 +2414,8 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): ApiConfig {
         amenities: e.NEIGHBOURHOOD_AMENITIES_PROVIDER,
         commute: e.NEIGHBOURHOOD_COMMUTE_PROVIDER,
       },
+      schoolRatingsFraserEnabled: e.NEIGHBOURHOOD_SCHOOL_RATINGS_FRASER_ENABLED,
+      reviewsMapsSearchUrl: e.NEIGHBOURHOOD_REVIEWS_MAPS_SEARCH_URL,
       socrataBaseUrl: e.SOCRATA_BASE_URL,
       schoolsDatasetId: e.NEIGHBOURHOOD_SCHOOLS_DATASET_ID,
       amenityCategories: e.NEIGHBOURHOOD_AMENITY_CATEGORIES,

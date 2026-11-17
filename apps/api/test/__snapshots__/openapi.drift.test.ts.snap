@@ -1109,6 +1109,42 @@ exports[`OpenAPI drift > generated spec matches the snapshot 1`] = `
         ],
         "type": "object",
       },
+      "FraserSchoolRating": {
+        "additionalProperties": false,
+        "properties": {
+          "attribution": {
+            "description": "Who published the figure.",
+            "minLength": 1,
+            "type": "string",
+          },
+          "score": {
+            "description": "Overall rating out of 10, as published.",
+            "maximum": 10,
+            "minimum": 0,
+            "type": "number",
+          },
+          "sourceUrl": {
+            "description": "The report or page the figure was taken from.",
+            "format": "uri",
+            "type": "string",
+          },
+          "year": {
+            "description": "Report-card year.",
+            "minLength": 1,
+            "type": "string",
+          },
+        },
+        "required": [
+          "score",
+          "year",
+          "attribution",
+          "sourceUrl",
+        ],
+        "type": [
+          "object",
+          "null",
+        ],
+      },
       "GarageOption": {
         "enum": [
           "none",
@@ -1575,6 +1611,76 @@ exports[`OpenAPI drift > generated spec matches the snapshot 1`] = `
         ],
         "type": "object",
       },
+      "ProvincialResultsSummary": {
+        "additionalProperties": false,
+        "properties": {
+          "attribution": {
+            "description": "Who published the figure.",
+            "minLength": 1,
+            "type": "string",
+          },
+          "schoolYear": {
+            "minLength": 1,
+            "type": "string",
+          },
+          "sourceUrl": {
+            "description": "The report or page the figure was taken from.",
+            "format": "uri",
+            "type": "string",
+          },
+          "tests": {
+            "items": {
+              "$ref": "#/components/schemas/ProvincialTestResult",
+            },
+            "type": "array",
+          },
+        },
+        "required": [
+          "schoolYear",
+          "tests",
+          "attribution",
+          "sourceUrl",
+        ],
+        "type": [
+          "object",
+          "null",
+        ],
+      },
+      "ProvincialTestResult": {
+        "additionalProperties": false,
+        "properties": {
+          "acceptableStandardPct": {
+            "maximum": 100,
+            "minimum": 0,
+            "type": [
+              "number",
+              "null",
+            ],
+          },
+          "excellenceStandardPct": {
+            "maximum": 100,
+            "minimum": 0,
+            "type": [
+              "number",
+              "null",
+            ],
+          },
+          "test": {
+            "enum": [
+              "pat6",
+              "pat9",
+              "diploma",
+            ],
+            "type": "string",
+          },
+        },
+        "required": [
+          "test",
+          "acceptableStandardPct",
+          "excellenceStandardPct",
+        ],
+        "type": "object",
+      },
       "RenoEstimateInputs": {
         "properties": {
           "projectType": {
@@ -1766,9 +1872,15 @@ exports[`OpenAPI drift > generated spec matches the snapshot 1`] = `
             },
             "type": "array",
           },
+          "ratings": {
+            "$ref": "#/components/schemas/SchoolRatings",
+          },
           "refreshedAt": {
             "format": "date-time",
             "type": "string",
+          },
+          "reviews": {
+            "$ref": "#/components/schemas/SchoolReviewsLink",
           },
           "sources": {
             "additionalProperties": false,
@@ -1842,6 +1954,8 @@ exports[`OpenAPI drift > generated spec matches the snapshot 1`] = `
           "communityCode",
           "communityName",
           "sources",
+          "ratings",
+          "reviews",
           "refreshedAt",
         ],
         "type": "object",
@@ -1919,6 +2033,50 @@ exports[`OpenAPI drift > generated spec matches the snapshot 1`] = `
         ],
         "type": "object",
       },
+      "SchoolEnrolment": {
+        "additionalProperties": false,
+        "properties": {
+          "attribution": {
+            "description": "Who published the figure.",
+            "minLength": 1,
+            "type": "string",
+          },
+          "capacity": {
+            "exclusiveMinimum": 0,
+            "type": "integer",
+          },
+          "enrolment": {
+            "minimum": 0,
+            "type": "integer",
+          },
+          "schoolYear": {
+            "minLength": 1,
+            "type": "string",
+          },
+          "sourceUrl": {
+            "description": "The report or page the figure was taken from.",
+            "format": "uri",
+            "type": "string",
+          },
+          "utilizationPct": {
+            "description": "enrolment ÷ capacity, whole percent.",
+            "minimum": 0,
+            "type": "integer",
+          },
+        },
+        "required": [
+          "schoolYear",
+          "enrolment",
+          "capacity",
+          "utilizationPct",
+          "attribution",
+          "sourceUrl",
+        ],
+        "type": [
+          "object",
+          "null",
+        ],
+      },
       "SchoolProgram": {
         "enum": [
           "french-immersion",
@@ -1939,6 +2097,27 @@ exports[`OpenAPI drift > generated spec matches the snapshot 1`] = `
           "online",
         ],
         "type": "string",
+      },
+      "SchoolRatings": {
+        "additionalProperties": false,
+        "description": "Published figures; each is null when not published (shown as "n/a"), never estimated.",
+        "properties": {
+          "enrolment": {
+            "$ref": "#/components/schemas/SchoolEnrolment",
+          },
+          "fraser": {
+            "$ref": "#/components/schemas/FraserSchoolRating",
+          },
+          "provincialResults": {
+            "$ref": "#/components/schemas/ProvincialResultsSummary",
+          },
+        },
+        "required": [
+          "fraser",
+          "provincialResults",
+          "enrolment",
+        ],
+        "type": "object",
       },
       "SchoolResponse": {
         "additionalProperties": false,
@@ -1963,6 +2142,40 @@ exports[`OpenAPI drift > generated spec matches the snapshot 1`] = `
           "disclaimer",
         ],
         "type": "object",
+      },
+      "SchoolReviewsLink": {
+        "additionalProperties": false,
+        "description": "Where to read reviews: a link only with the free provider (nothing fetched or stored); null when off.",
+        "properties": {
+          "kind": {
+            "enum": [
+              "link",
+            ],
+            "type": "string",
+          },
+          "label": {
+            "minLength": 1,
+            "type": "string",
+          },
+          "provider": {
+            "minLength": 1,
+            "type": "string",
+          },
+          "url": {
+            "format": "uri",
+            "type": "string",
+          },
+        },
+        "required": [
+          "kind",
+          "provider",
+          "label",
+          "url",
+        ],
+        "type": [
+          "object",
+          "null",
+        ],
       },
       "SchoolSourceAttribution": {
         "additionalProperties": false,
