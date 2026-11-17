@@ -476,6 +476,18 @@ import {
   type CommunityLivingRoute,
 } from './routes/community-living.route';
 import {
+  createCommunityMatchRoute,
+  type CommunityMatchRoute,
+} from './routes/community-match.route';
+import {
+  createCommunityMatchService,
+  type CommunityMatchService,
+} from './services/community-match/community-match.service';
+import {
+  createDrizzleCommunityMatchStore,
+  type CommunityMatchStore,
+} from './services/community-match/community-match.store';
+import {
   createAdminNeighbourhoodDataRoute,
   type AdminNeighbourhoodDataRoute,
 } from './routes/admin-neighbourhood-data.route';
@@ -981,6 +993,9 @@ export interface AppComposition {
   readonly adminNeighbourhoodDataRoute: AdminNeighbourhoodDataRoute;
   /** #777: public community living-nearby metrics. */
   readonly communityLivingRoute: CommunityLivingRoute;
+  /** #778: community match (priorities in, ranked communities out). */
+  readonly communityMatchService: CommunityMatchService;
+  readonly communityMatchRoute: CommunityMatchRoute;
   /** Append-only admin audit log (neighbourhood/05; reused by later admin stories). */
   readonly adminAuditStore: AdminAuditStore;
   readonly builderConfigService: BuilderConfigService;
@@ -1088,6 +1103,8 @@ export interface CompositionOptions {
   readonly zoningWatchStore?: ZoningWatchStore;
   /** #773: neighbourhood data tables (tests inject PGlite/fakes). */
   readonly neighbourhoodDataStore?: NeighbourhoodDataStore;
+  /** #778: whole-city match reads (tests inject PGlite/fakes). */
+  readonly communityMatchStore?: CommunityMatchStore;
   /** #773: neighbourhood providers (tests inject fakes; default from config). */
   readonly neighbourhoodProviders?: NeighbourhoodProviders;
   readonly leadStore?: LeadStore;
@@ -2373,6 +2390,25 @@ export function createComposition(
         }),
       onRefreshRecovered: () => opsAlertsService.notifyRecovered('community_lots_failed'),
     });
+  // #778: community match. Scores a precomputed snapshot of every
+  // established community (living metrics #777, designations #775, lots
+  // #691, average lot size) reused from memory, then the shared City-data
+  // cache; no provider is reachable from here. Typical new-build ranges come
+  // from the cost engine on the same table estimates use.
+  const communityMatchService: CommunityMatchService = createCommunityMatchService({
+    store: options.communityMatchStore ?? createDrizzleCommunityMatchStore({ db: db.db }),
+    designations: neighbourhoodDataStore,
+    living: neighbourhoodReadService,
+    cache: cityDataCacheStore,
+    costData: PLACEHOLDER_COST_DATA,
+    config: config.communityMatch,
+    city: config.communityLots.city,
+    amenityCategories: config.neighbourhoodData.amenityCategories,
+    amenitySearchRadiusM: config.neighbourhoodData.amenitySearchRadiusM,
+  });
+  const communityMatchRoute: CommunityMatchRoute = createCommunityMatchRoute({
+    communityMatch: communityMatchService,
+  });
 
   // #757: daily zoning source watch. Refreshes cached districts when the
   // City's Land Use Districts dataset changes, files one "catalogue may be
@@ -3008,6 +3044,8 @@ export function createComposition(
     schoolDesignationsRoute,
     adminNeighbourhoodDataRoute,
     communityLivingRoute,
+    communityMatchService,
+    communityMatchRoute,
     adminAuditStore,
     builderConfigService,
     embedConfigRoute,

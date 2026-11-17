@@ -829,6 +829,101 @@ export const AddressSchoolDesignationsResponseSchema = z
   .strict()
   .openapi('AddressSchoolDesignationsResponse');
 
+// ── Community match (#778) ──────────────────────────────────────────────
+
+const CommunityMatchImportanceSchema = z.enum(['must', 'nice']);
+
+export const CommunityMatchRequestSchema = z
+  .object({
+    priorities: z
+      .array(
+        z
+          .object({
+            key: z
+              .string()
+              .describe(
+                "An amenity category key ('parks', 'playgrounds', 'pathways', 'rec-centres', " +
+                  "'pools', 'libraries', 'off-leash'), 'tree-cover' or 'designated-schools'.",
+              ),
+            importance: CommunityMatchImportanceSchema,
+          })
+          .strict(),
+      )
+      .min(1)
+      .max(20)
+      .describe('Unique keys. A missed must-have ranks the community below every one that passes.'),
+    filters: z
+      .object({
+        minFrontageFt: z
+          .number()
+          .positive()
+          .max(1000)
+          .optional()
+          .describe('Minimum lot frontage (ft), estimated from lot area over a typical depth.'),
+        lotsListedNow: z.boolean().optional().describe('Only communities with a matching listed lot.'),
+      })
+      .strict()
+      .optional(),
+    limit: z.number().int().positive().max(1000).optional(),
+  })
+  .strict()
+  .openapi('CommunityMatchRequest');
+
+const CommunityMatchNoteSchema = z
+  .object({
+    priority: z.string().min(1),
+    importance: CommunityMatchImportanceSchema.nullable(),
+    text: z.string().min(1),
+  })
+  .strict()
+  .openapi('CommunityMatchNote');
+
+export const CommunityMatchResultSchema = z
+  .object({
+    rank: z.number().int().positive(),
+    communityCode: z.string().min(1),
+    name: z.string().min(1),
+    slug: z.string().min(1),
+    match: z.number().int().min(0).max(100),
+    passesMustHaves: z.boolean(),
+    reasons: z.array(CommunityMatchNoteSchema).min(1),
+    misses: z.array(CommunityMatchNoteSchema),
+    lots: z
+      .object({
+        listed: z.number().int().nonnegative(),
+        matching: z.number().int().nonnegative(),
+        refreshedAt: z.string().datetime().nullable(),
+      })
+      .strict(),
+    typicalNewBuild: z
+      .object({ low: z.number().int(), high: z.number().int() })
+      .strict()
+      .nullable()
+      .describe('Typical new-build range (whole CAD) from the cost engine on the community average lot.'),
+  })
+  .strict()
+  .openapi('CommunityMatchResult');
+
+export const CommunityMatchResponseSchema = z
+  .object({
+    results: z.array(CommunityMatchResultSchema),
+    total: z.number().int().nonnegative(),
+    buildBasis: z
+      .object({
+        buildSqft: z.number().int().positive(),
+        tier: z.string().min(1),
+        costDataVersion: z.string().min(1),
+        calibrated: z.boolean(),
+      })
+      .strict(),
+    distanceBasis: z.literal('straight-line'),
+    frontageBasis: z.literal('estimated-from-lot-area'),
+    dataRefreshedAt: z.string().datetime().nullable(),
+    disclaimer: z.string().min(1),
+  })
+  .strict()
+  .openapi('CommunityMatchResponse');
+
 // ── Magic link ──────────────────────────────────────────────────────────
 
 export const MagicLinkVerifyResponseSchema = z

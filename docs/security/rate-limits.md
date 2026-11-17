@@ -151,6 +151,7 @@ These need owner input and are not implemented yet:
 | GET | `/api/v1/communities/{slug}/stats` | none | 100/min per IP | live |
 | GET | `/api/v1/communities/{slug}/lots` | none | 100/min per IP | live |
 | GET | `/api/v1/communities/{slug}/living` | none | 100/min per IP | live |
+| POST | `/api/v1/communities/match` | none | 100/min per IP | live |
 | GET | `/api/v1/city-data/freshness` | none | 100/min per IP | live |
 | GET | `/api/v1/zoning/districts` | none | 100/min per IP | live |
 | GET | `/api/v1/schools` | none | 100/min per IP | live |

@@ -12,6 +12,18 @@ real backend. Changing them has a cost, so:
 - **Never** widen a type to `any` to "unblock" something — the no-`any` lint exists
   precisely to stop that.
 
+## Unreleased — 2026-11-17 (additive) — community match
+
+Issue #778 (Community Match epic):
+
+- **Added** `community-match.ts`: `CommunityMatchImportance`
+  (+ `COMMUNITY_MATCH_IMPORTANCE`), `TREE_COVER_PRIORITY`,
+  `DESIGNATED_SCHOOLS_PRIORITY`, `CommunityMatchPriority`,
+  `CommunityMatchFilters`, `CommunityMatchRequest`, `CommunityMatchNote`,
+  `CommunityMatchLots`, `CommunityMatchBuildRange`, `CommunityMatchResult`,
+  `CommunityMatchBuildBasis` and `CommunityMatchResponse`
+  (POST /api/v1/communities/match). New types only — nothing existing changed.
+
 ## Unreleased — 2026-11-17 (additive) — school designations
 
 Issue #775 (Community Match epic):

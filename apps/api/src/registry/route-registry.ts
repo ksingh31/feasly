@@ -384,6 +384,19 @@ export const ROUTE_REGISTRY: readonly ApiRouteEntry[] = [
       'Served from monthly-refreshed City open data; never calls a provider.',
   },
   {
+    method: 'POST',
+    path: '/api/v1/communities/match',
+    auth: 'none',
+    permissions: [] as const,
+    rateLimit: '100/min per IP',
+    status: 'live',
+    summary:
+      'Community match (#778): priorities (must / nice) + lot filters ' +
+      '(minFrontageFt, lotsListedNow) → established infill communities ranked ' +
+      'by a deterministic 0–100 match with reasons, misses, lot counts and a ' +
+      'typical new-build range from the cost engine. Precomputed metrics only.',
+  },
+  {
     method: 'GET',
     path: '/api/v1/city-data/freshness',
     auth: 'none',
