@@ -12,6 +12,18 @@ real backend. Changing them has a cost, so:
 - **Never** widen a type to `any` to "unblock" something — the no-`any` lint exists
   precisely to stop that.
 
+## Unreleased — 2026-11-17 (additive) — school designations
+
+Issue #775 (Community Match epic):
+
+- **Added** `school-designations.ts`: `SchoolBoardId` (+ `SCHOOL_BOARD_IDS`),
+  `DesignationGradeBand` (+ `DESIGNATION_GRADE_BANDS`), `TYPICALLY_DESIGNATED`,
+  `SchoolBoardLookup`, `SchoolDesignation`, `SchoolDesignationsBase`,
+  `CommunitySchoolDesignationsResponse`
+  (GET /api/v1/communities/{slug}/school-designations) and
+  `AddressSchoolDesignationsResponse` (GET /api/v1/school-designations).
+  New types only — nothing existing changed.
+
 ## Unreleased — 2026-11-16 (additive) — schools directory
 
 Issue #774 (Community Match epic):

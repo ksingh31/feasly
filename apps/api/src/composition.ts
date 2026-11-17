@@ -448,6 +448,12 @@ import {
 import { createZoningRoute, type ZoningRoute } from './routes/zoning.route';
 import { createSchoolsRoute, type SchoolsRoute } from './routes/schools.route';
 import {
+  createSchoolDesignationsRoute,
+  type SchoolDesignationsRoute,
+} from './routes/school-designations.route';
+import { createSchoolDesignationReadService } from './services/neighbourhood-data/school-designation-read.service';
+import { createSchoolDesignationReviewService } from './services/neighbourhood-data/school-designation-review.service';
+import {
   createSchoolDirectoryReadService,
   type SchoolDirectoryReadService,
 } from './services/neighbourhood-data/school-directory-read.service';
@@ -970,6 +976,8 @@ export interface AppComposition {
   readonly schoolDirectoryReadService: SchoolDirectoryReadService;
   /** #774: GET /api/v1/schools and /api/v1/schools/{id}. */
   readonly schoolsRoute: SchoolsRoute;
+  /** #775: community + address school designations (tables only, no providers). */
+  readonly schoolDesignationsRoute: SchoolDesignationsRoute;
   readonly adminNeighbourhoodDataRoute: AdminNeighbourhoodDataRoute;
   /** #777: public community living-nearby metrics. */
   readonly communityLivingRoute: CommunityLivingRoute;
@@ -2227,6 +2235,20 @@ export function createComposition(
     options.cityDataCacheStore ?? createDrizzleCityDataCacheStore({ db: db.db });
   const neighbourhoodDataStore: NeighbourhoodDataStore =
     options.neighbourhoodDataStore ?? createDrizzleNeighbourhoodDataStore({ db: db.db });
+  // #775: a changed school designation opens ONE GitHub review issue (same
+  // repo + Key Vault token as the zoning watch; no token → logged only).
+  const schoolDesignationReview = createSchoolDesignationReviewService(
+    config.zoning.watch.githubToken
+      ? {
+          issues: createGitHubIssuesClient({
+            repo: config.zoning.watch.githubRepo,
+            token: config.zoning.watch.githubToken,
+            apiBaseUrl: config.zoning.watch.githubApiUrl,
+            httpTimeoutMs: config.zoning.watch.httpTimeoutMs,
+          }),
+        }
+      : {},
+  );
   const neighbourhoodRefreshService: NeighbourhoodRefreshService =
     createNeighbourhoodRefreshService({
       providers:
@@ -2240,6 +2262,9 @@ export function createComposition(
           firstFailureAt,
         }),
       onRecovered: () => opsAlertsService.notifyRecovered('neighbourhood_data_failed'),
+      onDesignationsChanged: async (changes, refreshedAt) => {
+        await schoolDesignationReview.report(changes, refreshedAt);
+      },
       onEvent: (event) =>
         console.info(JSON.stringify({ ...event, event: `neighbourhood_data.${event.event}` })),
     });
@@ -2380,6 +2405,15 @@ export function createComposition(
   const zoningRoute: ZoningRoute = createZoningRoute({
     zoning: zoningService,
     watch: zoningWatchService,
+  });
+  // #775: school designations — stored designations only; an address is
+  // resolved to its community via the cache-first property lookup (#756).
+  const schoolDesignationsRoute: SchoolDesignationsRoute = createSchoolDesignationsRoute({
+    designations: createSchoolDesignationReadService({
+      store: neighbourhoodDataStore,
+      properties: propertyService,
+      lookupUrls: config.neighbourhoodData.schoolBoardLookupUrls,
+    }),
   });
   // phase-2 wiring: the five live-API endpoints the web app needs. Same
   // pinned cost data + draft gate as the estimate endpoint, so preview,
@@ -2971,6 +3005,7 @@ export function createComposition(
     neighbourhoodReadService,
     schoolDirectoryReadService,
     schoolsRoute,
+    schoolDesignationsRoute,
     adminNeighbourhoodDataRoute,
     communityLivingRoute,
     adminAuditStore,

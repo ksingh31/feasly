@@ -371,7 +371,14 @@ const EnvSchema = z.object({
   NEIGHBOURHOOD_SCHOOL_DIRECTORY_PROVIDER: z
     .enum(['free-public', 'calgary-open-data', 'none'])
     .default('free-public'),
-  NEIGHBOURHOOD_SCHOOL_DESIGNATION_PROVIDER: z.enum(['none']).default('none'),
+  // #775: 'board-published' = CBE + CCSD designations per community and
+  // grade band, transcribed from the boards' published notices into
+  // school-designations.data.ts. Stays 'none' until that list is filled.
+  NEIGHBOURHOOD_SCHOOL_DESIGNATION_PROVIDER: z.enum(['board-published', 'none']).default('none'),
+  // #775: each board's address lookup page (every designation links to it so
+  // a family can confirm the school for an exact address).
+  NEIGHBOURHOOD_CBE_DESIGNATION_LOOKUP_URL: z.string().url().default('https://www.cbe.ab.ca/find-a-school'),
+  NEIGHBOURHOOD_CCSD_DESIGNATION_LOOKUP_URL: z.string().url().default('https://www.cssd.ab.ca'),
   NEIGHBOURHOOD_SCHOOL_RATINGS_PROVIDER: z.enum(['none']).default('none'),
   NEIGHBOURHOOD_REVIEWS_PROVIDER: z.enum(['none']).default('none'),
   NEIGHBOURHOOD_AMENITIES_PROVIDER: z.enum(['calgary-open-data', 'none']).default('calgary-open-data'),
@@ -1687,7 +1694,7 @@ export interface CommunityStatsRefreshConfig {
 
 /** #773: neighbourhood provider implementation names (config-selected). */
 export type SchoolDirectoryImpl = 'free-public' | 'calgary-open-data' | 'none';
-export type SchoolDesignationImpl = 'none';
+export type SchoolDesignationImpl = 'board-published' | 'none';
 export type SchoolRatingsImpl = 'none';
 export type ReviewsImpl = 'none';
 export type AmenitiesImpl = 'calgary-open-data' | 'none';
@@ -1763,6 +1770,8 @@ export interface NeighbourhoodDataConfig {
   readonly alertAfterFailureDays: number;
   readonly lotRadiusM: number;
   readonly lotMetricsTtlMs: number;
+  /** #775: each board's address lookup page (designations link to it). */
+  readonly schoolBoardLookupUrls: { readonly cbe: string; readonly ccsd: string };
 }
 
 /**
@@ -2411,6 +2420,10 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): ApiConfig {
       alertAfterFailureDays: e.NEIGHBOURHOOD_ALERT_AFTER_FAILURE_DAYS,
       lotRadiusM: e.NEIGHBOURHOOD_LOT_RADIUS_M,
       lotMetricsTtlMs: e.NEIGHBOURHOOD_LOT_METRICS_TTL_MS,
+      schoolBoardLookupUrls: {
+        cbe: e.NEIGHBOURHOOD_CBE_DESIGNATION_LOOKUP_URL,
+        ccsd: e.NEIGHBOURHOOD_CCSD_DESIGNATION_LOOKUP_URL,
+      },
     },
     backupCheck: {
       enabled: e.BACKUP_CHECK_ENABLED,

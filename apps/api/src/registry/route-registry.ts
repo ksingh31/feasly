@@ -432,6 +432,31 @@ export const ROUTE_REGISTRY: readonly ApiRouteEntry[] = [
   },
   {
     method: 'GET',
+    path: '/api/v1/communities/{slug}/school-designations',
+    auth: 'none',
+    permissions: [] as const,
+    rateLimit: '100/min per IP',
+    status: 'live',
+    summary:
+      'School designations (#775): CBE + CCSD schools typically designated for ' +
+      'an established community per grade band (K–6/K–9, 7–9, 10–12), each with ' +
+      "the board's address lookup link; 404 when the community is not covered. " +
+      'Served from our tables (monthly refresh) — never an outside call.',
+  },
+  {
+    method: 'GET',
+    path: '/api/v1/school-designations',
+    auth: 'none',
+    permissions: [] as const,
+    rateLimit: '100/min per IP',
+    status: 'live',
+    summary:
+      'School designations for an address (#775), via its community: always ' +
+      'labelled "typically designated" and always with each board\'s address ' +
+      'lookup link. ?addressKey= required; property lookup reads the shared cache.',
+  },
+  {
+    method: 'GET',
     path: '/api/v1/partners',
     auth: 'none',
     permissions: [] as const,

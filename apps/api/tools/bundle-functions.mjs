@@ -104,6 +104,14 @@ const targets = [
     out: 'schools-get/index.js',
   },
   {
+    entry: 'src/functions/communities-school-designations.ts',
+    out: 'communities-school-designations/index.js',
+  },
+  {
+    entry: 'src/functions/school-designations.ts',
+    out: 'school-designations/index.js',
+  },
+  {
     entry: 'src/functions/unsubscribe-get.ts',
     out: 'unsubscribe-get/index.js',
   },

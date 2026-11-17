@@ -771,6 +771,64 @@ export const SchoolResponseSchema = z
   .strict()
   .openapi('SchoolResponse');
 
+// ── School designations (#775) ─────────────────────────────────────────
+
+export const SchoolBoardIdSchema = z.enum(['cbe', 'ccsd']).openapi('SchoolBoardId');
+
+export const DesignationGradeBandSchema = z.enum(['K-6', 'K-9', '7-9', '10-12']).openapi('DesignationGradeBand');
+
+const TypicallyDesignatedSchema = z.literal('typically designated');
+
+export const SchoolBoardLookupSchema = z
+  .object({
+    board: SchoolBoardIdSchema,
+    name: z.string().min(1),
+    lookupUrl: z.string().url().describe("The board's address lookup — confirm the school for an exact address."),
+  })
+  .strict()
+  .openapi('SchoolBoardLookup');
+
+export const SchoolDesignationSchema = z
+  .object({
+    board: SchoolBoardIdSchema,
+    boardName: z.string().min(1),
+    gradeBand: DesignationGradeBandSchema,
+    schoolName: z.string().min(1),
+    label: TypicallyDesignatedSchema,
+    lookupUrl: z.string().url(),
+    refreshedAt: z.string().datetime(),
+  })
+  .strict()
+  .openapi('SchoolDesignation');
+
+const schoolDesignationsBase = {
+  label: TypicallyDesignatedSchema,
+  designations: z.array(SchoolDesignationSchema),
+  boards: z.array(SchoolBoardLookupSchema),
+  disclaimer: z.string().min(1),
+};
+
+export const CommunitySchoolDesignationsResponseSchema = z
+  .object({
+    ...schoolDesignationsBase,
+    communityCode: z.string().min(1),
+    communityName: z.string().min(1),
+    slug: z.string().min(1),
+  })
+  .strict()
+  .openapi('CommunitySchoolDesignationsResponse');
+
+export const AddressSchoolDesignationsResponseSchema = z
+  .object({
+    ...schoolDesignationsBase,
+    addressKey: z.string().min(1),
+    communityCode: z.string().nullable(),
+    communityName: z.string().nullable(),
+    slug: z.string().nullable(),
+  })
+  .strict()
+  .openapi('AddressSchoolDesignationsResponse');
+
 // ── Magic link ──────────────────────────────────────────────────────────
 
 export const MagicLinkVerifyResponseSchema = z

@@ -38,6 +38,8 @@ import {
   SchoolsListResponseSchema,
   SchoolResponseSchema,
   SchoolTypeSchema,
+  CommunitySchoolDesignationsResponseSchema,
+  AddressSchoolDesignationsResponseSchema,
   BuilderPartnerListResponseSchema,
   CommunityStatsResponseSchema,
   CommunityLotsResponseSchema,
@@ -168,6 +170,8 @@ export function buildOpenApiSpec(options: OpenApiSpecOptions) {
   registry.register('ZoningDistrictsResponse', ZoningDistrictsResponseSchema);
   registry.register('SchoolsListResponse', SchoolsListResponseSchema);
   registry.register('SchoolResponse', SchoolResponseSchema);
+  registry.register('CommunitySchoolDesignationsResponse', CommunitySchoolDesignationsResponseSchema);
+  registry.register('AddressSchoolDesignationsResponse', AddressSchoolDesignationsResponseSchema);
   registry.register('BuilderPartnerListResponse', BuilderPartnerListResponseSchema);
   registry.register('MagicLinkVerifyResponse', MagicLinkVerifyResponseSchema);
   registry.register('ReportSnapshot', ReportSnapshotSchema);
@@ -794,6 +798,51 @@ export function buildOpenApiSpec(options: OpenApiSpecOptions) {
       '200': {
         description: 'The school',
         content: { 'application/json': { schema: SchoolResponseSchema } },
+      },
+      ...errorResponses(),
+    },
+  });
+
+  // GET /v1/communities/{slug}/school-designations (#775)
+  registry.registerPath({
+    method: 'get',
+    path: '/v1/communities/{slug}/school-designations',
+    summary: 'School designations for a community',
+    description:
+      'CBE and CCSD schools typically designated for an established Calgary ' +
+      'community, per grade band, from the boards\' published notices. Every ' +
+      'designation links to the board\'s address lookup — designations can ' +
+      'differ by address, so confirm with the board. 404 when the community ' +
+      'is not covered. Public by design.',
+    security: [],
+    request: {
+      params: z.object({ slug: z.string().describe("Community slug ('altadore') or City code ('ALT').") }),
+    },
+    responses: {
+      '200': {
+        description: 'Typically designated schools',
+        content: { 'application/json': { schema: CommunitySchoolDesignationsResponseSchema } },
+      },
+      ...errorResponses(),
+    },
+  });
+
+  // GET /v1/school-designations (#775)
+  registry.registerPath({
+    method: 'get',
+    path: '/v1/school-designations',
+    summary: 'School designations for an address',
+    description:
+      'The schools typically designated for the address\'s community, with ' +
+      'each board\'s address lookup link (also when none are stored). Public by design.',
+    security: [],
+    request: {
+      query: z.object({ addressKey: z.string().describe('Address key from property autocomplete.') }),
+    },
+    responses: {
+      '200': {
+        description: 'Typically designated schools for the address\'s community',
+        content: { 'application/json': { schema: AddressSchoolDesignationsResponseSchema } },
       },
       ...errorResponses(),
     },
