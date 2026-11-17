@@ -353,6 +353,11 @@ for (const route of routesWithJsonLd('guide')) {
       if (!/^Feasly — Cost to build a home in .+, Calgary$/.test(title)) {
         failures.push(`"${route}" title does not match the required pattern: "${title}"`);
       }
+      // #781: Schools + Living nearby tabs are prerendered with the page
+      // (copy + the "typically designated" notice; figures load client-side).
+      mustContain(html, route, 'data-guide-tab="schools"', 'Schools tab');
+      mustContain(html, route, 'data-guide-tab="living"', 'Living nearby tab');
+      mustContain(html, route, 'typically designated', 'typically designated notice');
     }
     if (titles.has(title)) failures.push(`duplicate community page title: "${title}"`);
     titles.add(title);

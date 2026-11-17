@@ -187,6 +187,10 @@ export const appConfig: ApplicationConfig = {
           // (the state's name) so the lazy-loaded class stays out of the
           // initial bundle; the plugin rehydrates it on the lazy UpdateState.
           'builderLeadsSeen',
+          // #781: schools lined up for the school comparison (directory ids
+          // only, no PII). By state NAME: the state lazy-loads at the
+          // community guide route and must stay out of the initial bundle.
+          'schoolComparison',
           // Due-invoice banner UI state (dismissed/open/collapsed): invoice
           // ids are opaque UUIDs (no PII) and dismissal must survive a
           // reload (Karan). The state itself lazy-loads at the dashboard

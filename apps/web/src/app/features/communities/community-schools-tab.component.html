@@ -1,0 +1,152 @@
+<h2>{{ fill(copy.schools.title) }}</h2>
+<p class="sub">{{ fill(copy.schools.intro) }}</p>
+
+<section class="designated" aria-labelledby="designated-title">
+  <h3 id="designated-title">{{ copy.schools.designatedTitle }}</h3>
+  <p class="notice" role="note">{{ designationNotice() }}</p>
+  @if (status() === 'ready') {
+    @if (!hasDesignations()) {
+      <p class="muted">{{ fill(copy.schools.designatedEmpty) }}</p>
+    }
+    <div class="boards">
+      @for (g of boardDesignations(); track g.board.board) {
+        <div class="board">
+          <p class="board-name">{{ g.board.name }}</p>
+          @if (g.designations.length > 0) {
+            <ul class="designations">
+              @for (d of g.designations; track $index) {
+                <li>
+                  <span class="band">{{ gradeBandLabel(d) }}</span>
+                  <span>{{ d.schoolName }}</span>
+                  <span class="label">{{ d.label }}</span>
+                </li>
+              }
+            </ul>
+          }
+          <a class="lookup" [href]="g.board.lookupUrl" target="_blank" rel="noopener noreferrer">{{
+            lookupLabel(g.board)
+          }}</a>
+        </div>
+      }
+    </div>
+  }
+</section>
+
+@switch (status()) {
+  @case ('error') {
+    <div class="state" role="alert">
+      <p>{{ copy.schools.error }}</p>
+      <button type="button" class="retry" (click)="load()">{{ copy.schools.retry }}</button>
+    </div>
+  }
+  @case ('ready') {
+    <div class="filters" role="group" [attr.aria-label]="copy.schools.filterLabel">
+      @for (f of copy.schools.filters; track f.key) {
+        <button
+          type="button"
+          class="chip"
+          [class.active]="filter() === f.key"
+          [attr.aria-pressed]="filter() === f.key"
+          [attr.data-filter]="f.key"
+          (click)="setFilter(f.key)"
+        >
+          {{ f.label }}
+        </button>
+      }
+    </div>
+
+    @for (group of groups(); track group.key) {
+      <section class="level" [attr.aria-label]="group.label">
+        <h3>{{ group.label }}</h3>
+        <div class="cards">
+          @for (school of group.schools; track school.id) {
+            <article class="school-card" [attr.data-school-type]="school.type">
+              <header>
+                <h4>{{ school.name }}</h4>
+                <span class="badge" [attr.data-type]="school.type">{{ typeLabel(school) }}</span>
+              </header>
+              @if (metaLine(school); as meta) {
+                <p class="meta">{{ meta }}</p>
+              }
+              @if (school.tuition) {
+                <p class="meta">{{ copy.schools.tuitionNote }}</p>
+              }
+              @if (school.programs.length > 0) {
+                <p class="programs">
+                  <span class="sr-label">{{ copy.schools.programsLabel }}:</span>
+                  @for (p of school.programs; track p) {
+                    <span class="program">{{ programLabel(p) }}</span>
+                  }
+                </p>
+              }
+              <dl class="figures">
+                <div>
+                  <dt>{{ copy.schools.provincialLabel }}</dt>
+                  @if (school.ratings.provincialResults; as pr) {
+                    @for (t of pr.tests; track t.test) {
+                      <dd>{{ testLabel(t) }} ({{ pr.schoolYear }}): {{ testResult(t) }}</dd>
+                    }
+                    <dd>
+                      <a [href]="pr.sourceUrl" target="_blank" rel="noopener noreferrer">{{ copy.schools.sourceLinkLabel }}: {{ pr.attribution }}</a>
+                    </dd>
+                  } @else {
+                    <dd>{{ copy.schools.notAvailable }}</dd>
+                  }
+                </div>
+                <div>
+                  <dt>{{ copy.schools.enrolmentLabel }}</dt>
+                  <dd>{{ enrolment(school) }}</dd>
+                </div>
+                @if (showFraser) {
+                  <div data-testid="fraser">
+                    <dt>{{ copy.schools.fraserLabel }}</dt>
+                    <dd>
+                      {{ fraser(school) }}
+                      @if (school.ratings.fraser; as f) {
+                        <a [href]="f.sourceUrl" target="_blank" rel="noopener noreferrer">{{ copy.schools.sourceLinkLabel }}</a>
+                      }
+                    </dd>
+                  </div>
+                }
+              </dl>
+              <div class="actions">
+                @if (school.reviews; as r) {
+                  <a class="reviews" [href]="r.url" target="_blank" rel="noopener noreferrer">{{ r.label }}</a>
+                }
+                <button
+                  type="button"
+                  class="compare"
+                  [attr.aria-pressed]="inComparison(school)"
+                  [disabled]="!inComparison(school) && comparisonFull()"
+                  (click)="toggleComparison(school)"
+                >
+                  {{ inComparison(school) ? copy.schools.inComparison : copy.schools.addToComparison }}
+                </button>
+              </div>
+            </article>
+          }
+        </div>
+      </section>
+    } @empty {
+      <p class="muted">{{ emptyMessage() }}</p>
+    }
+    @if (comparisonFull()) {
+      <p class="muted" role="status">{{ copy.schools.comparisonFull }}</p>
+    }
+    <p class="muted">{{ copy.schools.mapNote }}</p>
+    @if (disclaimer()) {
+      <p class="muted">{{ disclaimer() }}</p>
+    }
+    @if (attributions().length > 0) {
+      <p class="attributions">
+        @for (a of attributions(); track a.id) {
+          <a [href]="a.url" target="_blank" rel="noopener noreferrer">{{ a.label }}</a>
+          <span> ({{ a.licence }})</span>
+        }
+      </p>
+    }
+  }
+  @default {
+    <p class="muted" role="status">{{ copy.schools.loading }}</p>
+  }
+}

@@ -7,6 +7,7 @@ import {
   viewChild,
   ChangeDetectorRef,
   DestroyRef,
+  ElementRef,
   ViewContainerRef,
 } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
@@ -36,6 +37,20 @@ import {
 import { CommunityProfileState } from './community-profile.state';
 import { toDisplayName } from './community-names';
 import { fillScopePlaceholders } from '../../core/utils/estimate-scope';
+import { injectCommunityGuideCopy } from './community-guide-copy';
+import {
+  LoadCommunityLiving,
+  LoadCommunitySchools,
+  OpenCommunityGuide,
+  SelectCommunityGuideTab,
+  type CommunityGuideTab,
+} from './community-guide.actions';
+import { CommunityGuideState } from './community-guide.state';
+import { CommunitySchoolsTabComponent } from './community-schools-tab.component';
+import { CommunityLivingTabComponent } from './community-living-tab.component';
+
+/** Guide tabs in display order (#781). */
+const GUIDE_TABS: readonly CommunityGuideTab[] = ['overview', 'schools', 'living'];
 
 interface TierRow {
   key: 'standard' | 'premium' | 'luxury';
@@ -163,7 +178,13 @@ export const communityPageResolver: ResolveFn<CommunityPageResolved | null> = as
 @Component({
   selector: 'app-community-page',
   standalone: true,
-  imports: [RouterLink, SiteFooterComponent, SiteNavComponent],
+  imports: [
+    RouterLink,
+    SiteFooterComponent,
+    SiteNavComponent,
+    CommunitySchoolsTabComponent,
+    CommunityLivingTabComponent,
+  ],
   templateUrl: './community-page.component.html',
   styleUrl: './community-page.component.scss',
 })
@@ -175,9 +196,19 @@ export class CommunityPageComponent implements OnInit {
   private readonly config = inject(ConfigService);
   private readonly store = inject(Store);
   private readonly destroyRef = inject(DestroyRef);
+  private readonly host = inject<ElementRef<HTMLElement>>(ElementRef);
 
   /** Static page copy (config-owned). */
   readonly copy = this.config.get('copy').communities;
+
+  /** #781 Schools + Living nearby tab copy (lazy copy section). */
+  readonly guideCopy = injectCommunityGuideCopy();
+
+  /** Guide tabs in display order (#781). */
+  readonly guideTabs = GUIDE_TABS;
+
+  /** Active guide tab (#781) — NGXS, reset per slug. */
+  readonly activeTab = this.store.selectSignal(CommunityGuideState.tab);
 
   /** The community being rendered, or null when the slug is unknown. */
   community: CommunityView | null = null;
@@ -276,6 +307,8 @@ export class CommunityPageComponent implements OnInit {
     }
     this.community = view;
     this.assessmentYear = pageData.assessmentYear;
+    // #781: fresh tab state (Overview, nothing loaded) for this slug.
+    this.store.dispatch(new OpenCommunityGuide(view.slug));
     // Consume-once (QA 2026-10-04): the estimator's coverage gate sets
     // this transient context just before redirecting here. Capture it for
     // the coverage card, then clear so a later same-session direct visit
@@ -305,6 +338,34 @@ export class CommunityPageComponent implements OnInit {
       'business',
       buildLocalBusinessSchema(this.seo.getSiteUrl(), `${this.seo.getSiteUrl()}${pagePath}`),
     );
+  }
+
+  /**
+   * #781: opens a guide tab; Schools / Living nearby load their data the
+   * first time they open (once per slug — the state ignores repeats).
+   */
+  selectTab(tab: CommunityGuideTab): void {
+    this.store.dispatch(new SelectCommunityGuideTab(tab));
+    if (tab === 'schools') this.store.dispatch(new LoadCommunitySchools());
+    if (tab === 'living') this.store.dispatch(new LoadCommunityLiving());
+  }
+
+  /** WAI-ARIA tabs keyboard pattern: arrows move (and activate), Home/End jump. */
+  onTabKeydown(event: KeyboardEvent): void {
+    const i = GUIDE_TABS.indexOf(this.activeTab());
+    const last = GUIDE_TABS.length - 1;
+    const next: Record<string, number> = {
+      ArrowRight: i === last ? 0 : i + 1,
+      ArrowLeft: i === 0 ? last : i - 1,
+      Home: 0,
+      End: last,
+    };
+    const target = next[event.key];
+    if (target === undefined) return;
+    event.preventDefault();
+    const tab = GUIDE_TABS[target];
+    this.selectTab(tab);
+    this.host.nativeElement.querySelector<HTMLElement>(`#guide-tab-${tab}`)?.focus();
   }
 
   /** Interpolates the community name into a copy template. */

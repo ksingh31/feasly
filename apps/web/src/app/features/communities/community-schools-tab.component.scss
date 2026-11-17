@@ -1,0 +1,273 @@
+/* Community guide Schools tab (#781) — Feasly tokens only. */
+:host {
+  display: block;
+}
+
+h2 {
+  font-family: var(--font-headline);
+  font-size: clamp(22px, 3vw, 30px);
+  font-weight: 700;
+  margin: 0 0 8px;
+}
+
+h3 {
+  font-family: var(--font-headline);
+  font-size: 20px;
+  font-weight: 700;
+  margin: 0 0 12px;
+}
+
+h4 {
+  font-family: var(--font-ui);
+  font-size: 17px;
+  font-weight: 700;
+  margin: 0;
+}
+
+.sub,
+.muted {
+  color: var(--muted);
+  font-size: 15px;
+  line-height: 1.6;
+  margin: 0 0 20px;
+}
+
+.designated {
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  padding: 20px;
+  margin-bottom: 32px;
+}
+
+.notice {
+  background: var(--accent-bg);
+  color: var(--text);
+  border-radius: var(--radius-md);
+  padding: 12px 16px;
+  margin: 0 0 16px;
+  line-height: 1.6;
+}
+
+.boards {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+  gap: 16px;
+}
+
+.board-name {
+  font-weight: 700;
+  margin: 0 0 8px;
+}
+
+.designations {
+  list-style: none;
+  padding: 0;
+  margin: 0 0 8px;
+
+  li {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    padding: 4px 0;
+  }
+}
+
+.band {
+  font-weight: 600;
+}
+
+.label {
+  color: var(--muted);
+  font-size: 14px;
+}
+
+.lookup,
+.reviews,
+.figures a,
+.attributions a {
+  color: var(--accent-text);
+  text-decoration: underline;
+  display: inline-flex;
+  align-items: center;
+  min-height: 44px;
+}
+
+.filters {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-bottom: 24px;
+}
+
+.chip {
+  min-height: 44px;
+  padding: 0 16px;
+  border-radius: var(--radius-pill);
+  border: 1px solid var(--border);
+  background: var(--card);
+  color: var(--text);
+  font: inherit;
+  cursor: pointer;
+
+  &.active {
+    background: var(--canvas);
+    color: var(--on-dark);
+    border-color: var(--canvas);
+  }
+
+  &:focus-visible {
+    outline: 3px solid var(--focus-ring);
+    outline-offset: 2px;
+  }
+}
+
+.level {
+  margin-bottom: 32px;
+}
+
+.cards {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 300px), 1fr));
+  gap: 16px;
+}
+
+.school-card {
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  padding: 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+
+  header {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    gap: 12px;
+  }
+}
+
+.badge {
+  flex-shrink: 0;
+  font-size: 13px;
+  font-weight: 600;
+  padding: 4px 10px;
+  border-radius: var(--radius-pill);
+  background: var(--status-neutral-bg);
+  color: var(--status-neutral-fg);
+
+  &[data-type='public_cbe'] {
+    background: var(--status-info-bg);
+    color: var(--status-info-fg);
+  }
+
+  &[data-type='catholic_ccsd'] {
+    background: var(--status-paused-bg);
+    color: var(--status-paused-fg);
+  }
+
+  &[data-type='charter'] {
+    background: var(--status-success-bg);
+    color: var(--status-success-fg);
+  }
+
+  &[data-type='private'] {
+    background: var(--status-warning-bg);
+    color: var(--status-warning-fg);
+  }
+}
+
+.meta {
+  color: var(--muted);
+  font-size: 14px;
+  margin: 0;
+}
+
+.programs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin: 0;
+}
+
+.sr-label {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+}
+
+.program {
+  font-size: 13px;
+  padding: 2px 8px;
+  border-radius: var(--radius-sm);
+  background: var(--surface-sunken);
+}
+
+.figures {
+  margin: 0;
+  display: grid;
+  gap: 8px;
+
+  dt {
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--muted);
+  }
+
+  dd {
+    margin: 0;
+    font-size: 14px;
+    overflow-wrap: anywhere;
+  }
+}
+
+.actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-top: auto;
+}
+
+.compare,
+.retry {
+  min-height: 44px;
+  padding: 0 16px;
+  border-radius: var(--radius-md);
+  border: 1px solid var(--canvas);
+  background: var(--cta-bg);
+  color: var(--cta-fg);
+  font: inherit;
+  font-weight: 600;
+  cursor: pointer;
+
+  &[aria-pressed='true'] {
+    background: var(--card);
+    color: var(--text);
+  }
+
+  &:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+  }
+
+  &:focus-visible {
+    outline: 3px solid var(--focus-ring);
+    outline-offset: 2px;
+  }
+}
+
+.state {
+  margin-bottom: 24px;
+}
+
+.attributions {
+  font-size: 13px;
+  color: var(--muted);
+}

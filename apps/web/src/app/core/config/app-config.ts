@@ -1350,6 +1350,13 @@ export interface AppConfig {
      * the page says "check your email" instead.
      */
     privacyEraseConfirmInPage: boolean;
+    /**
+     * #781: show the Fraser Institute score on community-guide school cards.
+     * Mirrors the API's NEIGHBOURHOOD_SCHOOL_RATINGS_FRASER_ENABLED — off
+     * until the owner confirms Fraser's permission; when off the Fraser row
+     * is hidden entirely (when on, a missing score shows "n/a").
+     */
+    schoolFraserScore: boolean;
   };
   /**
    * Legal review state (legal/01 AC3 — the LEGAL_REVIEW_PENDING mechanism).
@@ -1403,6 +1410,8 @@ export interface AppConfig {
     autocompleteSuggestionLimit: number;
     /** Max community suggestions shown in the site search (#783). */
     communitySuggestionLimit: number;
+    /** #781/#782: max schools a visitor can add to the school comparison. */
+    schoolComparisonMax: number;
     /**
      * Estimate input bounds, mirrored from the cost-data file
      * (packages/cost-engine/cost-data inputBounds). The property record

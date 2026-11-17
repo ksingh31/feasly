@@ -19,6 +19,9 @@ import type {
   WaitlistRequest,
   WaitlistResponse,
   CityDataFreshnessResponse,
+  CommunityLivingResponse,
+  CommunitySchoolDesignationsResponse,
+  SchoolsListResponse,
   ComparisonEstimateRequest,
   ComparisonEstimateResponse,
   EstimateInputs,
@@ -68,6 +71,11 @@ import {
   MOCK_FUNNEL_SOURCE_SHARES,
 } from './mock-data';
 import { PROPERTY_DATA_SERVICE } from './property-data.service';
+import {
+  mockCommunityLiving,
+  mockCommunitySchoolDesignations,
+  mockCommunitySchools,
+} from './mock-community-guide';
 
 /**
  * Mock API harness (FE0-003): implements every FE0-001 contract with fixture
@@ -334,6 +342,21 @@ export class MockApiService implements ApiService {
         },
       ],
     });
+  }
+
+  /** #781: contract-shaped sample designations (sample names only). */
+  getCommunitySchoolDesignations(slug: string): Observable<CommunitySchoolDesignationsResponse> {
+    return this.roundTrip(mockCommunitySchoolDesignations(slug));
+  }
+
+  /** #781: one sample school per filterable type. */
+  listCommunitySchools(communityCode: string): Observable<SchoolsListResponse> {
+    return this.roundTrip(mockCommunitySchools(communityCode));
+  }
+
+  /** #781: sample living-nearby metrics. */
+  getCommunityLiving(slug: string): Observable<CommunityLivingResponse> {
+    return this.roundTrip(mockCommunityLiving(slug));
   }
 
   submitLead(request: LeadRequest): Observable<LeadResponse> {
