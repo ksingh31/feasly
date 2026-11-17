@@ -89,7 +89,12 @@ export function decodeSelection(
   const params = new Map<string, string>();
   for (const pair of body.split('&')) {
     const [name, value = ''] = pair.split('=');
-    if (name) params.set(name, decodeURIComponent(value));
+    if (!name) continue;
+    try {
+      params.set(name, decodeURIComponent(value));
+    } catch {
+      // Malformed escape (e.g. a truncated share link): ignore this pair.
+    }
   }
   if (!params.has('p') && !params.has('f')) return null;
   const priorities: CommunityMatchPriority[] = [];

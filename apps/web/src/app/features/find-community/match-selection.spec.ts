@@ -61,6 +61,13 @@ describe('match-selection (#779)', () => {
     });
   });
 
+  it('ignores a malformed escape (truncated share link) instead of throwing', () => {
+    expect(() => decodeSelection('#p=parks%', KNOWN)).not.toThrow();
+    expect(decodeSelection('#p=parks%', KNOWN)).toBeNull();
+    expect(decodeSelection('#p=%E0', KNOWN)).toBeNull();
+    expect(decodeSelection('#p=parks%&f=wide-lot', KNOWN)).toEqual({ priorities: [], filters: ['wide-lot'] });
+  });
+
   it('returns null when the hash carries no selection', () => {
     expect(decodeSelection(null, KNOWN)).toBeNull();
     expect(decodeSelection('', KNOWN)).toBeNull();
