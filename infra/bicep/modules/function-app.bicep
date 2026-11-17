@@ -147,6 +147,9 @@ param builderEntraClientSecretUri string = ''
 @description('Postgres backup freshness check (admin/06 backup_missed): enable the daily timer')
 param backupCheckEnabled bool = false
 
+@description('#776: store and return Fraser Institute school scores. Off by default; prod stays off until the owner confirms Fraser\'s permission.')
+param schoolRatingsFraserEnabled bool = false
+
 @description('Flex Consumption scale-out ceiling (#733). Owner decision 2026-11-15: 10 instances bounds runaway compute cost on a public launch while keeping headroom for normal traffic. Raise only with a load test that justifies it.')
 @minValue(1)
 @maxValue(1000)
@@ -222,6 +225,12 @@ resource app 'Microsoft.Web/sites@2024-04-01' = {
             // timer adapter fails closed when unconfigured.
             name: 'BACKUP_CHECK_ENABLED'
             value: backupCheckEnabled ? 'true' : 'false'
+          }
+          {
+            // #776: Fraser Institute school scores (dev only until the owner
+            // confirms Fraser's permission for prod).
+            name: 'NEIGHBOURHOOD_SCHOOL_RATINGS_FRASER_ENABLED'
+            value: schoolRatingsFraserEnabled ? 'true' : 'false'
           }
           {
             name: 'BACKUP_CHECK_SUBSCRIPTION_ID'

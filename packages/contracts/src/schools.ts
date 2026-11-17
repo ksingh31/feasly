@@ -108,8 +108,79 @@ export interface School {
   readonly communityName: string | null;
   /** Field → the source its value came from (absent when the field is empty). */
   readonly sources: Readonly<Partial<Record<SchoolAttributedField, SchoolSourceId>>>;
+  /** #776: published ratings and results; each is null when not published (UI shows "n/a"). */
+  readonly ratings: SchoolRatings;
+  /** #776: where to read reviews — a link only with the free provider; null when off. */
+  readonly reviews: SchoolReviewsLink | null;
   /** When the monthly refresh last wrote or confirmed this school (ISO 8601). */
   readonly refreshedAt: string;
+}
+
+// ── #776 ratings, results, enrolment, reviews link ─────────────────────────
+
+/**
+ * Published figures for one school. Every value is copied from a published
+ * report with its source — a missing one is `null`, never estimated.
+ */
+export interface SchoolRatings {
+  /** Fraser Institute report-card score, where the school is listed. */
+  readonly fraser: FraserSchoolRating | null;
+  /** Alberta Education provincial results, where published. */
+  readonly provincialResults: ProvincialResultsSummary | null;
+  /** Enrolment vs capacity (CBE annual enrolment report). */
+  readonly enrolment: SchoolEnrolment | null;
+}
+
+/** Attribution carried by every published figure. */
+export interface PublishedFigureSource {
+  /** Who published it, e.g. "Fraser Institute — School Report Cards". */
+  readonly attribution: string;
+  /** The report or page the figure was taken from. */
+  readonly sourceUrl: string;
+}
+
+export interface FraserSchoolRating extends PublishedFigureSource {
+  /** Overall rating out of 10, as published. */
+  readonly score: number;
+  /** Report-card year, e.g. "2025". */
+  readonly year: string;
+}
+
+/** Provincial test reported: Grade 6 / Grade 9 achievement tests, diploma exams. */
+export type ProvincialTest = 'pat6' | 'pat9' | 'diploma';
+
+export const PROVINCIAL_TESTS: readonly ProvincialTest[] = ['pat6', 'pat9', 'diploma'];
+
+export interface ProvincialTestResult {
+  readonly test: ProvincialTest;
+  /** Percent of students at the acceptable standard; null when not published. */
+  readonly acceptableStandardPct: number | null;
+  /** Percent of students at the standard of excellence; null when not published. */
+  readonly excellenceStandardPct: number | null;
+}
+
+export interface ProvincialResultsSummary extends PublishedFigureSource {
+  /** School year the results cover, e.g. "2024-25". */
+  readonly schoolYear: string;
+  readonly tests: readonly ProvincialTestResult[];
+}
+
+export interface SchoolEnrolment extends PublishedFigureSource {
+  /** School year, e.g. "2025-26". */
+  readonly schoolYear: string;
+  readonly enrolment: number;
+  readonly capacity: number;
+  /** enrolment ÷ capacity, whole percent. */
+  readonly utilizationPct: number;
+}
+
+/** Reviews are linked out, never stored or summarised with the free provider. */
+export interface SchoolReviewsLink {
+  readonly kind: 'link';
+  /** e.g. 'google-maps'. */
+  readonly provider: string;
+  readonly label: string;
+  readonly url: string;
 }
 
 /** GET /api/v1/schools?community=&type= */

@@ -722,6 +722,70 @@ const schoolAttributedFields = [
   'community',
 ] as const;
 
+// #776: published ratings / results / enrolment + reviews link.
+const publishedFigureSource = {
+  attribution: z.string().min(1).describe('Who published the figure.'),
+  sourceUrl: z.string().url().describe('The report or page the figure was taken from.'),
+};
+
+export const FraserSchoolRatingSchema = z
+  .object({
+    score: z.number().min(0).max(10).describe('Overall rating out of 10, as published.'),
+    year: z.string().min(1).describe('Report-card year.'),
+    ...publishedFigureSource,
+  })
+  .strict()
+  .openapi('FraserSchoolRating');
+
+export const ProvincialTestResultSchema = z
+  .object({
+    test: z.enum(['pat6', 'pat9', 'diploma']),
+    acceptableStandardPct: z.number().min(0).max(100).nullable(),
+    excellenceStandardPct: z.number().min(0).max(100).nullable(),
+  })
+  .strict()
+  .openapi('ProvincialTestResult');
+
+export const ProvincialResultsSummarySchema = z
+  .object({
+    schoolYear: z.string().min(1),
+    tests: z.array(ProvincialTestResultSchema),
+    ...publishedFigureSource,
+  })
+  .strict()
+  .openapi('ProvincialResultsSummary');
+
+export const SchoolEnrolmentSchema = z
+  .object({
+    schoolYear: z.string().min(1),
+    enrolment: z.number().int().nonnegative(),
+    capacity: z.number().int().positive(),
+    utilizationPct: z.number().int().nonnegative().describe('enrolment ÷ capacity, whole percent.'),
+    ...publishedFigureSource,
+  })
+  .strict()
+  .openapi('SchoolEnrolment');
+
+export const SchoolRatingsSchema = z
+  .object({
+    fraser: FraserSchoolRatingSchema.nullable(),
+    provincialResults: ProvincialResultsSummarySchema.nullable(),
+    enrolment: SchoolEnrolmentSchema.nullable(),
+  })
+  .strict()
+  .describe('Published figures; each is null when not published (shown as "n/a"), never estimated.')
+  .openapi('SchoolRatings');
+
+export const SchoolReviewsLinkSchema = z
+  .object({
+    kind: z.literal('link'),
+    provider: z.string().min(1),
+    label: z.string().min(1),
+    url: z.string().url(),
+  })
+  .strict()
+  .openapi('SchoolReviewsLink');
+
 export const SchoolSchema = z
   .object({
     id: z.string().min(1).describe('Directory id (path parameter of GET /v1/schools/{id}).'),
@@ -748,6 +812,10 @@ export const SchoolSchema = z
       )
       .strict()
       .describe('Field → the source its value came from.'),
+    ratings: SchoolRatingsSchema,
+    reviews: SchoolReviewsLinkSchema.nullable().describe(
+      'Where to read reviews: a link only with the free provider (nothing fetched or stored); null when off.',
+    ),
     refreshedAt: z.string().datetime(),
   })
   .strict()

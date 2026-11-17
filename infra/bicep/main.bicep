@@ -342,6 +342,9 @@ module functionApp 'modules/function-app.bicep' = {
     backupCheckSubscriptionId: subscription().subscriptionId
     backupCheckResourceGroup: resourceGroup().name
     backupCheckServerName: postgres.outputs.serverName
+    // #776: Fraser Institute school scores on in dev only (prod waits for
+    // the owner to confirm Fraser's permission).
+    schoolRatingsFraserEnabled: environment == 'dev'
     // #733 cost guardrail: bounded scale-out.
     maximumInstanceCount: functionMaximumInstanceCount
   }

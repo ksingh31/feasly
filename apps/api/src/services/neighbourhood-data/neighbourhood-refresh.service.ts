@@ -46,7 +46,7 @@ export type RefreshTrigger = 'timer' | 'admin';
 export interface ProviderRefreshResult {
   readonly provider: NeighbourhoodProviderName;
   readonly implementation: string;
-  /** `skipped`: implementation is 'none' (nothing to fetch, nothing written). */
+  /** `skipped`: implementation is 'none' or stores nothing (nothing fetched, nothing written). */
   readonly outcome: 'ok' | 'failed' | 'skipped';
   readonly rowsChanged: number;
   readonly rowsPruned: number;
@@ -201,8 +201,9 @@ export function createNeighbourhoodRefreshService(
       lastRunAt: startedAt,
     };
 
-    if (implementation === NO_PROVIDER) {
-      // No source chosen: nothing fetched, existing rows untouched.
+    if (implementation === NO_PROVIDER || provider.storesNothing) {
+      // No source chosen (or #776: served at read time, e.g. the reviews
+      // link): nothing fetched, existing rows untouched.
       await store.saveState({
         ...base,
         lastSuccessAt: startedAt,

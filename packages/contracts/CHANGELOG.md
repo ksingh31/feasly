@@ -24,6 +24,19 @@ Issue #778 (Community Match epic):
   `CommunityMatchBuildBasis` and `CommunityMatchResponse`
   (POST /api/v1/communities/match). New types only — nothing existing changed.
 
+## Unreleased — 2026-11-17 (additive) — school ratings + reviews link
+
+Issue #776 (Community Match epic):
+
+- **Added** to `School` (response-only, always present): `ratings`
+  (`SchoolRatings`: `fraser`, `provincialResults`, `enrolment`, each `null`
+  when not published) and `reviews` (`SchoolReviewsLink | null`).
+- **Added** types `SchoolRatings`, `PublishedFigureSource`,
+  `FraserSchoolRating`, `ProvincialTest` (+ `PROVINCIAL_TESTS`),
+  `ProvincialTestResult`, `ProvincialResultsSummary`, `SchoolEnrolment`,
+  `SchoolReviewsLink`. Nothing existing renamed or narrowed; only the API
+  builds `School`, so no client has to construct the new fields.
+
 ## Unreleased — 2026-11-17 (additive) — school designations
 
 Issue #775 (Community Match epic):
