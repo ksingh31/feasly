@@ -40,6 +40,8 @@ import {
   SchoolTypeSchema,
   CommunitySchoolDesignationsResponseSchema,
   AddressSchoolDesignationsResponseSchema,
+  CommunityMatchRequestSchema,
+  CommunityMatchResponseSchema,
   BuilderPartnerListResponseSchema,
   CommunityStatsResponseSchema,
   CommunityLotsResponseSchema,
@@ -172,6 +174,8 @@ export function buildOpenApiSpec(options: OpenApiSpecOptions) {
   registry.register('SchoolResponse', SchoolResponseSchema);
   registry.register('CommunitySchoolDesignationsResponse', CommunitySchoolDesignationsResponseSchema);
   registry.register('AddressSchoolDesignationsResponse', AddressSchoolDesignationsResponseSchema);
+  registry.register('CommunityMatchRequest', CommunityMatchRequestSchema);
+  registry.register('CommunityMatchResponse', CommunityMatchResponseSchema);
   registry.register('BuilderPartnerListResponse', BuilderPartnerListResponseSchema);
   registry.register('MagicLinkVerifyResponse', MagicLinkVerifyResponseSchema);
   registry.register('ReportSnapshot', ReportSnapshotSchema);
@@ -822,6 +826,31 @@ export function buildOpenApiSpec(options: OpenApiSpecOptions) {
       '200': {
         description: 'Typically designated schools',
         content: { 'application/json': { schema: CommunitySchoolDesignationsResponseSchema } },
+      },
+      ...errorResponses(),
+    },
+  });
+
+  // POST /v1/communities/match (#778)
+  registry.registerPath({
+    method: 'post',
+    path: '/v1/communities/match',
+    summary: 'Match established communities to priorities',
+    description:
+      'Ranks established Calgary infill communities by a deterministic 0–100 ' +
+      'match against the given priorities (must / nice) and lot filters, with ' +
+      'the top reasons, misses, listed-lot counts and a typical new-build range ' +
+      'from the cost engine. Scored from monthly-refreshed City open data ' +
+      '(straight-line distances; schools typically designated — confirm with ' +
+      'the board). Public by design.',
+    security: [],
+    request: {
+      body: { content: { 'application/json': { schema: CommunityMatchRequestSchema } } },
+    },
+    responses: {
+      '200': {
+        description: 'Ranked communities',
+        content: { 'application/json': { schema: CommunityMatchResponseSchema } },
       },
       ...errorResponses(),
     },

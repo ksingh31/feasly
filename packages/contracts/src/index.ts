@@ -46,3 +46,4 @@ export * from './partners';
 export * from './schools';
 export * from './school-designations';
 export * from './web-telemetry';
+export * from './community-match';

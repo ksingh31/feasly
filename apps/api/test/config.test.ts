@@ -355,6 +355,21 @@ describe('loadConfig', () => {
           ccsd: 'https://www.cssd.ab.ca',
         },
       },
+      communityMatch: {
+        mustWeight: 3,
+        niceWeight: 1,
+        nearRadiusM: 1_000,
+        treeCoverScores: { low: 0, moderate: 0.5, high: 1 },
+        typicalLotDepthFt: 120,
+        maxReasons: 3,
+        defaultLimit: 25,
+        maxLimit: 200,
+        buildSqft: 2_400,
+        buildTier: 'standard',
+        snapshotTtlMs: 3_600_000,
+        memoryTtlMs: 300_000,
+        snapshotConcurrency: 8,
+      },
       backupCheck: {
         enabled: false,
         subscriptionId: '',
@@ -435,6 +450,17 @@ describe('loadConfig', () => {
       leadConsentVersion: 'api-lead-2027-01-01',
       quarantineLeads: false,
     });
+  });
+
+  it('requires the community-match must weight to exceed the nice weight (#778)', () => {
+    expect(() =>
+      loadConfig({ ...VALID_ENV, COMMUNITY_MATCH_MUST_WEIGHT: '1', COMMUNITY_MATCH_NICE_WEIGHT: '1' }),
+    ).toThrow(/COMMUNITY_MATCH_MUST_WEIGHT/);
+    const config = loadConfig({ ...VALID_ENV, COMMUNITY_MATCH_TREE_COVER_SCORES: '0.1,0.4,0.9' });
+    expect(config.communityMatch.treeCoverScores).toEqual({ low: 0.1, moderate: 0.4, high: 0.9 });
+    expect(() => loadConfig({ ...VALID_ENV, COMMUNITY_MATCH_TREE_COVER_SCORES: '1,0.5,0' })).toThrow(
+      /COMMUNITY_MATCH_TREE_COVER_SCORES/,
+    );
   });
 
   it('reads the platform agreement version from PLATFORM_AGREEMENT_VERSION (#722)', () => {

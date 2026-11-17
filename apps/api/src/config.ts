@@ -839,6 +839,35 @@ const EnvSchema = z.object({
   COMMUNITY_LOTS_MAX_LIMIT: z.coerce.number().int().positive().default(200),
   // Cache-Control max-age on the public list (data changes weekly).
   COMMUNITY_LOTS_CACHE_MAX_AGE_S: z.coerce.number().int().nonnegative().default(3_600),
+  // --- Community match (#778) ---
+  // Priority weights: a must-have counts more than a nice-to-have.
+  COMMUNITY_MATCH_MUST_WEIGHT: z.coerce.number().positive().default(3),
+  COMMUNITY_MATCH_NICE_WEIGHT: z.coerce.number().positive().default(1),
+  // An amenity priority is met when the nearest one is within this
+  // straight-line distance of the community centre; its score then falls
+  // linearly to 0 at NEIGHBOURHOOD_AMENITY_SEARCH_RADIUS_M.
+  COMMUNITY_MATCH_NEAR_RADIUS_M: z.coerce.number().int().positive().default(1_000),
+  // Tree-cover priority score per level "low,moderate,high" (0..1); met at moderate+.
+  COMMUNITY_MATCH_TREE_COVER_SCORES: z
+    .string()
+    .default('0,0.5,1')
+    .transform((raw) => csvToList(raw).map(Number))
+    .pipe(z.array(z.number().min(0).max(1)).length(3))
+    .refine(([l, m, h]) => l! <= m! && m! <= h!, 'scores must not decrease low → high'),
+  // Frontage filter: frontage is estimated as lot area / this typical depth.
+  COMMUNITY_MATCH_TYPICAL_LOT_DEPTH_FT: z.coerce.number().positive().default(120),
+  COMMUNITY_MATCH_MAX_REASONS: z.coerce.number().int().positive().max(10).default(3),
+  COMMUNITY_MATCH_DEFAULT_LIMIT: z.coerce.number().int().positive().default(25),
+  COMMUNITY_MATCH_MAX_LIMIT: z.coerce.number().int().positive().default(200),
+  // The house the typical new-build range is priced for (cost engine).
+  COMMUNITY_MATCH_BUILD_SQFT: z.coerce.number().int().positive().default(2_400),
+  COMMUNITY_MATCH_BUILD_TIER: z.enum(['standard', 'premium', 'luxury']).default('standard'),
+  // Precomputed per-community inputs: shared City-data cache TTL, the
+  // per-instance memory TTL, and how many communities load at once on a
+  // cold build.
+  COMMUNITY_MATCH_SNAPSHOT_TTL_MS: z.coerce.number().int().positive().default(3_600_000),
+  COMMUNITY_MATCH_MEMORY_TTL_MS: z.coerce.number().int().nonnegative().default(300_000),
+  COMMUNITY_MATCH_SNAPSHOT_CONCURRENCY: z.coerce.number().int().positive().max(32).default(8),
   // --- City-data freshness (landing trust strip) ---
   // Shares the SOCRATA_* source with propertyData; its own TTL because the
   // metadata changes at most monthly (24h default, successful fetches only).
@@ -1831,6 +1860,28 @@ export interface CommunityLotsConfig {
 }
 
 /**
+ * Community match (#778): deterministic scoring weights and thresholds, the
+ * house the typical new-build range is priced for, and how the precomputed
+ * per-community inputs are cached.
+ */
+export interface CommunityMatchConfig {
+  readonly mustWeight: number;
+  readonly niceWeight: number;
+  readonly nearRadiusM: number;
+  /** Tree-cover priority score per level. */
+  readonly treeCoverScores: { readonly low: number; readonly moderate: number; readonly high: number };
+  readonly typicalLotDepthFt: number;
+  readonly maxReasons: number;
+  readonly defaultLimit: number;
+  readonly maxLimit: number;
+  readonly buildSqft: number;
+  readonly buildTier: 'standard' | 'premium' | 'luxury';
+  readonly snapshotTtlMs: number;
+  readonly memoryTtlMs: number;
+  readonly snapshotConcurrency: number;
+}
+
+/**
  * Postgres backup freshness check (admin/06 `backup_missed`). The daily
  * timer queries ARM with the Function App's managed identity; a stale or
  * missing backup chain fires the alert, recovery sends the all-clear.
@@ -2012,6 +2063,7 @@ export interface ApiConfig {
   readonly communityStatsRefresh: CommunityStatsRefreshConfig;
   readonly communityLots: CommunityLotsConfig;
   readonly neighbourhoodData: NeighbourhoodDataConfig;
+  readonly communityMatch: CommunityMatchConfig;
   readonly backupCheck: BackupCheckConfig;
   readonly embed: EmbedConfig;
   readonly waitlist: WaitlistConfig;
@@ -2288,6 +2340,12 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): ApiConfig {
     throw new Error(formatConfigError(parsed.error));
   }
   const e = parsed.data;
+  // #778: a must-have always outweighs a nice-to-have.
+  if (e.COMMUNITY_MATCH_MUST_WEIGHT <= e.COMMUNITY_MATCH_NICE_WEIGHT) {
+    throw new Error(
+      'Invalid configuration:\n  - COMMUNITY_MATCH_MUST_WEIGHT: must be greater than COMMUNITY_MATCH_NICE_WEIGHT',
+    );
+  }
 
   const databaseUrl = resolveDatabaseUrl(e);
 
@@ -2447,6 +2505,25 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): ApiConfig {
         cbe: e.NEIGHBOURHOOD_CBE_DESIGNATION_LOOKUP_URL,
         ccsd: e.NEIGHBOURHOOD_CCSD_DESIGNATION_LOOKUP_URL,
       },
+    },
+    communityMatch: {
+      mustWeight: e.COMMUNITY_MATCH_MUST_WEIGHT,
+      niceWeight: e.COMMUNITY_MATCH_NICE_WEIGHT,
+      nearRadiusM: e.COMMUNITY_MATCH_NEAR_RADIUS_M,
+      treeCoverScores: {
+        low: e.COMMUNITY_MATCH_TREE_COVER_SCORES[0]!,
+        moderate: e.COMMUNITY_MATCH_TREE_COVER_SCORES[1]!,
+        high: e.COMMUNITY_MATCH_TREE_COVER_SCORES[2]!,
+      },
+      typicalLotDepthFt: e.COMMUNITY_MATCH_TYPICAL_LOT_DEPTH_FT,
+      maxReasons: e.COMMUNITY_MATCH_MAX_REASONS,
+      defaultLimit: Math.min(e.COMMUNITY_MATCH_DEFAULT_LIMIT, e.COMMUNITY_MATCH_MAX_LIMIT),
+      maxLimit: e.COMMUNITY_MATCH_MAX_LIMIT,
+      buildSqft: e.COMMUNITY_MATCH_BUILD_SQFT,
+      buildTier: e.COMMUNITY_MATCH_BUILD_TIER,
+      snapshotTtlMs: e.COMMUNITY_MATCH_SNAPSHOT_TTL_MS,
+      memoryTtlMs: e.COMMUNITY_MATCH_MEMORY_TTL_MS,
+      snapshotConcurrency: e.COMMUNITY_MATCH_SNAPSHOT_CONCURRENCY,
     },
     backupCheck: {
       enabled: e.BACKUP_CHECK_ENABLED,

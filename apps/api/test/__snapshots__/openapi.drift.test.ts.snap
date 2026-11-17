@@ -739,6 +739,269 @@ exports[`OpenAPI drift > generated spec matches the snapshot 1`] = `
         ],
         "type": "object",
       },
+      "CommunityMatchNote": {
+        "additionalProperties": false,
+        "properties": {
+          "importance": {
+            "enum": [
+              "must",
+              "nice",
+              null,
+            ],
+            "type": [
+              "string",
+              "null",
+            ],
+          },
+          "priority": {
+            "minLength": 1,
+            "type": "string",
+          },
+          "text": {
+            "minLength": 1,
+            "type": "string",
+          },
+        },
+        "required": [
+          "priority",
+          "importance",
+          "text",
+        ],
+        "type": "object",
+      },
+      "CommunityMatchRequest": {
+        "additionalProperties": false,
+        "properties": {
+          "filters": {
+            "additionalProperties": false,
+            "properties": {
+              "lotsListedNow": {
+                "description": "Only communities with a matching listed lot.",
+                "type": "boolean",
+              },
+              "minFrontageFt": {
+                "description": "Minimum lot frontage (ft), estimated from lot area over a typical depth.",
+                "exclusiveMinimum": 0,
+                "maximum": 1000,
+                "type": "number",
+              },
+            },
+            "type": "object",
+          },
+          "limit": {
+            "exclusiveMinimum": 0,
+            "maximum": 1000,
+            "type": "integer",
+          },
+          "priorities": {
+            "description": "Unique keys. A missed must-have ranks the community below every one that passes.",
+            "items": {
+              "additionalProperties": false,
+              "properties": {
+                "importance": {
+                  "enum": [
+                    "must",
+                    "nice",
+                  ],
+                  "type": "string",
+                },
+                "key": {
+                  "description": "An amenity category key ('parks', 'playgrounds', 'pathways', 'rec-centres', 'pools', 'libraries', 'off-leash'), 'tree-cover' or 'designated-schools'.",
+                  "type": "string",
+                },
+              },
+              "required": [
+                "key",
+                "importance",
+              ],
+              "type": "object",
+            },
+            "maxItems": 20,
+            "minItems": 1,
+            "type": "array",
+          },
+        },
+        "required": [
+          "priorities",
+        ],
+        "type": "object",
+      },
+      "CommunityMatchResponse": {
+        "additionalProperties": false,
+        "properties": {
+          "buildBasis": {
+            "additionalProperties": false,
+            "properties": {
+              "buildSqft": {
+                "exclusiveMinimum": 0,
+                "type": "integer",
+              },
+              "calibrated": {
+                "type": "boolean",
+              },
+              "costDataVersion": {
+                "minLength": 1,
+                "type": "string",
+              },
+              "tier": {
+                "minLength": 1,
+                "type": "string",
+              },
+            },
+            "required": [
+              "buildSqft",
+              "tier",
+              "costDataVersion",
+              "calibrated",
+            ],
+            "type": "object",
+          },
+          "dataRefreshedAt": {
+            "format": "date-time",
+            "type": [
+              "string",
+              "null",
+            ],
+          },
+          "disclaimer": {
+            "minLength": 1,
+            "type": "string",
+          },
+          "distanceBasis": {
+            "enum": [
+              "straight-line",
+            ],
+            "type": "string",
+          },
+          "frontageBasis": {
+            "enum": [
+              "estimated-from-lot-area",
+            ],
+            "type": "string",
+          },
+          "results": {
+            "items": {
+              "$ref": "#/components/schemas/CommunityMatchResult",
+            },
+            "type": "array",
+          },
+          "total": {
+            "minimum": 0,
+            "type": "integer",
+          },
+        },
+        "required": [
+          "results",
+          "total",
+          "buildBasis",
+          "distanceBasis",
+          "frontageBasis",
+          "dataRefreshedAt",
+          "disclaimer",
+        ],
+        "type": "object",
+      },
+      "CommunityMatchResult": {
+        "additionalProperties": false,
+        "properties": {
+          "communityCode": {
+            "minLength": 1,
+            "type": "string",
+          },
+          "lots": {
+            "additionalProperties": false,
+            "properties": {
+              "listed": {
+                "minimum": 0,
+                "type": "integer",
+              },
+              "matching": {
+                "minimum": 0,
+                "type": "integer",
+              },
+              "refreshedAt": {
+                "format": "date-time",
+                "type": [
+                  "string",
+                  "null",
+                ],
+              },
+            },
+            "required": [
+              "listed",
+              "matching",
+              "refreshedAt",
+            ],
+            "type": "object",
+          },
+          "match": {
+            "maximum": 100,
+            "minimum": 0,
+            "type": "integer",
+          },
+          "misses": {
+            "items": {
+              "$ref": "#/components/schemas/CommunityMatchNote",
+            },
+            "type": "array",
+          },
+          "name": {
+            "minLength": 1,
+            "type": "string",
+          },
+          "passesMustHaves": {
+            "type": "boolean",
+          },
+          "rank": {
+            "exclusiveMinimum": 0,
+            "type": "integer",
+          },
+          "reasons": {
+            "items": {
+              "$ref": "#/components/schemas/CommunityMatchNote",
+            },
+            "minItems": 1,
+            "type": "array",
+          },
+          "slug": {
+            "minLength": 1,
+            "type": "string",
+          },
+          "typicalNewBuild": {
+            "additionalProperties": false,
+            "description": "Typical new-build range (whole CAD) from the cost engine on the community average lot.",
+            "properties": {
+              "high": {
+                "type": "integer",
+              },
+              "low": {
+                "type": "integer",
+              },
+            },
+            "required": [
+              "low",
+              "high",
+            ],
+            "type": [
+              "object",
+              "null",
+            ],
+          },
+        },
+        "required": [
+          "rank",
+          "communityCode",
+          "name",
+          "slug",
+          "match",
+          "passesMustHaves",
+          "reasons",
+          "misses",
+          "lots",
+          "typicalNewBuild",
+        ],
+        "type": "object",
+      },
       "CommunitySchoolDesignationsResponse": {
         "additionalProperties": false,
         "properties": {
@@ -4118,6 +4381,126 @@ URL versioning (\`/v1/\`). Breaking changes ship as \`/v2/\` with 6 months notic
         },
         "security": [],
         "summary": "Get City assessment dataset freshness",
+      },
+    },
+    "/v1/communities/match": {
+      "post": {
+        "description": "Ranks established Calgary infill communities by a deterministic 0–100 match against the given priorities (must / nice) and lot filters, with the top reasons, misses, listed-lot counts and a typical new-build range from the cost engine. Scored from monthly-refreshed City open data (straight-line distances; schools typically designated — confirm with the board). Public by design.",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CommunityMatchRequest",
+              },
+            },
+          },
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CommunityMatchResponse",
+                },
+              },
+            },
+            "description": "Ranked communities",
+          },
+          "400": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails",
+                },
+              },
+            },
+            "description": "Bad request — validation failed",
+          },
+          "429": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails",
+                },
+              },
+            },
+            "description": "Rate limit exceeded — per-key sliding window (60s) or per-IP fixed window (code RATE_LIMITED, X-RateLimit-* headers), or the key's daily/monthly quota (code QUOTA_EXCEEDED, X-Quota-Period / -Limit / -Remaining / -Reset headers). Body is RFC 7807 problem+json; Retry-After says when to try again.",
+            "headers": {
+              "X-Quota-Limit": {
+                "description": "QUOTA_EXCEEDED only: requests allowed per period for this API key.",
+                "required": false,
+                "schema": {
+                  "description": "QUOTA_EXCEEDED only: requests allowed per period for this API key.",
+                  "type": "integer",
+                },
+              },
+              "X-Quota-Period": {
+                "description": "QUOTA_EXCEEDED only: which quota ran out (UTC calendar day or month).",
+                "required": false,
+                "schema": {
+                  "description": "QUOTA_EXCEEDED only: which quota ran out (UTC calendar day or month).",
+                  "enum": [
+                    "day",
+                    "month",
+                  ],
+                  "type": "string",
+                },
+              },
+              "X-Quota-Remaining": {
+                "description": "QUOTA_EXCEEDED only: requests remaining in the period (0).",
+                "required": false,
+                "schema": {
+                  "description": "QUOTA_EXCEEDED only: requests remaining in the period (0).",
+                  "type": "integer",
+                },
+              },
+              "X-Quota-Reset": {
+                "description": "QUOTA_EXCEEDED only: Unix epoch seconds when the period resets.",
+                "required": false,
+                "schema": {
+                  "description": "QUOTA_EXCEEDED only: Unix epoch seconds when the period resets.",
+                  "type": "integer",
+                },
+              },
+              "X-RateLimit-Limit": {
+                "description": "Requests allowed per 60-second window for this API key.",
+                "required": true,
+                "schema": {
+                  "description": "Requests allowed per 60-second window for this API key.",
+                  "type": "integer",
+                },
+              },
+              "X-RateLimit-Remaining": {
+                "description": "Requests remaining in the current window.",
+                "required": true,
+                "schema": {
+                  "description": "Requests remaining in the current window.",
+                  "type": "integer",
+                },
+              },
+              "X-RateLimit-Reset": {
+                "description": "Unix epoch seconds when the current window slides past the oldest request.",
+                "required": true,
+                "schema": {
+                  "description": "Unix epoch seconds when the current window slides past the oldest request.",
+                  "type": "integer",
+                },
+              },
+            },
+          },
+          "500": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails",
+                },
+              },
+            },
+            "description": "Internal server error",
+          },
+        },
+        "security": [],
+        "summary": "Match established communities to priorities",
       },
     },
     "/v1/communities/{slug}/lots": {
