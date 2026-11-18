@@ -14,6 +14,9 @@ import type {
   CallbackRequest,
   CallbackResponse,
   CityDataFreshnessResponse,
+  CommunityLivingResponse,
+  CommunitySchoolDesignationsResponse,
+  SchoolsListResponse,
   CommunityMatchRequest,
   CommunityMatchResponse,
   EstimateRequest,
@@ -115,6 +118,22 @@ export interface ApiService {
    * order. Read once per session through `PartnersState`.
    */
   getPartners(): Observable<BuilderPartnerListResponse>;
+  /**
+   * #781 community guide Schools tab: GET /api/v1/communities/{slug}/school-designations
+   * — CBE + CCSD schools "typically designated" for the community, with each
+   * board's address lookup link. Errors `not_found` for uncovered communities.
+   */
+  getCommunitySchoolDesignations(slug: string): Observable<CommunitySchoolDesignationsResponse>;
+  /**
+   * #781: GET /api/v1/schools?community= — every school in one City
+   * community (by community code), with type, programs and published ratings.
+   */
+  listCommunitySchools(communityCode: string): Observable<SchoolsListResponse>;
+  /**
+   * #781 community guide Living nearby tab: GET /api/v1/communities/{slug}/living
+   * — nearest + counts per amenity category and public-tree cover.
+   */
+  getCommunityLiving(slug: string): Observable<CommunityLivingResponse>;
   /**
    * Community match (#778 / #779): POST /api/v1/communities/match — public,
    * ungated. Priorities in, ranked established infill communities out.
@@ -310,6 +329,18 @@ class LazyApiService implements ApiService {
 
   getPartners(): Observable<BuilderPartnerListResponse> {
     return this.resolve().getPartners();
+  }
+
+  getCommunitySchoolDesignations(slug: string): Observable<CommunitySchoolDesignationsResponse> {
+    return this.resolve().getCommunitySchoolDesignations(slug);
+  }
+
+  listCommunitySchools(communityCode: string): Observable<SchoolsListResponse> {
+    return this.resolve().listCommunitySchools(communityCode);
+  }
+
+  getCommunityLiving(slug: string): Observable<CommunityLivingResponse> {
+    return this.resolve().getCommunityLiving(slug);
   }
 
   matchCommunities(request: CommunityMatchRequest): Observable<CommunityMatchResponse> {

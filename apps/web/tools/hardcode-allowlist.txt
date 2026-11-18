@@ -20,6 +20,12 @@ apps/web/src/app/features/builder/builder-copy.defaults.ts
 # kept out of the initial bundle so the resource-summary budget stays green.
 apps/web/src/app/features/communities/community-profile-copy.defaults.ts
 
+# Community guide Schools + Living nearby tab copy defaults (#781/Lighthouse):
+# lazy-loaded with the community page and merged with deploy overrides
+# (copy.communities.guideTabs) by injectCommunityGuideCopy(). Same rationale
+# as community-profile-copy.defaults.ts.
+apps/web/src/app/features/communities/community-guide-copy.defaults.ts
+
 # Help page copy defaults (#834/Lighthouse): the lazy-loaded compiled
 # fallback for /help copy, provided as HELP_COPY by HelpPageComponent and
 # merged with deploy overrides (copy.marketing.help). Same rationale as
@@ -45,6 +51,10 @@ apps/web/src/app/core/config/zoning-guide-copy.defaults.ts
 # Canned fake data for the mock API harness (FE0-003): fixture figures and
 # copy are inherently literal — the conformance specs pin every value.
 apps/web/src/app/core/api/mock-data.ts
+
+# #781 community-guide mock fixtures (schools, designations, living nearby):
+# contract-shaped sample data for the mock API — literal by nature, like mock-data.ts.
+apps/web/src/app/core/api/mock-community-guide.ts
 
 # Legal prose (FE1-001): privacy/terms change by legal review, not by deploy
 # tuning — stuffing them in app-config.json would bypass that. Copy-pinned by

@@ -1,0 +1,46 @@
+<h2>{{ fill(copy.living.title) }}</h2>
+<p class="sub">{{ fill(copy.living.intro) }}</p>
+<p class="muted">{{ copy.living.distanceNote }}</p>
+
+@switch (status()) {
+  @case ('error') {
+    <div role="alert">
+      <p>{{ copy.living.error }}</p>
+      <button type="button" class="retry" (click)="load()">{{ copy.living.retry }}</button>
+    </div>
+  }
+  @case ('ready') {
+    @if (living(); as data) {
+      <div class="metric-grid">
+        @for (metric of data.amenities; track metric.category) {
+          <article class="metric" [attr.data-category]="metric.category">
+            <h3>{{ metric.label }}</h3>
+            <p class="nearest">
+              <span class="nearest-label">{{ copy.living.nearestLabel }}</span>
+              <span>{{ nearest(metric) }}</span>
+            </p>
+            <ul class="counts">
+              @for (c of metric.counts; track c.radiusM) {
+                <li>{{ countLine(c.count, c.radiusM) }}</li>
+              }
+            </ul>
+          </article>
+        }
+        @if (data.treeCover; as trees) {
+          <article class="metric" data-category="tree-cover">
+            <h3>{{ copy.living.treeCoverLabel }}</h3>
+            <p class="nearest">{{ copy.living.treeLevels[trees.level] }}</p>
+            <ul class="counts">
+              <li>{{ treesPerHa(trees.treesPerHa) }}</li>
+            </ul>
+            <p class="muted small">{{ copy.living.treeNote }}</p>
+          </article>
+        }
+      </div>
+      <p class="muted">{{ refreshed() }}</p>
+    }
+  }
+  @default {
+    <p class="muted" role="status">{{ copy.living.loading }}</p>
+  }
+}

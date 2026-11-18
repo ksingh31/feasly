@@ -329,7 +329,15 @@ export const routes: Routes = [
           m.communityPageResolver(route, state),
         ),
     },
-    canActivate: [robotsGuard],
+    canActivate: [
+      robotsGuard,
+      // #781: guide tab state (memory-only) + the persisted school comparison,
+      // lazy so neither enters the initial bundle.
+      lazyProvider(
+        async () => (await import('./features/communities/community-guide.state')).communityGuideStateProvider,
+      ),
+      lazyProvider(async () => (await import('./core/schools')).schoolComparisonStateProvider),
+    ],
   },
   // Branded 404 (SEO-01): unknown paths render the 404 page (noindexed via
   // setForRoute('404')); the CTA returns visitors home. SWA's

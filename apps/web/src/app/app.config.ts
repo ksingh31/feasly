@@ -187,6 +187,10 @@ export const appConfig: ApplicationConfig = {
           // (the state's name) so the lazy-loaded class stays out of the
           // initial bundle; the plugin rehydrates it on the lazy UpdateState.
           'builderLeadsSeen',
+          // #781: schools lined up for the school comparison (directory ids
+          // only, no PII). By state NAME: the state lazy-loads at the
+          // community guide route and must stay out of the initial bundle.
+          'schoolComparison',
           // #779: Find a community priorities + build filters (priority
           // keys only, no PII). String key so the lazy state stays out of
           // the initial bundle; rehydrated on the lazy UpdateState.

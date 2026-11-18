@@ -17,6 +17,9 @@ import type {
   WaitlistRequest,
   WaitlistResponse,
   CityDataFreshnessResponse,
+  CommunityLivingResponse,
+  CommunitySchoolDesignationsResponse,
+  SchoolsListResponse,
   CommunityMatchRequest,
   CommunityMatchResponse,
   EstimateRequest,
@@ -176,6 +179,29 @@ export class HttpApiService implements ApiService {
   /** Builder partner disclosure (#918): GET /api/v1/partners (public, cached). */
   getPartners(): Observable<BuilderPartnerListResponse> {
     return this.call(this.http.get<BuilderPartnerListResponse>(`${this.base}/partners`));
+  }
+
+  /** #781: GET /api/v1/communities/{slug}/school-designations (public, ungated). */
+  getCommunitySchoolDesignations(slug: string): Observable<CommunitySchoolDesignationsResponse> {
+    const community = `/communities/${encodeURIComponent(slug)}`;
+    return this.call(
+      this.http.get<CommunitySchoolDesignationsResponse>(`${this.base}${community}/school-designations`),
+    );
+  }
+
+  /** #781: GET /api/v1/schools?community={code} (public, ungated). */
+  listCommunitySchools(communityCode: string): Observable<SchoolsListResponse> {
+    return this.call(
+      this.http.get<SchoolsListResponse>(`${this.base}/schools`, {
+        params: { community: communityCode },
+      }),
+    );
+  }
+
+  /** #781: GET /api/v1/communities/{slug}/living (public, ungated). */
+  getCommunityLiving(slug: string): Observable<CommunityLivingResponse> {
+    const path = `/communities/${encodeURIComponent(slug)}/living`;
+    return this.call(this.http.get<CommunityLivingResponse>(`${this.base}${path}`));
   }
 
   /** Community match (#778): POST /api/v1/communities/match (public, ungated). */

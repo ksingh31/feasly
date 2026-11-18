@@ -423,3 +423,43 @@
     padding-left: 32px;
   }
 }
+
+/* #781 guide tabs. */
+.guide-tabs {
+  display: flex;
+  gap: 4px;
+  border-bottom: 1px solid var(--border);
+  margin: 0 0 32px;
+  overflow-x: auto;
+}
+
+.guide-tab {
+  min-height: 44px;
+  padding: 0 18px;
+  border: 0;
+  border-bottom: 3px solid transparent;
+  background: transparent;
+  color: var(--muted);
+  font: inherit;
+  font-weight: 600;
+  white-space: nowrap;
+  cursor: pointer;
+
+  &[aria-selected='true'] {
+    color: var(--text);
+    border-bottom-color: var(--accent);
+  }
+
+  &:focus-visible {
+    outline: 3px solid var(--focus-ring);
+    outline-offset: -3px;
+  }
+}
+
+.guide-panel {
+  margin-bottom: 56px;
+
+  &[hidden] {
+    display: none;
+  }
+}
