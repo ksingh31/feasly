@@ -1,0 +1,76 @@
+@if (data.partnerId === null || partner) {
+  <ui-drawer [heading]="heading" asForm [dirty]="form.dirty" (submitted)="save()">
+    @if (partner; as editing) {
+      <ui-status-chip uiDrawerChip domain="builder" [status]="editing.active ? 'active' : 'inactive'" />
+    }
+
+    <div class="partner-drawer__fields" [formGroup]="form">
+      <p class="partner-drawer__intro">{{ copy.drawerIntro }}</p>
+
+      <ui-text-field
+        label="Company name"
+        formControlName="name"
+        autocomplete="off"
+        required
+        [error]="fieldError('name')"
+        data-testid="partner-name"
+      />
+      <ui-text-field
+        label="Website"
+        type="url"
+        formControlName="websiteUrl"
+        placeholder="https://"
+        autocomplete="off"
+        hint="Optional. Must start with https://"
+        [error]="fieldError('websiteUrl')"
+        data-testid="partner-website"
+      />
+      <ui-text-field
+        label="Logo URL"
+        type="url"
+        formControlName="logoUrl"
+        placeholder="https://"
+        autocomplete="off"
+        hint="Optional. A hosted image. Without one, the name is shown alone."
+        [error]="fieldError('logoUrl')"
+        data-testid="partner-logo"
+      />
+
+      <label class="partner-drawer__field" for="partner-description">
+        <span class="partner-drawer__label">Short description</span>
+        <textarea
+          id="partner-description"
+          formControlName="description"
+          rows="3"
+          [attr.maxlength]="descriptionMax"
+          aria-describedby="partner-description-hint"
+          [attr.aria-invalid]="fieldError('description') ? 'true' : null"
+          data-testid="partner-description"
+        ></textarea>
+        <span id="partner-description-hint" class="partner-drawer__hint">
+          @if (fieldError('description'); as err) {
+            <span class="partner-drawer__field-error">{{ err }}</span>
+          } @else {
+            Optional. For example, the communities they build in. Up to {{ descriptionMax }} characters.
+          }
+        </span>
+      </label>
+
+      <label class="partner-drawer__check">
+        <input type="checkbox" formControlName="active" data-testid="partner-active" />
+        Show in the public partner list
+      </label>
+
+      @if (saveError(); as err) {
+        <p class="partner-drawer__error" role="alert" data-testid="partner-save-error">{{ err }}</p>
+      }
+    </div>
+
+    <button uiDrawerFooterStart type="button" ui-button variant="secondary" (click)="cancel()">
+      Cancel
+    </button>
+    <button uiDrawerFooterEnd type="submit" ui-button [loading]="saving()" data-testid="partner-save">
+      {{ partner ? 'Save' : 'Add partner' }}
+    </button>
+  </ui-drawer>
+}

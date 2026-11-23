@@ -37,6 +37,7 @@ import type {
   DisputeListResponse,
   SheetsSyncStatusResponse,
   AdminCommunityNarrativesResponse,
+  AdminBuilderPartnerListResponse,
 } from '@feasly/contracts';
 import type { ApiKeyUsageAggregate } from '../src/app/core/api/api.service';
 import type { FunnelReport } from '../src/app/core/api/funnel.types';
@@ -503,6 +504,35 @@ export const SHEETS_STATUS: SheetsSyncStatusResponse = {
   ],
 };
 
+export const PARTNERS: AdminBuilderPartnerListResponse = {
+  partners: [
+    {
+      id: '00000000-0000-4000-8000-000000000919',
+      name: 'Elite Craft Builders',
+      logoUrl: null,
+      websiteUrl: 'https://elitecraftbuilders.com',
+      description: null,
+      builderId: 'b-1',
+      displayOrder: 0,
+      active: true,
+      createdAt: daysAgo(30),
+      updatedAt: daysAgo(2),
+    },
+    {
+      id: '00000000-0000-4000-8000-000000000920',
+      name: 'Northside Infill Homes',
+      logoUrl: null,
+      websiteUrl: null,
+      description: 'Inner-city infills in the northwest communities.',
+      builderId: null,
+      displayOrder: 1,
+      active: false,
+      createdAt: daysAgo(10),
+      updatedAt: daysAgo(10),
+    },
+  ],
+};
+
 export const COMMUNITY_NARRATIVES: AdminCommunityNarrativesResponse = {
   communities: [
     {
@@ -690,6 +720,8 @@ export async function mockAdminApi(page: Page, opts: { signedIn: boolean }): Pro
           return json(route, CALIBRATION);
         case '/api/v1/admin/ops/sheets-status':
           return json(route, SHEETS_STATUS);
+        case '/api/v1/admin/partners':
+          return json(route, PARTNERS);
         case '/api/v1/admin/community-narratives':
           return json(route, COMMUNITY_NARRATIVES);
         case '/api/v1/admin/funnels':

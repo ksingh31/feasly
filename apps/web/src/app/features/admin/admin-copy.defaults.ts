@@ -19,6 +19,7 @@ export const DEFAULT_ADMIN_COPY: AdminCopy = {
       estimates: 'Estimates',
       builders: 'Builders',
       users: 'Users & access',
+      partners: 'Builder partners',
       apiKeys: 'API keys',
       billing: 'Billing overview',
       invoices: 'Invoices',
@@ -457,5 +458,14 @@ export const DEFAULT_ADMIN_COPY: AdminCopy = {
     entraStateMismatch: "Sign-in didn't complete — try again.",
     entraTransient: 'Something went wrong. Please try again.',
     entraNotConfigured: 'Sign-in is not set up yet. Contact support.',
+  },
+  partners: {
+    drawerIntro: 'Active partners are listed publicly as builder companies that receive leads from Feasly.',
+    nameTooLong: 'Keep the name under {max} characters.',
+    descriptionTooLong: 'Keep the description under {max} characters.',
+    shownToast: '{name} is now in the public partner list.',
+    hiddenToast: '{name} is hidden from the public partner list.',
+    movedUpToast: '{name} moved up.',
+    movedDownToast: '{name} moved down.',
   },
 };

@@ -195,6 +195,7 @@ const ROUTES: SeoRouteConfig[] = [
     descriptionKey: 'adminInvoiceDetail',
     noindex: true,
   },
+  { pattern: 'admin/partners', titleKey: 'adminPartnersTitle', descriptionKey: 'adminPartners', noindex: true },
   { pattern: 'admin/ops/sheets', titleKey: 'adminSheetsTitle', descriptionKey: 'adminSheets', noindex: true },
   {
     pattern: 'admin/ops/community-narratives',

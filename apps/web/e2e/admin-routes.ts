@@ -41,6 +41,7 @@ export const ADMIN_E2E_ROUTES: readonly AdminE2eRoute[] = [
   { path: 'admin/calibration', url: '/admin/calibration', name: 'calibration', ready: SHELL_READY },
   { path: 'admin/billing', url: '/admin/billing', name: 'billing', ready: SHELL_READY },
   { path: 'admin/webhooks', url: '/admin/webhooks', name: 'webhooks', ready: SHELL_READY },
+  { path: 'admin/partners', url: '/admin/partners', name: 'partners', ready: SHELL_READY },
   { path: 'admin/ops/sheets', url: '/admin/ops/sheets', name: 'ops-sheets', ready: SHELL_READY },
   {
     path: 'admin/ops/community-narratives',
@@ -87,6 +88,8 @@ export const ADMIN_E2E_OVERLAYS: readonly AdminE2eOverlay[] = [
   { name: 'api-key-drawer', url: '/admin/api-keys?open=key-1' },
   { name: 'add-builder-modal', url: '/admin/builders', trigger: 'Add builder' },
   { name: 'invite-user-modal', url: '/admin/users', trigger: 'Invite user' },
+  // #919: the add-partner drawer (the edit drawer is the same component).
+  { name: 'add-partner-drawer', url: '/admin/partners', trigger: 'Add partner' },
   { name: 'create-invoice-modal', url: '/admin/billing', trigger: 'Create invoice' },
   { name: 'issue-key-modal', url: '/admin/api-keys', trigger: 'Issue key' },
 ];

@@ -52,6 +52,7 @@ describe('findAdminNavItem', () => {
     ['/admin/ops/sheets', 'system', 'sheets'],
     ['/admin/ops/community-narratives', 'system', 'communityNarratives'],
     ['/admin/webhooks', 'system', 'webhooks'],
+    ['/admin/partners', 'partners', 'partners'],
     ['/admin/api-keys/', 'partners', 'apiKeys'],
   ])('%s → %s / %s', (url, group, item) => {
     const match = findAdminNavItem(url);

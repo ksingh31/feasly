@@ -1,0 +1,93 @@
+<div class="partners-page">
+  <ui-page-header
+    heading="Builder partners"
+    description="The builder companies Feasly lists publicly as receiving leads from its own site. Active partners appear in display order."
+  >
+    <div uiPageHeaderActions class="partners-page__header-actions">
+      <button
+        type="button"
+        ui-button
+        variant="secondary"
+        data-testid="refresh-partners"
+        [loading]="loadStatus() === 'loading' && loaded()"
+        (click)="refresh()"
+      >
+        Refresh
+      </button>
+      @if (canManage()) {
+        <button type="button" ui-button data-testid="add-partner" (click)="openAdd()">Add partner</button>
+      }
+    </div>
+  </ui-page-header>
+
+  @if (loadStatus() === 'loading' && !loaded()) {
+    <ui-skeleton variant="block" label="Loading partners" />
+  } @else if (loadStatus() === 'error' && !loaded()) {
+    <ui-error-state heading="Couldn't load partners" [message]="loadError()" retryLabel="Retry" (retry)="refresh()" />
+  } @else if (loaded()) {
+    <section class="partners-page__card" aria-labelledby="partners-table-heading">
+      <h2 id="partners-table-heading" class="partners-page__card-title">
+        Partners
+        <span class="partners-page__count" data-testid="partners-count">
+          {{ activeCount() }} of {{ partners().length }} active
+        </span>
+      </h2>
+      <ui-data-table
+        label="Builder partners in display order"
+        [rows]="partners()"
+        [columns]="columns"
+        [rowId]="rowId"
+        emptyHeading="No partners yet"
+        [emptyMessage]="canManage() ? 'Add the first builder partner to list it publicly.' : null"
+        compact
+        (open)="openEdit($event)"
+      >
+        <ng-template uiCell="websiteUrl" let-row>
+          @if (row.websiteUrl) {
+            <a class="partners-page__link" [href]="row.websiteUrl" target="_blank" rel="noopener noreferrer">
+              {{ row.websiteUrl }}
+            </a>
+          } @else {
+            <span class="partners-page__muted">—</span>
+          }
+        </ng-template>
+        @if (canManage()) {
+          <ng-template uiRowActions let-row>
+            <div class="partners-page__row-actions">
+              <button
+                type="button"
+                ui-button
+                size="sm"
+                variant="secondary"
+                [attr.data-testid]="'move-up-' + row.id"
+                [attr.aria-label]="'Move ' + row.name + ' up'"
+                [disabled]="isFirst(row) || busyId() !== null"
+                [loading]="busyId() === row.id"
+                (click)="move(row, -1)"
+              >
+                <span aria-hidden="true">↑</span>
+              </button>
+              <button
+                type="button"
+                ui-button
+                size="sm"
+                variant="secondary"
+                [attr.data-testid]="'move-down-' + row.id"
+                [attr.aria-label]="'Move ' + row.name + ' down'"
+                [disabled]="isLast(row) || busyId() !== null"
+                (click)="move(row, 1)"
+              >
+                <span aria-hidden="true">↓</span>
+              </button>
+              <ui-row-actions
+                [actions]="rowActions().get(row.id) ?? []"
+                [label]="'Actions for ' + row.name"
+                (selected)="onRowAction(row, $event)"
+              />
+            </div>
+          </ng-template>
+        }
+      </ui-data-table>
+    </section>
+  }
+</div>

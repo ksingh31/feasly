@@ -465,6 +465,18 @@ export const routes: Routes = [
         loadComponent: () =>
           import('./features/admin/admin-users.component').then((m) => m.AdminUsersComponent),
       },
+      // #919: builder partners (the #888 public disclosure list) — add,
+      // edit, activate/deactivate and reorder. State lazy-registered here.
+      {
+        path: 'partners',
+        loadComponent: () =>
+          import('./features/admin/admin-partners.component').then((m) => m.AdminPartnersComponent),
+        canActivate: [
+          lazyProvider(
+            async () => (await import('./features/admin/admin-partners.state')).adminPartnersStateProvider,
+          ),
+        ],
+      },
       // Dispute console (billing/01 follow-on, was OPS-009): open disputes
       // oldest-first with reason, immutable evidence snapshot, 5-business-day
       // SLA countdown, and accept/reject resolution.
