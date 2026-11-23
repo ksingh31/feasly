@@ -15,10 +15,11 @@ import { ReportNeighbourhoodState } from './report-neighbourhood.state';
 
 @Component({
   imports: [ReportNeighbourhoodComponent],
-  template: `<app-report-neighbourhood [addressKey]="key()" />`,
+  template: `<app-report-neighbourhood [addressKey]="key()" [showFindCommunity]="ownSite()" />`,
 })
 class HostComponent {
   readonly key = signal<string | null>('calgary-1234-14-st-nw');
+  readonly ownSite = signal(true);
 }
 
 interface ApiOverrides {
@@ -26,7 +27,7 @@ interface ApiOverrides {
   living?: () => unknown;
 }
 
-async function setup(overrides: ApiOverrides = {}, served: Record<string, unknown> = {}) {
+async function setup(overrides: ApiOverrides = {}, served: Record<string, unknown> = {}, ownSite = true) {
   const api = {
     getAddressSchoolDesignations: vi.fn(
       overrides.schools ?? ((key: string) => defer(() => of(mockAddressSchoolDesignations(key)))),
@@ -49,6 +50,7 @@ async function setup(overrides: ApiOverrides = {}, served: Record<string, unknow
   httpMock.expectOne('/assets/config/app-config.json').flush(served);
   await pending;
   const fixture: ComponentFixture<HostComponent> = TestBed.createComponent(HostComponent);
+  fixture.componentInstance.ownSite.set(ownSite);
   fixture.detectChanges();
   await fixture.whenStable();
   fixture.detectChanges();
@@ -85,6 +87,16 @@ describe('ReportNeighbourhoodComponent (#785)', () => {
     expect(find.getAttribute('href')).toBe('/find-a-community');
     // Print: nothing in the block is marked no-print.
     expect(el.querySelector('.no-print')).toBeNull();
+  });
+
+  it('hides the Feasly-only "Find a community" link in a builder embed (#918)', async () => {
+    const { el } = await setup({}, {}, false);
+    // Schools and living still render in the white-label embed…
+    expect(el.querySelector('section.schools')).not.toBeNull();
+    expect(el.querySelector('section.living')).not.toBeNull();
+    // …but the link into Feasly's own discovery flow does not.
+    expect(el.querySelector('.nbh-find')).toBeNull();
+    expect(el.querySelector('a[href="/find-a-community"]')).toBeNull();
   });
 
   it('hides the schools section when no designations are on file', async () => {

@@ -46,6 +46,13 @@ export class ReportNeighbourhoodComponent {
   /** The report's address key; null renders nothing. */
   readonly addressKey = input<string | null>(null);
 
+  /**
+   * Show the Feasly-only "Find a community" link. The report page binds this
+   * to `isOwnSite()` so a builder's white-label embed never sends its
+   * homeowner into Feasly's own discovery flow (#918 rule).
+   */
+  readonly showFindCommunity = input<boolean>(false);
+
   protected readonly copy: ReportNeighbourhoodCopy = mergeLazyCopy(
     this.config,
     DEFAULT_REPORT_NEIGHBOURHOOD_COPY,

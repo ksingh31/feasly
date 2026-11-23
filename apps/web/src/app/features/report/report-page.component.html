@@ -442,7 +442,7 @@
     <!-- #785: Schools for this address + Living near this lot + "Find a
          community". Free and ungated (pre- and post-gate), printed with
          the report; each section hides when its data is missing. -->
-    <app-report-neighbourhood [addressKey]="neighbourhoodAddressKey()" />
+    <app-report-neighbourhood [addressKey]="neighbourhoodAddressKey()" [showFindCommunity]="isOwnSite()" />
 
     <!-- AI SUMMARY: neighbourhood guide only — no cost figures.
          Rendered one paragraph per block: the prompt emits plain text for
