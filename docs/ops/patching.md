@@ -36,7 +36,19 @@ input; write the reason on the PR.
 2. If no patched version exists: file a `bug` issue with the advisory link,
    the affected path, and the mitigation; set a review date. Do not dismiss
    the alert without that issue.
-3. Confirm CD deployed the fix to dev ("merged" is not "live").
+3. Before changing dependencies for a "No fix available" high advisory,
+   check whether it still stands:
+   `gh api /advisories/<GHSA-id> --jq '{withdrawn_at,vulnerabilities}'`,
+   then re-run `npm audit --audit-level=high` (root, `--workspace=@feasly/api`,
+   `--workspace=@feasly/web`) on a fresh `npm ci` of `origin/main`. GitHub
+   withdraws or narrows advisories, and `npm audit` reads the live advisory
+   database, so a red `dependency-audit` can turn green with no code change.
+   If it is withdrawn, push any commit to `main` (or re-run the CI
+   workflow) to get a fresh green run. Do not add `overrides` or pin
+   packages to get around a withdrawn advisory. Example: #1000,
+   GHSA-fc5q-39xc-vjpf (picomatch, every version, no fix) turned `main` red
+   on 2026-11-18 and was withdrawn the same day.
+4. Confirm CD deployed the fix to dev ("merged" is not "live").
 
 ## Quarterly review
 
