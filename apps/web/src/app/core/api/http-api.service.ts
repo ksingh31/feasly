@@ -18,7 +18,9 @@ import type {
   WaitlistResponse,
   CityDataFreshnessResponse,
   CommunityMatchRequest,
+  AddressSchoolDesignationsResponse,
   CommunityCompareResponse,
+  CommunityLivingResponse,
   CommunityMatchResponse,
   EstimateRequest,
   GetReportResponse,
@@ -193,6 +195,21 @@ export class HttpApiService implements ApiService {
         params: { slugs: slugs.join(',') },
       }),
     );
+  }
+
+  /** #785: GET /api/v1/school-designations?addressKey= (public, ungated). */
+  getAddressSchoolDesignations(addressKey: string): Observable<AddressSchoolDesignationsResponse> {
+    return this.call(
+      this.http.get<AddressSchoolDesignationsResponse>(`${this.base}/school-designations`, {
+        params: { addressKey },
+      }),
+    );
+  }
+
+  /** #785: GET /api/v1/communities/{slug}/living (public, ungated). */
+  getCommunityLiving(slug: string): Observable<CommunityLivingResponse> {
+    const path = `/communities/${encodeURIComponent(slug)}/living`;
+    return this.call(this.http.get<CommunityLivingResponse>(`${this.base}${path}`));
   }
 
   submitLead(request: LeadRequest): Observable<LeadResponse> {

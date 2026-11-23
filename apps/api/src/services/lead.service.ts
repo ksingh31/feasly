@@ -66,6 +66,7 @@ import {
   issueOwnerMagicLinkToken,
   sendOwnerMagicLinkEmail,
 } from './magic-link.service';
+import type { ReportNeighbourhoodService } from './report-neighbourhood.service';
 import type { MagicLinkStore } from './magic-link.store';
 import type { UnsubscribeService } from './unsubscribe.service';
 import { builderStatusAllows } from '../lib/builder-status-policy';
@@ -210,6 +211,11 @@ export interface LeadServiceDeps {
    * builder-notifications timer retries pending sends. Optional.
    */
   readonly builderNotifier?: Pick<BuilderNotificationsService, 'notifyNewLead'>;
+  /**
+   * #785: schools + living nearby for the report email, from stored data
+   * (best-effort; absent or failing → the email leaves the sections out).
+   */
+  readonly reportNeighbourhood?: Pick<ReportNeighbourhoodService, 'forAddress'>;
   /**
    * Agent-API lead policy (#738). Defaults to the canonical consent
    * version with quarantine on — the safe side when unwired.
@@ -477,6 +483,7 @@ export function createLeadService(deps: LeadServiceDeps): LeadService {
       addressKey: existing.addressKey,
       expiresAt: issued.expiresAt,
       ...(estimate.projectType ? { projectType: estimate.projectType } : {}),
+      ...(deps.reportNeighbourhood ? { neighbourhood: deps.reportNeighbourhood } : {}),
     });
     if (delivery.sent || delivery.acceptedByProvider) {
       // Record accepted-but-unconfirmed too: re-sending would likely
@@ -720,6 +727,7 @@ export function createLeadService(deps: LeadServiceDeps): LeadService {
             addressKey: estimate.addressKey,
             expiresAt: issued.expiresAt,
             projectType: estimate.projectType,
+            ...(deps.reportNeighbourhood ? { neighbourhood: deps.reportNeighbourhood } : {}),
           });
           if (!delivery.sent) {
             console.warn(

@@ -148,6 +148,125 @@ export interface MagicLinkTemplateInput {
    * (unknown) → no timeline block.
    */
   readonly projectType?: string;
+  /**
+   * #785 (consumer only): "Schools for this address" + "Living near this
+   * lot", from the same stored data the web report reads. Absent → both
+   * sections are left out; an empty list hides its own section.
+   */
+  readonly neighbourhood?: ReportNeighbourhoodSummary;
+}
+
+/** #785: the report email's neighbourhood sections (no dollar figures). */
+export interface ReportNeighbourhoodSummary {
+  /** The address's community as the City names it; null when unknown. */
+  readonly communityName: string | null;
+  /** Typically designated schools, board then grade-band order. */
+  readonly schools: readonly {
+    readonly boardName: string;
+    readonly gradeBand: string;
+    readonly schoolName: string;
+  }[];
+  /** Each board's address lookup page — confirm the exact address there. */
+  readonly boardLookups: readonly { readonly name: string; readonly lookupUrl: string }[];
+  /** Nearest amenity per category (only categories with one on file). */
+  readonly amenities: readonly {
+    readonly label: string;
+    readonly nearestName: string;
+    readonly distanceM: number;
+  }[];
+  readonly treeCover: { readonly level: 'low' | 'moderate' | 'high'; readonly treesPerHa: number } | null;
+}
+
+const SCHOOLS_TITLE = 'Schools for this address';
+const SCHOOLS_NOTE =
+  'These schools are typically designated for this community. Designations can vary by address and change from year to year, so confirm with the board before you decide.';
+const LIVING_TITLE = 'Living near this lot';
+const LIVING_NOTE =
+  'Straight-line distances from the community centre, not travel times. From City of Calgary open data, refreshed monthly.';
+const FIND_COMMUNITY_LABEL = 'Find a community';
+const FIND_COMMUNITY_LEAD = 'Weighing other areas? Compare established communities side by side.';
+/** Web route of the find-a-community page (joined to the app base URL). */
+const FIND_COMMUNITY_PATH = '/find-a-community';
+const TREE_LEVEL_LABEL: Record<'low' | 'moderate' | 'high', string> = {
+  low: 'Low',
+  moderate: 'Moderate',
+  high: 'High',
+};
+
+/** "350 m" under a kilometre, "1.2 km" above. */
+function formatDistance(m: number): string {
+  return m < 1_000 ? `${Math.round(m)} m` : `${(m / 1_000).toFixed(1)} km`;
+}
+
+/**
+ * #785: "Schools for this address" + "Living near this lot" + the "Find a
+ * community" link. Each section hides when its data is missing (no empty
+ * boxes); with neither on file the whole block (link included) is empty.
+ */
+function renderNeighbourhoodBlock(
+  ctx: TemplateContext,
+  n: ReportNeighbourhoodSummary | undefined,
+): { html: string; text: string } {
+  if (!n) return { html: '', text: '' };
+  const htmlParts: string[] = [];
+  const textParts: string[] = [];
+  if (n.schools.length > 0) {
+    const rows = n.schools
+      .map(
+        (s) =>
+          `<tr><td style="padding:4px 12px 4px 0;color:#5c574f;white-space:nowrap;">${esc(s.gradeBand)}</td><td style="padding:4px 12px 4px 0;">${esc(s.schoolName)}</td><td style="padding:4px 0;color:#5c574f;">${esc(s.boardName)}</td></tr>`,
+      )
+      .join('\n');
+    const lookups = n.boardLookups
+      .map((b) => `<a href="${esc(b.lookupUrl)}" style="color:#b08d3e;">${esc(b.name)}</a>`)
+      .join(' &middot; ');
+    htmlParts.push(`<h2 style="font-size:16px;margin:20px 0 4px;color:#232323;">${esc(SCHOOLS_TITLE)}</h2>
+<p style="font-size:14px;color:#5c574f;margin:0 0 8px;">${esc(SCHOOLS_NOTE)}</p>
+<table role="presentation" cellpadding="0" cellspacing="0" style="font-size:14px;margin:0 0 8px;">
+${rows}
+</table>${lookups ? `\n<p style="font-size:14px;margin:0 0 12px;">Confirm your address: ${lookups}</p>` : ''}`);
+    textParts.push(
+      `${SCHOOLS_TITLE}\n${SCHOOLS_NOTE}\n` +
+        n.schools.map((s) => `- ${s.gradeBand}: ${s.schoolName} (${s.boardName})`).join('\n') +
+        (n.boardLookups.length > 0
+          ? '\nConfirm your address:\n' + n.boardLookups.map((b) => `- ${b.name}: ${b.lookupUrl}`).join('\n')
+          : ''),
+    );
+  }
+  if (n.amenities.length > 0 || n.treeCover) {
+    const lines = n.amenities.map((a) => ({
+      label: a.label,
+      value: `${a.nearestName}, about ${formatDistance(a.distanceM)}`,
+    }));
+    if (n.treeCover) {
+      lines.push({
+        label: 'Public tree cover',
+        value: `${TREE_LEVEL_LABEL[n.treeCover.level]} (${Math.round(n.treeCover.treesPerHa)} City trees per hectare)`,
+      });
+    }
+    const rows = lines
+      .map(
+        (l) =>
+          `<tr><td style="padding:4px 12px 4px 0;color:#5c574f;">${esc(l.label)}</td><td style="padding:4px 0;">${esc(l.value)}</td></tr>`,
+      )
+      .join('\n');
+    const where = n.communityName ? ` (${n.communityName})` : '';
+    htmlParts.push(`<h2 style="font-size:16px;margin:20px 0 4px;color:#232323;">${esc(LIVING_TITLE + where)}</h2>
+<table role="presentation" cellpadding="0" cellspacing="0" style="font-size:14px;margin:0 0 8px;">
+${rows}
+</table>
+<p style="font-size:14px;color:#5c574f;margin:0 0 12px;">${esc(LIVING_NOTE)}</p>`);
+    textParts.push(
+      `${LIVING_TITLE}${where}\n` + lines.map((l) => `- ${l.label}: ${l.value}`).join('\n') + `\n${LIVING_NOTE}`,
+    );
+  }
+  if (htmlParts.length === 0) return { html: '', text: '' };
+  const findUrl = `${ctx.appBaseUrl}${FIND_COMMUNITY_PATH}`;
+  htmlParts.push(
+    `<p style="font-size:14px;margin:0 0 12px;">${esc(FIND_COMMUNITY_LEAD)} <a href="${esc(findUrl)}" style="color:#b08d3e;font-weight:600;">${esc(FIND_COMMUNITY_LABEL)}</a></p>`,
+  );
+  textParts.push(`${FIND_COMMUNITY_LEAD}\n${FIND_COMMUNITY_LABEL}: ${findUrl}`);
+  return { html: htmlParts.join('\n') + '\n', text: textParts.join('\n\n') };
 }
 
 const TRUST_LINE_TEXT =
@@ -225,6 +344,7 @@ function renderConsumerReportEmail(
   const timeline = renderTimelineBlock(
     input.projectType === 'new_build' ? ctx.buildTimeline : undefined,
   );
+  const neighbourhood = renderNeighbourhoodBlock(ctx, input.neighbourhood);
   const body = `<p>${greetingHtml}</p>
 <p>${introHtml}</p>
 <p style="margin:0 0 4px;">Your report includes:</p>
@@ -234,13 +354,14 @@ ${contents.map((c) => `<li>${esc(c)}</li>`).join('\n')}
 ${ctaButton(input.magicLinkUrl, ctaLabel)}
 <p>${esc(linkRules)}</p>
 <p style="font-size:14px;color:#5c574f;">${esc(freshLink)}</p>
-${timeline.html}${fallbackLink(input.magicLinkUrl)}`;
+${timeline.html}${neighbourhood.html}${fallbackLink(input.magicLinkUrl)}`;
   const footerUrl = input.unsubscribeUrl;
   const text =
     `${greetingText}\n\n${introText}\n\nYour report includes:\n` +
     contents.map((c) => `- ${c}`).join('\n') +
     `\n\n${ctaLabel}: ${input.magicLinkUrl}\n\n${linkRules}\n${freshLink}` +
     (timeline.text ? `\n\n${timeline.text}` : '') +
+    (neighbourhood.text ? `\n\n${neighbourhood.text}` : '') +
     `\n\n— ${ctx.brandName}\n${TRUST_LINE_TEXT}` +
     (footerUrl ? `\n\n${leadEmailFooterText(footerUrl)}` : '');
   return {

@@ -1,0 +1,88 @@
+:host {
+  display: block;
+}
+.card {
+  margin-top: 20px;
+  padding: 24px;
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  break-inside: avoid;
+}
+h2 {
+  font-family: var(--font-ui);
+  font-size: 18px;
+  font-weight: 700;
+  color: var(--text);
+  margin: 0 0 4px;
+}
+.hint {
+  font-size: 13px;
+  line-height: 1.5;
+  color: var(--muted);
+  margin: 4px 0 12px;
+}
+.nbh-list {
+  list-style: none;
+  margin: 0 0 12px;
+  padding: 0;
+}
+.nbh-list li {
+  display: grid;
+  grid-template-columns: minmax(0, 2fr) minmax(0, 3fr);
+  gap: 12px;
+  padding: 10px 0;
+  border-top: 1px solid var(--border);
+  font-size: 15px;
+  color: var(--text);
+}
+.nbh-label {
+  color: var(--muted);
+}
+.nbh-value {
+  overflow-wrap: anywhere;
+}
+.nbh-board {
+  display: block;
+  font-size: 13px;
+  color: var(--muted);
+}
+.nbh-lookups,
+.nbh-find {
+  font-size: 14px;
+  line-height: 1.6;
+  color: var(--text);
+  margin: 0;
+}
+.nbh-find {
+  margin-top: 16px;
+}
+a {
+  color: var(--accent-text);
+  font-weight: 600;
+  display: inline-block;
+  min-height: 44px;
+  line-height: 44px;
+}
+a:focus-visible {
+  outline: 2px solid var(--focus-ring);
+  outline-offset: 2px;
+}
+@media (max-width: 480px) {
+  .card {
+    padding: 18px;
+  }
+  .nbh-list li {
+    grid-template-columns: 1fr;
+    gap: 2px;
+  }
+}
+@media print {
+  .card {
+    border-color: var(--border);
+  }
+  a {
+    min-height: 0;
+    line-height: inherit;
+  }
+}

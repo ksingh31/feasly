@@ -32,6 +32,7 @@ import {
   renderMagicLinkEmail,
   renderShareEmail,
   renderNudgeEmail,
+  type ReportNeighbourhoodSummary,
   type TemplateContext,
 } from '../src/services/email/templates';
 import {
@@ -385,6 +386,91 @@ describe('report email: typical build timeline (#823)', () => {
       projectType: 'renovation',
     });
     expect(provider.sent[1]?.text).not.toContain('Typical total');
+  });
+});
+
+describe('report email: schools + living nearby (#785)', () => {
+  const NEIGHBOURHOOD: ReportNeighbourhoodSummary = {
+    communityName: 'Altadore',
+    schools: [
+      { boardName: 'Calgary Board of Education', gradeBand: 'K-6', schoolName: 'Altadore School' },
+      { boardName: 'Calgary Catholic School District', gradeBand: '7-9', schoolName: 'St. James School' },
+    ],
+    boardLookups: [
+      { name: 'Calgary Board of Education', lookupUrl: 'https://cbe.example/lookup' },
+      { name: 'Calgary Catholic School District', lookupUrl: 'https://ccsd.example/lookup' },
+    ],
+    amenities: [
+      { label: 'Parks', nearestName: 'River Park', distanceM: 340 },
+      { label: 'Recreation centres', nearestName: 'Glenmore Athletic Park', distanceM: 1_480 },
+    ],
+    treeCover: { level: 'high', treesPerHa: 18.4 },
+  };
+  const r = renderMagicLinkEmail(CTX, { ...REPORT_INPUT, neighbourhood: NEIGHBOURHOOD });
+
+  it('renders both sections and the find-a-community link (html + text)', () => {
+    for (const body of [r.html, r.text]) {
+      expect(body).toContain('Schools for this address');
+      expect(body).toContain('typically designated');
+      expect(body).toContain('confirm with the board');
+      expect(body).toContain('Altadore School');
+      expect(body).toContain('St. James School');
+      expect(body).toContain('https://cbe.example/lookup');
+      expect(body).toContain('https://ccsd.example/lookup');
+      expect(body).toContain('Living near this lot (Altadore)');
+      expect(body).toContain('River Park, about 340 m');
+      expect(body).toContain('Glenmore Athletic Park, about 1.5 km');
+      expect(body).toContain('High (18 City trees per hectare)');
+      expect(body).toContain('Find a community');
+      expect(body).toContain('https://app.feasly.example/find-a-community');
+    }
+    expect(r.text).not.toMatch(/<[a-z]/i);
+  });
+
+  it('hides the whole block when there is no summary', () => {
+    const plain = renderMagicLinkEmail(CTX, REPORT_INPUT);
+    for (const body of [plain.html, plain.text]) {
+      expect(body).not.toContain('Schools for this address');
+      expect(body).not.toContain('Living near this lot');
+      expect(body).not.toContain('Find a community');
+    }
+  });
+
+  it('hides each section on its own when its data is missing (no empty boxes)', () => {
+    const noSchools = renderMagicLinkEmail(CTX, {
+      ...REPORT_INPUT,
+      neighbourhood: { ...NEIGHBOURHOOD, schools: [] },
+    });
+    expect(noSchools.html).not.toContain('Schools for this address');
+    expect(noSchools.html).toContain('Living near this lot');
+    const noLiving = renderMagicLinkEmail(CTX, {
+      ...REPORT_INPUT,
+      neighbourhood: { ...NEIGHBOURHOOD, amenities: [], treeCover: null },
+    });
+    expect(noLiving.html).toContain('Schools for this address');
+    expect(noLiving.html).not.toContain('Living near this lot');
+    const none = renderMagicLinkEmail(CTX, {
+      ...REPORT_INPUT,
+      neighbourhood: { ...NEIGHBOURHOOD, schools: [], amenities: [], treeCover: null },
+    });
+    expect(none.html).not.toContain('Find a community');
+    expect(none.text).not.toContain('Find a community');
+  });
+
+  it('escapes stored names and stays clean: no dollar figures, no banned phrases', () => {
+    const evil = renderMagicLinkEmail(CTX, {
+      ...REPORT_INPUT,
+      neighbourhood: {
+        ...NEIGHBOURHOOD,
+        schools: [{ boardName: 'B', gradeBand: 'K-6', schoolName: '<script>x</script>' }],
+      },
+    });
+    expect(evil.html).not.toContain('<script>');
+    const patterns = loadBannedPatterns();
+    for (const body of [r.subject, r.html, r.text]) {
+      expect(body).not.toMatch(/\$\s?\d/);
+      for (const re of patterns) expect(body).not.toMatch(re);
+    }
   });
 });
 

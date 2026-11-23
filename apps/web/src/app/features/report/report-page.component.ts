@@ -30,6 +30,7 @@ import {
   formatRoundedCad,
   formatWholeCad,
 } from '../../shared/utils/money';
+import { ReportNeighbourhoodComponent } from './report-neighbourhood.component';
 import { narrativeDisplayParagraphs } from '../../shared/utils/narrative-display';
 import { parseDeepLinkAddress } from '../../shared/utils/deep-link';
 import { callbackDayOptions, formatCallbackDay } from '../../shared/utils/callback-day';
@@ -122,6 +123,7 @@ const SHARE_LINK_SOURCE = 'share';
     OptionSelectorComponent,
     PartnerDisclosureComponent,
     PrivacyDataLinkComponent,
+    ReportNeighbourhoodComponent,
     SiteFooterComponent,
     SiteNavComponent,
   ],
@@ -441,6 +443,14 @@ export class ReportPageComponent implements OnInit {
     return formatPerSqftCad(value);
   }
 
+  /**
+   * #785: address key for the free, ungated neighbourhood sections — the
+   * selected property, else the snapshot's (magic-link return on a fresh
+   * device).
+   */
+  protected readonly neighbourhoodAddressKey = computed(
+    (): string | null => this.property()?.addressKey ?? this.snapshot()?.addressKey ?? null,
+  );
   protected readonly snapshotSqft = computed(() => this.snapshot()?.inputs.sqft ?? 0);
   protected readonly version = computed(() => this.snapshot()?.version ?? null);
 

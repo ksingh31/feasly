@@ -36,6 +36,7 @@ import {
   type SharedCooldown,
 } from '../middleware/shared-rate-limit';
 import { formatDisplayAddress } from '../lib/display-address';
+import type { ReportNeighbourhoodService } from './report-neighbourhood.service';
 import { sanitizeErrorMessage } from '../lib/sanitize-error';
 import type { EmailDelivery, EmailService } from './email/email.service';
 import { createSandboxSuppressingEmailService } from './email/sandbox-email.service';
@@ -95,6 +96,8 @@ export interface MagicLinkServiceDeps {
    * failing → the email omits the timeline.
    */
   readonly estimates?: Pick<EstimateStore, 'findById'>;
+  /** #785: schools + living nearby for the reissued report email (best-effort). */
+  readonly neighbourhood?: Pick<ReportNeighbourhoodService, 'forAddress'>;
   readonly clock?: () => Date;
 }
 
@@ -137,6 +140,11 @@ export interface IssueAndSendMagicLinkArgs {
   readonly addressKey?: string;
   /** #823: the estimate's project type — gates the new-build timeline. */
   readonly projectType?: string;
+  /**
+   * #785: best-effort schools + living nearby summary for the report email
+   * (stored data only; failures leave the sections out).
+   */
+  readonly neighbourhood?: Pick<ReportNeighbourhoodService, 'forAddress'>;
   /** #793/#914: flag the link row for the sandbox purge. */
   readonly sandbox?: boolean;
   readonly clock?: () => Date;
@@ -183,6 +191,11 @@ export interface SendOwnerMagicLinkEmailArgs {
   readonly expiresAt?: Date;
   /** #823: the estimate's project type — gates the new-build timeline. */
   readonly projectType?: string;
+  /**
+   * #785: best-effort schools + living nearby summary for the report email
+   * (stored data only; failures leave the sections out).
+   */
+  readonly neighbourhood?: Pick<ReportNeighbourhoodService, 'forAddress'>;
 }
 
 /**
@@ -208,6 +221,10 @@ export async function sendOwnerMagicLinkEmail(
       `magic-link: unsubscribe URL mint failed (${sanitizeErrorMessage(error)})`,
     );
   }
+  const neighbourhood =
+    args.addressKey && args.neighbourhood
+      ? await args.neighbourhood.forAddress(args.addressKey).catch(() => undefined)
+      : undefined;
   return args.email.sendMagicLink({
     to: args.to,
     name: args.name,
@@ -218,6 +235,7 @@ export async function sendOwnerMagicLinkEmail(
     ...(args.addressKey ? { address: formatDisplayAddress(args.addressKey) } : {}),
     ...(args.expiresAt ? { expiresOn: args.expiresAt } : {}),
     ...(args.projectType ? { projectType: args.projectType } : {}),
+    ...(neighbourhood ? { neighbourhood } : {}),
   });
 }
 
@@ -397,6 +415,7 @@ export function createMagicLinkService(
         magicLinkTtlSeconds,
         addressKey: lead.addressKey,
         ...(projectType ? { projectType } : {}),
+        ...(deps.neighbourhood ? { neighbourhood: deps.neighbourhood } : {}),
         sandbox: lead.sandbox,
         clock,
       });

@@ -286,7 +286,14 @@ export const routes: Routes = [
   {
     path: 'estimate/report',
     loadComponent: () => import('./features/report/report-page.component').then((m) => m.ReportPageComponent),
-    canActivate: [robotsGuard, reportEstimateGuard],
+    canActivate: [
+      robotsGuard,
+      reportEstimateGuard,
+      // #785: neighbourhood sections state, lazy with the report.
+      lazyProvider(
+        async () => (await import('./features/report/report-neighbourhood.state')).reportNeighbourhoodStateProvider,
+      ),
+    ],
     data: { noindex: true },
   },
   // Preview (S5): the single lead-gate point. Deep links without a selected

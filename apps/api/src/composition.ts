@@ -452,6 +452,10 @@ import {
   type SchoolDesignationsRoute,
 } from './routes/school-designations.route';
 import { createSchoolDesignationReadService } from './services/neighbourhood-data/school-designation-read.service';
+import {
+  createReportNeighbourhoodService,
+  type ReportNeighbourhoodService,
+} from './services/report-neighbourhood.service';
 import { createSchoolDesignationReviewService } from './services/neighbourhood-data/school-designation-review.service';
 import { createMapsReviewsLinker, NO_REVIEWS_LINK } from './lib/school-ratings';
 import {
@@ -1541,6 +1545,12 @@ export function createComposition(
     tenantKey: string,
   ): Promise<string | null> =>
     (await builderService.getByTenantKey(tenantKey))?.status ?? null;
+  // #785: assigned once the neighbourhood read services exist (below);
+  // only called at request time, so the late binding is always set.
+  let reportNeighbourhoodService: ReportNeighbourhoodService | undefined;
+  const reportNeighbourhood: Pick<ReportNeighbourhoodService, 'forAddress'> = {
+    forAddress: async (addressKey) => reportNeighbourhoodService?.forAddress(addressKey),
+  };
   const leadService: LeadService = createLeadService({
     store: leadStore,
     estimateStore,
@@ -1562,12 +1572,14 @@ export function createComposition(
       leadConsentVersion: config.apiAccess.leadConsentVersion,
       quarantineLeads: config.apiAccess.quarantineLeads,
     },
+    reportNeighbourhood,
   });
   const leadRoute: LeadRoute = createLeadRoute({ leads: leadService });
   const magicLinkService: MagicLinkService = createMagicLinkService({
     magicLinks: magicLinkStore,
     leads: leadStore,
     estimates: estimateStore,
+    neighbourhood: reportNeighbourhood,
     email: emailService,
     unsubscribe: unsubscribeService,
     appBaseUrl: config.email.appBaseUrl,
@@ -2461,12 +2473,20 @@ export function createComposition(
   });
   // #775: school designations — stored designations only; an address is
   // resolved to its community via the cache-first property lookup (#756).
+  const schoolDesignationReadService = createSchoolDesignationReadService({
+    store: neighbourhoodDataStore,
+    properties: propertyService,
+    lookupUrls: config.neighbourhoodData.schoolBoardLookupUrls,
+  });
   const schoolDesignationsRoute: SchoolDesignationsRoute = createSchoolDesignationsRoute({
-    designations: createSchoolDesignationReadService({
-      store: neighbourhoodDataStore,
-      properties: propertyService,
-      lookupUrls: config.neighbourhoodData.schoolBoardLookupUrls,
-    }),
+    designations: schoolDesignationReadService,
+  });
+  // #785: report email "Schools for this address" + "Living near this lot"
+  // — the same stored designations + community living metrics the web
+  // report reads. Late-bound into the lead + magic-link services above.
+  reportNeighbourhoodService = createReportNeighbourhoodService({
+    designations: schoolDesignationReadService,
+    neighbourhood: neighbourhoodReadService,
   });
   // phase-2 wiring: the five live-API endpoints the web app needs. Same
   // pinned cost data + draft gate as the estimate endpoint, so preview,

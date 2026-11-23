@@ -1,0 +1,48 @@
+@if (designations().length > 0) {
+  <section class="card nbh schools" [attr.aria-label]="copy.schoolsTitle">
+    <h2>{{ copy.schoolsTitle }}</h2>
+    <p class="hint">{{ copy.schoolsNote }}</p>
+    <ul class="nbh-list">
+      @for (d of designations(); track $index) {
+        <li>
+          <span class="nbh-label">{{ gradeLabel(d.gradeBand) }}</span>
+          <span class="nbh-value">
+            {{ d.schoolName }}
+            <span class="nbh-board">{{ d.boardName }}</span>
+          </span>
+        </li>
+      }
+    </ul>
+    @if (boards().length > 0) {
+      <p class="nbh-lookups">
+        {{ copy.lookupLead }}
+        @for (b of boards(); track b.board; let last = $last) {
+          <a [href]="b.lookupUrl" target="_blank" rel="noopener">{{ b.name }}</a>{{ last ? '' : ' · ' }}
+        }
+      </p>
+    }
+  </section>
+}
+@if (livingRows().length > 0) {
+  <section class="card nbh living" [attr.aria-label]="copy.livingTitle">
+    <h2>{{ copy.livingTitle }}</h2>
+    @if (livingIntro(); as intro) {
+      <p class="hint">{{ intro }}</p>
+    }
+    <ul class="nbh-list">
+      @for (row of livingRows(); track row.key) {
+        <li>
+          <span class="nbh-label">{{ row.label }}</span>
+          <span class="nbh-value">{{ row.value }}</span>
+        </li>
+      }
+    </ul>
+    <p class="hint">{{ copy.livingNote }}</p>
+  </section>
+}
+@if (hasAny()) {
+  <p class="nbh-find">
+    {{ copy.findCommunityLead }}
+    <a routerLink="/find-a-community">{{ copy.findCommunityLink }}</a>
+  </p>
+}

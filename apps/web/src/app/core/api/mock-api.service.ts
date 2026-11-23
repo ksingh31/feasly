@@ -6,7 +6,9 @@ import type {
   AnyEstimateRequest,
   ApiError,
   CommunityMatchRequest,
+  AddressSchoolDesignationsResponse,
   CommunityCompareResponse,
+  CommunityLivingResponse,
   CommunityMatchResponse,
   ErasureConfirmResponse,
   ErasureRequestResponse,
@@ -57,6 +59,8 @@ import {
   mockWaitlistOk,
   mockCommunityMatch,
   mockCommunityCompare,
+  mockAddressSchoolDesignations,
+  mockCommunityLiving,
   mockCommunityStats,
   mockComparisonEstimate,
   mockEstimate,
@@ -350,6 +354,20 @@ export class MockApiService implements ApiService {
   compareCommunities(slugs: readonly string[]): Observable<CommunityCompareResponse> {
     try {
       return this.roundTrip(mockCommunityCompare(slugs));
+    } catch (error) {
+      return this.roundTripError(error as ApiError);
+    }
+  }
+
+  /** #785: canned designations (every address resolves to the mock community). */
+  getAddressSchoolDesignations(addressKey: string): Observable<AddressSchoolDesignationsResponse> {
+    return this.roundTrip(mockAddressSchoolDesignations(addressKey));
+  }
+
+  /** #785: canned living-nearby metrics for the mock community. */
+  getCommunityLiving(slug: string): Observable<CommunityLivingResponse> {
+    try {
+      return this.roundTrip(mockCommunityLiving(slug));
     } catch (error) {
       return this.roundTripError(error as ApiError);
     }
