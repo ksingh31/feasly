@@ -105,6 +105,7 @@ describe('seo-routes', () => {
       'estimate/preview': 'estimate/preview',
       'estimate/report': 'estimate/report',
       'estimate/compare': 'estimate/compare',
+      'find-a-community/compare': 'find-a-community/compare',
       '404': '404',
       error: 'error',
       preview: 'preview',

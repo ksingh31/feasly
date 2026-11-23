@@ -31,6 +31,7 @@ export const PUBLIC_A11Y_ROUTES: readonly PublicA11yRoute[] = [
   { url: '/my-report', name: 'my-report', ready: 'h1' },
   { url: '/estimate/reno-coming-soon', name: 'reno-coming-soon', ready: 'h1' },
   { url: '/estimate/compare', name: 'compare', ready: 'h1' },
+  { url: '/find-a-community/compare#altadore,killarney-glengarry', name: 'find-community-compare', ready: 'table' },
   // Mock API: any token is a valid preference-center link.
   { url: '/unsubscribe/e2e-token', name: 'unsubscribe', ready: 'h1' },
   // Mock API: an unknown token is the expired/invalid magic-link page.

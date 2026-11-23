@@ -18,6 +18,7 @@ import type {
   WaitlistResponse,
   CityDataFreshnessResponse,
   CommunityMatchRequest,
+  CommunityCompareResponse,
   CommunityMatchResponse,
   EstimateRequest,
   GetReportResponse,
@@ -182,6 +183,15 @@ export class HttpApiService implements ApiService {
   matchCommunities(request: CommunityMatchRequest): Observable<CommunityMatchResponse> {
     return this.call(
       this.http.post<CommunityMatchResponse>(`${this.base}/communities/match`, request),
+    );
+  }
+
+  /** Community compare (#780): GET /api/v1/communities/compare?slugs= (public, ungated). */
+  compareCommunities(slugs: readonly string[]): Observable<CommunityCompareResponse> {
+    return this.call(
+      this.http.get<CommunityCompareResponse>(`${this.base}/communities/compare`, {
+        params: { slugs: slugs.join(',') },
+      }),
     );
   }
 

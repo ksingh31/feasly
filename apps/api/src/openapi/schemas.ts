@@ -992,6 +992,52 @@ export const CommunityMatchResponseSchema = z
   .strict()
   .openapi('CommunityMatchResponse');
 
+const CommunityCompareCellSchema = z
+  .object({
+    text: z.string().min(1),
+    best: z.boolean().describe('Best value in the row (ties all marked; none when all equal or no direction).'),
+    range: z
+      .object({ low: z.number().int(), high: z.number().int() })
+      .strict()
+      .optional()
+      .describe('Typical new-build row only: the cost-engine range behind text (whole CAD).'),
+  })
+  .strict()
+  .openapi('CommunityCompareCell');
+
+export const CommunityCompareResponseSchema = z
+  .object({
+    communities: z.array(
+      z
+        .object({ communityCode: z.string().min(1), name: z.string().min(1), slug: z.string().min(1) })
+        .strict(),
+    ),
+    rows: z.array(
+      z
+        .object({
+          key: z.string().min(1),
+          kind: z.enum(['schools', 'amenity', 'tree-cover', 'building']),
+          priority: z.string().min(1).nullable(),
+          label: z.string().min(1),
+          cells: z.array(CommunityCompareCellSchema),
+        })
+        .strict(),
+    ),
+    buildBasis: z
+      .object({
+        buildSqft: z.number().int().positive(),
+        tier: z.string().min(1),
+        costDataVersion: z.string().min(1),
+        calibrated: z.boolean(),
+      })
+      .strict(),
+    distanceBasis: z.literal('straight-line'),
+    dataRefreshedAt: z.string().datetime().nullable(),
+    disclaimer: z.string().min(1),
+  })
+  .strict()
+  .openapi('CommunityCompareResponse');
+
 // ── Magic link ──────────────────────────────────────────────────────────
 
 export const MagicLinkVerifyResponseSchema = z

@@ -1,6 +1,6 @@
 import { isPlatformBrowser } from '@angular/common';
 import { Location } from '@angular/common';
-import { Component, computed, DestroyRef, inject, OnInit, PLATFORM_ID, signal } from '@angular/core';
+import { Component, computed, DestroyRef, inject, OnInit, PLATFORM_ID } from '@angular/core';
 import { takeUntilDestroyed, toObservable } from '@angular/core/rxjs-interop';
 import { ActivatedRoute, RouterLink } from '@angular/router';
 import { Store } from '@ngxs/store';
@@ -27,7 +27,12 @@ import {
   type FindCommunityChip,
   type FindCommunityCopy,
 } from './find-community-copy.defaults';
-import { decodeSelection, encodeSelection, type MatchFilterKey } from './match-selection';
+import {
+  decodeSelection,
+  encodeCompareSlugs,
+  encodeSelection,
+  type MatchFilterKey,
+} from './match-selection';
 
 /** Fills `{name}` style placeholders. */
 function fill(template: string, values: Record<string, string | number>): string {
@@ -56,7 +61,8 @@ export interface ChipView {
  * the hash wins over the saved selection. Every selection change sends ONE
  * debounced match request (`LoadCommunityMatches`); ranking, reasons, lot
  * counts and build ranges all come from the API (cost engine), never the
- * client. The compare tray holds up to `limits.communityMatchCompareMax`.
+ * client. The compare tray holds up to `limits.communityMatchCompareMax`
+ * and links to the side-by-side page (#780, `/find-a-community/compare`).
  *
  * Prerender: the static copy and chips render on the server; the ranking is
  * browser-only (a crawler never triggers a match request).
@@ -89,9 +95,6 @@ export class FindACommunityPageComponent implements OnInit {
   readonly response = this.store.selectSignal(FindCommunityState.response);
   readonly compare = this.store.selectSignal(FindCommunityState.compare);
   readonly compareBlocked = this.store.selectSignal(FindCommunityState.compareBlocked);
-
-  /** Side-by-side table open/closed. */
-  readonly compareOpen = signal(false);
 
   private readonly knownPriorities = new Set(
     this.copy.groups.flatMap((g) => g.chips.filter((c) => c.kind === 'priority').map((c) => c.key)),
@@ -147,6 +150,9 @@ export class FindACommunityPageComponent implements OnInit {
   readonly compareCount = computed(() =>
     fill(this.copy.compareTrayCount, { count: this.compare().length, max: this.compareMax }),
   );
+
+  /** Compare page link hash (#780): the ticked communities' slugs, in tick order. */
+  readonly compareFragment = computed(() => encodeCompareSlugs(this.compare().map((c) => c.slug)));
 
   readonly compareLimitText = fill(this.copy.compareLimit, { max: this.compareMax });
 
@@ -215,12 +221,10 @@ export class FindACommunityPageComponent implements OnInit {
 
   removeCompare(code: string): void {
     this.store.dispatch(new ToggleMatchCompare(code));
-    if (this.compare().length === 0) this.compareOpen.set(false);
   }
 
   clearCompare(): void {
     this.store.dispatch(new ClearMatchCompare());
-    this.compareOpen.set(false);
   }
 
   matchLabel(result: CommunityMatchResult): string {

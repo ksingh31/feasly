@@ -398,6 +398,19 @@ export const ROUTE_REGISTRY: readonly ApiRouteEntry[] = [
   },
   {
     method: 'GET',
+    path: '/api/v1/communities/compare',
+    auth: 'none',
+    permissions: [] as const,
+    rateLimit: '100/min per IP',
+    status: 'live',
+    summary:
+      'Community compare (#780): 2–3 established communities by slug side by ' +
+      'side — typically designated schools, nearest amenities, tree cover, lots ' +
+      'listed, average lot size and a typical new-build range (cost engine), ' +
+      'best value per row marked. Precomputed metrics only.',
+  },
+  {
+    method: 'GET',
     path: '/api/v1/city-data/freshness',
     auth: 'none',
     permissions: [] as const,

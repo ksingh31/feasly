@@ -1,7 +1,9 @@
 import { describe, expect, it } from 'vitest';
 import {
   cyclePriority,
+  decodeCompareSlugs,
   decodeSelection,
+  encodeCompareSlugs,
   EMPTY_SELECTION,
   encodeSelection,
   nextImportance,
@@ -91,5 +93,16 @@ describe('match-selection (#779)', () => {
       priorities: [{ key: 'parks', importance: 'nice' }],
       limit: 30,
     });
+  });
+
+  it('compare link (#780): slugs in the hash, valid + unique, capped', () => {
+    expect(encodeCompareSlugs(['altadore', 'killarney-glengarry'])).toBe('altadore,killarney-glengarry');
+    expect(decodeCompareSlugs('#altadore,killarney-glengarry', 3)).toEqual(['altadore', 'killarney-glengarry']);
+    expect(decodeCompareSlugs('altadore,,Altadore, bowness ,bad slug,x_y', 3)).toEqual(['altadore', 'bowness']);
+    expect(decodeCompareSlugs('a,b,c,d', 3)).toEqual(['a', 'b', 'c']);
+    expect(decodeCompareSlugs('altadore%2Cbowness', 3)).toEqual(['altadore', 'bowness']);
+    expect(decodeCompareSlugs('altadore,bow%', 3)).toEqual(['altadore']);
+    expect(decodeCompareSlugs(null, 3)).toEqual([]);
+    expect(decodeCompareSlugs('', 3)).toEqual([]);
   });
 });

@@ -59,18 +59,14 @@ export interface FindCommunityCopy {
   /** Placeholders: {max}. */
   compareLimit: string;
   compareShow: string;
-  compareHide: string;
+  /** Tray hint while fewer than 2 are picked. */
+  compareNeedMore: string;
   compareClear: string;
   /** Placeholders: {name}. */
   compareRemove: string;
-  compareTableCaption: string;
-  compareRowMatch: string;
-  compareRowMustHaves: string;
   compareRowLots: string;
-  compareRowBuild: string;
-  compareRowReasons: string;
-  yes: string;
-  no: string;
+  /** `/find-a-community/compare` (#780). */
+  comparePage: FindCommunityCompareCopy;
   notesTitle: string;
   notes: string[];
   /** Placeholders: {date}. */
@@ -79,6 +75,41 @@ export interface FindCommunityCopy {
   guidesLink: string;
   compareLink: string;
   estimateLink: string;
+}
+
+/** `/find-a-community/compare` copy (#780). */
+export interface FindCommunityCompareCopy {
+  eyebrow: string;
+  title: string;
+  intro: string;
+  /** Fewer than 2 valid communities in the link. */
+  needTwo: string;
+  backLink: string;
+  loading: string;
+  error: string;
+  /** Non-retryable failure (e.g. an unknown community in the link). */
+  notFound: string;
+  retry: string;
+  copyLink: string;
+  linkCopied: string;
+  linkCopyFailed: string;
+  caption: string;
+  /** Visually hidden header of the row-label column. */
+  rowHeader: string;
+  /** Row groups, in display order (ids: schools, getting-around, lifestyle, building). */
+  groups: { id: string; title: string }[];
+  mustTag: string;
+  bestTag: string;
+  /** Legend under the title. */
+  legend: string;
+  scrollHint: string;
+  seeCommunity: string;
+  /** Placeholders: {name}. */
+  seeCommunityLabel: string;
+  viewLots: string;
+  /** Placeholders: {name}. */
+  viewLotsLabel: string;
+  disclaimer: string;
 }
 
 export const DEFAULT_FIND_COMMUNITY_COPY: FindCommunityCopy = {
@@ -150,17 +181,43 @@ export const DEFAULT_FIND_COMMUNITY_COPY: FindCommunityCopy = {
   compareTrayCount: '{count} of {max} selected',
   compareLimit: 'You can compare up to {max} communities. Remove one to add another.',
   compareShow: 'Compare side by side',
-  compareHide: 'Hide comparison',
+  compareNeedMore: 'Pick at least 2 communities to compare.',
   compareClear: 'Clear',
   compareRemove: 'Remove {name}',
-  compareTableCaption: 'Selected communities side by side',
-  compareRowMatch: 'Match',
-  compareRowMustHaves: 'Meets your must-haves',
   compareRowLots: 'Lots listed now',
-  compareRowBuild: 'Typical new build',
-  compareRowReasons: 'Why it fits',
-  yes: 'Yes',
-  no: 'No',
+  comparePage: {
+    eyebrow: 'Find a community',
+    title: 'Compare communities side by side',
+    intro:
+      'Schools, getting around, lifestyle and building here for each community, from City of Calgary open data refreshed monthly.',
+    needTwo: 'Pick 2 or 3 communities to compare.',
+    backLink: 'Back to find a community',
+    loading: 'Loading the comparison…',
+    error: 'We couldn’t load the comparison just now.',
+    notFound: 'We couldn’t find one of these communities. Pick them again from the list.',
+    retry: 'Try again',
+    copyLink: 'Copy link',
+    linkCopied: 'Link copied',
+    linkCopyFailed: 'Couldn’t copy. Copy the address from your browser instead.',
+    caption: 'Communities compared side by side',
+    rowHeader: 'What’s compared',
+    groups: [
+      { id: 'schools', title: 'Schools' },
+      { id: 'getting-around', title: 'Getting around' },
+      { id: 'lifestyle', title: 'Lifestyle' },
+      { id: 'building', title: 'Building here' },
+    ],
+    mustTag: 'Your must-have',
+    bestTag: 'Best',
+    legend: 'Your must-haves come first. The best value in each row is marked Best.',
+    scrollHint: 'Scroll sideways to see every community.',
+    seeCommunity: 'See community',
+    seeCommunityLabel: 'See community: {name}',
+    viewLots: 'View lots',
+    viewLotsLabel: 'View lots in {name}',
+    disclaimer:
+      'Schools are typically designated, and designations can change, so confirm with the board. Distances are straight-line, not travel times. New-build ranges are estimates for the house described, not quotes.',
+  },
   notesTitle: 'How the ranking works',
   notes: [
     'Schools are typically designated for the community. Confirm with the board before you rely on one.',

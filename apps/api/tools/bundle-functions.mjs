@@ -88,6 +88,10 @@ const targets = [
     out: 'communities-match/index.js',
   },
   {
+    entry: 'src/functions/communities-compare.ts',
+    out: 'communities-compare/index.js',
+  },
+  {
     entry: 'src/functions/city-data-freshness.ts',
     out: 'city-data-freshness/index.js',
   },

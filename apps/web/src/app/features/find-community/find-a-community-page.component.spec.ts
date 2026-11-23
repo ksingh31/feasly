@@ -180,12 +180,19 @@ describe('FindACommunityPageComponent (#779)', () => {
       'You can compare up to 3 communities. Remove one to add another.',
     );
 
-    // Removing one clears the message; the side-by-side table opens.
+    // Removing one clears the message; the tray links to the compare page
+    // (#780) with the picked slugs in the hash, in tick order.
     (el().querySelector('.find-tray-remove') as HTMLButtonElement).click();
     harness.detectChanges();
     expect(el().querySelector('.find-tray-limit')?.textContent?.trim()).toBe('');
-    (el().querySelector('.find-tray-show') as HTMLButtonElement).click();
+    const link = el().querySelector('.find-tray-show') as HTMLAnchorElement;
+    expect(el().querySelectorAll('.find-tray-item')).toHaveLength(2);
+    expect(link.getAttribute('href')).toMatch(/^\/find-a-community\/compare#[a-z-]+,[a-z-]+$/);
+
+    // Down to one: no link, a hint instead.
+    (el().querySelector('.find-tray-remove') as HTMLButtonElement).click();
     harness.detectChanges();
-    expect(el().querySelectorAll('.find-compare-table thead th')).toHaveLength(2);
+    expect(el().querySelector('.find-tray-show')).toBeNull();
+    expect(el().querySelector('.find-tray-need')?.textContent).toContain('Pick at least 2 communities to compare.');
   });
 });

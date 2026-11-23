@@ -1,0 +1,206 @@
+/* #780 Compare communities side by side. Feasly tokens only. */
+.cmp {
+  max-width: 1120px;
+}
+
+.cmp-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 12px 20px;
+  margin-bottom: 16px;
+}
+
+.cmp-back {
+  display: inline-flex;
+  align-items: center;
+  min-height: 44px;
+  font-weight: 600;
+  color: var(--accent-text);
+}
+
+.cmp-copy,
+.cmp-retry {
+  min-height: 44px;
+  padding: 10px 20px;
+  cursor: pointer;
+}
+
+.cmp-copy-status {
+  margin: 0;
+  font-size: 14px;
+  color: var(--muted);
+}
+
+.cmp-status {
+  min-height: 1.5em;
+  font-size: 15px;
+  color: var(--muted);
+  margin: 0 0 16px;
+
+  &:empty {
+    min-height: 0;
+    margin: 0;
+  }
+}
+
+.cmp-legend,
+.cmp-scroll-hint,
+.cmp-note {
+  font-size: 15px;
+  color: var(--muted);
+  margin: 0 0 12px;
+}
+
+/* The hint only matters when the table can scroll sideways. */
+.cmp-scroll-hint {
+  display: none;
+}
+
+.cmp-scroll {
+  overflow-x: auto;
+  margin: 0 0 16px;
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: 16px;
+
+  &:focus-visible {
+    outline: 3px solid var(--focus-ring);
+    outline-offset: 2px;
+  }
+}
+
+.cmp-table {
+  border-collapse: separate;
+  border-spacing: 0;
+  width: 100%;
+  min-width: 640px;
+  font-size: 15px;
+  color: var(--text);
+
+  th,
+  td {
+    text-align: left;
+    vertical-align: top;
+    padding: 12px 16px;
+    border-bottom: 1px solid var(--border);
+  }
+
+  thead th {
+    vertical-align: bottom;
+  }
+
+  /* Row labels stay in view while the columns scroll. */
+  .cmp-corner,
+  .cmp-row-label {
+    position: sticky;
+    left: 0;
+    z-index: 1;
+    background: var(--card);
+    width: 30%;
+    min-width: 160px;
+  }
+
+  tbody tr:last-child th,
+  tbody tr:last-child td {
+    border-bottom: 1px solid var(--border);
+  }
+}
+
+.cmp-col-name {
+  display: block;
+  font-family: var(--font-ui);
+  font-size: 17px;
+  font-weight: 700;
+}
+
+.cmp-col-links {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0 16px;
+}
+
+.cmp-col-link {
+  display: inline-flex;
+  align-items: center;
+  min-height: 44px;
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--accent-text);
+}
+
+.cmp-group-row th {
+  position: sticky;
+  left: 0;
+  background: var(--cream-2);
+  font-family: var(--font-ui);
+  font-size: 13px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--accent-text);
+}
+
+.cmp-row-label {
+  font-weight: 600;
+  color: var(--text);
+}
+
+.cmp-must-tag,
+.cmp-best-tag {
+  display: inline-block;
+  margin-left: 6px;
+  padding: 2px 8px;
+  font-size: 12px;
+  font-weight: 700;
+  border-radius: var(--radius-pill);
+  white-space: nowrap;
+}
+
+.cmp-must-tag {
+  background: var(--accent-bg);
+  color: var(--accent-text);
+}
+
+/* Best value: colour AND the visible "Best" tag (never colour alone). */
+td.is-best {
+  background: var(--status-success-bg);
+  color: var(--status-success-fg);
+  font-weight: 600;
+}
+
+.cmp-best-tag {
+  background: var(--card);
+  color: var(--status-success-fg);
+  border: 1px solid currentColor;
+}
+
+.cmp-disclaimer {
+  font-size: 14px;
+  line-height: 1.6;
+  color: var(--muted);
+  margin: 24px 0 8px;
+  max-width: 720px;
+}
+
+@media (max-width: 720px) {
+  .cmp-scroll-hint {
+    display: block;
+  }
+
+  .cmp-table {
+    th,
+    td {
+      padding: 10px 12px;
+    }
+
+    .cmp-corner,
+    .cmp-row-label {
+      min-width: 132px;
+    }
+
+    td {
+      min-width: 150px;
+    }
+  }
+}

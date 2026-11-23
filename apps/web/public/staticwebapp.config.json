@@ -24,6 +24,10 @@
       "rewrite": "/index.html"
     },
     {
+      "route": "/find-a-community/compare",
+      "rewrite": "/index.html"
+    },
+    {
       "route": "/unsubscribe/*",
       "rewrite": "/index.html"
     },

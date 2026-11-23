@@ -2355,6 +2355,9 @@ export interface AppConfig {
       /** #779 `/find-a-community`. */
       findCommunityTitle: string;
       findCommunity: string;
+      /** #780 `/find-a-community/compare` (noindex: content depends on the link hash). */
+      findCommunityCompareTitle: string;
+      findCommunityCompare: string;
       pillarGuideTitle: string;
       pillarGuide: string;
       zoningGuideTitle: string;

@@ -110,7 +110,7 @@ export function priorityDefinitions(
 }
 
 /** Grade groups a family needs covered: elementary, junior high, high school. */
-const GRADE_GROUPS: readonly { readonly label: string; readonly bands: readonly DesignationGradeBand[] }[] = [
+export const GRADE_GROUPS: readonly { readonly label: string; readonly bands: readonly DesignationGradeBand[] }[] = [
   { label: 'K–6', bands: ['K-6', 'K-9'] },
   { label: '7–9', bands: ['7-9', 'K-9'] },
   { label: '10–12', bands: ['10-12'] },

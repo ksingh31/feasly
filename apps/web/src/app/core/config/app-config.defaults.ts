@@ -931,6 +931,9 @@ export const DEFAULT_APP_CONFIG: AppConfig = {
       findCommunityTitle: 'Find a Calgary infill community · Feasly',
       findCommunity:
         'Pick what matters to you (schools, parks, pathways, lots for sale) and see Calgary infill communities ranked, with reasons, lot counts and typical build ranges.',
+      findCommunityCompareTitle: 'Compare Calgary infill communities · Feasly',
+      findCommunityCompare:
+        'Compare 2 or 3 Calgary infill communities side by side: typically designated schools, parks and pathways, tree cover, lots listed and typical new-build ranges.',
       pillarGuideTitle: 'Feasly — How much does it cost to build a house in Calgary?',
       pillarGuide:
         'Planning ranges for building a house in Calgary: cost per square foot by Standard, Premium, and Luxury finish tier, what is included, infill vs greenfield, and financing basics — from real City property data.',

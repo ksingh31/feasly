@@ -42,6 +42,7 @@ import {
   AddressSchoolDesignationsResponseSchema,
   CommunityMatchRequestSchema,
   CommunityMatchResponseSchema,
+  CommunityCompareResponseSchema,
   BuilderPartnerListResponseSchema,
   CommunityStatsResponseSchema,
   CommunityLotsResponseSchema,
@@ -851,6 +852,32 @@ export function buildOpenApiSpec(options: OpenApiSpecOptions) {
       '200': {
         description: 'Ranked communities',
         content: { 'application/json': { schema: CommunityMatchResponseSchema } },
+      },
+      ...errorResponses(),
+    },
+  });
+
+  // GET /v1/communities/compare (#780)
+  registry.registerPath({
+    method: 'get',
+    path: '/v1/communities/compare',
+    summary: 'Compare established communities side by side',
+    description:
+      '2–3 established Calgary infill communities by slug, side by side: ' +
+      'typically designated schools per grade group, nearest amenities ' +
+      '(straight-line), public tree cover, lots listed now, average lot size ' +
+      'and a typical new-build range from the cost engine, with the best value ' +
+      'in each row marked. Built from monthly-refreshed City open data. Public by design.',
+    security: [],
+    request: {
+      query: z.object({
+        slugs: z.string().describe('2–3 comma-separated community slugs, e.g. "altadore,killarney-glengarry".'),
+      }),
+    },
+    responses: {
+      '200': {
+        description: 'Communities side by side',
+        content: { 'application/json': { schema: CommunityCompareResponseSchema } },
       },
       ...errorResponses(),
     },

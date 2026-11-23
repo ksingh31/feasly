@@ -200,6 +200,21 @@ export const routes: Routes = [
       ),
     ],
   },
+  // Compare communities (#780): client-only, noindex (columns come from the
+  // link hash). Same lazy states as /find-a-community (must-haves lead).
+  {
+    path: 'find-a-community/compare',
+    loadComponent: () =>
+      import('./features/find-community/community-compare-page.component').then(
+        (m) => m.CommunityComparePageComponent,
+      ),
+    canActivate: [
+      robotsGuard,
+      lazyProvider(
+        async () => (await import('./features/find-community/find-community.state')).findCommunityStateProvider,
+      ),
+    ],
+  },
   // Pillar guide (SEO pillar): long-form cost guide — indexable like the
   // other marketing pages. Anchors the /guides/ section for future guides.
   // Lazy-loaded: prerendering follows loadComponent routes, so SEO is

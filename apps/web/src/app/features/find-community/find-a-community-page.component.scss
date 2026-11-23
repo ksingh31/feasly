@@ -376,6 +376,8 @@
   flex-wrap: wrap;
   gap: 8px;
 
+  align-items: center;
+
   .cta {
     min-height: 44px;
     padding: 10px 20px;
@@ -383,46 +385,10 @@
   }
 }
 
-.find-compare-scroll {
-  overflow-x: auto;
-
-  &:focus-visible {
-    outline: 3px solid var(--focus-ring);
-    outline-offset: 2px;
-  }
-
-  margin-top: 12px;
-  max-height: 50vh;
-}
-
-.find-compare-table {
-  border-collapse: collapse;
-  width: 100%;
-  font-size: 15px;
-
-  caption {
-    text-align: left;
-    font-weight: 600;
-    margin-bottom: 8px;
-  }
-
-  th,
-  td {
-    text-align: left;
-    vertical-align: top;
-    padding: 8px 12px;
-    border-bottom: 1px solid var(--border);
-  }
-
-  .find-compare-reasons {
-    margin: 0;
-    padding-left: 16px;
-  }
-
-  th[scope='row'] {
-    color: var(--muted);
-    font-weight: 600;
-  }
+.find-tray-need {
+  margin: 0;
+  font-size: 14px;
+  color: var(--muted);
 }
 
 @media (prefers-reduced-motion: reduce) {
