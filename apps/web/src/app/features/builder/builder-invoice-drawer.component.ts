@@ -27,7 +27,7 @@ import { ConfigService } from '../../core/config/config.service';
 import { formatCentsToCad, formatRatePercent } from '../../shared/utils/money';
 import { formatEdmontonMediumDate } from '../../shared/utils/edmonton';
 import { formatInvoiceTax } from '../../shared/utils/invoice-tax';
-import { invoiceRecoveryState } from '../../shared/utils/invoice-recovery';
+import { invoiceRecoveryState, netPaidCents, visibleRefunds } from '../../shared/utils/invoice-recovery';
 import { BuilderBillingApiService } from './builder-billing-api.service';
 import { LoadBillingOverview } from './builder-billing.actions';
 import { BuilderBillingState } from './builder-billing.state';
@@ -205,15 +205,35 @@ export class BuilderInvoiceDrawerComponent {
     return inv ? invoiceTimelineEvents(inv, this.copy) : [];
   });
 
-  /** #872: refund total + bank chargeback state; null when neither applies. */
+  /**
+   * #872: refund total + bank chargeback state; null when neither applies.
+   * #862: plus the refund rows, the net paid and the refund-state badge.
+   */
   protected readonly recovery = computed(() => {
     const inv = this.invoice();
     const state = inv ? invoiceRecoveryState(inv) : null;
-    if (!state) return null;
+    if (!inv || !state) return null;
+    const refunded = state.refundedCents !== null;
     return {
-      refunded: state.refundedCents === null ? null : formatCentsToCad(state.refundedCents),
+      refunded: refunded ? formatCentsToCad(state.refundedCents ?? 0) : null,
       chargebackStatus: state.chargebackStatus,
+      netPaid: refunded ? formatCentsToCad(netPaidCents(inv)) : null,
+      rows: visibleRefunds(inv).map((r) => ({
+        id: r.id,
+        text: fillCopy(this.t.refundRow, {
+          date: formatEdmontonMediumDate(r.createdAt),
+          amount: formatCentsToCad(r.amountCents),
+          reason: this.t.refundReasons[r.reason] ?? this.t.refundReasons['other'] ?? '',
+        }),
+        pending: r.status === 'pending',
+      })),
     };
+  });
+
+  /** #862: partially refunded / refunded badge; null when nothing went back. */
+  protected readonly refundState = computed(() => {
+    const state = this.invoice()?.refundState;
+    return state === 'partially_refunded' || state === 'refunded' ? state : null;
   });
 
   /** Breakdown rows: server figures, formatted only. */

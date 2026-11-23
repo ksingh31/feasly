@@ -258,4 +258,34 @@ describe('AdminInvoicesState', () => {
     httpMock.expectNone((r) => r.url.includes('/admin/disputes'));
     expect(snapshot().dispute).toBeNull();
   });
+
+  it('#862: loads the invoice audit entries for the drawer timeline', async () => {
+    await setup();
+    const done = store.dispatch(new LoadAdminInvoiceDetail('inv-1'));
+    httpMock.expectOne((r) => r.url.endsWith('/api/v1/billing/invoices/inv-1')).flush(INVOICE_A);
+    await done.toPromise();
+    const req = httpMock.expectOne((r) => r.url.endsWith('/api/v1/admin/audit') && r.method === 'GET');
+    expect(req.request.withCredentials).toBe(true);
+    expect(req.request.params.get('entityType')).toBe('invoice');
+    expect(req.request.params.get('entityId')).toBe('inv-1');
+    expect(req.request.params.get('source')).toBe('billing');
+    expect(req.request.params.get('action')).toBe('invoice.');
+    req.flush({ items: [{ id: 'billing:e1', action: 'invoice.voided' }], nextCursor: null });
+    expect(store.selectSnapshot(AdminInvoicesState.activity)).toHaveLength(1);
+
+    store.dispatch(new ClearAdminInvoiceDetail());
+    expect(store.selectSnapshot(AdminInvoicesState.activity)).toEqual([]);
+  });
+
+  it('#862: an audit failure leaves the activity empty and the detail intact', async () => {
+    await setup();
+    const done = store.dispatch(new LoadAdminInvoiceDetail('inv-1'));
+    httpMock.expectOne((r) => r.url.endsWith('/api/v1/billing/invoices/inv-1')).flush(INVOICE_A);
+    await done.toPromise();
+    httpMock
+      .expectOne((r) => r.url.endsWith('/api/v1/admin/audit'))
+      .flush('forbidden', { status: 403, statusText: 'Forbidden' });
+    expect(store.selectSnapshot(AdminInvoicesState.activity)).toEqual([]);
+    expect(snapshot().detailStatus).toBe('ready');
+  });
 });

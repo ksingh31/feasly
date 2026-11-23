@@ -6,16 +6,24 @@ import type {
   AdminSetInvoicePaymentMethodResponse,
   BillingHealthResponse,
   BuilderPaymentMethod,
+  CorrectContractRequest,
+  CorrectContractResponse,
   ManualInvoiceRequest,
   ManualInvoiceResponse,
   ManualPaymentMethod,
   MarkInvoicePaidRequest,
   MarkInvoicePaidResponse,
+  RefundInvoiceRequest,
+  RefundInvoiceResponse,
+  ReverseManualPaymentRequest,
+  ReverseManualPaymentResponse,
   SetCommissionRateResponse,
   SimulatedInvoiceEventRequest,
   SimulatedInvoiceEventResponse,
   UpdateInvoiceDunningRequest,
   UpdateInvoiceDunningResponse,
+  VoidInvoiceRequest,
+  VoidInvoiceResponse,
 } from '@feasly/contracts';
 import { BUILDER_PAYMENT_METHODS } from '../builder/builder-payment-methods';
 import { ConfigService } from '../../core/config/config.service';
@@ -32,6 +40,9 @@ import { toApiError } from '../../core/api/api-error';
  *   off-Stripe payment — cancels the scheduled auto-charge)
  * - `POST /api/v1/admin/billing/invoices/{id}/commission-rate`
  *   (per-invoice commission-rate override)
+ * - `POST …/invoices/{id}/refund`, `/void`, `/correct-contract`,
+ *   `/reverse-payment` (#715/#862 — refunds, voids, contract
+ *   corrections and manual-payment reversals)
  *
  * Calls carry `withCredentials: true` so the admin session cookie
  * authenticates — the same pattern as AdminOpsApiService.
@@ -157,6 +168,62 @@ export class AdminBillingApiService {
         { rate },
         { withCredentials: true },
       ),
+    );
+  }
+
+  /** URL for one admin invoice action (`…/invoices/{id}/<action>`). */
+  private invoiceActionUrl(invoiceId: string, action: string): string {
+    return this.billingBase + '/invoices/' + encodeURIComponent(invoiceId) + '/' + action;
+  }
+
+  /**
+   * POST /api/v1/admin/billing/invoices/{id}/refund (#715) — refund a paid
+   * invoice in full (omit `amountCents`) or in part. Retrying with the same
+   * `idempotencyKey` replays the first result: never a second refund.
+   */
+  refundInvoice(invoiceId: string, body: RefundInvoiceRequest): Observable<RefundInvoiceResponse> {
+    return this.call(
+      this.http.post<RefundInvoiceResponse>(this.invoiceActionUrl(invoiceId, 'refund'), body, {
+        withCredentials: true,
+      }),
+    );
+  }
+
+  /** POST /api/v1/admin/billing/invoices/{id}/void (#715) — draft, in review or failed only. */
+  voidInvoice(invoiceId: string, body: VoidInvoiceRequest): Observable<VoidInvoiceResponse> {
+    return this.call(
+      this.http.post<VoidInvoiceResponse>(this.invoiceActionUrl(invoiceId, 'void'), body, {
+        withCredentials: true,
+      }),
+    );
+  }
+
+  /**
+   * POST /api/v1/admin/billing/invoices/{id}/correct-contract (#715) — fix
+   * the reported contract before the invoice is charged (draft, in review).
+   * The server recalculates commission and tax.
+   */
+  correctContract(invoiceId: string, body: CorrectContractRequest): Observable<CorrectContractResponse> {
+    return this.call(
+      this.http.post<CorrectContractResponse>(this.invoiceActionUrl(invoiceId, 'correct-contract'), body, {
+        withCredentials: true,
+      }),
+    );
+  }
+
+  /**
+   * POST /api/v1/admin/billing/invoices/{id}/reverse-payment (#715) — undo
+   * a manual mark-paid (the money never arrived). The invoice moves to
+   * failed; nothing is auto-charged.
+   */
+  reversePayment(
+    invoiceId: string,
+    body: ReverseManualPaymentRequest,
+  ): Observable<ReverseManualPaymentResponse> {
+    return this.call(
+      this.http.post<ReverseManualPaymentResponse>(this.invoiceActionUrl(invoiceId, 'reverse-payment'), body, {
+        withCredentials: true,
+      }),
     );
   }
 

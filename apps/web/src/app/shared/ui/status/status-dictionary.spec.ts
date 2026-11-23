@@ -53,6 +53,12 @@ const SPEC_TABLE: ReadonlyArray<readonly [StatusDomain, string, StatusTone, stri
   ['chargeback', 'won', 'success', 'Chargeback won'],
   ['chargeback', 'lost', 'danger', 'Chargeback lost'],
   ['chargeback', 'warning_closed', 'neutral', 'Chargeback warning closed'],
+  ['refund', 'none', 'neutral', 'Not refunded'],
+  ['refund', 'partially_refunded', 'info', 'Partially refunded'],
+  ['refund', 'refunded', 'neutral', 'Refunded'],
+  ['refundRecord', 'pending', 'warning', 'Pending'],
+  ['refundRecord', 'succeeded', 'success', 'Refunded'],
+  ['refundRecord', 'failed', 'danger', 'Failed'],
 ];
 
 const SENTENCE_CASE = /^[A-Z][a-z0-9 -]*$/;

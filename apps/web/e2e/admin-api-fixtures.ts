@@ -665,6 +665,9 @@ export async function mockAdminApi(page: Page, opts: { signedIn: boolean }): Pro
           return json(route, API_KEY_USAGE);
         case '/api/v1/admin/search':
           return json(route, { ...SEARCH, query: url.searchParams.get('q') ?? '' });
+        // #862: the invoice drawer reads the invoice's billing audit entries.
+        case '/api/v1/admin/audit':
+          return json(route, { items: [], nextCursor: null });
         case '/api/v1/billing/invoices': {
           const statuses = url.searchParams.get('status')?.split(',').filter(Boolean);
           return json(route, statuses ? INVOICES.filter((i) => statuses.includes(i.status)) : INVOICES);

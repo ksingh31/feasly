@@ -1,15 +1,19 @@
 import { inject, Injectable } from '@angular/core';
 import { Action, Selector, State, StateContext, provideStates } from '@ngxs/store';
-import { catchError, of, tap } from 'rxjs';
+import { catchError, of, tap, type Observable } from 'rxjs';
 import type {
   AdminLeadListItem,
   AdminSetInvoicePaymentMethodResponse,
   BillingHealthResponse,
   BuilderPaymentMethod,
+  CorrectContractResponse,
   ManualInvoiceResponse,
   MarkInvoicePaidResponse,
+  RefundInvoiceResponse,
+  ReverseManualPaymentResponse,
   SetCommissionRateResponse,
   UpdateInvoiceDunningRequest,
+  VoidInvoiceResponse,
 } from '@feasly/contracts';
 import {
   AdminBillingApiService,
@@ -18,16 +22,20 @@ import {
 import { AdminLeadsApiService } from './admin-leads-api.service';
 import {
   ClearInvoiceLeads,
+  CorrectInvoiceContract,
   CreateManualInvoice,
   DismissCreateInvoiceFeedback,
   DismissInvoiceFeedback,
   LoadBillingHealth,
   MarkInvoicePaid,
+  RefundInvoice,
   RetryInvoiceCharge,
+  ReverseInvoicePayment,
   SearchInvoiceLeads,
   SetCommissionRate,
   SetInvoicePlannedPaymentMethod,
   UpdateInvoiceDunning,
+  VoidInvoice,
 } from './billing-health.actions';
 
 /** Loading lifecycle for the billing-health dashboard. */
@@ -82,6 +90,10 @@ export interface BillingHealthStateModel {
       | MarkInvoicePaidResponse
       | SetCommissionRateResponse
       | AdminSetInvoicePaymentMethodResponse
+      | RefundInvoiceResponse
+      | VoidInvoiceResponse
+      | CorrectContractResponse
+      | ReverseManualPaymentResponse
       | null;
   } | null;
   /** Create-invoice lead picker results for the chosen builder (#544). */
@@ -514,6 +526,91 @@ export class BillingHealthState {
     );
   }
 
+  /**
+   * #862: refund a paid invoice (#715). The modal reuses one idempotency
+   * key per open, so retrying after a failure never refunds twice.
+   */
+  @Action(RefundInvoice)
+  refundInvoice(ctx: StateContext<BillingHealthStateModel>, action: RefundInvoice) {
+    return this.invoiceAction(
+      ctx,
+      this.api.refundInvoice(action.invoiceId, action.body),
+      (res) =>
+        res.refundState === 'refunded'
+          ? 'Invoice refunded in full.'
+          : 'Partial refund issued — the invoice stays paid for the rest.',
+      friendlyRefundError,
+    );
+  }
+
+  /** #862: void an unpaid invoice (#715). */
+  @Action(VoidInvoice)
+  voidInvoice(ctx: StateContext<BillingHealthStateModel>, action: VoidInvoice) {
+    return this.invoiceAction(
+      ctx,
+      this.api.voidInvoice(action.invoiceId, action.body),
+      () => 'Invoice voided — it will not be charged.',
+      friendlyAdjustmentError,
+    );
+  }
+
+  /** #862: correct the reported contract before the invoice is charged (#715). */
+  @Action(CorrectInvoiceContract)
+  correctInvoiceContract(ctx: StateContext<BillingHealthStateModel>, action: CorrectInvoiceContract) {
+    return this.invoiceAction(
+      ctx,
+      this.api.correctContract(action.invoiceId, action.body),
+      (res) =>
+        res.status === 'in_review'
+          ? 'Contract corrected — the amounts were recalculated and a new review window started.'
+          : 'Contract corrected — the amounts were recalculated.',
+      friendlyAdjustmentError,
+    );
+  }
+
+  /** #862: undo a manual mark-paid — the invoice moves to failed (#715). */
+  @Action(ReverseInvoicePayment)
+  reverseInvoicePayment(ctx: StateContext<BillingHealthStateModel>, action: ReverseInvoicePayment) {
+    return this.invoiceAction(
+      ctx,
+      this.api.reversePayment(action.invoiceId, action.body),
+      () => 'Payment reversed — the invoice is unpaid again and nothing is charged automatically.',
+      friendlyAdjustmentError,
+    );
+  }
+
+  /**
+   * Shared lifecycle for the #862 invoice actions: submitting → feedback
+   * (the modal reads it, toasts on success, shows the error inline), and
+   * a dashboard reload on success.
+   */
+  private invoiceAction<
+    R extends RefundInvoiceResponse | VoidInvoiceResponse | CorrectContractResponse | ReverseManualPaymentResponse,
+  >(
+    ctx: StateContext<BillingHealthStateModel>,
+    request: Observable<R>,
+    success: (res: R) => string,
+    failure: (err: unknown) => string,
+  ) {
+    ctx.patchState({ invoiceActionStatus: 'submitting', invoiceFeedback: null });
+    return request.pipe(
+      tap((invoice) => {
+        ctx.patchState({
+          invoiceActionStatus: 'idle',
+          invoiceFeedback: { ok: true, message: success(invoice), invoice },
+        });
+        ctx.dispatch(new LoadBillingHealth());
+      }),
+      catchError((err: unknown) => {
+        ctx.patchState({
+          invoiceActionStatus: 'error',
+          invoiceFeedback: { ok: false, message: failure(err), invoice: null },
+        });
+        return of(null);
+      }),
+    );
+  }
+
   /** Dismiss the mark-paid / rate-override feedback banner. */
   @Action(DismissInvoiceFeedback)
   dismissInvoiceFeedback(ctx: StateContext<BillingHealthStateModel>) {
@@ -590,6 +687,39 @@ function friendlyInvoiceActionError(err: unknown): string {
   if (status === 409)
     return 'That invoice changed state — it may already be paid. Refresh and try again.';
   return 'The update failed — check the details and try again.';
+}
+
+/**
+ * #862: void / correct-contract / reverse-payment failures. The raw error
+ * never reaches the UI.
+ */
+function friendlyAdjustmentError(err: unknown): string {
+  const status =
+    typeof err === 'object' && err !== null && 'status' in err
+      ? (err as { status?: unknown }).status
+      : undefined;
+  if (status === 404) return 'That invoice was not found — it may have been handled already.';
+  if (status === 400 || status === 422) return 'Check the details — a required field is missing or invalid.';
+  if (status === 409) return 'That invoice changed state, so this action no longer applies. Refresh and try again.';
+  return 'The update failed — check the details and try again.';
+}
+
+/**
+ * #862: refund failures. A 422 names the two rules an admin can fix (the
+ * amount left, the off-Stripe reference); anything that may have reached
+ * Stripe says a retry is safe — the same idempotency key is reused.
+ */
+function friendlyRefundError(err: unknown): string {
+  const status =
+    typeof err === 'object' && err !== null && 'status' in err
+      ? (err as { status?: unknown }).status
+      : undefined;
+  if (status === 404) return 'That invoice was not found — it may have been handled already.';
+  if (status === 400) return 'Check the refund details — the amount, reason or reference is invalid.';
+  if (status === 422)
+    return 'The refund can’t go ahead: it can’t exceed what is left to refund, and an off-Stripe payment needs a reference.';
+  if (status === 409) return 'That invoice changed state — it may no longer be paid. Refresh and try again.';
+  return 'The refund did not go through. Try again — it is the same request, so the invoice is never refunded twice.';
 }
 
 /**

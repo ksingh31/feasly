@@ -395,6 +395,21 @@ export const DEFAULT_ADMIN_COPY: AdminCopy = {
     sourceNone: '(none)',
     sourcesTruncated: 'Showing the largest groups only. Filter by source to see the rest.',
   },
+  invoiceAdjustments: {
+    tooLong: 'Keep it under {max} characters.',
+    refundAmountRequired: 'Enter the amount to refund.',
+    refundAmountInvalid: 'Enter an amount above $0 and no more than what is left to refund.',
+    refundAmountHint: 'Up to {amount} is left to refund.',
+    refundManualNote: 'This invoice was paid outside Stripe, so this records a refund you have already sent.',
+    refundCardNote: 'The money goes back to {builder}\u2019s card through Stripe.',
+    refundFullNote: 'This refunds everything that is left.',
+    refundRetryNote: 'Trying again after an error never refunds twice.',
+    voidNote: '{builder} is never charged for this invoice and it leaves the work queue. A void can\u2019t be undone.',
+    contractNote: 'Commission and tax are recalculated at this invoice\u2019s rate.',
+    contractReviewNote: 'The review window starts again and {builder} is emailed the new amount.',
+    reverseNote:
+      'The invoice is unpaid again. The payment stays a manual one, so nothing is charged automatically \u2014 record the payment again once it arrives.',
+  },
   dunning: {
     columns: { nextRetry: 'Next retry', grace: 'Grace', state: 'Schedule', awaiting: 'Awaiting payment' },
     stateActive: 'Active',

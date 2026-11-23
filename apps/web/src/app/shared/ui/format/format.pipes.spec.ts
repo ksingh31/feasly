@@ -106,6 +106,12 @@ describe('kitMoney', () => {
     expect(pipe.transform(650_000, 'dollars')).toBe('$650,000');
   });
 
+  it('#862: shows cents exactly when asked', () => {
+    expect(pipe.transform(129_050, 'exact')).toBe('$1,290.50');
+    expect(pipe.transform(2_079_000, 'exact')).toBe('$20,790');
+    expect(pipe.transform(null, 'exact')).toBe('—');
+  });
+
   it('renders an em dash for missing values', () => {
     expect(pipe.transform(null)).toBe('—');
     expect(pipe.transform(Number.NaN)).toBe('—');

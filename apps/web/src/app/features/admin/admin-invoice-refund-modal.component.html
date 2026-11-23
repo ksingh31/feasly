@@ -1,0 +1,88 @@
+<ui-modal heading="Refund invoice" asForm (submitted)="save()">
+  <p class="invoice-modal__context" data-testid="refund-context">
+    {{ invoice.invoiceNumber }} · {{ builderName }} · <strong>{{ invoice.totalCents | kitMoney: 'exact' }}</strong> paid
+  </p>
+
+  <div [formGroup]="form" class="invoice-modal__fields">
+    <ui-text-field
+      label="Amount to refund ($)"
+      inputmode="decimal"
+      required
+      formControlName="amount"
+      [hint]="amountHint"
+      [error]="amountError()"
+    />
+    <ui-select label="Reason" required formControlName="reason" [options]="reasons" placeholder="Choose a reason" />
+    @if (needsReference) {
+      <ui-text-field
+        label="Reference"
+        required
+        formControlName="reference"
+        hint="Cheque or trace number of the refund you sent."
+        [error]="referenceError()"
+      />
+    }
+    <ui-field-shell
+      label="Note (optional)"
+      controlId="refund-note-input"
+      hintId="refund-note-hint"
+      errorId="refund-note-error"
+      hint="Kept in the audit trail."
+      [error]="noteError()"
+    >
+      <textarea
+        id="refund-note-input"
+        class="invoice-modal__textarea"
+        data-testid="refund-note"
+        rows="3"
+        [maxLength]="noteMax"
+        [value]="form.controls.note.value"
+        [attr.aria-invalid]="noteError() ? 'true' : null"
+        [attr.aria-describedby]="noteError() ? 'refund-note-error' : 'refund-note-hint'"
+        (input)="onNote($event)"
+      ></textarea>
+    </ui-field-shell>
+  </div>
+
+  <dl class="invoice-modal__compare" data-testid="refund-before-after">
+    <div class="invoice-modal__row">
+      <dt>Refunded</dt>
+      <dd>
+        <span class="invoice-modal__before">{{ invoice.refundedCents ?? 0 | kitMoney: 'exact' }}</span>
+        @if (preview(); as p) {
+          <span aria-hidden="true">→</span><span class="sr-only">to</span>
+          <strong class="invoice-modal__after" data-testid="refund-refunded-after">{{ p.refundedAfter | kitMoney: 'exact' }}</strong>
+        }
+      </dd>
+    </div>
+    <div class="invoice-modal__row">
+      <dt>Net paid</dt>
+      <dd>
+        <span class="invoice-modal__before">{{ left | kitMoney: 'exact' }}</span>
+        @if (preview(); as p) {
+          <span aria-hidden="true">→</span><span class="sr-only">to</span>
+          <strong class="invoice-modal__after" data-testid="refund-net-after">{{ p.netAfter | kitMoney: 'exact' }}</strong>
+        }
+      </dd>
+    </div>
+  </dl>
+
+  <p class="invoice-modal__note" data-testid="refund-note-text">
+    {{ methodNote }}
+    @if (isFull()) {
+      {{ t.refundFullNote }}
+    }
+    {{ t.refundRetryNote }}
+  </p>
+
+  @if (error(); as err) {
+    <p class="invoice-modal__alert" role="alert">{{ err }}</p>
+  }
+
+  <ng-container uiModalFooter>
+    <button type="button" ui-button variant="secondary" (click)="cancel()">Cancel</button>
+    <button type="submit" ui-button data-testid="refund-submit" [loading]="submitting()" [disabled]="!canSave()">
+      Refund {{ amountCents() !== null && preview() ? (amountCents() | kitMoney: 'exact') : '' }}
+    </button>
+  </ng-container>
+</ui-modal>

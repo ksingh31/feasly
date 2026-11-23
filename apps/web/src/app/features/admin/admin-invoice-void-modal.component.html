@@ -1,0 +1,61 @@
+<ui-modal heading="Void invoice" asForm (submitted)="save()">
+  <p class="invoice-modal__context" data-testid="void-context">
+    {{ invoice.invoiceNumber }} · {{ builderName }} · <strong>{{ invoice.totalCents | kitMoney: 'exact' }}</strong>
+  </p>
+
+  <div [formGroup]="form" class="invoice-modal__fields">
+    <ui-select label="Reason" required formControlName="reason" [options]="reasons" placeholder="Choose a reason" />
+    <ui-field-shell
+      label="Note (optional)"
+      controlId="void-note-input"
+      hintId="void-note-hint"
+      errorId="void-note-error"
+      hint="Kept in the audit trail."
+      [error]="noteError()"
+    >
+      <textarea
+        id="void-note-input"
+        class="invoice-modal__textarea"
+        data-testid="void-note"
+        rows="3"
+        [maxLength]="noteMax"
+        [value]="form.controls.note.value"
+        [attr.aria-invalid]="noteError() ? 'true' : null"
+        [attr.aria-describedby]="noteError() ? 'void-note-error' : 'void-note-hint'"
+        (input)="onNote($event)"
+      ></textarea>
+    </ui-field-shell>
+  </div>
+
+  <dl class="invoice-modal__compare" data-testid="void-before-after">
+    <div class="invoice-modal__row">
+      <dt>Status</dt>
+      <dd>
+        <ui-status-chip domain="invoice" [status]="invoice.status" />
+        <span aria-hidden="true">→</span><span class="sr-only">to</span>
+        <ui-status-chip domain="invoice" status="void" />
+      </dd>
+    </div>
+    <div class="invoice-modal__row">
+      <dt>Balance due</dt>
+      <dd>
+        <span class="invoice-modal__before">{{ invoice.totalCents | kitMoney: 'exact' }}</span>
+        <span aria-hidden="true">→</span><span class="sr-only">to</span>
+        <strong class="invoice-modal__after">{{ 0 | kitMoney: 'exact' }}</strong>
+      </dd>
+    </div>
+  </dl>
+
+  <p class="invoice-modal__note">{{ consequence }}</p>
+
+  @if (error(); as err) {
+    <p class="invoice-modal__alert" role="alert">{{ err }}</p>
+  }
+
+  <ng-container uiModalFooter>
+    <button type="button" ui-button variant="secondary" (click)="cancel()">Cancel</button>
+    <button type="submit" ui-button variant="danger" data-testid="void-submit" [loading]="submitting()" [disabled]="!canSave()">
+      Void invoice
+    </button>
+  </ng-container>
+</ui-modal>

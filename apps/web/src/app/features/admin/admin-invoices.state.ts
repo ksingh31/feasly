@@ -1,7 +1,8 @@
 import { inject, Injectable } from '@angular/core';
 import { Action, provideStates, Selector, State, StateContext } from '@ngxs/store';
 import { catchError, map, of, switchMap, tap } from 'rxjs';
-import type { DisputeDetailResponse } from '@feasly/contracts';
+import type { AuditLogEntry, DisputeDetailResponse } from '@feasly/contracts';
+import { AdminAuditApiService } from './admin-audit-api.service';
 import { AdminDisputesApiService } from './admin-disputes-api.service';
 import { BuilderInvoicesApiService } from '../builder/builder-invoices-api.service';
 import type { BuilderCommissionInvoice } from '../builder/builder-invoices-api.service';
@@ -10,6 +11,7 @@ import {
   ClearAdminInvoiceDetail,
   DismissAdminInvoiceDetailError,
   DismissAdminInvoiceListError,
+  LoadAdminInvoiceActivity,
   LoadAdminInvoiceDetail,
   LoadAdminInvoiceDispute,
   LoadAdminInvoices,
@@ -42,7 +44,18 @@ export interface AdminInvoicesStateModel {
   /** Open dispute for the detail invoice (disputed invoices only), or null. */
   dispute: DisputeDetailResponse | null;
   disputeStatus: AdminInvoiceDetailStatus;
+  /**
+   * #862: the detail invoice's billing audit entries (`invoice.*`), newest
+   * first. Empty until loaded, and on failure (the drawer then shows its
+   * base timeline).
+   */
+  activity: readonly AuditLogEntry[];
+  /** Invoice the activity belongs to (guards against a stale response). */
+  activityInvoiceId: string | null;
 }
+
+/** #862: audit entries fetched per invoice (one page; the API caps at 100). */
+export const ADMIN_INVOICE_ACTIVITY_LIMIT = 100;
 
 const DEFAULT_FILTERS: AdminInvoiceFilters = { status: null, invoiceNumber: null };
 
@@ -59,6 +72,8 @@ const defaults: AdminInvoicesStateModel = {
   detailError: null,
   dispute: null,
   disputeStatus: 'idle',
+  activity: [],
+  activityInvoiceId: null,
 };
 
 /**
@@ -86,6 +101,7 @@ const defaults: AdminInvoicesStateModel = {
 export class AdminInvoicesState {
   private readonly api = inject(BuilderInvoicesApiService);
   private readonly disputesApi = inject(AdminDisputesApiService);
+  private readonly auditApi = inject(AdminAuditApiService);
 
   /**
    * Friendly message for an API failure: prefer the server's message,
@@ -153,6 +169,12 @@ export class AdminInvoicesState {
   @Selector()
   static disputeStatus(state: AdminInvoicesStateModel): AdminInvoiceDetailStatus {
     return state.disputeStatus;
+  }
+
+  /** #862: audit entries for the open invoice only. */
+  @Selector()
+  static activity(state: AdminInvoicesStateModel): readonly AuditLogEntry[] {
+    return state.activityInvoiceId !== null && state.activityInvoiceId === state.detail?.id ? state.activity : [];
   }
 
   @Selector()
@@ -224,11 +246,20 @@ export class AdminInvoicesState {
     ctx.patchState(
       refreshing
         ? { detailError: null }
-        : { detailStatus: 'loading', detailError: null, detail: null, dispute: null, disputeStatus: 'idle' },
+        : {
+            detailStatus: 'loading',
+            detailError: null,
+            detail: null,
+            dispute: null,
+            disputeStatus: 'idle',
+            activity: [],
+            activityInvoiceId: null,
+          },
     );
     return this.api.getInvoice(action.id).pipe(
       tap((invoice) => {
         ctx.patchState({ detail: invoice, detailStatus: 'ready' });
+        ctx.dispatch(new LoadAdminInvoiceActivity(invoice.id));
         if (invoice.status === 'disputed') {
           ctx.dispatch(new LoadAdminInvoiceDispute(invoice.id));
         } else {
@@ -277,6 +308,37 @@ export class AdminInvoicesState {
     );
   }
 
+  /**
+   * #862: the invoice's `invoice.*` billing audit entries. A failure (or a
+   * session without `audit:read`) leaves the list empty — the drawer still
+   * shows its base timeline.
+   */
+  @Action(LoadAdminInvoiceActivity, { cancelUncompleted: true })
+  loadActivity(ctx: StateContext<AdminInvoicesStateModel>, action: LoadAdminInvoiceActivity) {
+    return this.auditApi
+      .list({
+        entityType: 'invoice',
+        entityId: action.invoiceId,
+        source: 'billing',
+        action: 'invoice.',
+        limit: ADMIN_INVOICE_ACTIVITY_LIMIT,
+      })
+      .pipe(
+        tap((res) => {
+          if (ctx.getState().detail?.id !== action.invoiceId) return;
+          ctx.patchState({ activity: res.items, activityInvoiceId: action.invoiceId });
+        }),
+        catchError(() => {
+          // A failed refresh keeps what is already shown for this invoice.
+          const state = ctx.getState();
+          if (state.detail?.id === action.invoiceId && state.activityInvoiceId !== action.invoiceId) {
+            ctx.patchState({ activity: [], activityInvoiceId: action.invoiceId });
+          }
+          return of(null);
+        }),
+      );
+  }
+
   @Action(ClearAdminInvoiceDetail)
   clearDetail(ctx: StateContext<AdminInvoicesStateModel>) {
     ctx.patchState({
@@ -285,6 +347,8 @@ export class AdminInvoicesState {
       detailError: null,
       dispute: null,
       disputeStatus: 'idle',
+      activity: [],
+      activityInvoiceId: null,
     });
   }
 

@@ -907,6 +907,16 @@ export interface BuilderInvoiceDrawerCopy {
   refundedLabel: string;
   /** #872: bank chargeback state row label. */
   chargebackLabel: string;
+  /** #862: total minus refunds row label. */
+  netPaidLabel: string;
+  /** #862: accessible name of the refund rows list. */
+  refundsListLabel: string;
+  /** #862: one refund row: `{date}`, `{amount}`, `{reason}`. */
+  refundRow: string;
+  /** #862: suffix for a refund still being processed. */
+  refundPending: string;
+  /** #862: refund reason labels, keyed by the API's reason. */
+  refundReasons: Readonly<Record<string, string>>;
   actionsHeading: string;
   questionInvoice: string;
   /** #661: invoice PDF/receipt download button. */
@@ -3422,6 +3432,25 @@ export interface AdminCopy {
     graceInvalid: string;
     graceSave: string;
     graceCancel: string;
+  };
+  /**
+   * #862 invoice adjustment modals (Refund… · Void… · Correct contract… ·
+   * Reverse payment…): hints, consequence notes and validation messages.
+   * `{amount}`, `{builder}`, `{max}` are filled in by the modal.
+   */
+  invoiceAdjustments: {
+    tooLong: string;
+    refundAmountRequired: string;
+    refundAmountInvalid: string;
+    refundAmountHint: string;
+    refundManualNote: string;
+    refundCardNote: string;
+    refundFullNote: string;
+    refundRetryNote: string;
+    voidNote: string;
+    contractNote: string;
+    contractReviewNote: string;
+    reverseNote: string;
   };
   auth: {
     /** Session-expired notice on the login page. */

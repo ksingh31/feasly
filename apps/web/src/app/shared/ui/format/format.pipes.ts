@@ -9,7 +9,7 @@
 import { Pipe, type PipeTransform } from '@angular/core';
 import { formatRelativeTime } from '../../utils/datetime';
 import { formatEdmontonDateTime, formatEdmontonMediumDate } from '../../utils/edmonton';
-import { formatCentsToWholeCad, formatCount, formatWholeCad } from '../../utils/money';
+import { formatCentsToCad, formatCentsToWholeCad, formatCount, formatWholeCad } from '../../utils/money';
 
 /** ISO instant → "Nov 12, 2026" (America/Edmonton calendar). */
 @Pipe({ name: 'kitDate', standalone: true })
@@ -39,13 +39,18 @@ export class KitRelativePipe implements PipeTransform {
   }
 }
 
-/** Whole-dollar money. Input is integer cents unless `unit` is 'dollars'. */
+/**
+ * Whole-dollar money. Input is integer cents unless `unit` is 'dollars'.
+ * `'exact'` (#862): integer cents shown to the cent ("$1,290.50") — for
+ * refunds and other amounts where the cents matter.
+ */
 @Pipe({ name: 'kitMoney', standalone: true })
 export class KitMoneyPipe implements PipeTransform {
-  transform(value: number | null | undefined, unit: 'cents' | 'dollars' = 'cents'): string {
+  transform(value: number | null | undefined, unit: 'cents' | 'dollars' | 'exact' = 'cents'): string {
     if (value === null || value === undefined || !Number.isFinite(value)) {
       return '—';
     }
+    if (unit === 'exact') return formatCentsToCad(value);
     return unit === 'dollars' ? formatWholeCad(value) : formatCentsToWholeCad(value);
   }
 }

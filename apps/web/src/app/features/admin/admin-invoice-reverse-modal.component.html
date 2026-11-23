@@ -1,0 +1,65 @@
+<ui-modal heading="Reverse payment" asForm (submitted)="save()">
+  <p class="invoice-modal__context" data-testid="reverse-context">
+    {{ invoice.invoiceNumber }} · {{ builderName }} · <strong>{{ invoice.totalCents | kitMoney: 'exact' }}</strong>
+    · paid by {{ method }}
+    @if (invoice.paymentReference) {
+      ({{ invoice.paymentReference }})
+    }
+  </p>
+
+  <ui-field-shell
+    label="Reason"
+    controlId="reverse-reason-input"
+    hintId="reverse-reason-hint"
+    errorId="reverse-reason-error"
+    [required]="true"
+    hint="For example: the cheque bounced. Kept in the audit trail."
+    [error]="reasonError()"
+  >
+    <textarea
+      id="reverse-reason-input"
+      class="invoice-modal__textarea"
+      data-testid="reverse-reason"
+      rows="3"
+      required
+      aria-required="true"
+      [maxLength]="reasonMax"
+      [value]="reason.value"
+      [attr.aria-invalid]="reasonError() ? 'true' : null"
+      [attr.aria-describedby]="reasonError() ? 'reverse-reason-error' : 'reverse-reason-hint'"
+      (input)="onReason($event)"
+    ></textarea>
+  </ui-field-shell>
+
+  <dl class="invoice-modal__compare" data-testid="reverse-before-after">
+    <div class="invoice-modal__row">
+      <dt>Status</dt>
+      <dd>
+        <ui-status-chip domain="invoice" [status]="invoice.status" />
+        <span aria-hidden="true">→</span><span class="sr-only">to</span>
+        <ui-status-chip domain="invoice" status="failed" />
+      </dd>
+    </div>
+    <div class="invoice-modal__row">
+      <dt>Balance due</dt>
+      <dd>
+        <span class="invoice-modal__before">{{ 0 | kitMoney: 'exact' }}</span>
+        <span aria-hidden="true">→</span><span class="sr-only">to</span>
+        <strong class="invoice-modal__after">{{ invoice.totalCents | kitMoney: 'exact' }}</strong>
+      </dd>
+    </div>
+  </dl>
+
+  <p class="invoice-modal__note">{{ t.reverseNote }}</p>
+
+  @if (error(); as err) {
+    <p class="invoice-modal__alert" role="alert">{{ err }}</p>
+  }
+
+  <ng-container uiModalFooter>
+    <button type="button" ui-button variant="secondary" (click)="cancel()">Cancel</button>
+    <button type="submit" ui-button variant="danger" data-testid="reverse-submit" [loading]="submitting()" [disabled]="!canSave()">
+      Reverse payment
+    </button>
+  </ng-container>
+</ui-modal>
