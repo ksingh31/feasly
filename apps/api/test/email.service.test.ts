@@ -406,7 +406,11 @@ describe('report email: schools + living nearby (#785)', () => {
     ],
     treeCover: { level: 'high', treesPerHa: 18.4 },
   };
-  const r = renderMagicLinkEmail(CTX, { ...REPORT_INPUT, neighbourhood: NEIGHBOURHOOD });
+  const r = renderMagicLinkEmail(CTX, {
+    ...REPORT_INPUT,
+    neighbourhood: NEIGHBOURHOOD,
+    ownSite: true,
+  });
 
   it('renders both sections and the find-a-community link (html + text)', () => {
     for (const body of [r.html, r.text]) {
@@ -425,6 +429,21 @@ describe('report email: schools + living nearby (#785)', () => {
       expect(body).toContain('https://app.feasly.example/find-a-community');
     }
     expect(r.text).not.toMatch(/<[a-z]/i);
+  });
+
+  it('leaves the Feasly-only find-a-community link out for a builder-embed lead (#918)', () => {
+    for (const input of [
+      { ...REPORT_INPUT, neighbourhood: NEIGHBOURHOOD },
+      { ...REPORT_INPUT, neighbourhood: NEIGHBOURHOOD, ownSite: false },
+    ]) {
+      const embed = renderMagicLinkEmail(CTX, input);
+      for (const body of [embed.html, embed.text]) {
+        expect(body).toContain('Schools for this address');
+        expect(body).toContain('Living near this lot (Altadore)');
+        expect(body).not.toContain('Find a community');
+        expect(body).not.toContain('/find-a-community');
+      }
+    }
   });
 
   it('hides the whole block when there is no summary', () => {
@@ -452,6 +471,7 @@ describe('report email: schools + living nearby (#785)', () => {
     const none = renderMagicLinkEmail(CTX, {
       ...REPORT_INPUT,
       neighbourhood: { ...NEIGHBOURHOOD, schools: [], amenities: [], treeCover: null },
+      ownSite: true,
     });
     expect(none.html).not.toContain('Find a community');
     expect(none.text).not.toContain('Find a community');

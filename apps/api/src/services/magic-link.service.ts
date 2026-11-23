@@ -145,6 +145,12 @@ export interface IssueAndSendMagicLinkArgs {
    * (stored data only; failures leave the sections out).
    */
   readonly neighbourhood?: Pick<ReportNeighbourhoodService, 'forAddress'>;
+  /**
+   * #785/#918: the lead was captured on Feasly's own site (`tenant_key` is
+   * null). Gates the Feasly-only "Find a community" email link; absent →
+   * treated as a builder embed (link hidden).
+   */
+  readonly ownSite?: boolean;
   /** #793/#914: flag the link row for the sandbox purge. */
   readonly sandbox?: boolean;
   readonly clock?: () => Date;
@@ -196,6 +202,12 @@ export interface SendOwnerMagicLinkEmailArgs {
    * (stored data only; failures leave the sections out).
    */
   readonly neighbourhood?: Pick<ReportNeighbourhoodService, 'forAddress'>;
+  /**
+   * #785/#918: the lead was captured on Feasly's own site (`tenant_key` is
+   * null). Gates the Feasly-only "Find a community" email link; absent →
+   * treated as a builder embed (link hidden).
+   */
+  readonly ownSite?: boolean;
 }
 
 /**
@@ -236,6 +248,7 @@ export async function sendOwnerMagicLinkEmail(
     ...(args.expiresAt ? { expiresOn: args.expiresAt } : {}),
     ...(args.projectType ? { projectType: args.projectType } : {}),
     ...(neighbourhood ? { neighbourhood } : {}),
+    ...(args.ownSite ? { ownSite: true } : {}),
   });
 }
 
@@ -416,6 +429,7 @@ export function createMagicLinkService(
         addressKey: lead.addressKey,
         ...(projectType ? { projectType } : {}),
         ...(deps.neighbourhood ? { neighbourhood: deps.neighbourhood } : {}),
+        ownSite: lead.tenantKey === null && lead.source !== 'embed',
         sandbox: lead.sandbox,
         clock,
       });

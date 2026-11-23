@@ -69,6 +69,8 @@ export interface MagicLinkEmailInput {
   readonly projectType?: string;
   /** #785 (consumer only): schools + living nearby sections; absent → hidden. */
   readonly neighbourhood?: ReportNeighbourhoodSummary;
+  /** #785/#918: lead captured on Feasly's own site (not a builder embed). */
+  readonly ownSite?: boolean;
 }
 
 export interface PartnerShareEmailInput {

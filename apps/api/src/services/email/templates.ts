@@ -154,6 +154,12 @@ export interface MagicLinkTemplateInput {
    * sections are left out; an empty list hides its own section.
    */
   readonly neighbourhood?: ReportNeighbourhoodSummary;
+  /**
+   * #785/#918: true only for a lead captured on Feasly's own site. The
+   * Feasly-only "Find a community" link renders only then — a builder-embed
+   * lead never gets sent into Feasly's own discovery flow. Absent → hidden.
+   */
+  readonly ownSite?: boolean;
 }
 
 /** #785: the report email's neighbourhood sections (no dollar figures). */
@@ -200,12 +206,13 @@ function formatDistance(m: number): string {
 
 /**
  * #785: "Schools for this address" + "Living near this lot" + the "Find a
- * community" link. Each section hides when its data is missing (no empty
+ * community" link (own-site leads only — #918). Each section hides when its data is missing (no empty
  * boxes); with neither on file the whole block (link included) is empty.
  */
 function renderNeighbourhoodBlock(
   ctx: TemplateContext,
   n: ReportNeighbourhoodSummary | undefined,
+  ownSite: boolean,
 ): { html: string; text: string } {
   if (!n) return { html: '', text: '' };
   const htmlParts: string[] = [];
@@ -261,6 +268,7 @@ ${rows}
     );
   }
   if (htmlParts.length === 0) return { html: '', text: '' };
+  if (!ownSite) return { html: htmlParts.join('\n') + '\n', text: textParts.join('\n\n') };
   const findUrl = `${ctx.appBaseUrl}${FIND_COMMUNITY_PATH}`;
   htmlParts.push(
     `<p style="font-size:14px;margin:0 0 12px;">${esc(FIND_COMMUNITY_LEAD)} <a href="${esc(findUrl)}" style="color:#b08d3e;font-weight:600;">${esc(FIND_COMMUNITY_LABEL)}</a></p>`,
@@ -344,7 +352,7 @@ function renderConsumerReportEmail(
   const timeline = renderTimelineBlock(
     input.projectType === 'new_build' ? ctx.buildTimeline : undefined,
   );
-  const neighbourhood = renderNeighbourhoodBlock(ctx, input.neighbourhood);
+  const neighbourhood = renderNeighbourhoodBlock(ctx, input.neighbourhood, input.ownSite === true);
   const body = `<p>${greetingHtml}</p>
 <p>${introHtml}</p>
 <p style="margin:0 0 4px;">Your report includes:</p>

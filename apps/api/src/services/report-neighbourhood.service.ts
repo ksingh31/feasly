@@ -38,7 +38,8 @@ export function createReportNeighbourhoodService(
     async forAddress(addressKey) {
       try {
         const schools = await deps.designations.forAddress(addressKey);
-        const slug = schools.slug ?? schools.communityCode;
+        // Slug only — matches the web report (no communityCode fallback).
+        const slug = schools.slug ?? null;
         const living = slug ? await deps.neighbourhood.getCommunityLivingMetrics(slug) : null;
         const amenities = (living?.amenities ?? [])
           .filter((a) => a.nearest !== null)

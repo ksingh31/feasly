@@ -484,6 +484,7 @@ export function createLeadService(deps: LeadServiceDeps): LeadService {
       expiresAt: issued.expiresAt,
       ...(estimate.projectType ? { projectType: estimate.projectType } : {}),
       ...(deps.reportNeighbourhood ? { neighbourhood: deps.reportNeighbourhood } : {}),
+      ownSite: args.input.tenantKey === undefined,
     });
     if (delivery.sent || delivery.acceptedByProvider) {
       // Record accepted-but-unconfirmed too: re-sending would likely
@@ -728,6 +729,7 @@ export function createLeadService(deps: LeadServiceDeps): LeadService {
             expiresAt: issued.expiresAt,
             projectType: estimate.projectType,
             ...(deps.reportNeighbourhood ? { neighbourhood: deps.reportNeighbourhood } : {}),
+            ownSite: input.tenantKey === undefined,
           });
           if (!delivery.sent) {
             console.warn(
