@@ -541,6 +541,22 @@ export const routes: Routes = [
         loadComponent: () =>
           import('./features/admin/admin-sheets-status.component').then((m) => m.AdminSheetsStatusComponent),
       },
+      // #915: monthly community narratives — status per community plus
+      // "Regenerate now" (one or all). State lazy-registered here.
+      {
+        path: 'ops/community-narratives',
+        loadComponent: () =>
+          import('./features/admin/admin-community-narratives.component').then(
+            (m) => m.AdminCommunityNarrativesComponent,
+          ),
+        canActivate: [
+          lazyProvider(
+            async () =>
+              (await import('./features/admin/community-narratives.state'))
+                .communityNarrativesStateProvider,
+          ),
+        ],
+      },
       // Admin estimate lookup (admin/03): search entry + read-only detail.
       {
         path: 'estimates',

@@ -55,6 +55,8 @@ describe('SeoService', () => {
         adminBilling: 'Billing description.',
         adminSheetsTitle: 'Sheets sync — Feasly Admin',
         adminSheets: 'Sheets description.',
+        adminCommunityNarrativesTitle: 'Community narratives — Feasly Admin',
+        adminCommunityNarratives: 'Community narratives description.',
         adminEstimatesTitle: 'Estimate lookup — Feasly Admin',
         adminEstimates: 'Estimates description.',
         adminApiKeysTitle: 'API keys — Feasly Admin',

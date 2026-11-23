@@ -50,6 +50,7 @@ describe('findAdminNavItem', () => {
     ['/admin/billing/invoices', 'money', 'invoices'],
     ['/admin/billing/invoices/inv-1', 'money', 'invoices'],
     ['/admin/ops/sheets', 'system', 'sheets'],
+    ['/admin/ops/community-narratives', 'system', 'communityNarratives'],
     ['/admin/webhooks', 'system', 'webhooks'],
     ['/admin/api-keys/', 'partners', 'apiKeys'],
   ])('%s → %s / %s', (url, group, item) => {

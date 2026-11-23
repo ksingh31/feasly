@@ -1,0 +1,124 @@
+<div class="narratives-page">
+  <ui-page-header
+    heading="Community narratives"
+    description="Each community's guide is written once a month and reused on every report. Reports fall back to the general Calgary guide when a community has none."
+  >
+    <div uiPageHeaderActions class="narratives-page__header-actions">
+      <button
+        type="button"
+        ui-button
+        variant="secondary"
+        data-testid="refresh-narratives"
+        [loading]="loadStatus() === 'loading' && !!communities()"
+        [disabled]="busy()"
+        (click)="refresh()"
+      >
+        Refresh
+      </button>
+      @if (communities()) {
+        <button
+          type="button"
+          ui-button
+          data-testid="regenerate-all"
+          [loading]="regeneratingAll()"
+          [disabled]="busy()"
+          (click)="regenerateAll()"
+        >
+          {{ regeneratingAll() ? 'Regenerating…' : 'Regenerate all now' }}
+        </button>
+      }
+    </div>
+  </ui-page-header>
+
+  @if (loadStatus() === 'loading' && !communities()) {
+    <ui-skeleton variant="block" label="Loading community narratives" />
+  } @else if (loadStatus() === 'error' && !communities()) {
+    <ui-error-state heading="Couldn't load community narratives" [message]="error()" retryLabel="Retry" (retry)="refresh()" />
+  }
+
+  @if (regenerateError(); as err) {
+    <div class="narratives-page__alert narratives-page__alert--danger" role="alert" data-testid="regenerate-error">
+      <p>{{ err }}</p>
+    </div>
+  }
+
+  @if (lastResult(); as result) {
+    <div class="narratives-page__alert narratives-page__alert--info" role="status" data-testid="regenerate-result">
+      <p>
+        <strong>
+          @if (result.response.scope === 'all') {
+            Regenerated {{ result.response.period }} for all communities:
+          } @else {
+            Regenerated {{ result.response.period }} for {{ lastResultName() }}:
+          }
+        </strong>
+        {{ result.response.attempted | kitCount }} attempted,
+        {{ result.response.succeeded | kitCount }} succeeded,
+        {{ result.response.failed | kitCount }} failed.
+      </p>
+      @if (result.response.scope === 'all') {
+        <p data-testid="regenerate-deferred">
+          @if (result.response.deferred > 0) {
+            {{ result.response.deferred | kitCount }}
+            {{ result.response.deferred === 1 ? 'community was' : 'communities were' }}
+            left over (run time and cost limits).
+            They finish on the next daily run.
+          } @else {
+            No communities were left over.
+          }
+        </p>
+      }
+    </div>
+  }
+
+  @if (communities()) {
+    <ui-kpi-grid>
+      <ui-kpi-tile label="Up to date" [value]="counts().succeeded | kitCount" />
+      <ui-kpi-tile label="Stale" [value]="counts().stale | kitCount" [tone]="counts().stale > 0 ? 'warning' : undefined" />
+      <ui-kpi-tile label="Failed" [value]="counts().failed | kitCount" [tone]="counts().failed > 0 ? 'danger' : undefined" />
+      <ui-kpi-tile label="Never generated" [value]="counts().missing | kitCount" />
+    </ui-kpi-grid>
+
+    <section class="narratives-page__card" aria-labelledby="narratives-table-heading">
+      <h2 id="narratives-table-heading" class="narratives-page__card-title">Communities</h2>
+      <ui-data-table
+        label="Community narratives by community"
+        [rows]="rows()"
+        [columns]="columns"
+        [rowId]="rowId"
+        emptyHeading="No communities yet"
+        compact
+      >
+        <ng-template uiCell="generated_at" let-row>
+          @if (row.generated_at) {
+            <span [title]="row.generated_at | kitDateTime">{{ row.generated_at | kitRelative: now() }}</span>
+          } @else {
+            <span class="narratives-page__muted">Never</span>
+          }
+        </ng-template>
+        <ng-template uiCell="last_error" let-row>
+          @if (row.last_error) {
+            <span class="narratives-page__error">{{ row.last_error }}</span>
+          } @else {
+            <span class="narratives-page__muted">—</span>
+          }
+        </ng-template>
+        <ng-template uiRowActions let-row>
+          <button
+            type="button"
+            ui-button
+            size="sm"
+            variant="secondary"
+            [attr.data-testid]="'regenerate-' + row.community_slug"
+            [attr.aria-label]="'Regenerate now for ' + row.community_name"
+            [loading]="isRegenerating(row)"
+            [disabled]="busy()"
+            (click)="regenerateOne(row)"
+          >
+            {{ isRegenerating(row) ? 'Regenerating…' : 'Regenerate now' }}
+          </button>
+        </ng-template>
+      </ui-data-table>
+    </section>
+  }
+</div>

@@ -982,6 +982,8 @@ export const DEFAULT_APP_CONFIG: AppConfig = {
       adminInvoiceDetail: 'Feasly admin commission invoice detail.',
       adminSheetsTitle: 'Sheets sync — Feasly Admin',
       adminSheets: 'Feasly admin Google Sheets sync status.',
+      adminCommunityNarrativesTitle: 'Community narratives — Feasly Admin',
+      adminCommunityNarratives: 'Feasly admin monthly community narrative status.',
       adminEstimatesTitle: 'Estimate lookup — Feasly Admin',
       adminEstimates: 'Read-only admin estimate lookup.',
       adminApiKeysTitle: 'API keys — Feasly Admin',

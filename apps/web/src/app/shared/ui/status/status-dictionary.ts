@@ -8,6 +8,7 @@
  * Pure data + lookups — no Angular, no app state.
  */
 import type {
+  AdminCommunityNarrativeStatus,
   AdminLeadStatus,
   AdminUserStatus,
   BuilderLeadStatus,
@@ -51,6 +52,9 @@ export type CalibrationImportKey = 'frozen' | 'draft' | 'superseded';
 export type SyncHealthKey = 'healthy' | 'lagging' | 'failing' | 'not_started';
 /** Ops attention flag: webhooks, calibration facts. Callers pass `label`. */
 export type OpsFlagKey = 'ok' | 'attention' | 'problem';
+
+/** Monthly community narrative latest-attempt status (#915). */
+export type CommunityNarrativeKey = AdminCommunityNarrativeStatus;
 
 /** Admin Billing header: the active billing model (#544). */
 export type BillingModelKey = 'commission' | 'flat';
@@ -142,6 +146,13 @@ const OPS_FLAG: Dictionary<OpsFlagKey> = {
   problem: { label: 'Problem', tone: 'danger' },
 };
 
+const COMMUNITY_NARRATIVE: Dictionary<CommunityNarrativeKey> = {
+  succeeded: { label: 'Up to date', tone: 'success' },
+  stale: { label: 'Stale', tone: 'warning' },
+  failed: { label: 'Failed', tone: 'danger' },
+  missing: { label: 'Never generated', tone: 'neutral' },
+};
+
 const BILLING_MODEL: Dictionary<BillingModelKey> = {
   commission: { label: 'Commission', tone: 'neutral' },
   flat: { label: 'Flat plan', tone: 'neutral' },
@@ -188,6 +199,7 @@ export const STATUS_DICTIONARY = {
   calibrationImport: CALIBRATION_IMPORT,
   syncHealth: SYNC_HEALTH,
   opsFlag: OPS_FLAG,
+  communityNarrative: COMMUNITY_NARRATIVE,
   billingModel: BILLING_MODEL,
   stripeMode: STRIPE_MODE,
   disputeSource: DISPUTE_SOURCE,

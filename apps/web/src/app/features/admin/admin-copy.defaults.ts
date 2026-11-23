@@ -25,6 +25,7 @@ export const DEFAULT_ADMIN_COPY: AdminCopy = {
       disputes: 'Disputes',
       calibration: 'Calibration',
       sheets: 'Sheets sync',
+      communityNarratives: 'Community narratives',
       funnels: 'Funnels',
       webhooks: 'Webhooks',
       quarantine: 'Quarantine',

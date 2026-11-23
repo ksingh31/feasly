@@ -22,6 +22,7 @@ export type AdminNavItemId =
   | 'disputes'
   | 'calibration'
   | 'sheets'
+  | 'communityNarratives'
   | 'funnels'
   | 'webhooks';
 
@@ -77,6 +78,7 @@ export const ADMIN_NAV: readonly AdminNavGroupDef[] = [
     items: [
       { id: 'calibration', path: '/admin/calibration' },
       { id: 'sheets', path: '/admin/ops/sheets' },
+      { id: 'communityNarratives', path: '/admin/ops/community-narratives' },
       { id: 'funnels', path: '/admin/funnels' },
       { id: 'webhooks', path: '/admin/webhooks' },
     ],
