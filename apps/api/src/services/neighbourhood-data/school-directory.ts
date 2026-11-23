@@ -16,9 +16,11 @@
  *    matches. An OSM school matches a City school when the normalized names
  *    agree (equal, or one contains the other) and they sit within the
  *    configured radius. Unmatched OSM schools are kept only when OSM marks
- *    them private (`operator:type=private` or `fee=yes`) — anything else
- *    cannot be typed reliably. Unmatched OSM schools are de-duplicated
- *    among themselves the same way (node + building way for one school).
+ *    them private (`operator:type=private` or `fee=yes`) and they carry a
+ *    K–12 signal ({@link osmIsK12}: tutoring centres and preschools are
+ *    dropped) — anything else cannot be typed reliably. Unmatched OSM
+ *    schools are de-duplicated among themselves the same way (normalized
+ *    name + proximity; node + building way for one school).
  *
  * Every field keeps the source it came from (`data.sources`). Community
  * codes come from a point-in-polygon test against City community
@@ -268,6 +270,107 @@ function osmIsPrivate(tags: Readonly<Record<string, string>>): boolean {
   return tags['operator:type'] === 'private' || tags['fee'] === 'yes';
 }
 
+/**
+ * Names of operators that are not K–12 schools even when mapped as
+ * `amenity=school` with `fee=yes`: tutoring centres, preschools/child care,
+ * driving and language schools. Matched against {@link normalizeName}.
+ */
+const NON_K12_NAME =
+  /\b(tutor\w*|kumon|sylvan|mathnasium|oxford learning|learning (centre|center)|test prep|pre ?school|pre ?k|play ?school|day ?care|day ?home|child ?care|nursery|early (learning|childhood)|out of school care|after school|driving|driver|language school|esl)\b/;
+
+/** OSM `school=*` values that are not K–12. */
+const NON_K12_SCHOOL_TAG = new Set([
+  'preschool',
+  'kindergarten',
+  'tutoring',
+  'cram_school',
+  'language',
+  'driving',
+  'music',
+  'dance',
+  'art',
+  'sport',
+]);
+
+/** OSM `school=*` values that are K–12. */
+const K12_SCHOOL_TAG = new Set([
+  'primary',
+  'elementary',
+  'middle',
+  'junior_high',
+  'secondary',
+  'high',
+  'senior_high',
+  'k12',
+  'combined',
+]);
+
+/** Name words that identify a K–12 school (word-bounded: "preschool" ≠ "school"). */
+const K12_NAME = /\b(school|ecole|academy|elementary|junior high|high|secondary|lycee|collegiate|college|gymnasium)\b/;
+
+function semicolonValues(value: string | undefined): string[] {
+  return (value ?? '')
+    .toLowerCase()
+    .split(/[;,]/)
+    .map((v) => v.trim())
+    .filter((v) => v.length > 0);
+}
+
+/** `isced:level` values (e.g. "1;2", "1-3"); null when untagged. */
+function iscedLevels(value: string | undefined): number[] | null {
+  if (!value || value.trim().length === 0) return null;
+  const levels: number[] = [];
+  for (const part of semicolonValues(value)) {
+    const range = /^(\d)\s*-\s*(\d)$/.exec(part);
+    if (range) {
+      for (let l = Number(range[1]); l <= Number(range[2]); l++) levels.push(l);
+    } else if (/^\d$/.test(part)) {
+      levels.push(Number(part));
+    }
+  }
+  return levels;
+}
+
+/** True when an OSM `grades` tag names a K–12 grade (K/0–12; "PK" alone does not). */
+function gradesTagIsK12(value: string | undefined): boolean {
+  const grade = (token: string): number | null =>
+    /^p(re)?-?k$/.test(token) ? -1 : token === 'k' ? 0 : /^-?\d+$/.test(token) ? Number(token) : null;
+  for (const part of semicolonValues(value).flatMap((v) => v.split(/\s+/))) {
+    // "K-12", "PK-5", "0-6", "-1-3" (pre-K to 3), or a single grade.
+    const m = /^(p(?:re)?-?k|k|-?\d+)(?:-(p(?:re)?-?k|k|-?\d+))?$/.exec(part);
+    if (!m) continue;
+    const lo = grade(m[1]!);
+    const hi = m[2] === undefined ? lo : grade(m[2]);
+    if (lo === null || hi === null) continue;
+    if (Math.max(lo, hi) >= 0 && Math.min(lo, hi) <= 12) return true;
+  }
+  return false;
+}
+
+/**
+ * An OSM-only school is kept only with a K–12 signal (grades, ISCED 1–3,
+ * a K–12 `school=*` value, or a school word in the name) and no non-K–12
+ * signal (tutoring / preschool / child-care name, non-K–12 `school=*`, or an
+ * ISCED tag without levels 1–3).
+ */
+export function osmIsK12(tags: Readonly<Record<string, string>>): boolean {
+  const name = normalizeName(tags['name'] ?? '');
+  const schoolTags = semicolonValues(tags['school']);
+  const isced = iscedLevels(tags['isced:level']);
+  const iscedK12 = isced !== null && isced.some((l) => l >= 1 && l <= 3);
+
+  if (NON_K12_NAME.test(name)) return false;
+  if (schoolTags.some((t) => NON_K12_SCHOOL_TAG.has(t))) return false;
+  if (isced !== null && !iscedK12) return false;
+
+  return (
+    gradesTagIsK12(tags['grades']) ||
+    iscedK12 ||
+    schoolTags.some((t) => K12_SCHOOL_TAG.has(t)) ||
+    K12_NAME.test(name)
+  );
+}
+
 interface Community {
   readonly code: string;
   readonly name: string | null;
@@ -409,11 +512,19 @@ export function buildSchoolDirectory(input: BuildSchoolDirectoryInput): SchoolRe
   }
 
   // 2) Private schools only OSM knows about. Typed only when OSM says private
-  //    and no listed public authority runs it. OSM often maps one school as
-  //    both a node and a building way/relation: keep one per name + location,
-  //    preferring relation > way > node, then the lowest id (deterministic).
+  //    and no listed public authority runs it, and only with a K–12 signal
+  //    (tutoring centres and preschools tagged `fee=yes` are dropped). OSM
+  //    often maps one school as both a node and a building way/relation: keep
+  //    one per normalized name + location, preferring relation > way > node,
+  //    then the lowest id (deterministic).
   const osmOnly = osm
-    .filter((o, i) => !usedOsm.has(i) && osmIsPrivate(o.tags) && !classifyAuthority(str(o.tags['operator'])).listed)
+    .filter(
+      (o, i) =>
+        !usedOsm.has(i) &&
+        osmIsPrivate(o.tags) &&
+        osmIsK12(o.tags) &&
+        !classifyAuthority(str(o.tags['operator'])).listed,
+    )
     .sort((a, b) => osmTypeRank(a.el.type) - osmTypeRank(b.el.type) || a.el.id - b.el.id);
   const keptOsm: typeof osmOnly = [];
   for (const o of osmOnly) {

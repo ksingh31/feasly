@@ -9,6 +9,7 @@ import {
   classifyAuthority,
   detectPrograms,
   normalizeName,
+  osmIsK12,
   type OsmElement,
   type SchoolRecordData,
 } from '../src/services/neighbourhood-data/school-directory';
@@ -199,6 +200,52 @@ describe('schools directory builder (#774)', () => {
     expect(lycees.map((r) => r.externalId)).toEqual(['osm-way-3']);
   });
 
+  it('#922: de-duplicates OSM-only schools by normalized name + proximity, not exact tags', () => {
+    // Node spells the name without accents/with "School", tags only fee=yes.
+    const node: OsmElement = {
+      type: 'node',
+      id: 98,
+      lat: 51.0181,
+      lon: -114.1049,
+      tags: { amenity: 'school', name: 'Lycee International de Calgary School', fee: 'yes', grades: 'K-12' },
+    };
+    // Same-name school 10 km away is a different campus: kept.
+    const farCampus = osm(97, 51.11, -114.2, { name: 'Lycée International de Calgary', fee: 'yes', grades: 'K-6' });
+    const rows = buildSchoolDirectory({
+      cityRows: CITY_ROWS,
+      osmElements: [node, farCampus, ...OSM],
+      boundaries: BOUNDARIES,
+      dedupeRadiusM: 300,
+    });
+    const lycees = rows.filter((r) => /^lyc/i.test(r.name)).map((r) => r.externalId);
+    expect(lycees).toEqual(['osm-way-3', 'osm-way-97']);
+  });
+
+  it('#922: drops fee=yes operators without K–12 signals (tutoring centres, preschools)', () => {
+    const nonK12 = [
+      osm(201, 51.02, -114.1, { name: 'Kumon Math and Reading Centre', fee: 'yes', grades: '1-12' }),
+      osm(202, 51.021, -114.1, { name: 'Little Sprouts Preschool', fee: 'yes' }),
+      osm(203, 51.022, -114.1, { name: 'Bright Minds Pre-School', 'operator:type': 'private' }),
+      osm(204, 51.023, -114.1, { name: 'Sylvan Learning', fee: 'yes' }),
+      osm(205, 51.024, -114.1, { name: 'Elite Tutoring Academy', fee: 'yes' }),
+      osm(206, 51.025, -114.1, { name: 'Sunrise Montessori', fee: 'yes', 'isced:level': '0' }),
+      osm(207, 51.026, -114.1, { name: 'Calgary Driving School', fee: 'yes' }),
+      osm(208, 51.027, -114.1, { name: 'Maple Learning Hub', fee: 'yes' }), // no K–12 signal at all
+    ];
+    const k12 = [
+      osm(301, 51.03, -114.2, { name: 'Rundle Academy', fee: 'yes' }),
+      osm(302, 51.031, -114.2, { name: 'Bow Valley Montessori', fee: 'yes', grades: 'PK-6' }),
+      osm(303, 51.032, -114.2, { name: 'Prairie Heights', fee: 'yes', 'isced:level': '1;2' }),
+    ];
+    const rows = buildSchoolDirectory({
+      cityRows: [],
+      osmElements: [...nonK12, ...k12],
+      boundaries: BOUNDARIES,
+      dedupeRadiusM: 300,
+    });
+    expect(rows.map((r) => r.externalId)).toEqual(['osm-way-301', 'osm-way-302', 'osm-way-303']);
+  });
+
   it('assigns the City community by point-in-polygon', () => {
     const altadore = byName('Altadore School');
     expect(altadore.communityCode).toBe('ALT');
@@ -214,6 +261,27 @@ describe('schools directory builder (#774)', () => {
     expect(build()).toEqual(build());
     const ids = build().map((r) => r.externalId);
     expect([...ids].sort()).toEqual(ids);
+  });
+});
+
+describe('osmIsK12 (#922)', () => {
+  it.each<[Record<string, string>, boolean]>([
+    [{ name: 'Webber Academy' }, true],
+    [{ name: 'Lycée International de Calgary', grades: '0-12' }, true],
+    [{ name: 'Northside Learning', grades: 'K-12' }, true],
+    [{ name: 'Northside Learning', grades: 'PK-5' }, true],
+    [{ name: 'Northside Learning', grades: '-1-3' }, true],
+    [{ name: 'Northside Learning', grades: 'PK' }, false],
+    [{ name: 'Northside Learning', school: 'secondary' }, true],
+    [{ name: 'Northside Learning', 'isced:level': '1-3' }, true],
+    [{ name: 'Northside Learning' }, false],
+    [{ name: 'Happy Days Preschool' }, false],
+    [{ name: 'Mathnasium of Calgary', grades: 'K-12' }, false],
+    [{ name: 'Westside School', school: 'tutoring' }, false],
+    [{ name: 'Westside School', 'isced:level': '0' }, false],
+    [{ name: 'Tiny Tots Daycare School' }, false],
+  ])('%j → %s', (tags, expected) => {
+    expect(osmIsK12(tags)).toBe(expected);
   });
 });
 

@@ -62,7 +62,7 @@ const RESPONSES: Record<string, unknown> = {
         id: 42,
         lat: 51.015,
         lon: -114.1,
-        tags: { amenity: 'school', name: 'Little Oak Montessori', 'operator:type': 'private', website: 'https://oak.example' },
+        tags: { amenity: 'school', name: 'Little Oak Montessori', 'operator:type': 'private', grades: 'K-6', website: 'https://oak.example' },
       },
     ],
   },
