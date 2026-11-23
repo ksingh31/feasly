@@ -40,6 +40,7 @@ import {
   renderShareEmail,
   type BuilderDigestLeadLine,
   type CommissionEmailTax,
+  type ReportNeighbourhoodSummary,
   type TemplateContext,
 } from './templates';
 
@@ -66,6 +67,10 @@ export interface MagicLinkEmailInput {
    * new-build timeline renders only for `'new_build'`.
    */
   readonly projectType?: string;
+  /** #785 (consumer only): schools + living nearby sections; absent → hidden. */
+  readonly neighbourhood?: ReportNeighbourhoodSummary;
+  /** #785/#918: lead captured on Feasly's own site (not a builder embed). */
+  readonly ownSite?: boolean;
 }
 
 export interface PartnerShareEmailInput {

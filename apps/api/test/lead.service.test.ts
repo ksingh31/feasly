@@ -425,6 +425,8 @@ describe('lead service', () => {
     expect(sent.expiresOn).toEqual(new Date(NOW.getTime() + 900_000));
     // #823: the estimate's project type gates the new-build timeline block.
     expect(sent.projectType).toBe('new_build');
+    // #785/#918: an own-site lead gets the Feasly-only find-a-community link.
+    expect(sent.ownSite).toBe(true);
 
     expect(store.inserted).toHaveLength(1);
     const saved = store.inserted[0];
@@ -451,6 +453,15 @@ describe('lead service', () => {
     expect(saved.tenantKey).toBe('elite-craft');
     // EMB-03: a validated tenant key marks the lead as embed-sourced.
     expect(saved.source).toBe('embed');
+  });
+
+  it('#785/#918: a builder-embed lead\'s report email omits the find-a-community link', async () => {
+    const store = fakeLeadStore();
+    const email = fakeEmailService();
+    const service = createLeadService({ ...DEPS, store, email });
+    await service.submitLead({ ...VALID_BODY, tenantKey: 'elite-craft' });
+    expect(email.magicLinkSends).toHaveLength(1);
+    expect(email.magicLinkSends[0]!.ownSite).toBeUndefined();
   });
 
   it('#814: passes the sanitized campaign source to the insert', async () => {

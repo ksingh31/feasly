@@ -434,6 +434,21 @@ describe('magic-link reissue', () => {
     expect(email.sends[0]!.projectType).toBeUndefined();
   });
 
+  it('flags own-site leads only for the find-a-community email link (#785/#918)', async () => {
+    const cases = [
+      { lead: leadFixture(), ownSite: true },
+      { lead: leadFixture({ tenantKey: 'elite-craft', source: 'embed' }), ownSite: undefined },
+      // A held embed lead (#860) is captured with no tenant but is still embed-sourced.
+      { lead: leadFixture({ tenantKey: null, source: 'embed' }), ownSite: undefined },
+    ];
+    for (const c of cases) {
+      const email = fakeEmail();
+      const { service } = makeService({ email, leads: fakeLeads({ lead: c.lead }) });
+      expect(await service.reissue({ email: 'sam@example.com' })).toEqual({ sent: true });
+      expect(email.sends[0]!.ownSite).toBe(c.ownSite);
+    }
+  });
+
   it('suppresses the email and flags the link for a sandbox lead (#914)', async () => {
     const magicLinks = fakeMagicLinks();
     const email = fakeEmail();

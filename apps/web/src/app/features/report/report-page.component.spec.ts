@@ -8,6 +8,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { firstValueFrom, throwError } from 'rxjs';
 import type { PropertyRecord } from '@feasly/contracts';
 import { API_SERVICE } from '../../core/api/api.service';
+import { ReportNeighbourhoodState } from './report-neighbourhood.state';
 import { MockApiService } from '../../core/api/mock-api.service';
 import { providePropertyData } from '../../core/api/property-data.service';
 import { ConfigService } from '../../core/config/config.service';
@@ -121,7 +122,7 @@ describe('ReportPageComponent', () => {
           { path: 'estimate/report', component: ReportPageComponent },
           { path: 'estimate/gate', component: BlankComponent },
         ]),
-        provideStore([WizardState, ReportState, LeadState, EmbedState, PartnersState]),
+        provideStore([WizardState, ReportState, LeadState, EmbedState, PartnersState, ReportNeighbourhoodState]),
         providePropertyData(),
         { provide: API_SERVICE, useClass: MockApiService },
         // The report fires consent-gated analytics events on share/callback/

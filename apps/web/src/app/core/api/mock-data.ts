@@ -8,10 +8,12 @@
  * every value it produces. Nothing here is tunable app behavior.
  */
 import type {
+  AddressSchoolDesignationsResponse,
   AutocompleteSuggestion,
   CallbackResponse,
   CommunityCompareResponse,
   CommunityCompareRow,
+  CommunityLivingResponse,
   CommunityMatchRequest,
   CommunityMatchResponse,
   CommunityMatchResult,
@@ -944,5 +946,76 @@ export function mockCommunityCompare(slugs: readonly string[]): CommunityCompare
     distanceBasis: 'straight-line',
     dataRefreshedAt: '2026-11-01T00:00:00.000Z',
     disclaimer: 'Mock data for local development. Planning ranges only.',
+  };
+}
+
+const MOCK_BOARDS = [
+  { board: 'cbe', name: 'Calgary Board of Education', lookupUrl: 'https://example.com/cbe-school-lookup' },
+  { board: 'ccsd', name: 'Calgary Catholic School District', lookupUrl: 'https://example.com/ccsd-school-lookup' },
+] as const;
+
+/**
+ * Mock address school designations (#785): every address resolves to the
+ * mock property's community. Contract-shaped; always "typically designated".
+ */
+export function mockAddressSchoolDesignations(addressKey: string): AddressSchoolDesignationsResponse {
+  const refreshedAt = '2026-11-01T00:00:00.000Z';
+  const school = (board: 'cbe' | 'ccsd', gradeBand: 'K-6' | '7-9' | '10-12', schoolName: string) => {
+    const b = MOCK_BOARDS.find((x) => x.board === board)!;
+    return {
+      board,
+      boardName: b.name,
+      gradeBand,
+      schoolName,
+      label: 'typically designated' as const,
+      lookupUrl: b.lookupUrl,
+      refreshedAt,
+    };
+  };
+  return {
+    addressKey,
+    communityCode: 'CAP',
+    communityName: 'Capitol Hill',
+    slug: 'capitol-hill',
+    label: 'typically designated',
+    designations: [
+      school('cbe', 'K-6', 'Capitol Hill School'),
+      school('cbe', '7-9', 'Mock Junior High School'),
+      school('cbe', '10-12', 'Mock High School'),
+      school('ccsd', 'K-6', 'Mock Catholic Elementary'),
+    ],
+    boards: MOCK_BOARDS.map((b) => ({ ...b })),
+    disclaimer: 'Mock data for local development. Confirm with the board.',
+  };
+}
+
+/** Mock living-nearby metrics (#785) for the mock community. Unknown slug → not_found. */
+export function mockCommunityLiving(slug: string): CommunityLivingResponse {
+  if (slug !== 'capitol-hill') throw mockFailure('not_found', `Unknown community: ${slug}`);
+  const metric = (category: string, label: string, name: string | null, distanceM: number) => ({
+    category,
+    label,
+    nearest: name ? { name, distanceM } : null,
+    counts: [
+      { radiusM: 500, count: name ? 1 : 0 },
+      { radiusM: 1_000, count: name ? 3 : 0 },
+    ],
+  });
+  return {
+    communityCode: 'CAP',
+    name: 'Capitol Hill',
+    slug: 'capitol-hill',
+    distanceBasis: 'straight-line',
+    searchRadiusM: 2_000,
+    amenities: [
+      metric('parks', 'Parks', 'Mock Park', 220),
+      metric('playgrounds', 'Playgrounds', 'Mock Playground', 410),
+      metric('pathways', 'Pathways', 'Mock Pathway', 650),
+      metric('rec-centres', 'Recreation centres', 'Mock Leisure Centre', 1_350),
+      metric('pools', 'Pools', null, 0),
+      metric('libraries', 'Libraries', 'Mock Library', 1_800),
+    ],
+    treeCover: { publicTrees: 3_100, areaHa: 190, treesPerHa: 16.3, level: 'high' },
+    dataRefreshedAt: '2026-11-01T00:00:00.000Z',
   };
 }

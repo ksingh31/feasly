@@ -15,7 +15,9 @@ import type {
   CallbackResponse,
   CityDataFreshnessResponse,
   CommunityMatchRequest,
+  AddressSchoolDesignationsResponse,
   CommunityCompareResponse,
+  CommunityLivingResponse,
   CommunityMatchResponse,
   EstimateRequest,
   GetReportResponse,
@@ -127,6 +129,14 @@ export interface ApiService {
    * per row marked by the API.
    */
   compareCommunities(slugs: readonly string[]): Observable<CommunityCompareResponse>;
+  /**
+   * #785: GET /api/v1/school-designations?addressKey= — public, ungated.
+   * Typically designated schools via the address's community, with each
+   * board's lookup link. Served from stored data (no outside call).
+   */
+  getAddressSchoolDesignations(addressKey: string): Observable<AddressSchoolDesignationsResponse>;
+  /** #785: GET /api/v1/communities/{slug}/living — public, ungated (stored data). */
+  getCommunityLiving(slug: string): Observable<CommunityLivingResponse>;
   /** Lead capture. The magic link travels by email in prod. */
   submitLead(request: LeadRequest): Observable<LeadResponse>;
   /** Resolves a magic-link token to a report token. */
@@ -325,6 +335,14 @@ class LazyApiService implements ApiService {
 
   compareCommunities(slugs: readonly string[]): Observable<CommunityCompareResponse> {
     return this.resolve().compareCommunities(slugs);
+  }
+
+  getAddressSchoolDesignations(addressKey: string): Observable<AddressSchoolDesignationsResponse> {
+    return this.resolve().getAddressSchoolDesignations(addressKey);
+  }
+
+  getCommunityLiving(slug: string): Observable<CommunityLivingResponse> {
+    return this.resolve().getCommunityLiving(slug);
   }
 
   submitLead(request: LeadRequest): Observable<LeadResponse> {
