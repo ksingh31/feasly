@@ -1,0 +1,64 @@
+/**
+ * Admin Community narratives (#915). Kit PageHeader / KpiTile / DataTable;
+ * this file only lays out alerts and the table card. Tokens only.
+ */
+
+:host {
+  display: block;
+}
+
+.narratives-page {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+  min-width: 0;
+}
+
+.narratives-page__header-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-3);
+}
+
+.narratives-page__alert {
+  padding: var(--space-3) var(--space-4);
+  border-left: 4px solid var(--status-info-fg);
+  border-radius: var(--radius-sm);
+  background: var(--status-info-bg);
+  color: var(--text);
+  font: var(--type-body-sm);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+
+  p {
+    margin: 0;
+  }
+}
+
+.narratives-page__alert--danger {
+  border-left-color: var(--status-danger-fg);
+  background: var(--status-danger-bg);
+}
+
+.narratives-page__card {
+  min-width: 0;
+  padding: var(--space-4);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  background: var(--card);
+}
+
+.narratives-page__card-title {
+  margin: 0 0 var(--space-3);
+  font: var(--type-product-h2);
+}
+
+.narratives-page__error {
+  overflow-wrap: anywhere;
+}
+
+.narratives-page__muted {
+  color: var(--muted);
+}

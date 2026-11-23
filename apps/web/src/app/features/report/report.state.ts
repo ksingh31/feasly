@@ -12,6 +12,7 @@ import type {
 import { API_SERVICE } from '../../core/api/api.service';
 import { buildNewBuildRequest } from '../../core/api/build-estimate-request';
 import { cachedPreviewFor, previewRequestKey } from '../../core/api/preview-cache';
+import { withoutEstimateSentence } from '../../shared/utils/narrative-display';
 import { LeadState } from '../wizard/lead.state';
 import { WizardState } from '../wizard/wizard.state';
 import {
@@ -189,10 +190,19 @@ export class ReportState {
    * Single place that lands a new snapshot: the revision counter travels
    * with it, and both persist across reloads (ai-summary-persistence), so a
    * reloaded report renders the same version instead of restarting at 1.
+   *
+   * #915: the narrative opens with a deterministic sentence about the
+   * estimate as first run (size, finish, range). A revision (version > 1)
+   * may have changed size or finish, so that sentence would describe the
+   * old scope — it is dropped and only the neighbourhood prose carries.
    */
   private setSnapshot(ctx: StateContext<ReportStateModel>, snapshot: ReportSnapshot): void {
+    const narrative =
+      snapshot.version > 1 && snapshot.narrative
+        ? withoutEstimateSentence(snapshot.narrative)
+        : snapshot.narrative;
     ctx.patchState({
-      snapshot,
+      snapshot: narrative === snapshot.narrative ? snapshot : { ...snapshot, narrative },
       savedVersion: snapshot.version,
       status: 'ready',
     });

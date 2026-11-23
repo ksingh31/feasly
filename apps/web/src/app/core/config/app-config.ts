@@ -2402,6 +2402,8 @@ export interface AppConfig {
       adminInvoiceDetail: string;
       adminSheetsTitle: string;
       adminSheets: string;
+      adminCommunityNarrativesTitle: string;
+      adminCommunityNarratives: string;
       adminEstimatesTitle: string;
       adminEstimates: string;
       adminApiKeysTitle: string;
@@ -2957,6 +2959,7 @@ export interface AdminCopy {
       disputes: string;
       calibration: string;
       sheets: string;
+      communityNarratives: string;
       funnels: string;
       webhooks: string;
       quarantine: string;

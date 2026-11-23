@@ -42,6 +42,12 @@ export const ADMIN_E2E_ROUTES: readonly AdminE2eRoute[] = [
   { path: 'admin/billing', url: '/admin/billing', name: 'billing', ready: SHELL_READY },
   { path: 'admin/webhooks', url: '/admin/webhooks', name: 'webhooks', ready: SHELL_READY },
   { path: 'admin/ops/sheets', url: '/admin/ops/sheets', name: 'ops-sheets', ready: SHELL_READY },
+  {
+    path: 'admin/ops/community-narratives',
+    url: '/admin/ops/community-narratives',
+    name: 'ops-community-narratives',
+    ready: SHELL_READY,
+  },
   { path: 'admin/estimates', url: '/admin/estimates', name: 'estimates', ready: SHELL_READY },
   { path: 'admin/estimates/:id', url: '/admin/estimates/est-1', name: 'estimate-detail', ready: SHELL_READY },
   { path: 'admin/billing/invoices', url: '/admin/billing/invoices', name: 'invoices', ready: SHELL_READY },

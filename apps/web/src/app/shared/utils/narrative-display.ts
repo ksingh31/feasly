@@ -118,3 +118,33 @@ function cleanLegacyMarkdown(block: string): string {
   }
   return lines.join('\n').replace(/\*\*/g, '').replace(/__/g, '');
 }
+
+/**
+ * The report narrative's deterministic lead sentence (#759): the API
+ * prepends `buildEstimateSummary` output — "For this 2,400 sq ft new home
+ * with a standard finish, our cost model puts the build cost between …" or
+ * "For this renovation, our cost model puts the cost between …" — as the
+ * first paragraph. Matching the stable opening + clause keeps the web from
+ * guessing at anything else.
+ */
+const ESTIMATE_SENTENCE = /^For this [^\n]*?our cost model puts the [^\n]*$/;
+
+/**
+ * Drop the deterministic estimate sentence from a narrative (#915).
+ *
+ * The narrative endpoint describes the estimate as first run, so after a
+ * what-if revision (size or finish changed) that sentence names the old
+ * scope while the page shows the revised figures. The neighbourhood prose
+ * after it stays valid. Narratives without the sentence (legacy guides)
+ * pass through unchanged.
+ */
+export function withoutEstimateSentence(narrative: string): string {
+  const text = narrative ?? '';
+  const trimmed = text.trimStart();
+  const breakAt = trimmed.search(/\n\s*\n/);
+  const first = (breakAt === -1 ? trimmed : trimmed.slice(0, breakAt)).trim();
+  if (!ESTIMATE_SENTENCE.test(first)) {
+    return text;
+  }
+  return breakAt === -1 ? '' : trimmed.slice(breakAt).trim();
+}

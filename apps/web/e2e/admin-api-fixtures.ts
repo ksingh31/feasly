@@ -36,6 +36,7 @@ import type {
   DisputeListItem,
   DisputeListResponse,
   SheetsSyncStatusResponse,
+  AdminCommunityNarrativesResponse,
 } from '@feasly/contracts';
 import type { ApiKeyUsageAggregate } from '../src/app/core/api/api.service';
 import type { FunnelReport } from '../src/app/core/api/funnel.types';
@@ -502,6 +503,38 @@ export const SHEETS_STATUS: SheetsSyncStatusResponse = {
   ],
 };
 
+export const COMMUNITY_NARRATIVES: AdminCommunityNarrativesResponse = {
+  communities: [
+    {
+      community_slug: 'altadore',
+      community_name: 'Altadore',
+      period: '2026-11',
+      status: 'succeeded',
+      generated_at: daysAgo(2),
+      attempts: 1,
+      last_error: null,
+    },
+    {
+      community_slug: 'killarney-glengarry',
+      community_name: 'Killarney/Glengarry',
+      period: '2026-11',
+      status: 'failed',
+      generated_at: daysAgo(33),
+      attempts: 3,
+      last_error: 'Provider timed out after 30 seconds.',
+    },
+    {
+      community_slug: 'bridgeland-riverside',
+      community_name: 'Bridgeland/Riverside',
+      period: null,
+      status: 'missing',
+      generated_at: null,
+      attempts: 0,
+      last_error: null,
+    },
+  ],
+};
+
 const FUNNEL_COUNTS: ReadonlyArray<readonly [string, string, number]> = [
   ['landing', 'Landing view', 9640],
   ['address', 'Address selected', 4820],
@@ -657,6 +690,8 @@ export async function mockAdminApi(page: Page, opts: { signedIn: boolean }): Pro
           return json(route, CALIBRATION);
         case '/api/v1/admin/ops/sheets-status':
           return json(route, SHEETS_STATUS);
+        case '/api/v1/admin/community-narratives':
+          return json(route, COMMUNITY_NARRATIVES);
         case '/api/v1/admin/funnels':
           return json(route, FUNNEL);
         case '/api/v1/admin/api-keys':

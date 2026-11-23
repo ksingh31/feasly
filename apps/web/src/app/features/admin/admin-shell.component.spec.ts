@@ -150,6 +150,7 @@ describe('AdminShellComponent — sidebar', () => {
       '/admin/disputes',
       '/admin/calibration',
       '/admin/ops/sheets',
+      '/admin/ops/community-narratives',
       '/admin/funnels',
       '/admin/webhooks',
     ]);

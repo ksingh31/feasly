@@ -73,6 +73,7 @@ describe('seo-routes', () => {
         'adminInvoiceDetailTitle',
       ],
       ['admin/ops/sheets', 'adminSheetsTitle'],
+      ['admin/ops/community-narratives', 'adminCommunityNarrativesTitle'],
       ['admin/estimates', 'adminEstimatesTitle'],
       ['admin/estimates/3f9b2c1a-0000-4000-8000-000000000000', 'adminEstimatesTitle'],
       ['admin/api-keys', 'adminApiKeysTitle'],
@@ -129,6 +130,7 @@ describe('seo-routes', () => {
       'admin/billing/invoices/:id':
         'admin/billing/invoices/3f9b2c1a-0000-4000-8000-000000000000',
       'admin/ops/sheets': 'admin/ops/sheets',
+      'admin/ops/community-narratives': 'admin/ops/community-narratives',
       'admin/estimates': 'admin/estimates',
       'admin/estimates/:id': 'admin/estimates/3f9b2c1a-0000-4000-8000-000000000000',
       'admin/api-keys': 'admin/api-keys',

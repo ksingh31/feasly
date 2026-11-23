@@ -273,6 +273,49 @@ describe('ReportState', () => {
     }
   });
 
+  describe('estimate sentence after a revision (#915)', () => {
+    const sentence =
+      'For this 2,000 sq ft new home with a standard finish, our cost model puts the build cost ' +
+      'between $800,000 and $900,000, with a typical figure of $850,000.';
+    const guide = 'A leafy inner-city community.';
+
+    async function loadWith(version: number) {
+      const token = await mockToken();
+      const snapshot: TierRevisionResponse = {
+        ...mockReport('estimate-1', 'lead-1', { ...baseInputs }, 'disclaimer'),
+        version,
+        narrative: '',
+      };
+      const reportSpy = vi.spyOn(api, 'getReport').mockImplementation(() => of(snapshot));
+      const narrativeSpy = vi.spyOn(api, 'getNarrative').mockImplementation(() =>
+        of({
+          estimateId: 'estimate-1',
+          narrative: `${sentence}\n\n${guide}`,
+          narrativeGeneratedAt: new Date().toISOString(),
+          cached: true,
+          narrativeSource: 'ai',
+        }),
+      );
+      try {
+        store.dispatch(new SetReportToken(token));
+        store.dispatch(new UnlockReport());
+        await pollStatus('ready');
+        return store.selectSnapshot(ReportState.snapshot)!;
+      } finally {
+        reportSpy.mockRestore();
+        narrativeSpy.mockRestore();
+      }
+    }
+
+    it('keeps the sentence on the first version', async () => {
+      expect((await loadWith(1)).narrative).toBe(`${sentence}\n\n${guide}`);
+    });
+
+    it('drops the old-scope sentence on a revised version, keeping the guide', async () => {
+      expect((await loadWith(3)).narrative).toBe(guide);
+    });
+  });
+
   it('reviseReport re-runs the estimate and bumps the version', async () => {
     await unlock();
     const before = store.selectSnapshot(ReportState.snapshot)!;

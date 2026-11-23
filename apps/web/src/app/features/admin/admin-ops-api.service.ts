@@ -3,6 +3,9 @@ import { inject, Injectable } from '@angular/core';
 import { catchError, timeout } from 'rxjs';
 import type { Observable } from 'rxjs';
 import type {
+  AdminCommunityNarrativeRegenerateRequest,
+  AdminCommunityNarrativeRegenerateResponse,
+  AdminCommunityNarrativesResponse,
   SheetsSyncNowResponse,
   SheetsSyncStatusResponse,
 } from '@feasly/contracts';
@@ -58,6 +61,30 @@ export class AdminOpsApiService {
         {},
         { withCredentials: true },
       ),
+    );
+  }
+
+  /** GET /api/v1/admin/community-narratives — latest status per community (#915). */
+  getCommunityNarratives(): Observable<AdminCommunityNarrativesResponse> {
+    return this.call(
+      this.http.get<AdminCommunityNarrativesResponse>(`${this.base}/admin/community-narratives`, {
+        withCredentials: true,
+      }),
+    );
+  }
+
+  /**
+   * POST /api/v1/admin/community-narratives/regenerate — regenerate one
+   * community (`{ community_slug }`) or all (`{}`); audit-logged server-side.
+   */
+  regenerateCommunityNarratives(
+    body: AdminCommunityNarrativeRegenerateRequest,
+  ): Observable<AdminCommunityNarrativeRegenerateResponse> {
+    const path = '/admin/community-narratives/regenerate';
+    return this.call(
+      this.http.post<AdminCommunityNarrativeRegenerateResponse>(`${this.base}${path}`, body, {
+        withCredentials: true,
+      }),
     );
   }
 }

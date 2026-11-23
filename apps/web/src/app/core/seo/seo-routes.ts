@@ -197,6 +197,12 @@ const ROUTES: SeoRouteConfig[] = [
   },
   { pattern: 'admin/ops/sheets', titleKey: 'adminSheetsTitle', descriptionKey: 'adminSheets', noindex: true },
   {
+    pattern: 'admin/ops/community-narratives',
+    titleKey: 'adminCommunityNarrativesTitle',
+    descriptionKey: 'adminCommunityNarratives',
+    noindex: true,
+  },
+  {
     pattern: 'admin/estimates',
     titleKey: 'adminEstimatesTitle',
     descriptionKey: 'adminEstimates',
