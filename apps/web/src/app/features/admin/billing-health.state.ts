@@ -86,6 +86,12 @@ export interface BillingHealthStateModel {
   invoiceFeedback: {
     ok: boolean;
     message: string;
+    /**
+     * HTTP status of a failed #862 adjustment (null when unknown). The
+     * refund modal uses it to tell a definite pre-claim rejection (400/422)
+     * from a failure that may have reached the server.
+     */
+    status?: number | null;
     invoice:
       | MarkInvoicePaidResponse
       | SetCommissionRateResponse
@@ -604,7 +610,7 @@ export class BillingHealthState {
       catchError((err: unknown) => {
         ctx.patchState({
           invoiceActionStatus: 'error',
-          invoiceFeedback: { ok: false, message: failure(err), invoice: null },
+          invoiceFeedback: { ok: false, message: failure(err), invoice: null, status: httpStatus(err) },
         });
         return of(null);
       }),
@@ -689,6 +695,15 @@ function friendlyInvoiceActionError(err: unknown): string {
   return 'The update failed — check the details and try again.';
 }
 
+/** HTTP status of an error, or null when it has none. */
+function httpStatus(err: unknown): number | null {
+  const status =
+    typeof err === 'object' && err !== null && 'status' in err
+      ? (err as { status?: unknown }).status
+      : undefined;
+  return typeof status === 'number' ? status : null;
+}
+
 /**
  * #862: void / correct-contract / reverse-payment failures. The raw error
  * never reaches the UI.
@@ -718,7 +733,8 @@ function friendlyRefundError(err: unknown): string {
   if (status === 400) return 'Check the refund details — the amount, reason or reference is invalid.';
   if (status === 422)
     return 'The refund can’t go ahead: it can’t exceed what is left to refund, and an off-Stripe payment needs a reference.';
-  if (status === 409) return 'That invoice changed state — it may no longer be paid. Refresh and try again.';
+  if (status === 409)
+    return 'This refund can’t go ahead — the invoice may no longer be paid, or this refund attempt already failed. Close this window, refresh and start a new refund.';
   return 'The refund did not go through. Try again — it is the same request, so the invoice is never refunded twice.';
 }
 

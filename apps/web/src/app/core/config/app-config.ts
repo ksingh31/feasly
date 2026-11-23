@@ -3447,6 +3447,7 @@ export interface AdminCopy {
     refundCardNote: string;
     refundFullNote: string;
     refundRetryNote: string;
+    refundLockedNote: string;
     voidNote: string;
     contractNote: string;
     contractReviewNote: string;

@@ -1,7 +1,7 @@
-import { Component, computed } from '@angular/core';
+import { Component, computed, signal } from '@angular/core';
 import { toSignal } from '@angular/core/rxjs-interop';
 import { FormControl, FormGroup, ReactiveFormsModule, Validators } from '@angular/forms';
-import { startWith } from 'rxjs';
+import { map, startWith } from 'rxjs';
 import type { InvoiceRefundReason, RefundInvoiceRequest } from '@feasly/contracts';
 import {
   KitMoneyPipe,
@@ -25,6 +25,7 @@ import {
   newRefundIdempotencyKey,
   refundNeedsReference,
   refundPreview,
+  refundRejectedBeforeClaim,
   refundableCents,
 } from './admin-invoice-view';
 
@@ -33,6 +34,13 @@ import {
  * Before → after shows the refunded total and the net the platform keeps.
  * One idempotency key is generated per modal open and sent on every
  * attempt, so a double-click or a retry after an error never refunds twice.
+ *
+ * The server matches a retry on the key alone, so after any failure that
+ * may have reached it (anything but a 400/422, which are rejected before
+ * the key is claimed) the amount, reason and reference are locked: a retry
+ * can only resend the same refund, and the button always names the amount
+ * the server will actually refund. A definite 400/422 before any such
+ * failure keeps the fields editable and starts a fresh key.
  */
 @Component({
   selector: 'app-admin-invoice-refund-modal',
@@ -50,8 +58,13 @@ import {
   styleUrl: './admin-invoice-modal.scss',
 })
 export class AdminInvoiceRefundModalComponent extends AdminInvoiceActionModal {
-  /** One key per modal open — reused on retries and double-clicks. */
-  readonly idempotencyKey = newRefundIdempotencyKey();
+  /** One key per refund intent — reused on retries and double-clicks. */
+  private key = newRefundIdempotencyKey();
+  get idempotencyKey(): string {
+    return this.key;
+  }
+  /** An attempt may have claimed the key — the refund details are frozen. */
+  protected readonly locked = signal(false);
   protected readonly t = injectAdminCopy().invoiceAdjustments;
 
   protected readonly noteMax = ADJUSTMENT_NOTE_MAX;
@@ -71,9 +84,14 @@ export class AdminInvoiceRefundModalComponent extends AdminInvoiceActionModal {
     note: new FormControl<string>('', { nonNullable: true }),
   });
 
-  private readonly value = toSignal(this.form.valueChanges.pipe(startWith(this.form.getRawValue())), {
-    initialValue: this.form.getRawValue(),
-  });
+  // Raw value: disabled (locked) controls still count.
+  private readonly value = toSignal(
+    this.form.valueChanges.pipe(
+      map(() => this.form.getRawValue()),
+      startWith(this.form.getRawValue()),
+    ),
+    { initialValue: this.form.getRawValue() },
+  );
 
   protected readonly amountCents = computed(() => parseCadDollarsToCents(this.value().amount ?? ''));
   protected readonly preview = computed(() => refundPreview(this.invoice, this.amountCents()));
@@ -106,6 +124,18 @@ export class AdminInvoiceRefundModalComponent extends AdminInvoiceActionModal {
 
   protected onNote(event: Event): void {
     this.form.controls.note.setValue((event.target as HTMLTextAreaElement).value);
+  }
+
+  protected override onFailed(status: number | null): void {
+    if (this.locked()) return;
+    if (refundRejectedBeforeClaim(status)) {
+      // Rejected before the key was claimed — the admin may fix the details.
+      this.key = newRefundIdempotencyKey();
+      return;
+    }
+    this.locked.set(true);
+    const { amount, reason, reference } = this.form.controls;
+    for (const control of [amount, reason, reference]) control.disable();
   }
 
   protected save(): void {

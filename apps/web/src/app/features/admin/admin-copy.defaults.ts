@@ -404,6 +404,8 @@ export const DEFAULT_ADMIN_COPY: AdminCopy = {
     refundCardNote: 'The money goes back to {builder}\u2019s card through Stripe.',
     refundFullNote: 'This refunds everything that is left.',
     refundRetryNote: 'Trying again after an error never refunds twice.',
+    refundLockedNote:
+      'The amount, reason and reference are locked because the first attempt may have reached the server — trying again finishes that same refund. To refund a different amount, close this window and start a new refund.',
     voidNote: '{builder} is never charged for this invoice and it leaves the work queue. A void can\u2019t be undone.',
     contractNote: 'Commission and tax are recalculated at this invoice\u2019s rate.',
     contractReviewNote: 'The review window starts again and {builder} is emailed the new amount.',

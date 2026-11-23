@@ -78,6 +78,9 @@
   @if (error(); as err) {
     <p class="invoice-modal__alert" role="alert">{{ err }}</p>
   }
+  @if (locked()) {
+    <p class="invoice-modal__note" data-testid="refund-locked">{{ t.refundLockedNote }}</p>
+  }
 
   <ng-container uiModalFooter>
     <button type="button" ui-button variant="secondary" (click)="cancel()">Cancel</button>

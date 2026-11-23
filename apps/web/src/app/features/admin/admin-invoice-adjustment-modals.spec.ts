@@ -136,6 +136,54 @@ describe('AdminInvoiceRefundModalComponent', () => {
     expect(toasts.show).not.toHaveBeenCalled();
   });
 
+  it('locks amount, reason and reference after a failure that may have reached the server', async () => {
+    const { q, type, textInputs, typeInto, click, api, el } = await setup(AdminInvoiceRefundModalComponent, {
+      failWith: { status: 502 },
+    });
+    await typeInto(textInputs()[0], '100.00');
+    await type('select', 'goodwill', 'change');
+    expect(q('refund-locked')).toBeNull();
+    await click('refund-submit');
+    // The server may already hold the $100 refund under this key.
+    expect(textInputs()[0].disabled).toBe(true);
+    expect((el.querySelector('select') as HTMLSelectElement).disabled).toBe(true);
+    expect(q('refund-locked').textContent).toContain('start a new refund');
+    expect(q('refund-submit').textContent).toContain('$100');
+    expect((q('refund-submit') as HTMLButtonElement).disabled).toBe(false);
+    await click('refund-submit');
+    const calls = api.refundInvoice.mock.calls as unknown as Array<[string, { idempotencyKey: string; amountCents: number; reason: string }]>;
+    expect(calls).toHaveLength(2);
+    expect(calls[1][1].amountCents).toBe(10_000);
+    expect(calls[1][1].reason).toBe('goodwill');
+    expect(calls[1][1].idempotencyKey).toBe(calls[0][1].idempotencyKey);
+  });
+
+  it('keeps the fields editable and starts a new key after a pre-claim 422', async () => {
+    const { q, type, textInputs, click, api, el } = await setup(AdminInvoiceRefundModalComponent, {
+      failWith: { status: 422 },
+    });
+    await type('select', 'goodwill', 'change');
+    await click('refund-submit');
+    expect(el.querySelector('[role="alert"]')?.textContent).toContain('can’t exceed');
+    expect(textInputs()[0].disabled).toBe(false);
+    expect(q('refund-locked')).toBeNull();
+    await click('refund-submit');
+    const calls = api.refundInvoice.mock.calls as unknown as Array<[string, { idempotencyKey: string }]>;
+    expect(calls).toHaveLength(2);
+    expect(calls[1][1].idempotencyKey).not.toBe(calls[0][1].idempotencyKey);
+  });
+
+  it('tells the admin to start a new refund on a 409 and locks the fields', async () => {
+    const { q, type, textInputs, click, el } = await setup(AdminInvoiceRefundModalComponent, {
+      failWith: { status: 409 },
+    });
+    await type('select', 'goodwill', 'change');
+    await click('refund-submit');
+    expect(el.querySelector('[role="alert"]')?.textContent).toContain('start a new refund');
+    expect(textInputs()[0].disabled).toBe(true);
+    expect(q('refund-locked')).not.toBeNull();
+  });
+
   it('closes with true and toasts on success', async () => {
     const { type, click, api, ref, toasts } = await setup(AdminInvoiceRefundModalComponent);
     await type('select', 'goodwill', 'change');

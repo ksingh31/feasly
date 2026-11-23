@@ -128,6 +128,16 @@ export function newRefundIdempotencyKey(): string {
   return `refund-${globalThis.crypto.randomUUID()}`;
 }
 
+/**
+ * True when a refund failure is a definite rejection made before the
+ * server claimed the idempotency key (#715 `refundInvoice`: 400 validation,
+ * 422 amount / reference rules). Any other failure may have claimed the
+ * key, so the modal must not let the admin change what it refunds.
+ */
+export function refundRejectedBeforeClaim(status: number | null): boolean {
+  return status === 400 || status === 422;
+}
+
 export const REFUND_REASON_LABELS: ReadonlyArray<{ value: InvoiceRefundReason; label: string }> = [
   { value: 'duplicate', label: 'Duplicate charge' },
   { value: 'billing_error', label: 'Billing error' },
