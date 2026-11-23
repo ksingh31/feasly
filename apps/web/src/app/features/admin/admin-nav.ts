@@ -16,6 +16,7 @@ export type AdminNavItemId =
   | 'estimates'
   | 'builders'
   | 'users'
+  | 'partners'
   | 'apiKeys'
   | 'billing'
   | 'invoices'
@@ -62,6 +63,7 @@ export const ADMIN_NAV: readonly AdminNavGroupDef[] = [
     items: [
       { id: 'builders', path: '/admin/builders' },
       { id: 'users', path: '/admin/users' },
+      { id: 'partners', path: '/admin/partners' },
       { id: 'apiKeys', path: '/admin/api-keys', permission: ADMIN_PERMISSIONS.apiKeysManage },
     ],
   },

@@ -1,0 +1,59 @@
+/**
+ * Admin Builder partners (#919). Kit PageHeader / DataTable / drawer;
+ * this file only lays out the table card and the row controls. Tokens only.
+ */
+
+:host {
+  display: block;
+}
+
+.partners-page {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+  min-width: 0;
+}
+
+.partners-page__header-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-3);
+}
+
+.partners-page__card {
+  min-width: 0;
+  padding: var(--space-4);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  background: var(--card);
+}
+
+.partners-page__card-title {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: var(--space-2);
+  margin: 0 0 var(--space-3);
+  font: var(--type-product-h2);
+}
+
+.partners-page__count {
+  color: var(--muted);
+  font: var(--type-body-sm);
+}
+
+.partners-page__row-actions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: var(--space-2);
+}
+
+.partners-page__link {
+  overflow-wrap: anywhere;
+}
+
+.partners-page__muted {
+  color: var(--muted);
+}

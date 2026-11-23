@@ -1,0 +1,67 @@
+// Add/edit partner drawer body (#919). The chrome (header, sticky footer,
+// sheet on phones) comes from `ui-drawer`; this only styles the form.
+
+.partner-drawer__fields {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+}
+
+.partner-drawer__intro {
+  margin: 0;
+  color: var(--muted);
+  font: var(--type-body-sm);
+}
+
+.partner-drawer__field {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+}
+
+.partner-drawer__label {
+  font-weight: 600;
+}
+
+.partner-drawer__field textarea {
+  min-height: 88px;
+  padding: 0.625rem 0.75rem;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--card);
+  color: var(--text);
+  font: inherit;
+  resize: vertical;
+}
+
+.partner-drawer__field textarea:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 3px var(--focus-ring);
+}
+
+.partner-drawer__hint {
+  color: var(--muted);
+  font: var(--type-body-sm);
+}
+
+.partner-drawer__check {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  min-height: 44px;
+  font-weight: 500;
+  cursor: pointer;
+}
+
+.partner-drawer__check input {
+  width: 18px;
+  height: 18px;
+  accent-color: var(--accent-deep);
+}
+
+.partner-drawer__field-error,
+.partner-drawer__error {
+  margin: 0;
+  color: var(--danger);
+  font: var(--type-body-sm);
+}

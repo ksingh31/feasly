@@ -142,6 +142,8 @@ export const DEFAULT_APP_CONFIG: AppConfig = {
     builderOriginRequestMaxOrigins: 10,
     builderOriginRequestNoteMaxLength: 500,
     builderAccountClosureNoteMaxLength: 1000,
+    partnerNameMaxLength: 200,
+    partnerDescriptionMaxLength: 500,
   },
   howWeEstimate: {
     /**
@@ -983,6 +985,8 @@ export const DEFAULT_APP_CONFIG: AppConfig = {
       adminSheetsTitle: 'Sheets sync — Feasly Admin',
       adminSheets: 'Feasly admin Google Sheets sync status.',
       adminCommunityNarrativesTitle: 'Community narratives — Feasly Admin',
+      adminPartnersTitle: 'Builder partners — Feasly Admin',
+      adminPartners: 'Feasly admin builder partner list management.',
       adminCommunityNarratives: 'Feasly admin monthly community narrative status.',
       adminEstimatesTitle: 'Estimate lookup — Feasly Admin',
       adminEstimates: 'Read-only admin estimate lookup.',

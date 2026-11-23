@@ -1465,6 +1465,9 @@ export interface AppConfig {
     builderOriginRequestNoteMaxLength: number;
     /** #861: optional note on a "Close my account" request (API max 1000). */
     builderAccountClosureNoteMaxLength: number;
+    /** #919: builder partner caps — mirror the API's BuilderPartnersService. */
+    partnerNameMaxLength: number;
+    partnerDescriptionMaxLength: number;
   };
   /**
    * What a new-build estimate includes and leaves out (#824, owner decision
@@ -2413,6 +2416,8 @@ export interface AppConfig {
       adminSheetsTitle: string;
       adminSheets: string;
       adminCommunityNarrativesTitle: string;
+      adminPartnersTitle: string;
+      adminPartners: string;
       adminCommunityNarratives: string;
       adminEstimatesTitle: string;
       adminEstimates: string;
@@ -2963,6 +2968,7 @@ export interface AdminCopy {
       estimates: string;
       builders: string;
       users: string;
+      partners: string;
       apiKeys: string;
       billing: string;
       invoices: string;
@@ -3474,5 +3480,17 @@ export interface AdminCopy {
     entraTransient: string;
     /** Shown when the Entra tenant config is still a placeholder. */
     entraNotConfigured: string;
+  };
+  /**
+   * Builder partners page (#919). `{name}` is the partner's company name.
+   */
+  partners: {
+    drawerIntro: string;
+    nameTooLong: string;
+    descriptionTooLong: string;
+    shownToast: string;
+    hiddenToast: string;
+    movedUpToast: string;
+    movedDownToast: string;
   };
 }

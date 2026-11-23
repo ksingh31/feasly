@@ -144,6 +144,7 @@ describe('AdminShellComponent — sidebar', () => {
       '/admin/estimates',
       '/admin/builders',
       '/admin/users',
+      '/admin/partners',
       '/admin/api-keys',
       '/admin/billing',
       '/admin/billing/invoices',
