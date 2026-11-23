@@ -364,6 +364,7 @@ describe('loadConfig', () => {
         maxReasons: 3,
         defaultLimit: 25,
         maxLimit: 200,
+        compareMax: 3,
         buildSqft: 2_400,
         buildTier: 'standard',
         snapshotTtlMs: 3_600_000,

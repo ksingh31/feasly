@@ -168,71 +168,17 @@
         }
       </ul>
       <div class="find-tray-actions">
-        <button
-          type="button"
-          class="cta cta-primary find-tray-show"
-          [attr.aria-expanded]="compareOpen()"
-          aria-controls="find-compare-table"
-          [disabled]="compare().length === 0"
-          (click)="compareOpen.set(!compareOpen())"
-        >
-          {{ compareOpen() ? copy.compareHide : copy.compareShow }}
-        </button>
+        @if (compare().length >= 2) {
+          <a
+            class="cta cta-primary find-tray-show"
+            routerLink="/find-a-community/compare"
+            [fragment]="compareFragment()"
+          >{{ copy.compareShow }}</a>
+        } @else {
+          <p class="find-tray-need">{{ copy.compareNeedMore }}</p>
+        }
         <button type="button" class="cta cta-secondary find-tray-clear" (click)="clearCompare()">{{ copy.compareClear }}</button>
       </div>
-      @if (compareOpen() && compare().length > 0) {
-        <div class="find-compare-scroll" id="find-compare-table" tabindex="0" role="region" [attr.aria-label]="copy.compareTableCaption">
-          <table class="find-compare-table">
-            <caption>{{ copy.compareTableCaption }}</caption>
-            <thead>
-              <tr>
-                <td></td>
-                @for (item of compare(); track item.communityCode) {
-                  <th scope="col">{{ item.name }}</th>
-                }
-              </tr>
-            </thead>
-            <tbody>
-              <tr>
-                <th scope="row">{{ copy.compareRowMatch }}</th>
-                @for (item of compare(); track item.communityCode) {
-                  <td>{{ matchLabel(item) }}</td>
-                }
-              </tr>
-              <tr>
-                <th scope="row">{{ copy.compareRowMustHaves }}</th>
-                @for (item of compare(); track item.communityCode) {
-                  <td>{{ item.passesMustHaves ? copy.yes : copy.no }}</td>
-                }
-              </tr>
-              <tr>
-                <th scope="row">{{ copy.compareRowLots }}</th>
-                @for (item of compare(); track item.communityCode) {
-                  <td>{{ lotsText(item) }}</td>
-                }
-              </tr>
-              <tr>
-                <th scope="row">{{ copy.compareRowBuild }}</th>
-                @for (item of compare(); track item.communityCode) {
-                  <td>{{ buildRange(item) }}</td>
-                }
-              </tr>
-              <tr>
-                <th scope="row">{{ copy.compareRowReasons }}</th>
-                @for (item of compare(); track item.communityCode) {
-                  <td>
-                    <ul class="find-compare-reasons">
-                      @for (reason of item.reasons; track reason.priority) {
-                        <li>{{ reason.text }}</li>
-                      }
-                    </ul>
-                  </td>
-                }
-              </tr>
-            </tbody>
-          </table>
-        </div>
-      }
     </div>
   </aside>
 }

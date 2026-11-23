@@ -10,6 +10,8 @@
 import type {
   AutocompleteSuggestion,
   CallbackResponse,
+  CommunityCompareResponse,
+  CommunityCompareRow,
   CommunityMatchRequest,
   CommunityMatchResponse,
   CommunityMatchResult,
@@ -838,6 +840,108 @@ export function mockCommunityMatch(request: CommunityMatchRequest): CommunityMat
     buildBasis: { buildSqft: 2400, tier: 'standard', costDataVersion: 'mock', calibrated: false },
     distanceBasis: 'straight-line',
     frontageBasis: 'estimated-from-lot-area',
+    dataRefreshedAt: '2026-11-01T00:00:00.000Z',
+    disclaimer: 'Mock data for local development. Planning ranges only.',
+  };
+}
+
+/** Mock amenity rows for compare (#780), in API config order. */
+const MOCK_COMPARE_AMENITIES: readonly { key: string; label: string }[] = [
+  { key: 'parks', label: 'Parks' },
+  { key: 'playgrounds', label: 'Playgrounds' },
+  { key: 'pathways', label: 'Pathways' },
+  { key: 'rec-centres', label: 'Recreation centres' },
+  { key: 'pools', label: 'Pools' },
+  { key: 'libraries', label: 'Libraries' },
+  { key: 'off-leash', label: 'Off-leash areas' },
+];
+
+type MockMatchCommunity = (typeof MOCK_MATCH_COMMUNITIES)[number];
+interface MockCompareCell {
+  text: string;
+  value: number | null;
+  range?: { low: number; high: number };
+}
+
+/** Builds one mock compare row, marking the best like the API does. */
+function mockCompareRow(
+  picked: readonly MockMatchCommunity[],
+  key: string,
+  kind: CommunityCompareRow['kind'],
+  priority: string | null,
+  label: string,
+  direction: 'higher' | 'lower' | 'none',
+  cell: (c: MockMatchCommunity, i: number) => MockCompareCell,
+): CommunityCompareRow {
+  const raw = picked.map(cell);
+  const values = raw.map((r) => r.value).filter((v): v is number => v !== null);
+  let best: number | null = null;
+  if (direction !== 'none' && values.length > 0) {
+    const top = direction === 'higher' ? Math.max(...values) : Math.min(...values);
+    if (!(values.length === raw.length && values.every((v) => v === top))) best = top;
+  }
+  return {
+    key,
+    kind,
+    priority,
+    label,
+    cells: raw.map((r) => ({
+      text: r.text,
+      best: best !== null && r.value === best,
+      ...(r.range ? { range: r.range } : {}),
+    })),
+  };
+}
+
+/**
+ * Mock community compare (#780): deterministic, contract-shaped, from the
+ * match mock's communities (an amenity it "meets" is near). Best marked like
+ * the API: ties all marked, none when every value is equal. Unknown slug →
+ * not_found.
+ */
+export function mockCommunityCompare(slugs: readonly string[]): CommunityCompareResponse {
+  const picked = slugs.map((slug) => {
+    const c = MOCK_MATCH_COMMUNITIES.find((m) => m.slug === slug);
+    if (!c) throw mockFailure('not_found', `Unknown community: ${slug}`);
+    return c;
+  });
+  const school = (has: boolean): MockCompareCell =>
+    has ? { text: 'Typically designated school on file', value: 1 } : { text: 'None on file', value: 0 };
+  const hasSchools = (c: MockMatchCommunity) => c.meets.includes('designated-schools');
+  const rows: CommunityCompareRow[] = [
+    mockCompareRow(picked, 'schools-k-6', 'schools', 'designated-schools', 'Elementary (K–6)', 'higher', () => school(true)),
+    mockCompareRow(picked, 'schools-7-9', 'schools', 'designated-schools', 'Junior high (7–9)', 'higher', (c) => school(hasSchools(c))),
+    mockCompareRow(picked, 'schools-10-12', 'schools', 'designated-schools', 'High school (10–12)', 'higher', (c) => school(hasSchools(c))),
+    ...MOCK_COMPARE_AMENITIES.map((a) =>
+      mockCompareRow(picked, `amenity-${a.key}`, 'amenity', a.key, a.label, 'lower', (c, i) => {
+        const m = c.meets.includes(a.key) ? 300 + i * 150 : 1_400 + i * 200;
+        return { text: `Nearest about ${m < 1_000 ? `${m} m` : `${(m / 1_000).toFixed(1)} km`}`, value: m };
+      }),
+    ),
+    mockCompareRow(picked, 'tree-cover', 'tree-cover', 'tree-cover', 'Public tree cover', 'higher', (c) =>
+      c.meets.includes('tree-cover')
+        ? { text: 'High (18 City trees per hectare)', value: 18 }
+        : { text: 'Moderate (12 City trees per hectare)', value: 12 },
+    ),
+    mockCompareRow(picked, 'lots-listed', 'building', null, 'Lots listed now', 'higher', (c) => ({
+      text: c.listed === 0 ? 'None listed right now' : `${c.listed} ${c.listed === 1 ? 'lot' : 'lots'}`,
+      value: c.listed,
+    })),
+    mockCompareRow(picked, 'avg-lot-size', 'building', null, 'Average lot size', 'higher', (c) => {
+      const sqft = 4_000 + c.wide * 300;
+      return { text: `${sqft.toLocaleString('en-CA')} sq ft`, value: sqft };
+    }),
+    mockCompareRow(picked, 'typical-new-build', 'building', null, 'Typical new build', 'none', (c) => ({
+      text: `$${c.low.toLocaleString('en-CA')}–$${c.high.toLocaleString('en-CA')}`,
+      value: null,
+      range: { low: c.low, high: c.high },
+    })),
+  ];
+  return {
+    communities: picked.map((c) => ({ communityCode: c.code, name: c.name, slug: c.slug })),
+    rows,
+    buildBasis: { buildSqft: 2400, tier: 'standard', costDataVersion: 'mock', calibrated: false },
+    distanceBasis: 'straight-line',
     dataRefreshedAt: '2026-11-01T00:00:00.000Z',
     disclaimer: 'Mock data for local development. Planning ranges only.',
   };

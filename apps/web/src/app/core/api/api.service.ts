@@ -15,6 +15,7 @@ import type {
   CallbackResponse,
   CityDataFreshnessResponse,
   CommunityMatchRequest,
+  CommunityCompareResponse,
   CommunityMatchResponse,
   EstimateRequest,
   GetReportResponse,
@@ -120,6 +121,12 @@ export interface ApiService {
    * ungated. Priorities in, ranked established infill communities out.
    */
   matchCommunities(request: CommunityMatchRequest): Observable<CommunityMatchResponse>;
+  /**
+   * Community compare (#780): GET /api/v1/communities/compare?slugs= —
+   * public, ungated. 2–3 established communities side by side, best value
+   * per row marked by the API.
+   */
+  compareCommunities(slugs: readonly string[]): Observable<CommunityCompareResponse>;
   /** Lead capture. The magic link travels by email in prod. */
   submitLead(request: LeadRequest): Observable<LeadResponse>;
   /** Resolves a magic-link token to a report token. */
@@ -314,6 +321,10 @@ class LazyApiService implements ApiService {
 
   matchCommunities(request: CommunityMatchRequest): Observable<CommunityMatchResponse> {
     return this.resolve().matchCommunities(request);
+  }
+
+  compareCommunities(slugs: readonly string[]): Observable<CommunityCompareResponse> {
+    return this.resolve().compareCommunities(slugs);
   }
 
   submitLead(request: LeadRequest): Observable<LeadResponse> {

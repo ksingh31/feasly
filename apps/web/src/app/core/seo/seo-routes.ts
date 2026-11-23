@@ -39,6 +39,14 @@ const ROUTES: SeoRouteConfig[] = [
   { pattern: 'help', titleKey: 'helpTitle', descriptionKey: 'help' },
   // Find a community (#779): indexable.
   { pattern: 'find-a-community', titleKey: 'findCommunityTitle', descriptionKey: 'findCommunity' },
+  // Compare communities (#780): noindex — the columns come from the link
+  // hash, so a crawler would only see an empty table (thin page).
+  {
+    pattern: 'find-a-community/compare',
+    titleKey: 'findCommunityCompareTitle',
+    descriptionKey: 'findCommunityCompare',
+    noindex: true,
+  },
   // Pillar guide (SEO pillar): long-form "cost to build a house in Calgary"
   // guide — indexable like the other marketing pages.
   {

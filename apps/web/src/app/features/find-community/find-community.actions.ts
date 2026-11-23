@@ -35,3 +35,9 @@ export class ToggleMatchCompare {
 export class ClearMatchCompare {
   static readonly type = '[Find community] Clear compare';
 }
+
+/** Loads the side-by-side comparison for 2+ community slugs (#780, one API call). */
+export class LoadCommunityCompare {
+  static readonly type = '[Find community] Load compare';
+  constructor(public readonly slugs: readonly string[]) {}
+}

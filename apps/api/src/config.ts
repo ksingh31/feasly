@@ -859,6 +859,8 @@ const EnvSchema = z.object({
   COMMUNITY_MATCH_MAX_REASONS: z.coerce.number().int().positive().max(10).default(3),
   COMMUNITY_MATCH_DEFAULT_LIMIT: z.coerce.number().int().positive().default(25),
   COMMUNITY_MATCH_MAX_LIMIT: z.coerce.number().int().positive().default(200),
+  // #780: most communities GET /communities/compare takes at once (min 2).
+  COMMUNITY_MATCH_COMPARE_MAX: z.coerce.number().int().min(2).max(10).default(3),
   // The house the typical new-build range is priced for (cost engine).
   COMMUNITY_MATCH_BUILD_SQFT: z.coerce.number().int().positive().default(2_400),
   COMMUNITY_MATCH_BUILD_TIER: z.enum(['standard', 'premium', 'luxury']).default('standard'),
@@ -1874,6 +1876,8 @@ export interface CommunityMatchConfig {
   readonly maxReasons: number;
   readonly defaultLimit: number;
   readonly maxLimit: number;
+  /** Most communities one compare request takes (#780). */
+  readonly compareMax: number;
   readonly buildSqft: number;
   readonly buildTier: 'standard' | 'premium' | 'luxury';
   readonly snapshotTtlMs: number;
@@ -2519,6 +2523,7 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): ApiConfig {
       maxReasons: e.COMMUNITY_MATCH_MAX_REASONS,
       defaultLimit: Math.min(e.COMMUNITY_MATCH_DEFAULT_LIMIT, e.COMMUNITY_MATCH_MAX_LIMIT),
       maxLimit: e.COMMUNITY_MATCH_MAX_LIMIT,
+      compareMax: e.COMMUNITY_MATCH_COMPARE_MAX,
       buildSqft: e.COMMUNITY_MATCH_BUILD_SQFT,
       buildTier: e.COMMUNITY_MATCH_BUILD_TIER,
       snapshotTtlMs: e.COMMUNITY_MATCH_SNAPSHOT_TTL_MS,

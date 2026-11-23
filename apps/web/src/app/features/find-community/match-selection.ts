@@ -126,6 +126,35 @@ export function toMatchRequest(
   };
 }
 
+/**
+ * Compare page link (#780): `/find-a-community/compare#a,b,c` — community
+ * slugs, comma-separated, in column order.
+ */
+export function encodeCompareSlugs(slugs: readonly string[]): string {
+  return slugs.join(',');
+}
+
+/**
+ * Decodes a compare hash body (with or without '#'): kebab-case slugs only,
+ * duplicates dropped (first kept), at most `max`. Never throws.
+ */
+export function decodeCompareSlugs(hash: string | null | undefined, max: number): string[] {
+  let body = (hash ?? '').replace(/^#/, '');
+  try {
+    body = decodeURIComponent(body);
+  } catch {
+    // Malformed escape (a truncated link): use the raw text.
+  }
+  const slugs: string[] = [];
+  for (const part of body.split(',')) {
+    const slug = part.trim().toLowerCase();
+    if (!slug || !KEY_PATTERN.test(slug) || slugs.includes(slug)) continue;
+    slugs.push(slug);
+    if (slugs.length >= max) break;
+  }
+  return slugs;
+}
+
 /** Stable identity for de-duplicating requests (same selection → same key). */
 export function selectionKey(selection: MatchSelection): string {
   return encodeSelection(selection);

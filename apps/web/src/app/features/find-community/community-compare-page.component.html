@@ -1,0 +1,94 @@
+<app-site-nav [search]="true" />
+<main class="marketing cmp" id="main-content" tabindex="-1">
+  <p class="eyebrow eyebrow-left">
+    <span class="eyebrow-line" aria-hidden="true"></span>
+    {{ copy.eyebrow }}
+  </p>
+  <h1>{{ copy.title }}</h1>
+  <p class="lede">{{ copy.intro }}</p>
+
+  <div class="cmp-toolbar">
+    <a class="cmp-back" routerLink="/find-a-community">{{ copy.backLink }}</a>
+    @if (enough()) {
+      <button type="button" class="cta cta-secondary cmp-copy" (click)="copyLink()">{{ copy.copyLink }}</button>
+    }
+    <p class="cmp-copy-status" role="status" aria-live="polite">{{ copyStatus() }}</p>
+  </div>
+
+  <p class="cmp-status" role="status" aria-live="polite">{{ statusText() }}</p>
+  @if (enough() && status() === 'error' && retryable()) {
+    <button type="button" class="cta cta-secondary cmp-retry" (click)="retry()">{{ copy.retry }}</button>
+  }
+
+  @if (shown(); as res) {
+    <p class="cmp-legend">{{ copy.legend }}</p>
+    <p class="cmp-scroll-hint">{{ copy.scrollHint }}</p>
+    <div class="cmp-scroll" tabindex="0" role="region" [attr.aria-label]="copy.caption">
+      <table class="cmp-table" [attr.data-columns]="res.communities.length">
+        <caption class="sr-only">{{ copy.caption }}</caption>
+        <thead>
+          <tr>
+            <th scope="col" class="cmp-corner"><span class="sr-only">{{ copy.rowHeader }}</span></th>
+            @for (community of communities(); track community.slug) {
+              <th scope="col" class="cmp-col" [attr.data-community]="community.slug">
+                <span class="cmp-col-name">{{ community.name }}</span>
+                <span class="cmp-col-links">
+                  <a
+                    class="cmp-col-link"
+                    [routerLink]="['/communities', community.slug]"
+                    [attr.aria-label]="label(copy.seeCommunityLabel, community.name)"
+                  >{{ copy.seeCommunity }}</a>
+                  <a
+                    class="cmp-col-link"
+                    [routerLink]="['/communities', community.slug]"
+                    fragment="lots"
+                    [attr.aria-label]="label(copy.viewLotsLabel, community.name)"
+                  >{{ copy.viewLots }}</a>
+                </span>
+              </th>
+            }
+          </tr>
+        </thead>
+        @for (group of groups(); track group.id) {
+          <tbody [attr.data-group]="group.id">
+            <tr class="cmp-group-row">
+              <th scope="rowgroup" [attr.colspan]="communities().length + 1">{{ group.title }}</th>
+            </tr>
+            @for (view of group.rows; track view.row.key) {
+              <tr [class.is-must]="view.must" [attr.data-row]="view.row.key">
+                <th scope="row" class="cmp-row-label">
+                  {{ view.row.label }}
+                  @if (view.must) {
+                    <span class="cmp-must-tag">{{ copy.mustTag }}</span>
+                  }
+                </th>
+                @for (cell of view.row.cells; track $index) {
+                  <td [class.is-best]="cell.best">
+                    {{ cellText(cell) }}
+                    @if (cell.best) {
+                      <span class="cmp-best-tag">{{ copy.bestTag }}</span>
+                    }
+                  </td>
+                }
+              </tr>
+            }
+          </tbody>
+        }
+      </table>
+    </div>
+    @if (buildBasis()) {
+      <p class="cmp-note">
+        {{ buildBasis() }}
+        @if (res.buildBasis.calibrated === false) {
+          {{ draftCostData }}
+        }
+      </p>
+    }
+  }
+
+  <p class="cmp-disclaimer">{{ copy.disclaimer }}</p>
+  @if (refreshed()) {
+    <p class="cmp-note">{{ refreshed() }}</p>
+  }
+</main>
+<app-site-footer />

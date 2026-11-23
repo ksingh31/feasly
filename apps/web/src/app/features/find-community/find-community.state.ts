@@ -3,12 +3,18 @@ import { Action, provideStates, Selector, State, Store, type StateContext } from
 import { of } from 'rxjs';
 import { catchError, map } from 'rxjs/operators';
 import type { Observable } from 'rxjs';
-import type { CommunityMatchResponse, CommunityMatchResult } from '@feasly/contracts';
+import type {
+  ApiError,
+  CommunityCompareResponse,
+  CommunityMatchResponse,
+  CommunityMatchResult,
+} from '@feasly/contracts';
 import { API_SERVICE } from '../../core/api/api.service';
 import { ConfigService } from '../../core/config/config.service';
 import {
   ClearMatchCompare,
   CycleMatchPriority,
+  LoadCommunityCompare,
   LoadCommunityMatches,
   SetMatchSelection,
   ToggleMatchCompare,
@@ -164,11 +170,66 @@ export class FindCommunityState {
   }
 }
 
+export type CompareStatus = 'idle' | 'loading' | 'ready' | 'error';
+
 /**
- * Lazy provider for `/find-a-community` (app.routes.ts lazyProvider): keeps
- * both states out of the initial bundle.
+ * Side-by-side comparison (#780) at `/find-a-community/compare`.
+ * Memory-only: the link (slugs in the hash) is the source of truth.
+ */
+export interface CommunityCompareModel {
+  status: CompareStatus;
+  /** Slugs the current response (or request) is for. */
+  slugs: readonly string[];
+  response: CommunityCompareResponse | null;
+  /** True when the failed request is worth retrying (network / 5xx). */
+  retryable: boolean;
+}
+
+@State<CommunityCompareModel>({
+  name: 'communityCompare',
+  defaults: { status: 'idle', slugs: [], response: null, retryable: false },
+})
+@Injectable()
+export class CommunityCompareState {
+  private readonly api = inject(API_SERVICE);
+
+  @Selector()
+  static status(state: CommunityCompareModel): CompareStatus {
+    return state.status;
+  }
+
+  @Selector()
+  static response(state: CommunityCompareModel): CommunityCompareResponse | null {
+    return state.response;
+  }
+
+  @Selector()
+  static retryable(state: CommunityCompareModel): boolean {
+    return state.retryable;
+  }
+
+  /** One request per call; a newer call cancels an in-flight one. */
+  @Action(LoadCommunityCompare, { cancelUncompleted: true })
+  load(ctx: StateContext<CommunityCompareModel>, { slugs }: LoadCommunityCompare): Observable<void> {
+    ctx.setState({ status: 'loading', slugs, response: null, retryable: false });
+    return this.api.compareCommunities(slugs).pipe(
+      map((response) => {
+        ctx.patchState({ status: 'ready', response });
+      }),
+      catchError((error: Partial<ApiError>) => {
+        ctx.patchState({ status: 'error', retryable: error?.retryable === true });
+        return of(undefined);
+      }),
+    );
+  }
+}
+
+/**
+ * Lazy provider for `/find-a-community` and `/find-a-community/compare`
+ * (app.routes.ts lazyProvider): keeps the states out of the initial bundle.
  */
 export const findCommunityStateProvider: EnvironmentProviders = provideStates([
   FindCommunitySelectionState,
   FindCommunityState,
+  CommunityCompareState,
 ]);

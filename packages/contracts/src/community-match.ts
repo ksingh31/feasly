@@ -119,3 +119,56 @@ export interface CommunityMatchResponse {
   readonly dataRefreshedAt: string | null;
   readonly disclaimer: string;
 }
+
+// ── Community compare (#780) ───────────────────────────────────────────
+
+/**
+ * Which part of the comparison a row belongs to. The page groups rows into
+ * Schools / Getting around / Lifestyle / Building here; amenity rows carry
+ * their `priority` key so the page can place them with the matching chip.
+ */
+export type CommunityCompareRowKind = 'schools' | 'amenity' | 'tree-cover' | 'building';
+
+/** One cell: the value as plain words, and whether it is the best in its row. */
+export interface CommunityCompareCell {
+  readonly text: string;
+  /**
+   * True when this value is the best in the row (ties all marked). False for
+   * every cell when all values are equal, when the row has no better/worse
+   * direction (e.g. the typical new-build range), or when the value is missing.
+   */
+  readonly best: boolean;
+  /** Typical new-build range row only: the cost-engine range behind `text`, for local formatting. */
+  readonly range?: CommunityMatchBuildRange;
+}
+
+export interface CommunityCompareRow {
+  /** Stable row key, e.g. 'schools-k-6', 'amenity-parks', 'lots-listed'. */
+  readonly key: string;
+  readonly kind: CommunityCompareRowKind;
+  /** The match priority this row answers (so a must-have row can lead); null for build rows. */
+  readonly priority: string | null;
+  readonly label: string;
+  /** One per community, in `communities` order. */
+  readonly cells: readonly CommunityCompareCell[];
+}
+
+export interface CommunityCompareCommunity {
+  readonly communityCode: string;
+  readonly name: string;
+  /** kebab-case, matches the community pages. */
+  readonly slug: string;
+}
+
+/** GET /api/v1/communities/compare?slugs=a,b,c — public, ungated. */
+export interface CommunityCompareResponse {
+  /** In the order requested. */
+  readonly communities: readonly CommunityCompareCommunity[];
+  readonly rows: readonly CommunityCompareRow[];
+  readonly buildBasis: CommunityMatchBuildBasis;
+  /** Always 'straight-line' — distances are never travel times. */
+  readonly distanceBasis: 'straight-line';
+  /** Newest monthly refresh behind the community metrics; null when none. */
+  readonly dataRefreshedAt: string | null;
+  readonly disclaimer: string;
+}

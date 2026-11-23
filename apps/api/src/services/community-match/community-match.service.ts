@@ -20,6 +20,8 @@
  */
 import {
   DESIGNATION_GRADE_BANDS,
+  type CommunityCompareResponse,
+  type CommunityMatchBuildBasis,
   type CommunityMatchResponse,
   type CommunityMatchResult,
   type DesignationGradeBand,
@@ -31,6 +33,7 @@ import { toSlug } from '../community-stats/socrata-aggregates';
 import type { NeighbourhoodDataStore } from '../neighbourhood-data/neighbourhood-data.store';
 import type { NeighbourhoodReadService } from '../neighbourhood-data/neighbourhood-read.service';
 import type { CommunityMatchStore } from './community-match.store';
+import { buildCompareRows, UnknownCommunityError } from './compare';
 import {
   priorityDefinitions,
   rankCommunities,
@@ -42,11 +45,18 @@ import {
 } from './scoring';
 
 export { UnknownPriorityError } from './scoring';
+export { UnknownCommunityError } from './compare';
 
 /** Shared-cache dataset id for the match snapshot (#756 table). */
 export const COMMUNITY_MATCH_CACHE_DATASET = 'community-match-snapshot';
 /** Bump when the snapshot shape changes (older cached payloads are ignored). */
 export const COMMUNITY_MATCH_SNAPSHOT_VERSION = 1;
+
+export const COMMUNITY_COMPARE_DISCLAIMER =
+  'Compared from City of Calgary open data that Feasly refreshes monthly (lots weekly). ' +
+  'Schools are typically designated and designations can change, so confirm with the board. ' +
+  'Distances are straight-line from the community centre, not travel times. New-build ranges ' +
+  'are estimates for the house described, not quotes.';
 
 export const COMMUNITY_MATCH_DISCLAIMER =
   'Matches are scored from City of Calgary open data that Feasly refreshes monthly ' +
@@ -75,6 +85,11 @@ export interface CommunityMatchQuery {
 export interface CommunityMatchService {
   /** @throws UnknownPriorityError for a priority key with no definition. */
   match(query: CommunityMatchQuery): Promise<CommunityMatchResponse>;
+  /**
+   * Side-by-side rows for 2+ communities by slug, in the order given (#780).
+   * @throws UnknownCommunityError for a slug that is not an established community.
+   */
+  compare(slugs: readonly string[]): Promise<CommunityCompareResponse>;
   /** The priorities a visitor can pick (amenity categories from config + fixed). */
   priorities(): readonly PriorityDefinition[];
 }
@@ -267,8 +282,37 @@ export function createCommunityMatchService(deps: CommunityMatchServiceDeps): Co
     return range;
   }
 
+  function buildBasis(): CommunityMatchBuildBasis {
+    return {
+      buildSqft: config.buildSqft,
+      tier: config.buildTier,
+      costDataVersion: costData.version,
+      calibrated: costData.calibrated,
+    };
+  }
+
   return {
     priorities: () => definitions,
+
+    async compare(slugs) {
+      const snapshot = await loadSnapshot();
+      const bySlug = new Map(snapshot.communities.map((c) => [c.slug, c]));
+      const unknown = slugs.filter((slug) => !bySlug.has(slug));
+      if (unknown.length > 0) throw new UnknownCommunityError(unknown);
+      const picked = slugs.map((slug) => bySlug.get(slug)!);
+      const rows = buildCompareRows(
+        picked.map((c) => ({ ...c, typicalNewBuild: typicalNewBuild(c.avgLotSqft) })),
+        { amenityCategories, searchRadiusM: amenitySearchRadiusM },
+      );
+      return {
+        communities: picked.map((c) => ({ communityCode: c.communityCode, name: c.name, slug: c.slug })),
+        rows,
+        buildBasis: buildBasis(),
+        distanceBasis: 'straight-line',
+        dataRefreshedAt: snapshot.dataRefreshedAt,
+        disclaimer: COMMUNITY_COMPARE_DISCLAIMER,
+      };
+    },
 
     async match(query) {
       const snapshot = await loadSnapshot();
@@ -293,12 +337,7 @@ export function createCommunityMatchService(deps: CommunityMatchServiceDeps): Co
       return {
         results,
         total: ranked.length,
-        buildBasis: {
-          buildSqft: config.buildSqft,
-          tier: config.buildTier,
-          costDataVersion: costData.version,
-          calibrated: costData.calibrated,
-        },
+        buildBasis: buildBasis(),
         distanceBasis: 'straight-line',
         frontageBasis: 'estimated-from-lot-area',
         dataRefreshedAt: snapshot.dataRefreshedAt,

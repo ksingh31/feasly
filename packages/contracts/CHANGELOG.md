@@ -12,6 +12,15 @@ real backend. Changing them has a cost, so:
 - **Never** widen a type to `any` to "unblock" something — the no-`any` lint exists
   precisely to stop that.
 
+## Unreleased — 2026-11-23 (additive) — community compare
+
+Issue #780 (Community Match epic):
+
+- **Added** to `community-match.ts`: `CommunityCompareRowKind`,
+  `CommunityCompareCell`, `CommunityCompareRow`, `CommunityCompareCommunity`
+  and `CommunityCompareResponse` (GET /api/v1/communities/compare). New
+  types only — nothing existing changed.
+
 ## Unreleased — 2026-11-17 (additive) — community match
 
 Issue #778 (Community Match epic):

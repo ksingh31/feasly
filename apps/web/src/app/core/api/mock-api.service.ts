@@ -6,6 +6,7 @@ import type {
   AnyEstimateRequest,
   ApiError,
   CommunityMatchRequest,
+  CommunityCompareResponse,
   CommunityMatchResponse,
   ErasureConfirmResponse,
   ErasureRequestResponse,
@@ -55,6 +56,7 @@ import {
   mockCallbackOk,
   mockWaitlistOk,
   mockCommunityMatch,
+  mockCommunityCompare,
   mockCommunityStats,
   mockComparisonEstimate,
   mockEstimate,
@@ -342,6 +344,15 @@ export class MockApiService implements ApiService {
   /** Community match (#779): canned, deterministic ranking (mock-data). */
   matchCommunities(request: CommunityMatchRequest): Observable<CommunityMatchResponse> {
     return this.roundTrip(mockCommunityMatch(request));
+  }
+
+  /** Community compare (#780): canned rows from the same mock communities. */
+  compareCommunities(slugs: readonly string[]): Observable<CommunityCompareResponse> {
+    try {
+      return this.roundTrip(mockCommunityCompare(slugs));
+    } catch (error) {
+      return this.roundTripError(error as ApiError);
+    }
   }
 
   submitLead(request: LeadRequest): Observable<LeadResponse> {

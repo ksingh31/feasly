@@ -481,6 +481,10 @@ import {
   type CommunityMatchRoute,
 } from './routes/community-match.route';
 import {
+  createCommunityCompareRoute,
+  type CommunityCompareRoute,
+} from './routes/community-compare.route';
+import {
   createCommunityMatchService,
   type CommunityMatchService,
 } from './services/community-match/community-match.service';
@@ -997,6 +1001,8 @@ export interface AppComposition {
   /** #778: community match (priorities in, ranked communities out). */
   readonly communityMatchService: CommunityMatchService;
   readonly communityMatchRoute: CommunityMatchRoute;
+  /** #780: GET /api/v1/communities/compare. */
+  readonly communityCompareRoute: CommunityCompareRoute;
   /** Append-only admin audit log (neighbourhood/05; reused by later admin stories). */
   readonly adminAuditStore: AdminAuditStore;
   readonly builderConfigService: BuilderConfigService;
@@ -2416,6 +2422,10 @@ export function createComposition(
   const communityMatchRoute: CommunityMatchRoute = createCommunityMatchRoute({
     communityMatch: communityMatchService,
   });
+  const communityCompareRoute: CommunityCompareRoute = createCommunityCompareRoute({
+    communityMatch: communityMatchService,
+    compareMax: config.communityMatch.compareMax,
+  });
 
   // #757: daily zoning source watch. Refreshes cached districts when the
   // City's Land Use Districts dataset changes, files one "catalogue may be
@@ -3053,6 +3063,7 @@ export function createComposition(
     communityLivingRoute,
     communityMatchService,
     communityMatchRoute,
+    communityCompareRoute,
     adminAuditStore,
     builderConfigService,
     embedConfigRoute,
