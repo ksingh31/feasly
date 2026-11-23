@@ -15,7 +15,7 @@ import {
   UiModalService,
 } from '@app/shared/ui';
 import { formatInvoiceTax } from '../../shared/utils/invoice-tax';
-import { invoiceRecoveryState } from '../../shared/utils/invoice-recovery';
+import { invoiceRecoveryState, netPaidCents } from '../../shared/utils/invoice-recovery';
 import { ClearAdminInvoiceDetail, LoadAdminInvoiceDetail, LoadAdminInvoices } from './admin-invoices.actions';
 import { AdminInvoicesState } from './admin-invoices.state';
 import { ADMIN_PERMISSIONS, adminCan } from './admin-permissions';
@@ -24,14 +24,26 @@ import type { AdminInvoiceActionData } from './admin-invoice-action-modal';
 import { AdminInvoiceRateModalComponent } from './admin-invoice-rate-modal.component';
 import { AdminInvoiceMethodModalComponent } from './admin-invoice-method-modal.component';
 import { AdminInvoicePaymentModalComponent } from './admin-invoice-payment-modal.component';
+import { AdminInvoiceRefundModalComponent } from './admin-invoice-refund-modal.component';
+import { AdminInvoiceVoidModalComponent } from './admin-invoice-void-modal.component';
+import { AdminInvoiceContractModalComponent } from './admin-invoice-contract-modal.component';
+import { AdminInvoiceReverseModalComponent } from './admin-invoice-reverse-modal.component';
 import { AdminSimulatedPanelComponent } from './admin-simulated-panel.component';
 import {
+  adjustmentTimeline,
   auditTrailToTimeline,
+  canCorrectContract,
+  canRefundInvoice,
+  canReversePayment,
+  canVoidInvoice,
   invoiceRateLabel,
   invoiceTimeline,
   isInvoiceActionable,
   manualMethodLabel,
+  mergeTimelines,
   plannedMethodLabel,
+  refundMethodLabel,
+  refundReasonLabel,
 } from './admin-invoice-view';
 
 export interface AdminInvoiceDrawerData {
@@ -49,6 +61,12 @@ export interface AdminInvoiceDrawerData {
  * disputed invoice links to its dispute. Body: amounts, an Activity
  * timeline (the dispute audit trail when there is one, otherwise the
  * invoice's own milestones), payment details and technical IDs.
+ *
+ * #862 (API #715): Refund… · Void… · Correct contract… · Reverse
+ * payment… — each its own confirm modal with the before → after, shown
+ * only for the statuses the API accepts. The Activity timeline adds the
+ * invoice's refund / void / correction / reversal audit events, and the
+ * Payment section lists the refund rows with the net paid.
  *
  * #791: with the simulated payment provider a dev panel (fire dispute /
  * dashboard refund / delayed failure) sits at the end of the body; it
@@ -83,6 +101,7 @@ export class AdminInvoiceDrawerComponent implements OnInit {
   protected readonly detailError = this.store.selectSignal(AdminInvoicesState.detailError);
   protected readonly dispute = this.store.selectSignal(AdminInvoicesState.dispute);
   protected readonly disputeStatus = this.store.selectSignal(AdminInvoicesState.disputeStatus);
+  private readonly activity = this.store.selectSignal(AdminInvoicesState.activity);
 
   /** `billing:manage` writes — read-only staff see the record without actions. */
   protected readonly canManageBilling = adminCan(this.store, ADMIN_PERMISSIONS.billingManage);
@@ -115,18 +134,59 @@ export class AdminInvoiceDrawerComponent implements OnInit {
     return invoice !== null && this.canManageBilling() && isInvoiceActionable(invoice.status);
   });
 
+  /**
+   * #862: the adjustment actions this invoice accepts (each mirrors the
+   * API's precondition). All false for read-only staff.
+   */
+  protected readonly adjustments = computed(() => {
+    const invoice = this.invoice();
+    const manage = this.canManageBilling();
+    return {
+      refund: manage && invoice !== null && canRefundInvoice(invoice),
+      void: manage && invoice !== null && canVoidInvoice(invoice),
+      correct: manage && invoice !== null && canCorrectContract(invoice),
+      reverse: manage && invoice !== null && canReversePayment(invoice),
+    };
+  });
+
+  protected readonly hasActions = computed(() => {
+    const a = this.adjustments();
+    return this.canAct() || a.refund || a.void || a.correct || a.reverse;
+  });
+
+  /**
+   * #862: refund rows and the net paid (total − refunded, server figures)
+   * for a paid invoice with refunds; null otherwise.
+   */
+  protected readonly refunds = computed(() => {
+    const invoice = this.invoice();
+    if (invoice === null) return null;
+    const refunded = invoice.refundedCents ?? 0;
+    const rows = invoice.refunds ?? [];
+    if (refunded <= 0 && rows.length === 0) return null;
+    return {
+      state: invoice.refundState ?? 'none',
+      netCents: netPaidCents(invoice),
+      rows,
+    };
+  });
+
   protected readonly timeline = computed(() => {
     const invoice = this.invoice();
     if (invoice === null) return [];
     const dispute = this.dispute();
-    return dispute !== null && dispute.auditTrail.length > 0
-      ? auditTrailToTimeline(dispute.auditTrail)
-      : invoiceTimeline(invoice);
+    const base =
+      dispute !== null && dispute.auditTrail.length > 0
+        ? auditTrailToTimeline(dispute.auditTrail)
+        : invoiceTimeline(invoice);
+    return mergeTimelines(base, adjustmentTimeline(this.activity()));
   });
 
   protected readonly rateLabel = invoiceRateLabel;
   protected readonly plannedMethodLabel = plannedMethodLabel;
   protected readonly manualMethodLabel = manualMethodLabel;
+  protected readonly refundReasonLabel = refundReasonLabel;
+  protected readonly refundMethodLabel = refundMethodLabel;
 
   ngOnInit(): void {
     this.store.dispatch(new LoadAdminInvoiceDetail(this.data.invoiceId));
@@ -149,6 +209,22 @@ export class AdminInvoiceDrawerComponent implements OnInit {
     this.openAction(AdminInvoicePaymentModalComponent);
   }
 
+  protected refund(): void {
+    if (this.adjustments().refund) this.openModal(AdminInvoiceRefundModalComponent);
+  }
+
+  protected voidInvoice(): void {
+    if (this.adjustments().void) this.openModal(AdminInvoiceVoidModalComponent);
+  }
+
+  protected correctContract(): void {
+    if (this.adjustments().correct) this.openModal(AdminInvoiceContractModalComponent);
+  }
+
+  protected reversePayment(): void {
+    if (this.adjustments().reverse) this.openModal(AdminInvoiceReverseModalComponent);
+  }
+
   /** #791: a simulated event was delivered — reload the drawer and the lists behind it. */
   protected onSimulatedEvent(): void {
     this.refreshAfterChange(this.data.invoiceId);
@@ -156,8 +232,13 @@ export class AdminInvoiceDrawerComponent implements OnInit {
   }
 
   private openAction<C>(component: ComponentType<C>): void {
+    if (!this.canAct()) return;
+    this.openModal(component);
+  }
+
+  private openModal<C>(component: ComponentType<C>): void {
     const invoice = this.invoice();
-    if (invoice === null || !this.canAct()) return;
+    if (invoice === null) return;
     this.modals
       .open<C, boolean, AdminInvoiceActionData>(component, {
         data: { invoice },

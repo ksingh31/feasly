@@ -2,6 +2,9 @@
   @if (invoice(); as inv) {
     <ui-status-chip uiDrawerChip domain="invoice" [status]="inv.status" />
   }
+  @if (refundState(); as rs) {
+    <ui-status-chip uiDrawerChip domain="refund" [status]="rs" data-testid="invoice-refund-state" />
+  }
   @if (invoice()) {
     <span uiDrawerMeta class="invoice-drawer__meta" data-testid="invoice-meta">
       {{ meta() }}
@@ -201,7 +204,25 @@
               <dd>{{ refunded }}</dd>
             </div>
           }
+          @if (r.netPaid; as net) {
+            <div data-testid="invoice-net-paid">
+              <dt>{{ t.netPaidLabel }}</dt>
+              <dd>{{ net }}</dd>
+            </div>
+          }
         </dl>
+        @if (r.rows.length > 0) {
+          <ul class="invoice-drawer__refunds" [attr.aria-label]="t.refundsListLabel" data-testid="invoice-refund-rows">
+            @for (row of r.rows; track row.id) {
+              <li data-testid="invoice-refund-row">
+                {{ row.text }}
+                @if (row.pending) {
+                  <span class="invoice-drawer__refund-pending"> · {{ t.refundPending }}</span>
+                }
+              </li>
+            }
+          </ul>
+        }
       </section>
     }
 

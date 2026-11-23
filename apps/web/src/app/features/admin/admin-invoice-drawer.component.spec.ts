@@ -7,11 +7,12 @@ import { DIALOG_DATA } from '@angular/cdk/dialog';
 import { TestBed } from '@angular/core/testing';
 import { provideRouter } from '@angular/router';
 import { Store, provideStore } from '@ngxs/store';
-import { Subject, of } from 'rxjs';
+import { Subject, of, throwError } from 'rxjs';
 import { describe, expect, it, vi } from 'vitest';
-import type { BillingHealthResponse, DisputeDetailResponse } from '@feasly/contracts';
+import type { AuditLogEntry, BillingHealthResponse, DisputeDetailResponse, InvoiceRefund } from '@feasly/contracts';
 import { UiDrawerRef, UiModalService } from '@app/shared/ui';
 import { BuilderInvoicesApiService, type BuilderCommissionInvoice } from '../builder/builder-invoices-api.service';
+import { AdminAuditApiService } from './admin-audit-api.service';
 import { AdminAuthState } from './admin-auth.state';
 import { AdminBillingApiService } from './admin-billing-api.service';
 import { AdminLeadsApiService } from './admin-leads-api.service';
@@ -22,6 +23,10 @@ import { AdminInvoiceDrawerComponent } from './admin-invoice-drawer.component';
 import { AdminInvoiceMethodModalComponent } from './admin-invoice-method-modal.component';
 import { AdminInvoicePaymentModalComponent } from './admin-invoice-payment-modal.component';
 import { AdminInvoiceRateModalComponent } from './admin-invoice-rate-modal.component';
+import { AdminInvoiceRefundModalComponent } from './admin-invoice-refund-modal.component';
+import { AdminInvoiceVoidModalComponent } from './admin-invoice-void-modal.component';
+import { AdminInvoiceContractModalComponent } from './admin-invoice-contract-modal.component';
+import { AdminInvoiceReverseModalComponent } from './admin-invoice-reverse-modal.component';
 import { AdminInvoicesState } from './admin-invoices.state';
 import { ADMIN_PERMISSIONS } from './admin-permissions';
 
@@ -104,6 +109,8 @@ interface Options {
   readonly modalResult?: Subject<boolean | undefined>;
   /** #791: payment provider reported by GET /admin/billing. */
   readonly provider?: 'stripe' | 'simulated';
+  /** #862: entries GET /admin/audit returns for the invoice. */
+  readonly audit?: readonly AuditLogEntry[] | 'error';
 }
 
 async function setup(options: Options = {}) {
@@ -126,6 +133,12 @@ async function setup(options: Options = {}) {
       of({ invoiceId: invoice.id, paymentIntentId: 'pi_sim_1', kind: 'dispute' as const, eventType: 'charge.dispute.created' }),
     ),
   };
+  const audit = options.audit;
+  const auditApi = {
+    list: vi.fn(() =>
+      audit === 'error' ? throwError(() => ({ status: 403 })) : of({ items: audit ?? [], nextCursor: null }),
+    ),
+  };
   const modalResult = options.modalResult ?? new Subject<boolean | undefined>();
   const modals = { open: vi.fn(() => ({ closed: modalResult.asObservable() })) };
   const ref = { titleId: 'drawer-title', urlId: 'inv-1', setDirty: vi.fn(), close: vi.fn(), requestClose: vi.fn() };
@@ -138,6 +151,7 @@ async function setup(options: Options = {}) {
       { provide: AdminLeadsApiService, useValue: {} },
       { provide: BuilderInvoicesApiService, useValue: invoicesApi },
       { provide: AdminDisputesApiService, useValue: disputesApi },
+      { provide: AdminAuditApiService, useValue: auditApi },
       { provide: UiModalService, useValue: modals },
       { provide: UiDrawerRef, useValue: ref },
       { provide: DIALOG_DATA, useValue: { invoiceId: invoice.id } },
@@ -156,7 +170,7 @@ async function setup(options: Options = {}) {
   await fixture.whenStable();
   const el = fixture.nativeElement as HTMLElement;
   const q = (id: string) => el.querySelector(`[data-testid="${id}"]`) as HTMLElement | null;
-  return { fixture, store, el, q, invoicesApi, disputesApi, modals, modalResult, billingApi };
+  return { fixture, store, el, q, invoicesApi, disputesApi, modals, modalResult, billingApi, auditApi };
 }
 
 describe('AdminInvoiceDrawerComponent', () => {
@@ -278,6 +292,149 @@ describe('AdminInvoiceDrawerComponent', () => {
       await fixture.whenStable();
       expect(billingApi.fireSimulatedInvoiceEvent).toHaveBeenCalledWith('inv-1', { kind: 'dispute' });
       expect(dispatch).toHaveBeenCalledWith(expect.any(LoadAdminInvoiceDetail));
+    });
+  });
+  describe('#862 adjustments (API #715)', () => {
+    const PAID: BuilderCommissionInvoice = {
+      ...INVOICE,
+      status: 'paid',
+      paidAt: '2026-11-14T12:00:00.000Z',
+      stripePaymentIntentId: 'pi_1',
+      refundedCents: 0,
+      refundState: 'none',
+    };
+    const visible = (q: (id: string) => HTMLElement | null) =>
+      ['action-correct', 'action-refund', 'action-reverse', 'action-void'].filter((id) => q(id) !== null);
+
+    it.each([
+      ['draft', ['action-correct', 'action-void']],
+      ['in_review', ['action-correct', 'action-void']],
+      ['failed', ['action-void']],
+      ['finalized', []],
+      ['disputed', []],
+      ['void', []],
+    ] as const)('a %s invoice offers %j', async (status, expected) => {
+      const { q } = await setup({ invoice: { ...INVOICE, id: 'inv-2', status } });
+      expect(visible(q)).toEqual(expected);
+    });
+
+    it('a card-paid invoice offers Refund only; paid by hand adds Reverse payment', async () => {
+      expect(visible((await setup({ invoice: PAID })).q)).toEqual(['action-refund']);
+      const manual = await setup({ invoice: { ...PAID, manualPaymentMethod: 'cheque', stripePaymentIntentId: null } });
+      expect(visible(manual.q)).toEqual(['action-refund', 'action-reverse']);
+    });
+
+    it('hides Refund once fully refunded and Reverse once anything was refunded', async () => {
+      const { q } = await setup({
+        invoice: { ...PAID, manualPaymentMethod: 'cheque', refundedCents: 1_980_000, refundState: 'refunded' },
+      });
+      expect(visible(q)).toEqual([]);
+    });
+
+    it('hides every adjustment from read-only staff', async () => {
+      const { q } = await setup({ invoice: PAID, permissions: [] });
+      expect(visible(q)).toEqual([]);
+    });
+
+    it('opens each action in its own modal and refreshes after a save', async () => {
+      const { q, modals, modalResult, invoicesApi } = await setup({ invoice: PAID });
+      q('action-refund')!.click();
+      expect(modals.open).toHaveBeenLastCalledWith(
+        AdminInvoiceRefundModalComponent,
+        expect.objectContaining({ data: { invoice: expect.objectContaining({ id: 'inv-1' }) }, size: 'sm' }),
+      );
+      modalResult.next(true);
+      expect(invoicesApi.getInvoice).toHaveBeenCalledTimes(2);
+
+      const draft = await setup({ invoice: { ...INVOICE, status: 'draft' } });
+      draft.q('action-void')!.click();
+      expect(draft.modals.open).toHaveBeenLastCalledWith(AdminInvoiceVoidModalComponent, expect.anything());
+      draft.q('action-correct')!.click();
+      expect(draft.modals.open).toHaveBeenLastCalledWith(AdminInvoiceContractModalComponent, expect.anything());
+
+      const manual = await setup({ invoice: { ...PAID, manualPaymentMethod: 'cheque' } });
+      manual.q('action-reverse')!.click();
+      expect(manual.modals.open).toHaveBeenLastCalledWith(AdminInvoiceReverseModalComponent, expect.anything());
+    });
+
+    it('lists the refund rows with the refunded total, the badge and the net paid', async () => {
+      const refund = (over: Partial<InvoiceRefund>): InvoiceRefund => ({
+        id: 'rf-1',
+        invoiceId: 'inv-1',
+        amountCents: 50_050,
+        currency: 'CAD',
+        reason: 'billing_error',
+        note: 'Rate was wrong',
+        method: 'stripe',
+        status: 'succeeded',
+        stripeRefundId: 're_1',
+        reference: null,
+        actorEmail: 'ops@feasly.ca',
+        createdAt: '2026-11-15T12:00:00.000Z',
+        ...over,
+      });
+      const { q, el } = await setup({
+        invoice: {
+          ...PAID,
+          refundedCents: 60_050,
+          refundState: 'partially_refunded',
+          refunds: [refund({}), refund({ id: 'rf-2', amountCents: 10_000, status: 'pending', note: null })],
+        },
+      });
+      expect(q('invoice-refunded')?.textContent).toContain('$600.50');
+      expect(q('invoice-refunded')?.textContent).toContain('Partially refunded');
+      expect(q('invoice-net-paid')?.textContent).toContain('$19,199.50');
+      const rows = el.querySelectorAll('[data-testid="invoice-refund-row"]');
+      expect(rows).toHaveLength(2);
+      expect(rows[0].textContent).toContain('$500.50');
+      expect(rows[0].textContent).toContain('Billing error');
+      expect(rows[0].textContent).toContain('Card refund (Stripe)');
+      expect(rows[0].textContent).toContain('ops@feasly.ca');
+      expect(rows[0].textContent).toContain('Rate was wrong');
+      expect(rows[1].textContent).toContain('Pending');
+    });
+
+    it('shows no refund rows or net paid when nothing was refunded', async () => {
+      const { q } = await setup({ invoice: PAID });
+      expect(q('invoice-refunds')).toBeNull();
+      expect(q('invoice-net-paid')).toBeNull();
+    });
+
+    it('adds refunded / voided / contract-corrected / payment-reversed events to the timeline', async () => {
+      const at = (action: string, minute: number): AuditLogEntry => ({
+        id: `billing:${action}`,
+        source: 'billing',
+        occurredAt: `2026-11-16T12:${String(minute).padStart(2, '0')}:00.000Z`,
+        actorEmail: 'ops@feasly.ca',
+        action,
+        entityType: 'invoice',
+        entityId: 'inv-1',
+        tenantKey: 'elite-craft',
+        impersonation: false,
+        payload: { reason: 'other' },
+      });
+      const { el, auditApi } = await setup({
+        audit: [
+          at('invoice.refunded', 1),
+          at('invoice.voided', 2),
+          at('invoice.contract_corrected', 3),
+          at('invoice.payment_reversed', 4),
+        ],
+      });
+      expect(auditApi.list).toHaveBeenCalledWith(
+        expect.objectContaining({ entityType: 'invoice', entityId: 'inv-1', source: 'billing' }),
+      );
+      const text = el.textContent ?? '';
+      for (const title of ['Refunded', 'Voided', 'Contract corrected', 'Payment reversed', 'Invoice created']) {
+        expect(text).toContain(title);
+      }
+    });
+
+    it('keeps the base timeline when the audit log cannot be read', async () => {
+      const { el, auditApi } = await setup({ audit: 'error' });
+      expect(auditApi.list).toHaveBeenCalled();
+      expect(el.textContent).toContain('Invoice created');
+      expect(el.textContent).not.toContain('Could not load');
     });
   });
 });

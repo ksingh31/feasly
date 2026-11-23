@@ -155,3 +155,18 @@
     width: 100%;
   }
 }
+
+/* #862: refund rows under the refunded / net paid totals. */
+.invoice-drawer__refunds {
+  margin: var(--space-3) 0 0;
+  padding: 0;
+  list-style: none;
+  display: grid;
+  gap: var(--space-1);
+  font: var(--type-body-sm);
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+}
+.invoice-drawer__refund-pending {
+  color: var(--status-warning-fg);
+}

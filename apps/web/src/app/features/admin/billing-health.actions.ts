@@ -3,9 +3,13 @@
  */
 import type {
   BuilderPaymentMethod,
+  CorrectContractRequest,
   ManualInvoiceRequest,
   MarkInvoicePaidRequest,
+  RefundInvoiceRequest,
+  ReverseManualPaymentRequest,
   UpdateInvoiceDunningRequest,
+  VoidInvoiceRequest,
 } from '@feasly/contracts';
 
 /** Load the billing-health dashboard payload (refresh on each dispatch). */
@@ -121,5 +125,49 @@ export class UpdateInvoiceDunning {
   constructor(
     public readonly invoiceId: string,
     public readonly body: UpdateInvoiceDunningRequest,
+  ) {}
+}
+
+/**
+ * #862: refund a paid invoice in full or in part (#715). A money action:
+ * the refund modal shows the before → after and needs a deliberate
+ * confirm. The body carries one idempotency key per modal open, so a
+ * retry or double-click never refunds twice.
+ */
+export class RefundInvoice {
+  static readonly type = '[BillingHealth] Refund invoice';
+  constructor(
+    public readonly invoiceId: string,
+    public readonly body: RefundInvoiceRequest,
+  ) {}
+}
+
+/** #862: void an invoice that should not be charged (draft, in review, failed). */
+export class VoidInvoice {
+  static readonly type = '[BillingHealth] Void invoice';
+  constructor(
+    public readonly invoiceId: string,
+    public readonly body: VoidInvoiceRequest,
+  ) {}
+}
+
+/**
+ * #862: correct the reported contract on an invoice that has not been
+ * charged yet (draft, in review). The server recalculates the amounts.
+ */
+export class CorrectInvoiceContract {
+  static readonly type = '[BillingHealth] Correct invoice contract';
+  constructor(
+    public readonly invoiceId: string,
+    public readonly body: CorrectContractRequest,
+  ) {}
+}
+
+/** #862: undo a manual mark-paid when the money never arrived. */
+export class ReverseInvoicePayment {
+  static readonly type = '[BillingHealth] Reverse invoice payment';
+  constructor(
+    public readonly invoiceId: string,
+    public readonly body: ReverseManualPaymentRequest,
   ) {}
 }

@@ -297,6 +297,56 @@ describe('BuilderInvoiceDrawerComponent (#533)', () => {
     expect(q(el, 'invoice-chargeback')?.textContent).toContain('Chargeback won');
   });
 
+  it('#862: shows the refund rows, the net paid and the partially refunded badge', async () => {
+    const refund = {
+      invoiceId: 'inv-1',
+      currency: 'CAD',
+      note: null,
+      method: 'stripe' as const,
+      stripeRefundId: null,
+      reference: null,
+      actorEmail: null,
+    };
+    const { el } = await setup({
+      invoice: invoice({
+        status: 'paid',
+        paidAt: iso(-2),
+        totalCents: 1_980_000,
+        refundedCents: 60_050,
+        refundState: 'partially_refunded',
+        refunds: [
+          { ...refund, id: 'rf-1', amountCents: 50_050, reason: 'billing_error', status: 'succeeded', createdAt: '2026-11-15T18:00:00.000Z' },
+          { ...refund, id: 'rf-2', amountCents: 10_000, reason: 'goodwill', status: 'pending', createdAt: '2026-11-16T18:00:00.000Z' },
+          { ...refund, id: 'rf-3', amountCents: 99_900, reason: 'other', status: 'failed', createdAt: '2026-11-16T19:00:00.000Z' },
+        ],
+      }),
+    });
+    expect(q(el, 'invoice-refund-state')?.textContent).toContain('Partially refunded');
+    expect(q(el, 'invoice-refunded')?.textContent).toContain('$600.50');
+    expect(q(el, 'invoice-net-paid')?.textContent).toContain('$19,199.50');
+    const rows = el.querySelectorAll('[data-testid="invoice-refund-row"]');
+    expect(rows).toHaveLength(2);
+    expect(rows[0].textContent).toContain('Nov 15, 2026');
+    expect(rows[0].textContent).toContain('$500.50');
+    expect(rows[0].textContent).toContain(T.refundReasons['billing_error']);
+    expect(rows[1].textContent).toContain(T.refundPending);
+    expect(el.textContent).not.toContain('$999');
+  });
+
+  it('#862: a fully refunded invoice shows the Refunded badge and $0 net paid', async () => {
+    const { el } = await setup({
+      invoice: invoice({ status: 'paid', paidAt: iso(-2), totalCents: 1_980_000, refundedCents: 1_980_000, refundState: 'refunded' }),
+    });
+    expect(q(el, 'invoice-refund-state')?.textContent).toContain('Refunded');
+    expect(q(el, 'invoice-net-paid')?.textContent).toContain('$0');
+  });
+
+  it('#862: no refund badge when nothing was refunded', async () => {
+    const { el } = await setup({ invoice: invoice({ status: 'paid', paidAt: iso(-2), refundedCents: 0, refundState: 'none' }) });
+    expect(q(el, 'invoice-refund-state')).toBeNull();
+    expect(q(el, 'invoice-net-paid')).toBeNull();
+  });
+
   it('#872: hides the refunds section when nothing was refunded or disputed with the bank', async () => {
     const { el } = await setup({ invoice: invoice({ refundedCents: 0, chargebackStatus: null }) });
     expect(q(el, 'invoice-recovery')).toBeNull();

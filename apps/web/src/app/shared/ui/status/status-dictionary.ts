@@ -15,6 +15,8 @@ import type {
   ChargebackStatus,
   CommissionInvoiceStatus,
   DisputeSource,
+  InvoiceRefundState,
+  InvoiceRefundStatus,
 } from '@feasly/contracts';
 
 /** Semantic tones; each maps to a `--status-<tone>-bg/-fg` token pair. */
@@ -58,6 +60,10 @@ export type StripeModeKey = 'test' | 'live' | 'not_configured';
 export type DisputeSourceKey = DisputeSource;
 /** Bank chargeback state on an invoice (#719/#872). */
 export type ChargebackStatusKey = ChargebackStatus;
+/** How much of a paid invoice went back (#715/#862) — derived, not a status. */
+export type RefundStateKey = InvoiceRefundState;
+/** One refund record's lifecycle (#715/#862). */
+export type RefundRecordKey = InvoiceRefundStatus;
 
 type Dictionary<K extends string> = Readonly<Record<K, StatusPresentation>>;
 
@@ -159,6 +165,18 @@ const CHARGEBACK: Dictionary<ChargebackStatusKey> = {
   warning_closed: { label: 'Chargeback warning closed', tone: 'neutral' },
 };
 
+const REFUND_STATE: Dictionary<RefundStateKey> = {
+  none: { label: 'Not refunded', tone: 'neutral' },
+  partially_refunded: { label: 'Partially refunded', tone: 'info' },
+  refunded: { label: 'Refunded', tone: 'neutral' },
+};
+
+const REFUND_RECORD: Dictionary<RefundRecordKey> = {
+  pending: { label: 'Pending', tone: 'warning' },
+  succeeded: { label: 'Refunded', tone: 'success' },
+  failed: { label: 'Failed', tone: 'danger' },
+};
+
 export const STATUS_DICTIONARY = {
   lead: LEAD,
   invoice: INVOICE,
@@ -174,6 +192,8 @@ export const STATUS_DICTIONARY = {
   stripeMode: STRIPE_MODE,
   disputeSource: DISPUTE_SOURCE,
   chargeback: CHARGEBACK,
+  refund: REFUND_STATE,
+  refundRecord: REFUND_RECORD,
 } as const;
 
 export type StatusDomain = keyof typeof STATUS_DICTIONARY;

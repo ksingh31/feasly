@@ -15,6 +15,8 @@ export type {
   LeadHeatKey,
   LeadStatusKey,
   MemberStatusKey,
+  RefundRecordKey,
+  RefundStateKey,
   StatusDomain,
   StatusPresentation,
   StatusTone,

@@ -65,9 +65,15 @@ export abstract class AdminInvoiceActionModal {
             this.ref.close(true);
           } else {
             this.error.set(feedback?.message ?? 'Something went wrong. Please try again.');
+            this.onFailed(feedback?.status ?? null);
           }
         },
       });
+  }
+
+  /** Hook for a failed attempt; `status` is the HTTP status when known. */
+  protected onFailed(_status: number | null): void {
+    // Default: nothing beyond the inline error.
   }
 
   protected cancel(): void {

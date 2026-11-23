@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import { invoiceRecoveryState } from './invoice-recovery';
+import type { InvoiceRefund } from '@feasly/contracts';
+import { invoiceRecoveryState, netPaidCents, visibleRefunds } from './invoice-recovery';
 
 describe('invoiceRecoveryState (#872)', () => {
   it('is null for a pre-#719 invoice (fields absent)', () => {
@@ -29,5 +30,22 @@ describe('invoiceRecoveryState (#872)', () => {
       refundedCents: 980000,
       chargebackStatus: 'lost',
     });
+  });
+});
+
+describe('netPaidCents / visibleRefunds (#862)', () => {
+  it('is the total minus the cumulative refund, never below 0', () => {
+    expect(netPaidCents({ totalCents: 10_000, refundedCents: 2_500 })).toBe(7_500);
+    expect(netPaidCents({ totalCents: 10_000 })).toBe(10_000);
+    expect(netPaidCents({ totalCents: 10_000, refundedCents: 12_000 })).toBe(0);
+  });
+
+  it('leaves out failed refund attempts', () => {
+    const row = (id: string, status: 'pending' | 'succeeded' | 'failed') => ({ id, status }) as unknown as InvoiceRefund;
+    expect(visibleRefunds({ refunds: [row('a', 'succeeded'), row('b', 'failed'), row('c', 'pending')] }).map((r) => r.id)).toEqual([
+      'a',
+      'c',
+    ]);
+    expect(visibleRefunds({})).toEqual([]);
   });
 });

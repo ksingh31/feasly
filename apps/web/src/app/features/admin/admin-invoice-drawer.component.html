@@ -24,17 +24,39 @@
         <button type="button" ui-button variant="secondary" size="sm" (click)="retry()">Try again</button>
       </div>
     } @else if (invoice(); as inv) {
-      @if (canAct()) {
+      @if (hasActions()) {
         <div class="invoice-drawer__actions" role="group" aria-label="Invoice actions">
-          <button type="button" ui-button variant="secondary" size="sm" data-testid="action-rate" (click)="changeRate()">
-            Change rate
-          </button>
-          <button type="button" ui-button variant="secondary" size="sm" data-testid="action-method" (click)="changeMethod()">
-            Change payment method
-          </button>
-          <button type="button" ui-button size="sm" data-testid="action-payment" (click)="recordPayment()">
-            Record payment
-          </button>
+          @if (canAct()) {
+            <button type="button" ui-button variant="secondary" size="sm" data-testid="action-rate" (click)="changeRate()">
+              Change rate
+            </button>
+            <button type="button" ui-button variant="secondary" size="sm" data-testid="action-method" (click)="changeMethod()">
+              Change payment method
+            </button>
+            <button type="button" ui-button size="sm" data-testid="action-payment" (click)="recordPayment()">
+              Record payment
+            </button>
+          }
+          @if (adjustments().correct) {
+            <button type="button" ui-button variant="secondary" size="sm" data-testid="action-correct" (click)="correctContract()">
+              Correct contract…
+            </button>
+          }
+          @if (adjustments().refund) {
+            <button type="button" ui-button variant="secondary" size="sm" data-testid="action-refund" (click)="refund()">
+              Refund…
+            </button>
+          }
+          @if (adjustments().reverse) {
+            <button type="button" ui-button variant="danger-secondary" size="sm" data-testid="action-reverse" (click)="reversePayment()">
+              Reverse payment…
+            </button>
+          }
+          @if (adjustments().void) {
+            <button type="button" ui-button variant="danger-secondary" size="sm" data-testid="action-void" (click)="voidInvoice()">
+              Void…
+            </button>
+          }
         </div>
       }
 
@@ -141,9 +163,22 @@
             @if (r.refundedCents !== null) {
               <div data-testid="invoice-refunded">
                 <dt>Refunded</dt>
-                <dd class="invoice-drawer__num">{{ r.refundedCents | kitMoney }}</dd>
+                <dd class="invoice-drawer__num">
+                  {{ r.refundedCents | kitMoney: 'exact' }}
+                  @if (refunds(); as rf) {
+                    @if (rf.state !== 'none') {
+                      <ui-status-chip domain="refund" [status]="rf.state" />
+                    }
+                  }
+                </dd>
               </div>
             }
+          }
+          @if (refunds(); as rf) {
+            <div data-testid="invoice-net-paid">
+              <dt>Net paid</dt>
+              <dd class="invoice-drawer__num">{{ rf.netCents | kitMoney: 'exact' }}</dd>
+            </div>
           }
           @if (inv.paidAt !== null) {
             <div>
@@ -165,6 +200,38 @@
           }
         </dl>
       </section>
+
+      @if (refunds(); as rf) {
+        @if (rf.rows.length > 0) {
+          <section class="invoice-drawer__section" aria-labelledby="invoice-drawer-refunds" data-testid="invoice-refunds">
+            <h3 class="invoice-drawer__heading" id="invoice-drawer-refunds">Refunds</h3>
+            <ul class="invoice-drawer__refunds">
+              @for (row of rf.rows; track row.id) {
+                <li class="invoice-drawer__refund" data-testid="invoice-refund-row">
+                  <div class="invoice-drawer__refund-head">
+                    <span class="invoice-drawer__num">{{ row.amountCents | kitMoney: 'exact' }}</span>
+                    @if (row.status !== 'succeeded') {
+                      <ui-status-chip domain="refundRecord" [status]="row.status" />
+                    }
+                  </div>
+                  <p class="invoice-drawer__refund-meta">
+                    {{ row.createdAt | kitDateTime }} · {{ refundMethodLabel(row.method) }} · {{ refundReasonLabel(row.reason) }}
+                    @if (row.reference) {
+                      · Ref {{ row.reference }}
+                    }
+                    @if (row.actorEmail) {
+                      · {{ row.actorEmail }}
+                    }
+                  </p>
+                  @if (row.note) {
+                    <p class="invoice-drawer__refund-note">{{ row.note }}</p>
+                  }
+                </li>
+              }
+            </ul>
+          </section>
+        }
+      }
 
       <section class="invoice-drawer__section" aria-labelledby="invoice-drawer-ids">
         <h3 class="invoice-drawer__heading" id="invoice-drawer-ids">Technical IDs</h3>

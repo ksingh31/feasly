@@ -69,3 +69,26 @@
   background: var(--status-danger-bg);
   color: var(--status-danger-fg);
 }
+
+// #862: multi-line note / reason fields in the adjustment modals.
+.invoice-modal__textarea {
+  width: 100%;
+  min-height: 88px;
+  padding: var(--space-2) var(--space-3);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--card);
+  color: var(--text);
+  font: var(--type-body-sm);
+  resize: vertical;
+  box-sizing: border-box;
+
+  &:focus-visible {
+    outline: none;
+    box-shadow: 0 0 0 3px var(--focus-ring);
+  }
+
+  &[aria-invalid='true'] {
+    border-color: var(--status-danger-fg);
+  }
+}

@@ -39,6 +39,15 @@ export class LoadAdminInvoiceDispute {
   constructor(public readonly invoiceId: string) {}
 }
 
+/**
+ * #862: load the invoice's billing audit entries (refunds, voids,
+ * contract corrections, payment reversals) for the drawer timeline.
+ */
+export class LoadAdminInvoiceActivity {
+  static readonly type = '[AdminInvoices] Load invoice activity';
+  constructor(public readonly invoiceId: string) {}
+}
+
 /** Clear the detail view (leaving the invoices page). */
 export class ClearAdminInvoiceDetail {
   static readonly type = '[AdminInvoices] Clear invoice detail';
