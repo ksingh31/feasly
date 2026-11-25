@@ -13,6 +13,14 @@ import { CommunityProfileState } from './community-profile.state';
 import { SetProfilePropertyContext } from './community-profile.actions';
 import type { RawCommunityProfileCopy } from '@feasly/contracts';
 import { toDisplayName } from './community-names';
+import { API_SERVICE } from '../../core/api/api.service';
+import {
+  mockCommunityLiving,
+  mockCommunitySchoolDesignations,
+  mockCommunitySchools,
+} from '../../core/api/mock-community-guide';
+import { SchoolComparisonState } from '../../core/schools';
+import { CommunityGuideState } from './community-guide.state';
 
 const mockProfileCopy: RawCommunityProfileCopy = {
   kicker: 'Community property profile',
@@ -217,8 +225,12 @@ describe('CommunityPageComponent', () => {
       imports: [CommunityPageComponent],
       providers: [
         provideRouter([]),
-        provideStore([CommunityProfileState]),
-        { provide: ConfigService, useValue: { get: (key: string) => (baseConfig as never)[key] } },
+        provideStore([CommunityProfileState, CommunityGuideState, SchoolComparisonState]),
+        {
+          provide: ConfigService,
+          useValue: { get: (key: string) => (baseConfig as never)[key], getServedCopy: () => null },
+        },
+        { provide: API_SERVICE, useValue: api },
         {
           provide: ActivatedRoute,
           useValue: { snapshot: { data: { pageData: resolved } }, data: routeData },
@@ -248,8 +260,88 @@ describe('CommunityPageComponent', () => {
     await fixture.whenStable();
   }
 
+  /** #781: guide-tab API calls (contract-shaped fixtures). */
+  const api = {
+    getCommunitySchoolDesignations: vi.fn((slug: string) => of(mockCommunitySchoolDesignations(slug))),
+    listCommunitySchools: vi.fn((code: string) => of(mockCommunitySchools(code))),
+    getCommunityLiving: vi.fn((slug: string) => of(mockCommunityLiving(slug))),
+  };
+
   beforeEach(() => {
     vi.clearAllMocks();
+  });
+
+  describe('#781 guide tabs', () => {
+    function tabButton(tab: string): HTMLButtonElement {
+      return fixture.nativeElement.querySelector(`[data-guide-tab="${tab}"]`);
+    }
+    function panel(tab: string): HTMLElement {
+      return fixture.nativeElement.querySelector(`#guide-panel-${tab}`);
+    }
+
+    it('renders Overview, Schools and Living nearby tabs with every panel in the DOM', async () => {
+      await setup('mahogany');
+      expect(tabButton('overview').getAttribute('aria-selected')).toBe('true');
+      expect(tabButton('schools').textContent).toContain('Schools');
+      expect(tabButton('living').textContent).toContain('Living nearby');
+      // All panels are rendered (prerender/SEO); inactive ones are hidden.
+      expect(panel('overview').hidden).toBe(false);
+      expect(panel('schools').hidden).toBe(true);
+      expect(panel('living').hidden).toBe(true);
+      expect(panel('schools').textContent).toContain('typically designated');
+      expect(panel('schools').textContent).toContain('confirm with the board');
+      // Nothing loads until a tab opens.
+      expect(api.getCommunitySchoolDesignations).not.toHaveBeenCalled();
+      expect(api.getCommunityLiving).not.toHaveBeenCalled();
+    });
+
+    it('opening Schools loads designations then the community schools, once', async () => {
+      await setup('mahogany');
+      tabButton('schools').click();
+      fixture.detectChanges();
+      expect(panel('schools').hidden).toBe(false);
+      expect(panel('overview').hidden).toBe(true);
+      expect(api.getCommunitySchoolDesignations).toHaveBeenCalledWith('mahogany');
+      expect(api.listCommunitySchools).toHaveBeenCalledWith('MOK');
+      expect(panel('schools').querySelectorAll('.school-card').length).toBe(4);
+      tabButton('overview').click();
+      tabButton('schools').click();
+      expect(api.getCommunitySchoolDesignations).toHaveBeenCalledTimes(1);
+    });
+
+    it('opening Living nearby renders the metric grid', async () => {
+      await setup('mahogany');
+      tabButton('living').click();
+      fixture.detectChanges();
+      expect(api.getCommunityLiving).toHaveBeenCalledWith('mahogany');
+      const metrics = panel('living').querySelectorAll('.metric');
+      expect(metrics.length).toBe(4);
+      expect(panel('living').textContent).toContain('Sample Park · 240 m');
+      expect(panel('living').textContent).toContain('9 within 1 km');
+      expect(panel('living').textContent).toContain('None within 3 km');
+    });
+
+    it('arrow keys move between tabs (WAI-ARIA tabs pattern)', async () => {
+      await setup('mahogany');
+      tabButton('overview').dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowRight' }));
+      fixture.detectChanges();
+      expect(tabButton('schools').getAttribute('aria-selected')).toBe('true');
+      tabButton('schools').dispatchEvent(new KeyboardEvent('keydown', { key: 'End' }));
+      fixture.detectChanges();
+      expect(tabButton('living').getAttribute('aria-selected')).toBe('true');
+      tabButton('living').dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowRight' }));
+      fixture.detectChanges();
+      expect(tabButton('overview').getAttribute('aria-selected')).toBe('true');
+    });
+
+    it('a new slug resets to the Overview tab (#783 component reuse)', async () => {
+      await setup('mahogany');
+      tabButton('schools').click();
+      fixture.detectChanges();
+      routeData.next({ pageData: resolvedFor('auburn-bay') });
+      fixture.detectChanges();
+      expect(tabButton('overview').getAttribute('aria-selected')).toBe('true');
+    });
   });
 
   it('renders the H1 with the community display name', async () => {

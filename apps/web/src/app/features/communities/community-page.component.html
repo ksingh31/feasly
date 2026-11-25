@@ -49,65 +49,114 @@
       </section>
     }
 
-    <section class="stat-block" aria-label="Community statistics">
-      <div class="stat">
-        <span class="stat-value">{{ formatCad(community.avgAssessedValue) }}</span>
-        <span class="stat-label">{{ copy.statLabel }}</span>
-      </div>
-      <div class="stat">
-        <span class="stat-value">{{ community.count.toLocaleString('en-CA') }}</span>
-        <span class="stat-label">{{ copy.statCountLabel }}</span>
-      </div>
-      <div class="stat">
-        <span class="stat-value">{{ community.avgLotSqft.toLocaleString('en-CA') }} sqft</span>
-        <span class="stat-label">Average lot size</span>
-      </div>
-      <p class="stat-note">{{ copy.statNote }}</p>
-      <p class="stat-note">
-        <a routerLink="/guides/calgary-zoning-explained">{{ copy.zoningGuideLink }}</a>
-      </p>
-    </section>
-
-    <section class="tiers" aria-label="Build cost ranges">
-      <h2>{{ fill(copy.tierSectionTitle) }}</h2>
-      <p class="sub">{{ copy.tierSectionSub }}</p>
-      @for (tier of community.tiers; track tier.key) {
-        <article class="tier-card">
-          <h3>{{ tier.label }}</h3>
-          <p class="total-hero">
-            <span class="total-hero-label">{{ copy.totalLabel }}</span>
-            <span class="total-hero-value"
-              >{{ formatCad(tier.totalLow) }} – {{ formatCad(tier.totalHigh) }}</span
-            >
-          </p>
-          <div class="split-bar" role="img" [attr.aria-label]="splitBarLabel(tier)">
-            <span class="split-segment split-land" [style.width.%]="landSharePct(tier)"></span>
-            <span class="split-segment split-build" [style.width.%]="buildSharePct(tier)"></span>
-          </div>
-          <p class="split-caption">
-            <span class="legend-swatch land" aria-hidden="true"></span>
-            <span>{{ copy.landSplitLabel }} ~{{ formatCad(tier.landValue) }}</span>
-            <span class="legend-sep" aria-hidden="true">·</span>
-            <span class="legend-swatch build" aria-hidden="true"></span>
-            <span
-              >{{ copy.buildSplitLabel }} {{ formatCad(tier.buildLow) }} –
-              {{ formatCad(tier.buildHigh) }}</span
-            >
-          </p>
-        </article>
+    <!-- #781: guide tabs. Every panel is in the prerendered HTML (inactive
+         panels carry [hidden]) so search engines see each section. -->
+    <div class="guide-tabs" role="tablist" [attr.aria-label]="guideCopy.tabsLabel">
+      @for (tab of guideTabs; track tab) {
+        <button
+          type="button"
+          role="tab"
+          class="guide-tab"
+          [id]="'guide-tab-' + tab"
+          [attr.data-guide-tab]="tab"
+          [attr.aria-controls]="'guide-panel-' + tab"
+          [attr.aria-selected]="activeTab() === tab"
+          [attr.tabindex]="activeTab() === tab ? 0 : -1"
+          (click)="selectTab(tab)"
+          (keydown)="onTabKeydown($event)"
+        >
+          {{ guideCopy.tabs[tab] }}
+        </button>
       }
-      <p class="basis-note">{{ copy.basisNote }}</p>
-    </section>
+    </div>
 
-    <section class="faq" aria-label="Frequently asked questions">
-      <h2>{{ copy.faqTitle }}</h2>
-      @for (item of faqs; track item.q) {
-        <details>
-          <summary>{{ item.q }}</summary>
-          <p>{{ item.a }}</p>
-        </details>
-      }
-    </section>
+    <div
+      class="guide-panel"
+      role="tabpanel"
+      id="guide-panel-overview"
+      aria-labelledby="guide-tab-overview"
+      [hidden]="activeTab() !== 'overview'"
+    >
+      <section class="stat-block" aria-label="Community statistics">
+        <div class="stat">
+          <span class="stat-value">{{ formatCad(community.avgAssessedValue) }}</span>
+          <span class="stat-label">{{ copy.statLabel }}</span>
+        </div>
+        <div class="stat">
+          <span class="stat-value">{{ community.count.toLocaleString('en-CA') }}</span>
+          <span class="stat-label">{{ copy.statCountLabel }}</span>
+        </div>
+        <div class="stat">
+          <span class="stat-value">{{ community.avgLotSqft.toLocaleString('en-CA') }} sqft</span>
+          <span class="stat-label">Average lot size</span>
+        </div>
+        <p class="stat-note">{{ copy.statNote }}</p>
+        <p class="stat-note">
+          <a routerLink="/guides/calgary-zoning-explained">{{ copy.zoningGuideLink }}</a>
+        </p>
+      </section>
+
+      <section class="tiers" aria-label="Build cost ranges">
+        <h2>{{ fill(copy.tierSectionTitle) }}</h2>
+        <p class="sub">{{ copy.tierSectionSub }}</p>
+        @for (tier of community.tiers; track tier.key) {
+          <article class="tier-card">
+            <h3>{{ tier.label }}</h3>
+            <p class="total-hero">
+              <span class="total-hero-label">{{ copy.totalLabel }}</span>
+              <span class="total-hero-value"
+                >{{ formatCad(tier.totalLow) }} – {{ formatCad(tier.totalHigh) }}</span
+              >
+            </p>
+            <div class="split-bar" role="img" [attr.aria-label]="splitBarLabel(tier)">
+              <span class="split-segment split-land" [style.width.%]="landSharePct(tier)"></span>
+              <span class="split-segment split-build" [style.width.%]="buildSharePct(tier)"></span>
+            </div>
+            <p class="split-caption">
+              <span class="legend-swatch land" aria-hidden="true"></span>
+              <span>{{ copy.landSplitLabel }} ~{{ formatCad(tier.landValue) }}</span>
+              <span class="legend-sep" aria-hidden="true">·</span>
+              <span class="legend-swatch build" aria-hidden="true"></span>
+              <span
+                >{{ copy.buildSplitLabel }} {{ formatCad(tier.buildLow) }} –
+                {{ formatCad(tier.buildHigh) }}</span
+              >
+            </p>
+          </article>
+        }
+        <p class="basis-note">{{ copy.basisNote }}</p>
+      </section>
+
+      <section class="faq" aria-label="Frequently asked questions">
+        <h2>{{ copy.faqTitle }}</h2>
+        @for (item of faqs; track item.q) {
+          <details>
+            <summary>{{ item.q }}</summary>
+            <p>{{ item.a }}</p>
+          </details>
+        }
+      </section>
+    </div>
+
+    <div
+      class="guide-panel"
+      role="tabpanel"
+      id="guide-panel-schools"
+      aria-labelledby="guide-tab-schools"
+      [hidden]="activeTab() !== 'schools'"
+    >
+      <app-community-schools-tab [displayName]="community.displayName" />
+    </div>
+
+    <div
+      class="guide-panel"
+      role="tabpanel"
+      id="guide-panel-living"
+      aria-labelledby="guide-tab-living"
+      [hidden]="activeTab() !== 'living'"
+    >
+      <app-community-living-tab [displayName]="community.displayName" />
+    </div>
 
     <section class="cta-card" aria-label="Get your estimate">
       <h2>{{ fill(copy.ctaTitle) }}</h2>

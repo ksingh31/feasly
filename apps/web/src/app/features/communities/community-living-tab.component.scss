@@ -1,0 +1,88 @@
+/* Community guide Living nearby tab (#781) — Feasly tokens only. */
+:host {
+  display: block;
+}
+
+h2 {
+  font-family: var(--font-headline);
+  font-size: clamp(22px, 3vw, 30px);
+  font-weight: 700;
+  margin: 0 0 8px;
+}
+
+h3 {
+  font-family: var(--font-ui);
+  font-size: 16px;
+  font-weight: 700;
+  margin: 0;
+}
+
+.sub,
+.muted {
+  color: var(--muted);
+  font-size: 15px;
+  line-height: 1.6;
+  margin: 0 0 16px;
+}
+
+.small {
+  font-size: 13px;
+  margin: 0;
+}
+
+.metric-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 220px), 1fr));
+  gap: 16px;
+  margin: 8px 0 24px;
+}
+
+.metric {
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  padding: 18px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.nearest {
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  font-weight: 600;
+  overflow-wrap: anywhere;
+}
+
+.nearest-label {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--muted);
+}
+
+.counts {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  font-size: 14px;
+  color: var(--muted);
+}
+
+.retry {
+  min-height: 44px;
+  padding: 0 16px;
+  border-radius: var(--radius-md);
+  border: 1px solid var(--canvas);
+  background: var(--cta-bg);
+  color: var(--cta-fg);
+  font: inherit;
+  font-weight: 600;
+  cursor: pointer;
+
+  &:focus-visible {
+    outline: 3px solid var(--focus-ring);
+    outline-offset: 2px;
+  }
+}
